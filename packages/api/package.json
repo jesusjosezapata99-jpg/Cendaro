@@ -1,0 +1,41 @@
+{
+  "name": "@cendaro/api",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "license": "MIT",
+  "scripts": {
+    "build": "tsc",
+    "clean": "git clean -xdf .cache .turbo dist node_modules",
+    "dev": "tsc",
+    "format": "prettier --check . --ignore-path ../../.gitignore",
+    "lint": "eslint --flag unstable_native_nodejs_ts_config",
+    "typecheck": "tsc --noEmit --emitDeclarationOnly false",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@cendaro/db": "workspace:*",
+    "@cendaro/validators": "workspace:*",
+    "@supabase/supabase-js": "^2.98.0",
+    "@trpc/server": "catalog:",
+    "drizzle-orm": "catalog:",
+    "superjson": "2.2.6",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@cendaro/eslint-config": "workspace:*",
+    "@cendaro/prettier-config": "workspace:*",
+    "@cendaro/tsconfig": "workspace:*",
+    "@types/node": "catalog:",
+    "eslint": "catalog:",
+    "prettier": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "^4.0.18"
+  },
+  "prettier": "@cendaro/prettier-config"
+}

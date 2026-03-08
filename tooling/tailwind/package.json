@@ -1,0 +1,14 @@
+{
+  "name": "@cendaro/tailwind-config",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./theme.css",
+    "./theme": "./theme.css",
+    "./postcss": "./postcss-config.js"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "catalog:",
+    "tailwindcss": "catalog:"
+  }
+}

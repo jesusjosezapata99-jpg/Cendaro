@@ -1,0 +1,46 @@
+{
+  "name": "@cendaro/auth",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./src/index.ts"
+    },
+    "./server": {
+      "types": "./dist/server.d.ts",
+      "default": "./src/server.ts"
+    },
+    "./client": {
+      "types": "./dist/client.d.ts",
+      "default": "./src/client.ts"
+    },
+    "./middleware": {
+      "types": "./dist/middleware.d.ts",
+      "default": "./src/middleware.ts"
+    }
+  },
+  "license": "MIT",
+  "scripts": {
+    "build": "tsc",
+    "clean": "git clean -xdf .cache .turbo dist node_modules",
+    "dev": "tsc",
+    "format": "prettier --check . --ignore-path ../../.gitignore",
+    "lint": "eslint --flag unstable_native_nodejs_ts_config",
+    "typecheck": "tsc --noEmit --emitDeclarationOnly false"
+  },
+  "dependencies": {
+    "@supabase/ssr": "^0.6.1",
+    "@supabase/supabase-js": "^2.98.0"
+  },
+  "devDependencies": {
+    "@cendaro/eslint-config": "workspace:*",
+    "@cendaro/prettier-config": "workspace:*",
+    "@cendaro/tsconfig": "workspace:*",
+    "@types/node": "catalog:",
+    "eslint": "catalog:",
+    "prettier": "catalog:",
+    "typescript": "catalog:"
+  },
+  "prettier": "@cendaro/prettier-config"
+}

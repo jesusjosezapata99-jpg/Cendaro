@@ -1,0 +1,41 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "@cendaro/tailwind-config/theme";
+
+@custom-variant dark (&:is(.dark, .dark *));
+
+@utility container {
+  margin-inline: auto;
+  padding-inline: 2rem;
+  @media (width >= 1400px) {
+    max-width: 1400px;
+  }
+}
+
+/* ── Custom Scrollbars ─────────────────────────── */
+/* Firefox */
+@layer base {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(0 0% 30%) transparent;
+  }
+}
+
+/* Webkit (Chrome, Edge, Safari) */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: hsl(0 0% 30%);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(0 0% 45%);
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
+}

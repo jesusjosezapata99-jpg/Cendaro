@@ -1,0 +1,181 @@
+"use client";
+
+import { useState } from "react";
+import Link from "next/link";
+import dynamic from "next/dynamic";
+import { useTRPC } from "~/trpc/client";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
+import { useDebounce } from "~/hooks/use-debounce";
+
+const CreateProductDialog = dynamic(
+  () => import("~/components/forms/create-product").then((m) => ({ default: m.CreateProductDialog })),
+  { ssr: false },
+);
+
+function Skeleton({ className = "" }: { className?: string }) {
+  return <div className={`animate-pulse rounded-lg bg-muted ${className}`} />;
+}
+
+const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
+  active: { label: "Activo", color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" },
+  draft: { label: "Borrador", color: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300" },
+  discontinued: { label: "Descontinuado", color: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300" },
+};
+
+export default function CatalogClient() {
+  const trpc = useTRPC();
+  const [search, setSearch] = useState("");
+  const debouncedSearch = useDebounce(search, 300);
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [page, setPage] = useState(0);
+  const [showCreate, setShowCreate] = useState(false);
+  const limit = 25;
+
+  const { data, isLoading } = useQuery({
+    ...trpc.catalog.listProducts.queryOptions({
+      limit,
+      offset: page * limit,
+      search: debouncedSearch || undefined,
+      status: statusFilter !== "all" ? (statusFilter as "active" | "draft" | "discontinued") : undefined,
+    }),
+    placeholderData: keepPreviousData,
+  });
+
+  const products = data?.items ?? [];
+  const total = data?.total ?? 0;
+  const totalPages = Math.ceil(total / limit);
+
+  return (
+    <div className="p-4 lg:p-8 space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-black tracking-tight text-foreground">Catálogo de Productos</h1>
+          <p className="text-sm text-muted-foreground">
+            Gestiona tu catálogo de {total.toLocaleString()} referencias
+          </p>
+        </div>
+        <button onClick={() => setShowCreate(true)} className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90">
+          <span className="material-symbols-outlined text-lg">add</span>
+          Nuevo Producto
+        </button>
+      </div>
+
+      <CreateProductDialog open={showCreate} onClose={() => setShowCreate(false)} />
+
+      {/* Stats */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        {[
+          { label: "Total Productos", value: total, icon: "inventory_2", accent: "border-blue-500/40" },
+          { label: "Mostrando", value: products.length, icon: "visibility", accent: "border-emerald-500/40" },
+          { label: "Página", value: `${page + 1} / ${Math.max(totalPages, 1)}`, icon: "auto_stories", accent: "border-amber-500/40" },
+        ].map((stat) => (
+          <div key={stat.label} className={`rounded-xl border-l-4 ${stat.accent} bg-card border border-border p-4`}>
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-lg text-muted-foreground">{stat.icon}</span>
+              <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{stat.label}</span>
+            </div>
+            <p className="mt-1 text-2xl font-black tracking-tight text-foreground">{isLoading ? "—" : stat.value}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Filters */}
+      <div className="flex flex-wrap gap-3">
+        <input
+          type="text"
+          placeholder="Buscar por nombre o SKU..."
+          value={search}
+          onChange={(e) => { setSearch(e.target.value); setPage(0); }}
+          className="flex-1 rounded-lg border border-border bg-card px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-ring/20"
+        />
+        <select
+          value={statusFilter}
+          onChange={(e) => { setStatusFilter(e.target.value); setPage(0); }}
+          className="rounded-lg border border-border bg-card px-3 py-2.5 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-ring/20"
+        >
+          <option value="all">Todos los estados</option>
+          <option value="active">Activos</option>
+          <option value="draft">Borradores</option>
+          <option value="discontinued">Descontinuados</option>
+        </select>
+      </div>
+
+      {/* Table */}
+      <div className="overflow-hidden rounded-xl border border-border bg-card">
+        <table className="w-full text-left text-sm">
+          <thead>
+            <tr className="border-b border-border text-xs uppercase text-muted-foreground">
+              <th className="px-4 py-3 font-medium">SKU</th>
+              <th className="px-4 py-3 font-medium">Producto</th>
+              <th className="px-4 py-3 font-medium">Estado</th>
+              <th className="px-4 py-3 font-medium">Creado</th>
+            </tr>
+          </thead>
+          <tbody>
+            {isLoading
+              ? Array.from({ length: 5 }).map((_, i) => (
+                  <tr key={i} className="border-b border-border">
+                    <td className="px-4 py-3"><Skeleton className="h-5 w-20" /></td>
+                    <td className="px-4 py-3"><Skeleton className="h-5 w-48" /></td>
+                    <td className="px-4 py-3"><Skeleton className="h-5 w-20" /></td>
+                    <td className="px-4 py-3"><Skeleton className="h-5 w-24" /></td>
+                  </tr>
+                ))
+              : products.map((product) => {
+                  const statusCfg = STATUS_CONFIG[product.status] ?? { label: product.status, color: "" };
+                  return (
+                    <tr key={product.id} className="border-b border-border transition-colors hover:bg-accent/50">
+                      <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{product.sku}</td>
+                      <td className="px-4 py-3">
+                        <Link href={`/catalog/${product.id}`} className="font-medium text-foreground hover:text-primary transition-colors">
+                          {product.name}
+                        </Link>
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${statusCfg.color}`}>
+                          {statusCfg.label}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-muted-foreground">
+                        {new Date(product.createdAt).toLocaleDateString("es-VE")}
+                      </td>
+                    </tr>
+                  );
+                })}
+            {!isLoading && products.length === 0 && (
+              <tr>
+                <td colSpan={4} className="px-4 py-12 text-center text-muted-foreground">
+                  <span className="material-symbols-outlined text-3xl mb-2 block">search_off</span>
+                  No se encontraron productos
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Pagination */}
+      <div className="flex items-center justify-between text-xs text-muted-foreground">
+        <p>Mostrando {products.length} de {total} productos</p>
+        <div className="flex gap-1">
+          <button
+            onClick={() => setPage((p) => Math.max(0, p - 1))}
+            disabled={page === 0}
+            className="rounded bg-secondary px-3 py-1 text-muted-foreground transition-colors hover:bg-accent disabled:opacity-50"
+          >
+            ← Anterior
+          </button>
+          <span className="rounded bg-primary px-3 py-1 text-primary-foreground">{page + 1}</span>
+          <button
+            onClick={() => setPage((p) => (p + 1 < totalPages ? p + 1 : p))}
+            disabled={page + 1 >= totalPages}
+            className="rounded bg-secondary px-3 py-1 text-muted-foreground transition-colors hover:bg-accent disabled:opacity-50"
+          >
+            Siguiente →
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
