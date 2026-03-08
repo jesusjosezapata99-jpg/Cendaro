@@ -67,7 +67,7 @@ importers:
 
   .:
     devDependencies:
-      '@omnicore/prettier-config':
+      '@cendaro/prettier-config':
         specifier: workspace:*
         version: link:tooling/prettier
       '@turbo/gen':
@@ -88,19 +88,19 @@ importers:
 
   apps/erp:
     dependencies:
-      '@omnicore/api':
+      '@cendaro/api':
         specifier: workspace:*
         version: link:../../packages/api
-      '@omnicore/auth':
+      '@cendaro/auth':
         specifier: workspace:*
         version: link:../../packages/auth
-      '@omnicore/db':
+      '@cendaro/db':
         specifier: workspace:*
         version: link:../../packages/db
-      '@omnicore/ui':
+      '@cendaro/ui':
         specifier: workspace:*
         version: link:../../packages/ui
-      '@omnicore/validators':
+      '@cendaro/validators':
         specifier: workspace:*
         version: link:../../packages/validators
       '@supabase/ssr':
@@ -146,16 +146,16 @@ importers:
         specifier: 'catalog:'
         version: 4.3.6
     devDependencies:
-      '@omnicore/eslint-config':
+      '@cendaro/eslint-config':
         specifier: workspace:*
         version: link:../../tooling/eslint
-      '@omnicore/prettier-config':
+      '@cendaro/prettier-config':
         specifier: workspace:*
         version: link:../../tooling/prettier
-      '@omnicore/tailwind-config':
+      '@cendaro/tailwind-config':
         specifier: workspace:*
         version: link:../../tooling/tailwind
-      '@omnicore/tsconfig':
+      '@cendaro/tsconfig':
         specifier: workspace:*
         version: link:../../tooling/typescript
       '@types/node':
@@ -185,10 +185,10 @@ importers:
 
   packages/api:
     dependencies:
-      '@omnicore/db':
+      '@cendaro/db':
         specifier: workspace:*
         version: link:../db
-      '@omnicore/validators':
+      '@cendaro/validators':
         specifier: workspace:*
         version: link:../validators
       '@supabase/supabase-js':
@@ -207,13 +207,13 @@ importers:
         specifier: 'catalog:'
         version: 4.3.6
     devDependencies:
-      '@omnicore/eslint-config':
+      '@cendaro/eslint-config':
         specifier: workspace:*
         version: link:../../tooling/eslint
-      '@omnicore/prettier-config':
+      '@cendaro/prettier-config':
         specifier: workspace:*
         version: link:../../tooling/prettier
-      '@omnicore/tsconfig':
+      '@cendaro/tsconfig':
         specifier: workspace:*
         version: link:../../tooling/typescript
       '@types/node':
@@ -241,13 +241,13 @@ importers:
         specifier: ^2.98.0
         version: 2.98.0
     devDependencies:
-      '@omnicore/eslint-config':
+      '@cendaro/eslint-config':
         specifier: workspace:*
         version: link:../../tooling/eslint
-      '@omnicore/prettier-config':
+      '@cendaro/prettier-config':
         specifier: workspace:*
         version: link:../../tooling/prettier
-      '@omnicore/tsconfig':
+      '@cendaro/tsconfig':
         specifier: workspace:*
         version: link:../../tooling/typescript
       '@types/node':
@@ -278,13 +278,13 @@ importers:
         specifier: 'catalog:'
         version: 4.3.6
     devDependencies:
-      '@omnicore/eslint-config':
+      '@cendaro/eslint-config':
         specifier: workspace:*
         version: link:../../tooling/eslint
-      '@omnicore/prettier-config':
+      '@cendaro/prettier-config':
         specifier: workspace:*
         version: link:../../tooling/prettier
-      '@omnicore/tsconfig':
+      '@cendaro/tsconfig':
         specifier: workspace:*
         version: link:../../tooling/typescript
       '@types/node':
@@ -324,13 +324,13 @@ importers:
         specifier: ^3.5.0
         version: 3.5.0
     devDependencies:
-      '@omnicore/eslint-config':
+      '@cendaro/eslint-config':
         specifier: workspace:*
         version: link:../../tooling/eslint
-      '@omnicore/prettier-config':
+      '@cendaro/prettier-config':
         specifier: workspace:*
         version: link:../../tooling/prettier
-      '@omnicore/tsconfig':
+      '@cendaro/tsconfig':
         specifier: workspace:*
         version: link:../../tooling/typescript
       '@types/react':
@@ -358,13 +358,13 @@ importers:
         specifier: 'catalog:'
         version: 4.3.6
     devDependencies:
-      '@omnicore/eslint-config':
+      '@cendaro/eslint-config':
         specifier: workspace:*
         version: link:../../tooling/eslint
-      '@omnicore/prettier-config':
+      '@cendaro/prettier-config':
         specifier: workspace:*
         version: link:../../tooling/prettier
-      '@omnicore/tsconfig':
+      '@cendaro/tsconfig':
         specifier: workspace:*
         version: link:../../tooling/typescript
       eslint:
