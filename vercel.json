@@ -3,6 +3,6 @@
   "buildCommand": "pnpm build",
   "installCommand": "pnpm install",
   "framework": "nextjs",
-  "outputDirectory": "apps/erp/.next",
+  "outputDirectory": ".next",
   "ignoreCommand": "npx turbo-ignore"
 }
