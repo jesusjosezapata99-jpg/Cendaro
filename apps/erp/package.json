@@ -38,6 +38,7 @@
     "@cendaro/prettier-config": "workspace:*",
     "@cendaro/tailwind-config": "workspace:*",
     "@cendaro/tsconfig": "workspace:*",
+    "@tailwindcss/postcss": "catalog:",
     "@types/node": "catalog:",
     "@types/react": "catalog:react19",
     "@types/react-dom": "catalog:react19",

@@ -161,6 +161,9 @@ importers:
       '@cendaro/tsconfig':
         specifier: workspace:*
         version: link:../../tooling/typescript
+      '@tailwindcss/postcss':
+        specifier: 'catalog:'
+        version: 4.2.1
       '@types/node':
         specifier: 'catalog:'
         version: 22.19.15
