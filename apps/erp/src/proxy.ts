@@ -4,7 +4,7 @@ import { createSupabaseMiddlewareClient } from "@cendaro/auth/middleware";
 
 const PUBLIC_ROUTES = ["/login", "/api/auth"];
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Allow public routes
@@ -32,7 +32,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // API/tRPC routes handle their own auth — skip middleware auth to avoid double verification
+  // API/tRPC routes handle their own auth — skip proxy auth to avoid double verification
   if (pathname.startsWith("/api/")) {
     return NextResponse.next();
   }
