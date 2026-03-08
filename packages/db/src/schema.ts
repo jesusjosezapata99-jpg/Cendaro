@@ -624,6 +624,11 @@ export const Container = pgTable(
       .timestamp({ mode: "date", withTimezone: true })
       .defaultNow()
       .notNull(),
+    // Packing list AI processing
+    packingListUrl: t.text(),
+    packingListStatus: t.varchar({ length: 32 }).notNull().default("none"),
+    packingListProcessedAt: t.timestamp({ mode: "date", withTimezone: true }),
+    packingListItemCount: t.integer().notNull().default(0),
   }),
   (table) => [
     unique("uq_container_number").on(table.containerNumber),
@@ -642,16 +647,54 @@ export const ContainerItem = pgTable(
       .references(() => Container.id, { onDelete: "cascade" }),
     productId: t
       .uuid()
-      .notNull()
       .references(() => Product.id),
     quantityExpected: t.integer().notNull(),
     quantityReceived: t.integer().default(0),
     unitCost: t.doublePrecision(),
     notes: t.text(),
+    // AI-parsed packing list fields
+    originalName: t.text(),
+    translatedName: t.text(),
+    weightKg: t.doublePrecision(),
+    skuHint: t.varchar({ length: 128 }),
+    categoryHint: t.varchar({ length: 256 }),
+    isMatched: t.boolean().notNull().default(false),
+    // AI confidence & matching
+    confidence: t.doublePrecision(),
+    suggestedProductId: t.uuid().references(() => Product.id),
+    aiCorrected: t.boolean().notNull().default(false),
+    // AI vision pipeline
+    imageUrl: t.text(),
+    imageDescription: t.text(),
   }),
   (table) => [
     index("idx_citem_container").on(table.containerId),
     index("idx_citem_product").on(table.productId),
+  ],
+);
+
+// AI Prompt Configuration
+export const AiPromptConfig = pgTable(
+  "ai_prompt_config",
+  (t) => ({
+    id: t.uuid().notNull().primaryKey().defaultRandom(),
+    configKey: t.varchar({ length: 64 }).notNull(),
+    systemPrompt: t.text().notNull(),
+    fewShotExamples: t.jsonb().notNull().default([]),
+    businessContext: t.text(),
+    categoryRules: t.text(),
+    active: t.boolean().notNull().default(true),
+    createdAt: t
+      .timestamp({ mode: "date", withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: t
+      .timestamp({ mode: "date", withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  }),
+  (table) => [
+    unique("uq_ai_prompt_config_key").on(table.configKey),
   ],
 );
 
