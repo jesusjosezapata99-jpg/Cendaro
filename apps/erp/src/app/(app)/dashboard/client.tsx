@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useTRPC } from "~/trpc/client";
-import { useQuery } from "@tanstack/react-query";
+import { useQueries } from "@tanstack/react-query";
 
 function Skeleton({ className = "" }: { className?: string }) {
   return <div className={`animate-pulse rounded-lg bg-muted ${className}`} />;
@@ -10,9 +10,16 @@ function Skeleton({ className = "" }: { className?: string }) {
 
 export default function DashboardClient() {
   const trpc = useTRPC();
-  const { data: summary, isLoading: summaryLoading } = useQuery(trpc.dashboard.salesSummary.queryOptions());
-  const { data: closures, isLoading: closuresLoading } = useQuery(trpc.dashboard.latestClosures.queryOptions({ limit: 5 }));
-  const { data: alertCount } = useQuery(trpc.dashboard.activeAlertCount.queryOptions());
+  const [summaryResult, closuresResult, alertResult] = useQueries({
+    queries: [
+      trpc.dashboard.salesSummary.queryOptions(),
+      trpc.dashboard.latestClosures.queryOptions({ limit: 5 }),
+      trpc.dashboard.activeAlertCount.queryOptions(),
+    ],
+  });
+  const { data: summary, isLoading: summaryLoading } = summaryResult;
+  const { data: closures, isLoading: closuresLoading } = closuresResult;
+  const { data: alertCount } = alertResult;
 
   const kpis = [
     { label: "Órdenes Totales", value: summary?.orders.total ?? 0, icon: "receipt_long", accent: "border-emerald-500/40", href: "/orders" },

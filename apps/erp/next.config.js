@@ -7,14 +7,28 @@ const config = {
   poweredByHeader: false,
   /** Enables hot reloading for local packages without a build step */
   transpilePackages: [
-    "@omnicore/api",
-    "@omnicore/auth",
-    "@omnicore/db",
-    "@omnicore/ui",
-    "@omnicore/validators",
+    "@cendaro/api",
+    "@cendaro/auth",
+    "@cendaro/db",
+    "@cendaro/ui",
+    "@cendaro/validators",
   ],
   /** Already handled by Turbo */
   typescript: { ignoreBuildErrors: true },
+  /** Tree-shake heavy packages for smaller bundles */
+  experimental: {
+    optimizePackageImports: [
+      "@tanstack/react-query",
+      "@trpc/client",
+      "@trpc/tanstack-react-query",
+      "clsx",
+    ],
+    /** Next.js 16 router cache — avoid full reloads on client navigations */
+    staleTimes: {
+      dynamic: 30,
+      static: 180,
+    },
+  },
   /** HTTP cache headers for API routes */
   async headers() {
     return [
