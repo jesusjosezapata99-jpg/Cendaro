@@ -18,16 +18,10 @@ const config = {
   /** Tree-shake heavy packages for smaller bundles */
   experimental: {
     optimizePackageImports: [
-      "@tanstack/react-query",
       "@trpc/client",
       "@trpc/tanstack-react-query",
       "clsx",
     ],
-    /** Next.js 16 router cache — avoid full reloads on client navigations */
-    staleTimes: {
-      dynamic: 30,
-      static: 180,
-    },
   },
   /** HTTP cache headers for API routes */
   async headers() {

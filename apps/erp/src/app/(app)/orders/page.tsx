@@ -1,22 +1,22 @@
-import { HydrationBoundary, dehydrate, QueryClient } from "@tanstack/react-query";
+import { HydrationBoundary, dehydrate } from "@tanstack/react-query";
+import { getQueryClient } from "~/trpc/query-client";
 import { api } from "~/trpc/server";
 import OrdersClient from "./client";
 
 /**
  * Orders — Server Component with SSR Prefetch
- *
- * Prefetches the initial orders listing (no status filter)
- * so the table renders immediately on hydration.
  */
 export default async function OrdersPage() {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { staleTime: 30_000 } },
-  });
+  const queryClient = getQueryClient();
 
-  await queryClient.prefetchQuery({
-    queryKey: [["sales", "listOrders"], { input: { limit: 50 }, type: "query" }],
-    queryFn: () => api.sales.listOrders({ limit: 50 }),
-  });
+  try {
+    await queryClient.prefetchQuery({
+      queryKey: [["sales", "listOrders"], { input: { limit: 50 }, type: "query" }],
+      queryFn: () => api.sales.listOrders({ limit: 50 }),
+    });
+  } catch {
+    // Prefetch failure is non-critical — client will fetch on hydration
+  }
 
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
