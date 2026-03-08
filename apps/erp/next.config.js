@@ -13,8 +13,6 @@ const config = {
     "@cendaro/ui",
     "@cendaro/validators",
   ],
-  /** Already handled by Turbo */
-  typescript: { ignoreBuildErrors: true },
   /** Tree-shake heavy packages for smaller bundles */
   experimental: {
     optimizePackageImports: [
