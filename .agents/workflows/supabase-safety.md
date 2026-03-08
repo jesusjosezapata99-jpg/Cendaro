@@ -10,7 +10,7 @@ This monorepo (**Cendaro** / project folder `TEST`) uses the following Supabase 
 
 | Property | Value |
 |----------|-------|
-| **Project Name** | TEST |
+| **Project Name** | Cendaro |
 | **Project ID** | `ljwoptpaxazqmnhdczsb` |
 | **Region** | eu-west-3 |
 | **API URL** | `https://ljwoptpaxazqmnhdczsb.supabase.co` |
@@ -39,6 +39,6 @@ Before any database modification:
 
 ```
 1. Confirm project_id = ljwoptpaxazqmnhdczsb
-2. Confirm project name = TEST
+2. Confirm project name = Cendaro
 3. Proceed with the operation
 ```
