@@ -1,0 +1,60 @@
+
+> @cendaro/erp@ with-env C:\Users\jzs99\Desktop\TEST\apps\erp
+> dotenv -e ../../.env -- "next" "build"
+
+Ôû▓ Next.js 16.1.6 (Turbopack)
+- Experiments (use with caution):
+  ┬À optimizePackageImports
+
+  Creating an optimized production build ...
+Ô£ô Compiled successfully in 4.8s
+  Running TypeScript ...
+  Collecting page data using 15 workers ...
+  Generating static pages using 15 workers (0/28) ...
+  Generating static pages using 15 workers (7/28) 
+  Generating static pages using 15 workers (14/28) 
+  Generating static pages using 15 workers (21/28) 
+Ô£ô Generating static pages using 15 workers (28/28) in 536.9ms
+  Finalizing page optimization ...
+
+Route (app)
+Ôöî Ôùï /
+Ôö£ Ôùï /_not-found
+Ôö£ Ôùï /accounts-receivable
+Ôö£ ãÆ /accounts-receivable/[id]
+Ôö£ Ôùï /alerts
+Ôö£ ãÆ /api/auth/login
+Ôö£ ãÆ /api/auth/logout
+Ôö£ ãÆ /api/trpc/[...trpc]
+Ôö£ Ôùï /audit
+Ôö£ Ôùï /cash-closure
+Ôö£ ãÆ /catalog
+Ôö£ ãÆ /catalog/[id]
+Ôö£ Ôùï /catalog/brands
+Ôö£ Ôùï /catalog/categories
+Ôö£ Ôùï /catalog/suppliers
+Ôö£ Ôùï /containers
+Ôö£ ãÆ /containers/[id]
+Ôö£ ãÆ /customers
+Ôö£ ãÆ /customers/[id]
+Ôö£ ãÆ /dashboard
+Ôö£ Ôùï /inventory
+Ôö£ Ôùï /login
+Ôö£ Ôùï /marketplace
+Ôö£ ãÆ /orders
+Ôö£ ãÆ /orders/[id]
+Ôö£ Ôùï /payments
+Ôö£ Ôùï /pos
+Ôö£ Ôùï /pricing
+Ôö£ Ôùï /rates
+Ôö£ Ôùï /settings
+Ôö£ Ôùï /users
+Ôö£ Ôùï /vendors
+Ôöö Ôùï /whatsapp
+
+
+ãÆ Proxy (Middleware)
+
+Ôùï  (Static)   prerendered as static content
+ãÆ  (Dynamic)  server-rendered on demand
+
