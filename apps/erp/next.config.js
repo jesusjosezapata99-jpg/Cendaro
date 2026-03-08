@@ -21,6 +21,8 @@ const config = {
       "clsx",
     ],
   },
+  /** Sharp uses native binaries — must not be bundled */
+  serverExternalPackages: ["sharp"],
   /** HTTP cache headers for API routes */
   async headers() {
     return [
