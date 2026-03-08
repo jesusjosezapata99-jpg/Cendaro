@@ -13,8 +13,6 @@ const config = {
     "@cendaro/ui",
     "@cendaro/validators",
   ],
-  /** Already handled by Turbo */
-  typescript: { ignoreBuildErrors: true },
   /** Tree-shake heavy packages for smaller bundles */
   experimental: {
     optimizePackageImports: [
@@ -23,6 +21,8 @@ const config = {
       "clsx",
     ],
   },
+  /** Sharp uses native binaries — must not be bundled */
+  serverExternalPackages: ["sharp"],
   /** HTTP cache headers for API routes */
   async headers() {
     return [
