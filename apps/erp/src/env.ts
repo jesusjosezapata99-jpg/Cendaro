@@ -5,7 +5,7 @@ export const env = createEnv({
   server: {
     DATABASE_URL: z.string().url(),
     SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
-    SENTRY_DSN: z.string().transform((s) => s || undefined).pipe(z.string().url().optional()),
+    SENTRY_DSN: z.preprocess((v) => (typeof v === "string" && v.trim() === "" ? undefined : v), z.string().url().optional()),
     GROQ_API_KEY: z.string().min(1).optional(),
     MERCADOLIBRE_APP_ID: z.string().optional(),
     MERCADOLIBRE_SECRET: z.string().optional(),
