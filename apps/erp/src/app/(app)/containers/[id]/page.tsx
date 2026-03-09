@@ -170,10 +170,10 @@ export default function ContainerDetailPage() {
           for (let i = 0; i < chunks.length; i++) {
             // ── TPM rate limit delay between chunks ──
             // Groq free tier: 6K TPM for qwen3-32b.
-            // Each chunk uses ~1.5-2K tokens (input + output).
-            // 10s delay ensures ~6 chunks/minute, safely under 6K TPM.
+            // Each chunk uses ~3K tokens (1600 input + 1400 output).
+            // 30s delay = max 2 chunks/minute, safely fitting the 6K TPM budget.
             if (i > 0) {
-              const delayMs = 10000;
+              const delayMs = 30000;
               const delaySec = delayMs / 1000;
               for (let sec = delaySec; sec > 0; sec--) {
                 setAiProgress(
