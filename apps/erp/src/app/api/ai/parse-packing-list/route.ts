@@ -1,11 +1,13 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { env } from "~/env";
-import { getDb } from "@cendaro/db/client";
-import { AiPromptConfig, Product, Brand, Category } from "@cendaro/db/schema";
-import { eq, desc } from "@cendaro/db";
 import JSZip from "jszip";
 import sharp from "sharp";
+
+import { desc, eq } from "@cendaro/db";
+import { getDb } from "@cendaro/db/client";
+import { AiPromptConfig, Brand, Category, Product } from "@cendaro/db/schema";
+
+import { env } from "~/env";
 
 // ── Types ──────────────────────────────────────────────
 interface ParsedItem {
@@ -174,13 +176,14 @@ async function buildCatalogContext(): Promise<{
     name: p.name,
     categoryId: p.categoryId,
     brandId: p.brandId,
-    categoryName: p.categoryId ? catMap.get(p.categoryId) ?? null : null,
-    brandName: p.brandId ? brandMap.get(p.brandId) ?? null : null,
+    categoryName: p.categoryId ? (catMap.get(p.categoryId) ?? null) : null,
+    brandName: p.brandId ? (brandMap.get(p.brandId) ?? null) : null,
   }));
 
   if (catalogProducts.length === 0) {
     return {
-      context: "CATÁLOGO: vacío (nuevos productos serán creados automáticamente).",
+      context:
+        "CATÁLOGO: vacío (nuevos productos serán creados automáticamente).",
       products: [],
     };
   }
@@ -319,9 +322,19 @@ async function parsePDF(buffer: ArrayBuffer): Promise<string[][]> {
 // CSV parsing removed — only Excel and PDF are supported
 
 // ── Image Extraction ───────────────────────────────────
-const IMAGE_EXTENSIONS = new Set(["png", "jpg", "jpeg", "gif", "bmp", "webp", "tiff"]);
+const IMAGE_EXTENSIONS = new Set([
+  "png",
+  "jpg",
+  "jpeg",
+  "gif",
+  "bmp",
+  "webp",
+  "tiff",
+]);
 
-async function extractImagesFromXlsx(buffer: ArrayBuffer): Promise<ExtractedImage[]> {
+async function extractImagesFromXlsx(
+  buffer: ArrayBuffer,
+): Promise<ExtractedImage[]> {
   const zip = await JSZip.loadAsync(buffer);
   const images: ExtractedImage[] = [];
   let idx = 0;
@@ -335,7 +348,8 @@ async function extractImagesFromXlsx(buffer: ArrayBuffer): Promise<ExtractedImag
 
     const data = await file.async("nodebuffer");
     const compressed = await compressImage(data);
-    const mimeType = ext === "png" ? "image/png" : ext === "gif" ? "image/gif" : "image/jpeg";
+    const mimeType =
+      ext === "png" ? "image/png" : ext === "gif" ? "image/gif" : "image/jpeg";
 
     images.push({
       buffer: compressed,
@@ -422,12 +436,20 @@ async function analyzeImagesWithVision(
   for (let i = 0; i < images.length; i += MAX_IMAGES_PER_VISION_REQUEST) {
     const batch = images.slice(i, i + MAX_IMAGES_PER_VISION_REQUEST);
 
-    const imageContent = batch.map((img) => ({
-      type: "image_url" as const,
-      image_url: {
-        url: `data:${img.mimeType};base64,${img.buffer.toString("base64")}`,
-      },
-    }));
+    // Support both URL references (Tier 3) and base64 (legacy FormData path)
+    const imageContent = batch.map((img) => {
+      const urlImage = img as ExtractedImage & { _url?: string };
+      return {
+        type: "image_url" as const,
+        image_url: {
+          // Tier 3: Use URL directly (Groq fetches up to 20MB server-to-server)
+          // Legacy: Use base64 data URI (for FormData/PDF path, ≤4MB)
+          url:
+            urlImage._url ??
+            `data:${img.mimeType};base64,${img.buffer.toString("base64")}`,
+        },
+      };
+    });
 
     const response = await fetch(GROQ_API_URL, {
       method: "POST",
@@ -500,11 +522,13 @@ function mergeTextAndVision(
     const descParts: string[] = [];
     if (vision.product_name_es) descParts.push(vision.product_name_es);
     if (vision.material) descParts.push(`Material: ${vision.material}`);
-    if (vision.colors.length > 0) descParts.push(`Colores: ${vision.colors.join(", ")}`);
+    if (vision.colors.length > 0)
+      descParts.push(`Colores: ${vision.colors.join(", ")}`);
     if (vision.visible_text) descParts.push(`OCR: ${vision.visible_text}`);
     if (vision.brand_visible) descParts.push(`Marca: ${vision.brand_visible}`);
 
-    enriched.image_description = descParts.length > 0 ? descParts.join(" | ") : null;
+    enriched.image_description =
+      descParts.length > 0 ? descParts.join(" | ") : null;
 
     return enriched;
   });
@@ -554,7 +578,10 @@ Devuelve SOLO {"items": [...]} sin explicaciones ni markdown.`,
     });
 
     if (response.status === 429) {
-      const retryAfter = parseInt(response.headers.get("retry-after") ?? "2", 10);
+      const retryAfter = parseInt(
+        response.headers.get("retry-after") ?? "2",
+        10,
+      );
       const delay = retryAfter * 1000 * (attempt + 1); // exponential
       await sleep(delay);
       continue;
@@ -661,8 +688,19 @@ export const dynamic = "force-dynamic";
 // Types for client-parsed input (JSON body from browser pipeline)
 interface ClientParsedInput {
   rows: string[][];
-  images?: { base64: string; mimeType: string; index: number; fileName: string }[];
+  images?: {
+    base64: string;
+    mimeType: string;
+    index: number;
+    fileName: string;
+  }[];
+  /** Supabase Storage public URLs for Groq Vision via URL reference (Tier 3) */
+  imageUrls?: string[];
   containerId: string;
+  /** Chunk index for chunked uploads (0-based) */
+  chunkIndex?: number;
+  /** Total number of chunks in this upload session */
+  totalChunks?: number;
 }
 
 export async function POST(request: NextRequest) {
@@ -683,11 +721,15 @@ export async function POST(request: NextRequest) {
     let containerId: string;
 
     if (contentType.includes("application/json")) {
-      // ═══ JSON PATH: Client-parsed Excel data ═══
-      // Browser already parsed the file — we receive lightweight JSON
+      // ═══ JSON PATH: Client-parsed Excel data (chunked) ═══
+      // Browser already parsed the file — we receive lightweight JSON chunks (≤2MB each)
       const body = (await request.json()) as ClientParsedInput;
 
-      if (!body.containerId || !Array.isArray(body.rows) || body.rows.length === 0) {
+      if (
+        !body.containerId ||
+        !Array.isArray(body.rows) ||
+        body.rows.length === 0
+      ) {
         return NextResponse.json(
           { error: "rows (array) y containerId son requeridos" },
           { status: 400 },
@@ -697,18 +739,25 @@ export async function POST(request: NextRequest) {
       containerId = body.containerId;
       rows = body.rows;
 
-      // Convert client-supplied base64 images to ExtractedImage format
-      if (Array.isArray(body.images) && body.images.length > 0) {
-        extractedImages = body.images
-          .filter((img) => img.base64 && img.mimeType)
+      // ── Chunked mode: images are NOT embedded in JSON payload ──
+      // Images are either:
+      //   a) Skipped entirely (text-only mode)
+      //   b) Uploaded to Supabase Storage and referenced via imageUrls (Tier 3)
+      // Legacy base64 images are ignored in chunked mode to stay under 4.5MB
+      if (Array.isArray(body.imageUrls) && body.imageUrls.length > 0) {
+        // Tier 3: Groq Vision via URL reference — images stay in Supabase Storage
+        // Each URL can be up to 20MB — Groq fetches directly, zero data through Vercel
+        extractedImages = body.imageUrls
           .slice(0, MAX_TOTAL_IMAGES)
-          .map((img) => ({
-            buffer: Buffer.from(img.base64, "base64"),
-            index: img.index,
-            fileName: img.fileName,
-            mimeType: img.mimeType,
-          }));
+          .map((url, idx) => ({
+            buffer: Buffer.alloc(0), // No binary data — URL-only mode
+            index: idx,
+            fileName: `image_${idx}`,
+            mimeType: "image/jpeg",
+            _url: url, // Store URL for vision pipeline
+          })) as (ExtractedImage & { _url?: string })[];
       }
+      // Note: body.images (legacy base64) is intentionally ignored in chunked mode
     } else {
       // ═══ FORMDATA PATH: Raw file upload (PDF ≤ 4MB) ═══
       const formData = await request.formData();
@@ -735,8 +784,11 @@ export async function POST(request: NextRequest) {
       }
 
       const fileName = file.name.toLowerCase();
-      const hasValidExtension = ALLOWED_EXTENSIONS.some((ext) => fileName.endsWith(ext));
-      const hasValidMime = ALLOWED_MIME_TYPES.has(file.type) || file.type === "";
+      const hasValidExtension = ALLOWED_EXTENSIONS.some((ext) =>
+        fileName.endsWith(ext),
+      );
+      const hasValidMime =
+        ALLOWED_MIME_TYPES.has(file.type) || file.type === "";
 
       if (!hasValidExtension || !hasValidMime) {
         return NextResponse.json(
@@ -815,7 +867,9 @@ Responde ÚNICAMENTE con JSON válido:
     // Vision is best-effort — if it fails, text still works
     const [textResult, visionResults] = await Promise.all([
       processChunks(chunks, apiKey, systemPrompt),
-      analyzeImagesWithVision(extractedImages, apiKey).catch(() => [] as VisionResult[]),
+      analyzeImagesWithVision(extractedImages, apiKey).catch(
+        () => [] as VisionResult[],
+      ),
     ]);
 
     const { items, failedChunks } = textResult;
@@ -828,11 +882,21 @@ Responde ÚNICAMENTE con JSON válido:
 
     // ── 9. Stats ──
     const stats = {
-      matched: matchedItems.filter((i) => i.match_type === "exact_sku" || (i.match_type === "name_similarity" && i.match_confidence >= 80)).length,
-      review: matchedItems.filter((i) => i.match_type === "name_similarity" && i.match_confidence < 80).length,
-      newItems: matchedItems.filter((i) => i.match_type === "no_match" || i.match_type === "ai_only").length,
+      matched: matchedItems.filter(
+        (i) =>
+          i.match_type === "exact_sku" ||
+          (i.match_type === "name_similarity" && i.match_confidence >= 80),
+      ).length,
+      review: matchedItems.filter(
+        (i) => i.match_type === "name_similarity" && i.match_confidence < 80,
+      ).length,
+      newItems: matchedItems.filter(
+        (i) => i.match_type === "no_match" || i.match_type === "ai_only",
+      ).length,
       highConfidence: matchedItems.filter((i) => i.confidence >= 90).length,
-      mediumConfidence: matchedItems.filter((i) => i.confidence >= 60 && i.confidence < 90).length,
+      mediumConfidence: matchedItems.filter(
+        (i) => i.confidence >= 60 && i.confidence < 90,
+      ).length,
       lowConfidence: matchedItems.filter((i) => i.confidence < 60).length,
       imagesExtracted: extractedImages.length,
       imagesAnalyzed: visionResults.length,
@@ -857,4 +921,3 @@ Responde ÚNICAMENTE con JSON válido:
     );
   }
 }
-

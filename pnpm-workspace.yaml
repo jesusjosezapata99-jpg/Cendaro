@@ -3,10 +3,6 @@ packages:
   - packages/*
   - tooling/*
 
-# ─────────────────────────────────────────────────────────
-# DEPENDENCY CATALOG — Stabilized 2026-03-07
-# Strategy: latest STABLE release, not bleeding-edge
-# ─────────────────────────────────────────────────────────
 catalog:
   "@eslint/js": ^9.27.0
   "@tailwindcss/postcss": ^4.2.1
@@ -16,9 +12,9 @@ catalog:
   "@trpc/server": ^11.12.0
   "@trpc/tanstack-react-query": ^11.12.0
   "@types/node": ^22.15.0
-  drizzle-orm: ^0.45.1
   drizzle-kit: ^0.31.9
-  eslint: ^9.27.0
+  drizzle-orm: ^0.45.1
+  eslint: ^9.39.4
   prettier: ^3.8.1
   tailwindcss: ^4.2.1
   typescript: ^5.9.3
