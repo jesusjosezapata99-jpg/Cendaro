@@ -99,20 +99,62 @@ export default function ContainerDetailPage() {
   const handleFile = useCallback(async (file: File) => {
     setAiStatus("uploading");
     setAiError("");
-    setAiProgress("Subiendo archivo...");
+    setAiProgress("Validando archivo...");
 
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("containerId", id);
+      // ── Client-side validation ──
+      if (file.size > 150 * 1024 * 1024) {
+        throw new Error("Archivo demasiado grande (máximo 150MB)");
+      }
+
+      const isExcel = /\.(xlsx|xls)$/i.test(file.name);
+      const isPdf = /\.pdf$/i.test(file.name);
+
+      if (!isExcel && !isPdf) {
+        throw new Error("Formato no soportado. Use Excel (.xlsx/.xls) o PDF");
+      }
 
       setAiStatus("processing");
-      setAiProgress(`Procesando ${file.name} con IA...`);
 
-      const response = await fetch("/api/ai/parse-packing-list", {
-        method: "POST",
-        body: formData,
-      });
+      let response: Response;
+
+      if (isExcel) {
+        // ═══ EXCEL PATH: Parse in browser, send JSON ═══
+        setAiProgress("Leyendo archivo Excel en el navegador...");
+        const { parseExcelFile } = await import("~/lib/parse-file-browser");
+        const { rows, images } = await parseExcelFile(file);
+
+        if (rows.length === 0) {
+          throw new Error("El archivo Excel está vacío o no contiene datos válidos");
+        }
+
+        setAiProgress(
+          `Enviando ${rows.length} filas${images.length > 0 ? ` + ${images.length} imágenes` : ""} a IA...`,
+        );
+
+        response = await fetch("/api/ai/parse-packing-list", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ rows, images, containerId: id }),
+        });
+      } else {
+        // ═══ PDF PATH: Upload via FormData (≤ 4MB) ═══
+        if (file.size > 4 * 1024 * 1024) {
+          throw new Error(
+            `PDF demasiado grande (${(file.size / 1024 / 1024).toFixed(1)}MB). Máximo para PDF: 4MB. Para archivos más grandes, convierte a Excel (.xlsx).`,
+          );
+        }
+
+        setAiProgress(`Subiendo ${file.name}...`);
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("containerId", id);
+
+        response = await fetch("/api/ai/parse-packing-list", {
+          method: "POST",
+          body: formData,
+        });
+      }
 
       if (!response.ok) {
         let errorMessage: string;
