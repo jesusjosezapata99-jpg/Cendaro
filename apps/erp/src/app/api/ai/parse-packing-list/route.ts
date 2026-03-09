@@ -2,9 +2,10 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { env } from "~/env";
 import { getDb } from "@cendaro/db/client";
-import { Product, Brand, Category } from "@cendaro/db/schema";
-import { desc, sql } from "@cendaro/db";
+import { AiPromptConfig, Product, Brand, Category } from "@cendaro/db/schema";
+import { eq, desc } from "@cendaro/db";
 import JSZip from "jszip";
+import sharp from "sharp";
 
 // ── Types ──────────────────────────────────────────────
 interface ParsedItem {
@@ -18,31 +19,10 @@ interface ParsedItem {
   confidence: number;
 }
 
-interface GroqMessage {
-  role: "system" | "user" | "assistant";
-  content: string;
-}
-
-interface GroqChoice {
-  message: { content: string };
-}
-
-interface GroqResponse {
-  choices: GroqChoice[];
-}
-
-interface FewShotExample {
-  original: string;
-  wrong?: string;
-  correct: string;
-  category?: string;
-}
-
 interface MatchedItem extends ParsedItem {
   suggested_product_id: string | null;
-  suggested_product_name: string | null;
-  match_confidence: number;
   match_type: "exact_sku" | "name_similarity" | "ai_only" | "no_match";
+  match_confidence: number;
   image_url: string | null;
   image_description: string | null;
 }
@@ -57,14 +37,23 @@ interface ExtractedImage {
 interface VisionResult {
   index: number;
   product_name_es: string;
-  visible_text: string | null;
-  category: string | null;
+  visible_text: string;
+  category: string;
   brand_visible: string | null;
-  material: string | null;
+  material: string;
   colors: string[];
-  size_estimate: string | null;
-  packaging: string | null;
+  size_estimate: string;
+  packaging: string;
   confidence: number;
+}
+
+interface GroqMessage {
+  role: "system" | "user" | "assistant";
+  content: string;
+}
+
+interface GroqResponse {
+  choices: { message: { content: string } }[];
 }
 
 interface GroqVisionResponse {
@@ -75,6 +64,8 @@ interface CatalogProduct {
   id: string;
   sku: string;
   name: string;
+  categoryId: string | null;
+  brandId: string | null;
   categoryName: string | null;
   brandName: string | null;
 }
@@ -88,7 +79,7 @@ const MAX_CONCURRENT = 1; // Serialize to respect 60 RPM
 const INTER_CHUNK_DELAY_MS = 1500; // Delay between chunks to avoid rate limits
 const MAX_RETRIES = 3;
 const MAX_IMAGES_PER_VISION_REQUEST = 5;
-const MAX_IMAGE_BYTES = 1 * 1024 * 1024; // 1MB per image
+const MAX_IMAGE_BYTES = 4 * 1024 * 1024; // 4MB for Groq base64 limit
 const MAX_TOTAL_IMAGES = 20;
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB max upload
 const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
@@ -136,34 +127,14 @@ function similarity(a: string, b: string): number {
 }
 
 // ── Context Engine ─────────────────────────────────────
-async function loadPromptConfig(): Promise<{
-  systemPrompt: string;
-  active: boolean;
-  fewShotExamples: unknown;
-} | null> {
+async function loadPromptConfig() {
   const db = getDb();
-  // Try to load from ai_prompt_config table if it exists
-  try {
-    const result = await db.execute(
-      sql`SELECT system_prompt, active, few_shot_examples FROM ai_prompt_config WHERE active = true LIMIT 1`,
-    );
-    const rows = result as unknown as Record<string, unknown>[];
-    const row = rows[0] as {
-      system_prompt?: string;
-      active?: boolean;
-      few_shot_examples?: unknown;
-    } | undefined;
-    if (row?.system_prompt) {
-      return {
-        systemPrompt: row.system_prompt,
-        active: true,
-        fewShotExamples: row.few_shot_examples ?? [],
-      };
-    }
-  } catch {
-    // Table doesn't exist yet — use fallback prompt
-  }
-  return null;
+  const configs = await db
+    .select()
+    .from(AiPromptConfig)
+    .where(eq(AiPromptConfig.active, true))
+    .limit(1);
+  return configs[0] ?? null;
 }
 
 async function buildCatalogContext(): Promise<{
@@ -171,97 +142,97 @@ async function buildCatalogContext(): Promise<{
   products: CatalogProduct[];
 }> {
   const db = getDb();
-
-  // Fetch categories
-  const categories = await db
-    .select({ name: Category.name, slug: Category.slug })
-    .from(Category)
-    .limit(100);
-
-  // Fetch brands
-  const brands = await db
-    .select({ name: Brand.name })
-    .from(Brand)
-    .limit(50);
-
-  // Fetch recent products with category/brand names
   const products = await db
     .select({
       id: Product.id,
       sku: Product.sku,
       name: Product.name,
-      categoryName: sql<string | null>`(SELECT c.name FROM category c WHERE c.id = ${Product.categoryId})`,
-      brandName: sql<string | null>`(SELECT b.name FROM brand b WHERE b.id = ${Product.brandId})`,
+      categoryId: Product.categoryId,
+      brandId: Product.brandId,
     })
     .from(Product)
     .orderBy(desc(Product.createdAt))
-    .limit(50);
+    .limit(100);
 
-  const parts: string[] = [];
+  const categories = await db
+    .select({ id: Category.id, name: Category.name })
+    .from(Category)
+    .limit(200);
+  const brands = await db
+    .select({ id: Brand.id, name: Brand.name })
+    .from(Brand)
+    .limit(100);
 
-  if (categories.length > 0) {
-    parts.push(
-      `CATEGORÍAS EXISTENTES EN EL CATÁLOGO (usa estas cuando haya match):\n${categories.map((c) => c.name).join(", ")}`,
-    );
+  const catMap = new Map<string, string>();
+  for (const c of categories) catMap.set(c.id, c.name);
+  const brandMap = new Map<string, string>();
+  for (const b of brands) brandMap.set(b.id, b.name);
+
+  const catalogProducts: CatalogProduct[] = products.map((p) => ({
+    id: p.id,
+    sku: p.sku,
+    name: p.name,
+    categoryId: p.categoryId,
+    brandId: p.brandId,
+    categoryName: p.categoryId ? catMap.get(p.categoryId) ?? null : null,
+    brandName: p.brandId ? brandMap.get(p.brandId) ?? null : null,
+  }));
+
+  if (catalogProducts.length === 0) {
+    return {
+      context: "CATÁLOGO: vacío (nuevos productos serán creados automáticamente).",
+      products: [],
+    };
   }
 
-  if (brands.length > 0) {
-    parts.push(
-      `MARCAS REGISTRADAS:\n${brands.map((b) => b.name).join(", ")}`,
-    );
-  }
+  const productLines = catalogProducts
+    .map(
+      (p) =>
+        `- SKU: ${p.sku} | ${p.name}${p.categoryName ? ` [${p.categoryName}]` : ""}${p.brandName ? ` (${p.brandName})` : ""}`,
+    )
+    .join("\n");
 
-  if (products.length > 0) {
-    parts.push(
-      `PRODUCTOS RECIENTES (referencia para matching):\n${products.map((p) => `${p.sku} "${p.name}"${p.categoryName ? ` [${p.categoryName}]` : ""}`).join("\n")}`,
-    );
-  }
+  const categoryList = categories.map((c) => c.name).join(", ");
 
   return {
-    context:
-      parts.length > 0
-        ? parts.join("\n\n")
-        : "CATÁLOGO VACÍO: No hay productos registrados aún. Sugiere categorías libremente.",
-    products: products as CatalogProduct[],
+    context: `CATÁLOGO EXISTENTE (${catalogProducts.length} productos):\n${productLines}\n\nCATEGORÍAS ACTIVAS: ${categoryList}`,
+    products: catalogProducts,
   };
 }
 
 function buildFewShotExamples(examples: unknown): string {
-  if (!Array.isArray(examples) || examples.length === 0) {
-    return "";
-  }
+  if (!Array.isArray(examples) || examples.length === 0) return "";
 
-  const typedExamples = examples as FewShotExample[];
-  const lines = typedExamples.slice(0, 15).map((ex) => {
-    let line = `Original: "${ex.original}" → Correcto: "${ex.correct}"`;
-    if (ex.wrong) line += ` (NO "${ex.wrong}")`;
-    if (ex.category) line += ` [categoría: ${ex.category}]`;
-    return line;
-  });
+  const lines = (examples as Record<string, string>[])
+    .map((ex) => {
+      let line = `Original: "${ex.original}" → Correcto: "${ex.correct}"`;
+      if (ex.wrong) line += ` (no: "${ex.wrong}")`;
+      if (ex.category) line += ` [${ex.category}]`;
+      return line;
+    })
+    .join("\n");
 
-  return `EJEMPLOS DE CORRECCIONES PREVIAS (aprende de estos patrones):\n${lines.join("\n")}`;
+  return `\nEJEMPLOS DE CORRECCIÓN (aprende de estos):\n${lines}`;
 }
 
 function assembleSystemPrompt(
-  template: string,
+  base: string,
   catalogContext: string,
   fewShotText: string,
 ): string {
-  let prompt = template;
-  prompt = prompt.replace("{CATALOG_CONTEXT}", catalogContext || "");
-  prompt = prompt.replace(
-    "{FEW_SHOT_EXAMPLES}",
-    fewShotText || "",
-  );
-  return prompt;
+  return `${base}\n\n${catalogContext}${fewShotText}`;
 }
 
-// ── Post-processing: Fuzzy Match ───────────────────────
+// ── Post-Processing ────────────────────────────────────
 function postProcessMatching(
   items: ParsedItem[],
   catalogProducts: CatalogProduct[],
 ): MatchedItem[] {
   return items.map((item) => {
+    let bestMatch: CatalogProduct | null = null;
+    let bestSim = 0;
+    let matchType: MatchedItem["match_type"] = "ai_only";
+
     // 1. Try exact SKU match
     if (item.sku_hint) {
       const skuMatch = catalogProducts.find(
@@ -271,77 +242,74 @@ function postProcessMatching(
         return {
           ...item,
           suggested_product_id: skuMatch.id,
-          suggested_product_name: skuMatch.name,
-          match_confidence: 100,
           match_type: "exact_sku" as const,
-          confidence: Math.max(item.confidence, 95),
+          match_confidence: 100,
           image_url: null,
           image_description: null,
         };
       }
     }
 
-    // 2. Try name similarity
-    let bestMatch: CatalogProduct | null = null;
-    let bestScore = 0;
-
+    // 2. Fuzzy name match
     for (const product of catalogProducts) {
-      const score = similarity(item.name_es, product.name);
-      if (score > bestScore) {
-        bestScore = score;
+      const sim = similarity(item.name_es, product.name);
+      if (sim > bestSim) {
+        bestSim = sim;
         bestMatch = product;
       }
     }
 
-    if (bestMatch && bestScore >= 0.6) {
-      return {
-        ...item,
-        suggested_product_id: bestMatch.id,
-        suggested_product_name: bestMatch.name,
-        match_confidence: Math.round(bestScore * 100),
-        match_type: "name_similarity" as const,
-        image_url: null,
-        image_description: null,
-      };
+    if (bestMatch && bestSim >= 0.8) {
+      matchType = "name_similarity";
+    } else if (bestMatch && bestSim >= 0.5) {
+      matchType = "name_similarity";
+    } else {
+      matchType = "no_match";
+      bestMatch = null;
+      bestSim = 0;
     }
 
-    // 3. No match found
     return {
       ...item,
-      suggested_product_id: null,
-      suggested_product_name: null,
-      match_confidence: 0,
-      match_type: catalogProducts.length === 0 ? "ai_only" as const : "no_match" as const,
+      suggested_product_id: bestMatch?.id ?? null,
+      match_type: matchType,
+      match_confidence: Math.round(bestSim * 100),
       image_url: null,
       image_description: null,
     };
   });
 }
 
-// ── File Parsers ───────────────────────────────────────
+// ── File Parsing ───────────────────────────────────────
 async function parseExcel(buffer: ArrayBuffer): Promise<string[][]> {
   const XLSX = await import("xlsx");
   const workbook = XLSX.read(buffer, { type: "array" });
-  const firstSheetName = workbook.SheetNames[0];
-  if (!firstSheetName) return [];
-  const sheet = workbook.Sheets[firstSheetName];
-  if (!sheet) return [];
-  const rows = XLSX.utils.sheet_to_json<string[]>(sheet, { header: 1 });
-  return rows.filter((row) =>
-    row.some((cell) => String(cell).trim() !== ""),
-  );
+  const allRows: string[][] = [];
+
+  for (const sheetName of workbook.SheetNames) {
+    const sheet = workbook.Sheets[sheetName];
+    if (!sheet) continue;
+    const rows = XLSX.utils.sheet_to_json<string[]>(sheet, {
+      header: 1,
+      defval: "",
+      blankrows: false,
+    });
+    for (const row of rows) {
+      const cleaned = row.map((cell) => String(cell).trim());
+      if (cleaned.some((c) => c.length > 0)) {
+        allRows.push(cleaned);
+      }
+    }
+  }
+
+  return allRows;
 }
 
 async function parsePDF(buffer: ArrayBuffer): Promise<string[][]> {
-  const mod = (await import("pdf-parse")) as {
-    default?: (buf: Buffer) => Promise<{ text: string }>;
-    [key: string]: unknown;
-  };
-  const parseFn = (mod.default ?? mod) as unknown as (
-    buf: Buffer,
-  ) => Promise<{ text: string }>;
-  const data = await parseFn(Buffer.from(buffer));
-  const lines = data.text
+  const { PDFParse } = await import("pdf-parse");
+  const parser = new PDFParse({ data: new Uint8Array(buffer) });
+  const result = await parser.getText();
+  const lines = result.text
     .split("\n")
     .map((l) => l.trim())
     .filter((l) => l.length > 0);
@@ -366,9 +334,8 @@ async function extractImagesFromXlsx(buffer: ArrayBuffer): Promise<ExtractedImag
     if (!IMAGE_EXTENSIONS.has(ext)) continue;
 
     const data = await file.async("nodebuffer");
+    const compressed = await compressImage(data);
     const mimeType = ext === "png" ? "image/png" : ext === "gif" ? "image/gif" : "image/jpeg";
-    const compressed = compressImage(data, mimeType);
-    if (!compressed) continue; // Skip oversized images
 
     images.push({
       buffer: compressed,
@@ -388,21 +355,26 @@ function extractImagesFromPdf(_buffer: ArrayBuffer): Promise<ExtractedImage[]> {
   return Promise.resolve([]);
 }
 
-function compressImage(input: Buffer, _mimeType: string): Buffer | null {
-  // For server-side without native deps, we pass through images under the limit
-  // and skip oversized ones (native sharp is incompatible with Turbopack)
+async function compressImage(input: Buffer): Promise<Buffer> {
+  // If already small enough, resize for faster API processing
   if (input.length <= MAX_IMAGE_BYTES) {
-    return input;
+    return sharp(input)
+      .resize(1024, 1024, { fit: "inside", withoutEnlargement: true })
+      .jpeg({ quality: 85 })
+      .toBuffer();
   }
 
-  // Image is too large for Groq API — skip it
-  // In production, consider using a cloud image processing service
-  if (input.length > MAX_IMAGE_BYTES * 3) {
-    return null; // Skip very large images entirely
+  // Progressively reduce quality until under limit
+  let quality = 80;
+  let result = input;
+  while (result.length > MAX_IMAGE_BYTES && quality > 20) {
+    result = await sharp(input)
+      .resize(1024, 1024, { fit: "inside", withoutEnlargement: true })
+      .jpeg({ quality })
+      .toBuffer();
+    quality -= 10;
   }
-
-  // For moderately large images, still try to send (Groq may accept up to ~4MB)
-  return input;
+  return result;
 }
 
 // ── Vision Pipeline (Llama 4 Scout) ────────────────────
@@ -762,6 +734,7 @@ Responde ÚNICAMENTE con JSON válido:
     let extractedImages: ExtractedImage[] = [];
 
     if (fileName.endsWith(".xlsx") || fileName.endsWith(".xls")) {
+      // Parse text and extract images in parallel
       const [parsedRows, images] = await Promise.all([
         parseExcel(buffer),
         extractImagesFromXlsx(buffer),
@@ -785,13 +758,13 @@ Responde ÚNICAMENTE con JSON válido:
       );
     }
 
-    // ── 6. Chunk text rows ──
+    // ── 7. Chunk text rows ──
     const chunks: string[][][] = [];
     for (let i = 0; i < rows.length; i += CHUNK_SIZE) {
       chunks.push(rows.slice(i, i + CHUNK_SIZE));
     }
 
-    // ── 7. Run DUAL AI PIPELINES in parallel ──
+    // ── 8. Run DUAL AI PIPELINES in parallel ──
     // Pipeline A: Qwen3-32B processes text (translation, categorization)
     // Pipeline B: Llama 4 Scout processes images (OCR, visual analysis)
     // Vision is best-effort — if it fails, text still works
@@ -802,13 +775,13 @@ Responde ÚNICAMENTE con JSON válido:
 
     const { items, failedChunks } = textResult;
 
-    // ── 8. Post-process: fuzzy match against catalog ──
+    // ── 9. Post-process: fuzzy match against catalog ──
     const rawMatched = postProcessMatching(items, catalogProducts);
 
-    // ── 9. Merge text + vision results ──
+    // ── 10. Merge text + vision results ──
     const matchedItems = mergeTextAndVision(rawMatched, visionResults);
 
-    // ── 10. Stats ──
+    // ── 11. Stats ──
     const stats = {
       matched: matchedItems.filter((i) => i.match_type === "exact_sku" || (i.match_type === "name_similarity" && i.match_confidence >= 80)).length,
       review: matchedItems.filter((i) => i.match_type === "name_similarity" && i.match_confidence < 80).length,

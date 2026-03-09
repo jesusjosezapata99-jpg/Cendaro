@@ -2,10 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { createSupabaseBrowserClient } from "@cendaro/auth/client";
+import { env } from "~/env";
 
 interface UserProfile {
   id: string;
   email: string;
+  username: string;
   fullName: string;
   role: string;
   avatarUrl: string | null;
@@ -31,7 +33,6 @@ export function useCurrentUser() {
 
     async function fetchProfile() {
       try {
-        const { env } = await import("~/env");
         const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL;
         const supabaseKey = env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
@@ -52,7 +53,7 @@ export function useCurrentUser() {
 
         const { data } = await supabase
           .from("user_profile")
-          .select("id, email, full_name, role, avatar_url")
+          .select("id, email, username, full_name, role, avatar_url")
           .eq("id", user.id)
           .single();
 
@@ -60,6 +61,7 @@ export function useCurrentUser() {
           const p: UserProfile = {
             id: data.id as string,
             email: data.email as string,
+            username: data.username as string,
             fullName: data.full_name as string,
             role: data.role as string,
             avatarUrl: data.avatar_url as string | null,
@@ -72,6 +74,7 @@ export function useCurrentUser() {
           const fallback: UserProfile = {
             id: user.id,
             email: user.email ?? "usuario@cendaro.com",
+            username: (meta.username as string | undefined) ?? user.email?.split("@")[0] ?? "usuario",
             fullName: (meta.full_name as string | undefined) ?? user.email?.split("@")[0] ?? "Usuario",
             role: (meta.role as string | undefined) ?? "employee",
             avatarUrl: null,
