@@ -642,12 +642,22 @@ export const ContainerItem = pgTable(
       .references(() => Container.id, { onDelete: "cascade" }),
     productId: t
       .uuid()
-      .notNull()
       .references(() => Product.id),
     quantityExpected: t.integer().notNull(),
     quantityReceived: t.integer().default(0),
     unitCost: t.doublePrecision(),
     notes: t.text(),
+    // AI Packing List columns
+    originalName: t.text(),
+    translatedName: t.text(),
+    confidence: t.doublePrecision(),
+    matchType: t.varchar({ length: 32 }),
+    imageUrl: t.text(),
+    imageDescription: t.text(),
+    aiCorrected: t.boolean().default(false),
+    skuHint: t.varchar({ length: 128 }),
+    categoryHint: t.varchar({ length: 128 }),
+    weightKg: t.doublePrecision(),
   }),
   (table) => [
     index("idx_citem_container").on(table.containerId),
