@@ -81,7 +81,7 @@ const MAX_RETRIES = 3;
 const MAX_IMAGES_PER_VISION_REQUEST = 5;
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024; // 4MB for Groq base64 limit
 const MAX_TOTAL_IMAGES = 20;
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB max upload
+const _MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB — reference for client-side validation
 const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
 
 const ALLOWED_EXTENSIONS = [".xlsx", ".xls", ".pdf"] as const;
@@ -657,6 +657,14 @@ export const maxDuration = 60; // seconds — AI processing needs time
 export const dynamic = "force-dynamic";
 
 // ── Route Handler ──────────────────────────────────────
+
+// Types for client-parsed input (JSON body from browser pipeline)
+interface ClientParsedInput {
+  rows: string[][];
+  images?: { base64: string; mimeType: string; index: number; fileName: string }[];
+  containerId: string;
+}
+
 export async function POST(request: NextRequest) {
   if (!env.GROQ_API_KEY) {
     return NextResponse.json(
@@ -667,13 +675,99 @@ export async function POST(request: NextRequest) {
   const apiKey = String(env.GROQ_API_KEY);
 
   try {
-    const formData = await request.formData();
-    const file = formData.get("file") as File | null;
-    const containerId = formData.get("containerId") as string | null;
+    const contentType = request.headers.get("content-type") ?? "";
 
-    if (!file || !containerId) {
+    // ── Determine input mode ──
+    let rows: string[][];
+    let extractedImages: ExtractedImage[] = [];
+    let containerId: string;
+
+    if (contentType.includes("application/json")) {
+      // ═══ JSON PATH: Client-parsed Excel data ═══
+      // Browser already parsed the file — we receive lightweight JSON
+      const body = (await request.json()) as ClientParsedInput;
+
+      if (!body.containerId || !Array.isArray(body.rows) || body.rows.length === 0) {
+        return NextResponse.json(
+          { error: "rows (array) y containerId son requeridos" },
+          { status: 400 },
+        );
+      }
+
+      containerId = body.containerId;
+      rows = body.rows;
+
+      // Convert client-supplied base64 images to ExtractedImage format
+      if (Array.isArray(body.images) && body.images.length > 0) {
+        extractedImages = body.images
+          .filter((img) => img.base64 && img.mimeType)
+          .slice(0, MAX_TOTAL_IMAGES)
+          .map((img) => ({
+            buffer: Buffer.from(img.base64, "base64"),
+            index: img.index,
+            fileName: img.fileName,
+            mimeType: img.mimeType,
+          }));
+      }
+    } else {
+      // ═══ FORMDATA PATH: Raw file upload (PDF ≤ 4MB) ═══
+      const formData = await request.formData();
+      const file = formData.get("file") as File | null;
+      const formContainerId = formData.get("containerId") as string | null;
+
+      if (!file || !formContainerId) {
+        return NextResponse.json(
+          { error: "Archivo y containerId son requeridos" },
+          { status: 400 },
+        );
+      }
+
+      containerId = formContainerId;
+
+      // Validate file size (Vercel limit is 4.5MB, guard at 4MB)
+      if (file.size > 4 * 1024 * 1024) {
+        return NextResponse.json(
+          {
+            error: `Archivo demasiado grande para subida directa (${(file.size / 1024 / 1024).toFixed(1)}MB). Máximo: 4MB. Para archivos más grandes, usa formato Excel — se procesa en el navegador sin límite de tamaño.`,
+          },
+          { status: 413 },
+        );
+      }
+
+      const fileName = file.name.toLowerCase();
+      const hasValidExtension = ALLOWED_EXTENSIONS.some((ext) => fileName.endsWith(ext));
+      const hasValidMime = ALLOWED_MIME_TYPES.has(file.type) || file.type === "";
+
+      if (!hasValidExtension || !hasValidMime) {
+        return NextResponse.json(
+          { error: "Formato no soportado. Use Excel (.xlsx/.xls) o PDF" },
+          { status: 400 },
+        );
+      }
+
+      // Parse file server-side
+      const buffer = await file.arrayBuffer();
+
+      if (fileName.endsWith(".xlsx") || fileName.endsWith(".xls")) {
+        const [parsedRows, images] = await Promise.all([
+          parseExcel(buffer),
+          extractImagesFromXlsx(buffer),
+        ]);
+        rows = parsedRows;
+        extractedImages = images;
+      } else {
+        const [parsedRows, images] = await Promise.all([
+          parsePDF(buffer),
+          extractImagesFromPdf(buffer),
+        ]);
+        rows = parsedRows;
+        extractedImages = images;
+      }
+    }
+
+    if (rows.length === 0) {
       return NextResponse.json(
-        { error: "Archivo y containerId son requeridos" },
+        { error: "El archivo está vacío o no se pudo parsear" },
         { status: 400 },
       );
     }
@@ -709,62 +803,13 @@ REGLAS DE CONFIANZA:
 Responde ÚNICAMENTE con JSON válido:
 {"items": [{"original_name": "texto original", "name_es": "traducción al español", "quantity": 1, "unit_cost": null, "weight_kg": null, "sku_hint": null, "category_hint": "categoría", "confidence": 85}]}`;
 
-    // ── 5. Validate file ──
-    if (file.size > MAX_FILE_SIZE) {
-      return NextResponse.json(
-        { error: `Archivo demasiado grande (${(file.size / 1024 / 1024).toFixed(1)}MB). Máximo: 10MB` },
-        { status: 400 },
-      );
-    }
-
-    const fileName = file.name.toLowerCase();
-    const hasValidExtension = ALLOWED_EXTENSIONS.some((ext) => fileName.endsWith(ext));
-    const hasValidMime = ALLOWED_MIME_TYPES.has(file.type) || file.type === "";
-
-    if (!hasValidExtension || !hasValidMime) {
-      return NextResponse.json(
-        { error: "Formato no soportado. Use Excel (.xlsx/.xls) o PDF" },
-        { status: 400 },
-      );
-    }
-
-    // ── 6. Parse file + Extract images ──
-    const buffer = await file.arrayBuffer();
-    let rows: string[][];
-    let extractedImages: ExtractedImage[] = [];
-
-    if (fileName.endsWith(".xlsx") || fileName.endsWith(".xls")) {
-      // Parse text and extract images in parallel
-      const [parsedRows, images] = await Promise.all([
-        parseExcel(buffer),
-        extractImagesFromXlsx(buffer),
-      ]);
-      rows = parsedRows;
-      extractedImages = images;
-    } else {
-      // PDF
-      const [parsedRows, images] = await Promise.all([
-        parsePDF(buffer),
-        extractImagesFromPdf(buffer),
-      ]);
-      rows = parsedRows;
-      extractedImages = images;
-    }
-
-    if (rows.length === 0) {
-      return NextResponse.json(
-        { error: "El archivo está vacío o no se pudo parsear" },
-        { status: 400 },
-      );
-    }
-
-    // ── 7. Chunk text rows ──
+    // ── 5. Chunk text rows ──
     const chunks: string[][][] = [];
     for (let i = 0; i < rows.length; i += CHUNK_SIZE) {
       chunks.push(rows.slice(i, i + CHUNK_SIZE));
     }
 
-    // ── 8. Run DUAL AI PIPELINES in parallel ──
+    // ── 6. Run DUAL AI PIPELINES in parallel ──
     // Pipeline A: Qwen3-32B processes text (translation, categorization)
     // Pipeline B: Llama 4 Scout processes images (OCR, visual analysis)
     // Vision is best-effort — if it fails, text still works
@@ -775,13 +820,13 @@ Responde ÚNICAMENTE con JSON válido:
 
     const { items, failedChunks } = textResult;
 
-    // ── 9. Post-process: fuzzy match against catalog ──
+    // ── 7. Post-process: fuzzy match against catalog ──
     const rawMatched = postProcessMatching(items, catalogProducts);
 
-    // ── 10. Merge text + vision results ──
+    // ── 8. Merge text + vision results ──
     const matchedItems = mergeTextAndVision(rawMatched, visionResults);
 
-    // ── 11. Stats ──
+    // ── 9. Stats ──
     const stats = {
       matched: matchedItems.filter((i) => i.match_type === "exact_sku" || (i.match_type === "name_similarity" && i.match_confidence >= 80)).length,
       review: matchedItems.filter((i) => i.match_type === "name_similarity" && i.match_confidence < 80).length,
@@ -812,3 +857,4 @@ Responde ÚNICAMENTE con JSON válido:
     );
   }
 }
+
