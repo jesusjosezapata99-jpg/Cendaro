@@ -3,12 +3,12 @@ import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@cendaro/auth/server";
 
 export async function POST(request: Request) {
-  const body = (await request.json()) as { email?: string; password?: string };
-  const { email, password } = body;
+  const body = (await request.json()) as { username?: string; password?: string };
+  const { username, password } = body;
 
-  if (!email || !password) {
+  if (!username || !password) {
     return NextResponse.json(
-      { error: "Correo y contraseña son requeridos" },
+      { error: "Usuario y contraseña son requeridos" },
       { status: 400 },
     );
   }
@@ -17,6 +17,8 @@ export async function POST(request: Request) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
   // eslint-disable-next-line no-restricted-properties
   const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
+  // eslint-disable-next-line no-restricted-properties
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
 
   if (!supabaseUrl || !supabaseKey) {
     return NextResponse.json(
@@ -28,8 +30,26 @@ export async function POST(request: Request) {
   const cookieStore = await cookies();
   const supabase = createSupabaseServerClient(cookieStore, supabaseUrl, supabaseKey);
 
+  // Resolve username → email using service role to bypass RLS
+  const { createClient } = await import("@supabase/supabase-js");
+  const admin = createClient(supabaseUrl, serviceKey || supabaseKey);
+
+  const { data: profile, error: profileError } = await admin
+    .from("user_profile")
+    .select("email")
+    .eq("username", username.toLowerCase().trim())
+    .single<{ email: string }>();
+
+  if (profileError) {
+    return NextResponse.json(
+      { error: "Usuario no encontrado" },
+      { status: 401 },
+    );
+  }
+
+  // Authenticate with the resolved email
   const { error } = await supabase.auth.signInWithPassword({
-    email,
+    email: profile.email,
     password,
   });
 

@@ -1,13 +1,8 @@
 "use client";
 
-import { useState } from "react";
-
-const DEFAULT_ORG = {
-  name: "Mi Empresa C.A.",
-  legalName: "Mi Empresa Comercial, C.A.",
-  rif: "J-12345678-9",
-  timezone: "America/Caracas",
-};
+import { useState, useEffect } from "react";
+import { useTRPC } from "~/trpc/client";
+import { useQuery } from "@tanstack/react-query";
 
 const DEFAULT_MODULES = [
   { key: "catalog", name: "Catálogo", icon: "inventory_2", defaultOn: true },
@@ -21,8 +16,20 @@ const DEFAULT_MODULES = [
   { key: "audit", name: "Auditoría", icon: "policy", defaultOn: true },
 ];
 
+function Skeleton({ className = "" }: { className?: string }) {
+  return <div className={`animate-pulse rounded-lg bg-muted ${className}`} />;
+}
+
 export default function SettingsPage() {
-  const [org, setOrg] = useState(DEFAULT_ORG);
+  const trpc = useTRPC();
+  const { data: profile, isLoading } = useQuery(trpc.users.me.queryOptions());
+
+  // Org state initialized from server data
+  const [orgName, setOrgName] = useState("");
+  const [orgLegalName, setOrgLegalName] = useState("");
+  const [orgRif, setOrgRif] = useState("");
+  const [orgTimezone, setOrgTimezone] = useState("America/Caracas");
+
   const [modules, setModules] = useState(
     Object.fromEntries(DEFAULT_MODULES.map((m) => [m.key, m.defaultOn])),
   );
@@ -31,12 +38,24 @@ export default function SettingsPage() {
   const [orgSaved, setOrgSaved] = useState(false);
   const [pricingSaved, setPricingSaved] = useState(false);
 
+  // Populate form when profile data arrives
+  useEffect(() => {
+    if (profile) {
+      // Use profile data for display — org fields come from the organization table
+      // For now, show email + role from the profile itself
+      setOrgName(profile.fullName);
+      setOrgLegalName(profile.email);
+      setOrgRif("");
+      setOrgTimezone("America/Caracas");
+    }
+  }, [profile]);
+
   const toggleModule = (key: string) => {
     setModules((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
   const handleSaveOrg = () => {
-    // In production this would call a tRPC mutation
+    // TODO: Wire to tRPC mutation when organization CRUD router is added
     setOrgSaved(true);
     setTimeout(() => setOrgSaved(false), 2000);
   };
@@ -45,6 +64,19 @@ export default function SettingsPage() {
     setPricingSaved(true);
     setTimeout(() => setPricingSaved(false), 2000);
   };
+
+  if (isLoading) {
+    return (
+      <div className="p-4 lg:p-8 space-y-8">
+        <div>
+          <Skeleton className="h-8 w-48" />
+          <Skeleton className="mt-2 h-4 w-72" />
+        </div>
+        <Skeleton className="h-64 w-full" />
+        <Skeleton className="h-48 w-full" />
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 lg:p-8 space-y-8">
@@ -55,6 +87,27 @@ export default function SettingsPage() {
           Ajustes de la organización, módulos y preferencias del sistema
         </p>
       </div>
+
+      {/* Profile Info */}
+      {profile && (
+        <section className="rounded-xl border border-primary/20 bg-primary/5 p-6 shadow-sm">
+          <div className="flex items-center gap-4">
+            <div className="flex size-12 items-center justify-center rounded-full bg-primary text-primary-foreground font-bold text-lg">
+              {profile.fullName
+                .split(" ")
+                .map((n: string) => n[0])
+                .join("")
+                .toUpperCase()}
+            </div>
+            <div>
+              <p className="text-lg font-semibold">{profile.fullName}</p>
+              <p className="text-sm text-muted-foreground">
+                {profile.email} · <span className="capitalize">{profile.role}</span>
+              </p>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Organization */}
       <section className="rounded-xl border border-border bg-card p-6 shadow-sm">
@@ -67,8 +120,8 @@ export default function SettingsPage() {
             <label className="mb-1.5 block text-sm font-medium">Nombre Comercial</label>
             <input
               type="text"
-              value={org.name}
-              onChange={(e) => setOrg((o) => ({ ...o, name: e.target.value }))}
+              value={orgName}
+              onChange={(e) => setOrgName(e.target.value)}
               className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
             />
           </div>
@@ -76,8 +129,8 @@ export default function SettingsPage() {
             <label className="mb-1.5 block text-sm font-medium">Razón Social</label>
             <input
               type="text"
-              value={org.legalName}
-              onChange={(e) => setOrg((o) => ({ ...o, legalName: e.target.value }))}
+              value={orgLegalName}
+              onChange={(e) => setOrgLegalName(e.target.value)}
               className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
             />
           </div>
@@ -85,16 +138,16 @@ export default function SettingsPage() {
             <label className="mb-1.5 block text-sm font-medium">RIF</label>
             <input
               type="text"
-              value={org.rif}
-              onChange={(e) => setOrg((o) => ({ ...o, rif: e.target.value }))}
+              value={orgRif}
+              onChange={(e) => setOrgRif(e.target.value)}
               className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
             />
           </div>
           <div>
             <label className="mb-1.5 block text-sm font-medium">Zona Horaria</label>
             <select
-              value={org.timezone}
-              onChange={(e) => setOrg((o) => ({ ...o, timezone: e.target.value }))}
+              value={orgTimezone}
+              onChange={(e) => setOrgTimezone(e.target.value)}
               className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
             >
               <option value="America/Caracas">America/Caracas (VET -04:00)</option>

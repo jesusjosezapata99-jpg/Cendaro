@@ -5,9 +5,12 @@
  * PRD §13: packing list upload, 4-state flow, admin-only release.
  */
 import { z } from "zod/v4";
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
 
 import {
+  AiPromptConfig,
+  Brand,
+  Category,
   Container,
   ContainerItem,
   Product,
@@ -20,39 +23,6 @@ import {
   roleRestrictedProcedure,
 } from "../trpc";
 import { logAudit } from "./audit";
-
-/** Generate a URL-safe slug from a string */
-function _toSlug(str: string): string {
-  return str
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/(^-|-$)/g, "")
-    .slice(0, 200);
-}
-
-/** Generate a short pseudo-unique SKU suffix */
-function shortId(): string {
-  return Math.random().toString(36).slice(2, 8).toUpperCase();
-}
-
-const confirmItemSchema = z.object({
-  originalName: z.string(),
-  translatedName: z.string(),
-  quantity: z.number().int().nonnegative(),
-  unitCost: z.number().nullable(),
-  weightKg: z.number().nullable(),
-  skuHint: z.string().nullable(),
-  categoryHint: z.string().nullable(),
-  confidence: z.number(),
-  suggestedProductId: z.string().uuid().nullable(),
-  matchType: z.enum(["exact_sku", "name_similarity", "ai_only", "no_match"]),
-  createProduct: z.boolean(),
-  aiCorrected: z.boolean(),
-  imageUrl: z.string().optional(),
-  imageDescription: z.string().optional(),
-});
 
 export const containerRouter = createTRPCRouter({
   list: protectedProcedure.query(async ({ ctx }) => {
@@ -177,91 +147,254 @@ export const containerRouter = createTRPCRouter({
       return { success: true };
     }),
 
-  /**
-   * Confirm AI-parsed packing list items.
-   * Inserts items from the AI analysis into the container.
-   * productId is optional — AI creates items before product assignment.
-   */
+  // ── AI Prompt Config ───────────────────────────────
+  getAIPromptConfig: roleRestrictedProcedure(["owner", "admin"])
+    .query(async ({ ctx }) => {
+      const [config] = await ctx.db
+        .select()
+        .from(AiPromptConfig)
+        .where(eq(AiPromptConfig.active, true))
+        .limit(1);
+      return config ?? null;
+    }),
+
+  updateAIPromptConfig: roleRestrictedProcedure(["owner", "admin"])
+    .input(
+      z.object({
+        configKey: z.string().min(1).max(64),
+        systemPrompt: z.string().min(10),
+        businessContext: z.string().nullable().optional(),
+        categoryRules: z.string().nullable().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const [existing] = await ctx.db
+        .select()
+        .from(AiPromptConfig)
+        .where(eq(AiPromptConfig.configKey, input.configKey))
+        .limit(1);
+
+      if (existing) {
+        const [updated] = await ctx.db
+          .update(AiPromptConfig)
+          .set({
+            systemPrompt: input.systemPrompt,
+            businessContext: input.businessContext ?? null,
+            categoryRules: input.categoryRules ?? null,
+            updatedAt: new Date(),
+          })
+          .where(eq(AiPromptConfig.id, existing.id))
+          .returning();
+        return updated;
+      }
+
+      const [created] = await ctx.db
+        .insert(AiPromptConfig)
+        .values(input)
+        .returning();
+
+      await logAudit(ctx.db, ctx.user, {
+        action: "ai.update_prompt_config",
+        entity: "ai_prompt_config",
+        entityId: created?.id,
+        newValue: { configKey: input.configKey },
+      });
+
+      return created;
+    }),
+
+  // ── Catalog Snapshot (for context injection) ──────
+  getCatalogSnapshot: protectedProcedure
+    .query(async ({ ctx }) => {
+      const categories = await ctx.db
+        .select({ id: Category.id, name: Category.name, slug: Category.slug })
+        .from(Category)
+        .limit(200);
+
+      const brands = await ctx.db
+        .select({ id: Brand.id, name: Brand.name })
+        .from(Brand)
+        .limit(100);
+
+      const products = await ctx.db
+        .select({
+          id: Product.id,
+          sku: Product.sku,
+          name: Product.name,
+          categoryId: Product.categoryId,
+          brandId: Product.brandId,
+        })
+        .from(Product)
+        .orderBy(desc(Product.createdAt))
+        .limit(100);
+
+      return { categories, brands, products };
+    }),
+
+  // ── Confirm with Matching (v2) ───────────────────
   confirmWithMatching: roleRestrictedProcedure(["owner", "admin", "supervisor"])
     .input(
       z.object({
         containerId: z.string().uuid(),
-        items: z.array(confirmItemSchema),
+        items: z.array(
+          z.object({
+            originalName: z.string(),
+            translatedName: z.string(),
+            quantity: z.number().int().positive(),
+            unitCost: z.number().nonnegative().nullable(),
+            weightKg: z.number().nonnegative().nullable(),
+            skuHint: z.string().nullable(),
+            categoryHint: z.string().nullable(),
+            confidence: z.number().min(0).max(100).nullable(),
+            suggestedProductId: z.string().uuid().nullable(),
+            matchType: z.enum(["exact_sku", "name_similarity", "ai_only", "no_match", "manual"]),
+            createProduct: z.boolean().default(false),
+            aiCorrected: z.boolean().default(false),
+            imageUrl: z.string().url().nullable().optional(),
+            imageDescription: z.string().nullable().optional(),
+          }),
+        ),
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const containerItemRows: {
-        containerId: string;
-        productId: string | null;
-        quantityExpected: number;
-        unitCost: number | null;
-        notes: string | null;
-      }[] = [];
+      let created = 0;
+      let linked = 0;
+      let unmatched = 0;
 
-      let productsCreated = 0;
+      const batchSize = 500;
+      for (let i = 0; i < input.items.length; i += batchSize) {
+        const batch = input.items.slice(i, i + batchSize);
 
-      for (const item of input.items) {
-        let productId = item.suggestedProductId;
+        for (const item of batch) {
+          let productId = item.suggestedProductId;
 
-        // If no matched product, auto-create a draft product
-        if (!productId) {
-          const sku = item.skuHint
-            ? item.skuHint.replace(/[^a-zA-Z0-9-]/g, "").toUpperCase() || `AI-${shortId()}`
-            : `AI-${shortId()}`;
+          // Create new product if requested
+          if (item.createProduct && !productId) {
+            const [newProduct] = await ctx.db
+              .insert(Product)
+              .values({
+                sku: item.skuHint ?? `AI-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+                name: item.translatedName,
+                weight: item.weightKg,
+                costAvg: item.unitCost,
+                status: "draft",
+              })
+              .returning();
+            productId = newProduct?.id ?? null;
+            created++;
+          }
 
-          const [newProduct] = await ctx.db
-            .insert(Product)
-            .values({
-              sku,
-              name: item.translatedName || item.originalName,
-              descriptionShort: item.originalName !== item.translatedName
-                ? `Original: ${item.originalName}`
-                : null,
-              imageUrl: item.imageUrl ?? null,
-              weight: item.weightKg ?? undefined,
-              costAvg: item.unitCost ?? 0,
-              status: "draft",
-            })
-            .returning({ id: Product.id });
+          if (productId) linked++;
+          else unmatched++;
 
-          productId = newProduct?.id ?? null;
-          productsCreated++;
+          await ctx.db.insert(ContainerItem).values({
+            containerId: input.containerId,
+            productId: productId,
+            quantityExpected: item.quantity,
+            unitCost: item.unitCost,
+            originalName: item.originalName,
+            translatedName: item.translatedName,
+            weightKg: item.weightKg,
+            skuHint: item.skuHint,
+            categoryHint: item.categoryHint,
+            confidence: item.confidence ? item.confidence / 100 : null,
+            suggestedProductId: item.suggestedProductId,
+            isMatched: !!productId,
+            aiCorrected: item.aiCorrected,
+            imageUrl: item.imageUrl ?? null,
+            imageDescription: item.imageDescription ?? null,
+          });
         }
-
-        containerItemRows.push({
-          containerId: input.containerId,
-          productId,
-          quantityExpected: item.quantity,
-          unitCost: item.unitCost,
-          notes: [
-            item.originalName !== item.translatedName ? `Original: ${item.originalName}` : null,
-            item.categoryHint ? `Categoría: ${item.categoryHint}` : null,
-            item.imageDescription ? `Imagen: ${item.imageDescription}` : null,
-            `Confianza: ${item.confidence}% | Match: ${item.matchType}`,
-          ].filter(Boolean).join(" · "),
-        });
       }
 
-      // Batch insert all container items
-      if (containerItemRows.length > 0) {
-        await ctx.db.insert(ContainerItem).values(containerItemRows);
-      }
+      // Update container metadata
+      await ctx.db
+        .update(Container)
+        .set({
+          packingListStatus: "completed",
+          packingListProcessedAt: new Date(),
+          packingListItemCount: input.items.length,
+        })
+        .where(eq(Container.id, input.containerId));
 
       await logAudit(ctx.db, ctx.user, {
-        action: "container.confirm_ai_import",
+        action: "container.confirm_packing_list_v2",
         entity: "container",
         entityId: input.containerId,
-        newValue: {
-          totalItems: input.items.length,
-          productsCreated,
-          matched: input.items.filter((i) => i.suggestedProductId).length,
-        },
+        newValue: { total: input.items.length, created, linked, unmatched },
       });
 
-      return {
-        success: true,
-        itemsImported: containerItemRows.length,
-        productsCreated,
-      };
+      return { success: true, total: input.items.length, created, linked, unmatched };
+    }),
+
+  // ── Save Correction (few-shot learning) ──────────
+  saveCorrection: roleRestrictedProcedure(["owner", "admin", "supervisor"])
+    .input(
+      z.object({
+        original: z.string(),
+        wrong: z.string().optional(),
+        correct: z.string(),
+        category: z.string().optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const [config] = await ctx.db
+        .select()
+        .from(AiPromptConfig)
+        .where(eq(AiPromptConfig.active, true))
+        .limit(1);
+
+      if (!config) return { success: false, error: "No prompt config found" };
+
+      const examples = Array.isArray(config.fewShotExamples)
+        ? (config.fewShotExamples as Record<string, string>[])
+        : [];
+
+      // Add new correction, keep max 15
+      examples.push({
+        original: input.original,
+        ...(input.wrong ? { wrong: input.wrong } : {}),
+        correct: input.correct,
+        ...(input.category ? { category: input.category } : {}),
+      });
+
+      const trimmed = examples.slice(-15);
+
+      await ctx.db
+        .update(AiPromptConfig)
+        .set({
+          fewShotExamples: sql`${JSON.stringify(trimmed)}::jsonb`,
+          updatedAt: new Date(),
+        })
+        .where(eq(AiPromptConfig.id, config.id));
+
+      await logAudit(ctx.db, ctx.user, {
+        action: "ai.save_correction",
+        entity: "ai_prompt_config",
+        entityId: config.id,
+        newValue: { original: input.original, correct: input.correct },
+      });
+
+      return { success: true, totalExamples: trimmed.length };
+    }),
+
+  /** Get packing list items for a container (paginated for virtual scroll) */
+  getPackingListItems: protectedProcedure
+    .input(
+      z.object({
+        containerId: z.string().uuid(),
+        limit: z.number().int().min(1).max(500).default(100),
+        offset: z.number().int().min(0).default(0),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      const items = await ctx.db
+        .select()
+        .from(ContainerItem)
+        .where(eq(ContainerItem.containerId, input.containerId))
+        .limit(input.limit)
+        .offset(input.offset);
+
+      return items;
     }),
 });

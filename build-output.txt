@@ -1,0 +1,95 @@
+
+> cendaro@ build C:\Users\jzs99\Desktop\TEST
+> turbo run build
+
+ÔÇó turbo 2.8.14
+ÔÇó Packages in scope: @cendaro/api, @cendaro/auth, @cendaro/db, @cendaro/erp, @cendaro/eslint-config, @cendaro/prettier-config, @cendaro/tailwind-config, @cendaro/tsconfig, @cendaro/ui, @cendaro/validators
+ÔÇó Running build in 10 packages
+ÔÇó Remote caching disabled
+@cendaro/db:build: cache hit, replaying logs 173df44ecaf21700
+@cendaro/validators:build: cache hit, replaying logs 0e2cf8c3034f1fe2
+@cendaro/auth:build: cache hit, replaying logs 52b5e244d55217ba
+@cendaro/db:build: [6n[?9001h[?1004h[m]0;C:\WINDOWS\system32\cmd.exe[?25h[?25l
+@cendaro/db:build: > @cendaro/db@ build C:\Users\jzs99\Desktop\TEST\packages\db
+@cendaro/db:build: > tsc[5;1H[?25h[?9001l[?1004l
+@cendaro/validators:build: [6n[?9001h[?1004h[m]0;C:\WINDOWS\system32\cmd.exe[?25h[?25l
+@cendaro/validators:build: > @cendaro/validators@ build C:\Users\jzs99\Desktop\TEST\packages\validators
+@cendaro/validators:build: > tsc[5;1H[?25h[?9001l[?1004l
+@cendaro/auth:build: [6n[?9001h[?1004h[m]0;C:\WINDOWS\system32\cmd.exe[?25h[?25l
+@cendaro/auth:build: > @cendaro/auth@ build C:\Users\jzs99\Desktop\TEST\packages\auth
+@cendaro/auth:build: > tsc[5;1H[?25h[?9001l[?1004l
+@cendaro/api:build: cache hit, replaying logs b795861839ce983f
+@cendaro/api:build: [6n[?9001h[?1004h[m]0;C:\WINDOWS\system32\cmd.exe[?25h[?25l
+@cendaro/api:build: > @cendaro/api@ build C:\Users\jzs99\Desktop\TEST\packages\api
+@cendaro/api:build: > tsc[5;1H[?25h[?9001l[?1004l
+@cendaro/erp:build: cache miss, executing f17684d3dee2a121
+@cendaro/erp:build: 
+@cendaro/erp:build: > @cendaro/erp@ build C:\Users\jzs99\Desktop\TEST\apps\erp
+@cendaro/erp:build: > pnpm with-env next build
+@cendaro/erp:build: 
+@cendaro/erp:build: 
+@cendaro/erp:build: > @cendaro/erp@ with-env C:\Users\jzs99\Desktop\TEST\apps\erp
+@cendaro/erp:build: > dotenv -e ../../.env -- "next" "build"
+@cendaro/erp:build: 
+@cendaro/erp:build: Ôû▓ Next.js 16.1.6 (Turbopack)
+@cendaro/erp:build: - Experiments (use with caution):
+@cendaro/erp:build:   ┬À optimizePackageImports
+@cendaro/erp:build: 
+@cendaro/erp:build:   Creating an optimized production build ...
+@cendaro/erp:build: Ô£ô Compiled successfully in 5.9s
+@cendaro/erp:build:   Running TypeScript ...
+@cendaro/erp:build:   Collecting page data using 15 workers ...
+@cendaro/erp:build:   Generating static pages using 15 workers (0/28) ...
+@cendaro/erp:build:   Generating static pages using 15 workers (7/28) 
+@cendaro/erp:build:   Generating static pages using 15 workers (14/28) 
+@cendaro/erp:build:   Generating static pages using 15 workers (21/28) 
+@cendaro/erp:build: Ô£ô Generating static pages using 15 workers (28/28) in 605.5ms
+@cendaro/erp:build:   Finalizing page optimization ...
+@cendaro/erp:build: 
+@cendaro/erp:build: Route (app)
+@cendaro/erp:build: Ôöî Ôùï /
+@cendaro/erp:build: Ôö£ Ôùï /_not-found
+@cendaro/erp:build: Ôö£ Ôùï /accounts-receivable
+@cendaro/erp:build: Ôö£ ãÆ /accounts-receivable/[id]
+@cendaro/erp:build: Ôö£ Ôùï /alerts
+@cendaro/erp:build: Ôö£ ãÆ /api/ai/parse-packing-list
+@cendaro/erp:build: Ôö£ ãÆ /api/auth/login
+@cendaro/erp:build: Ôö£ ãÆ /api/auth/logout
+@cendaro/erp:build: Ôö£ ãÆ /api/trpc/[...trpc]
+@cendaro/erp:build: Ôö£ Ôùï /audit
+@cendaro/erp:build: Ôö£ Ôùï /cash-closure
+@cendaro/erp:build: Ôö£ ãÆ /catalog
+@cendaro/erp:build: Ôö£ ãÆ /catalog/[id]
+@cendaro/erp:build: Ôö£ Ôùï /catalog/brands
+@cendaro/erp:build: Ôö£ Ôùï /catalog/categories
+@cendaro/erp:build: Ôö£ Ôùï /catalog/suppliers
+@cendaro/erp:build: Ôö£ Ôùï /containers
+@cendaro/erp:build: Ôö£ ãÆ /containers/[id]
+@cendaro/erp:build: Ôö£ ãÆ /customers
+@cendaro/erp:build: Ôö£ ãÆ /customers/[id]
+@cendaro/erp:build: Ôö£ ãÆ /dashboard
+@cendaro/erp:build: Ôö£ Ôùï /inventory
+@cendaro/erp:build: Ôö£ Ôùï /login
+@cendaro/erp:build: Ôö£ Ôùï /marketplace
+@cendaro/erp:build: Ôö£ ãÆ /orders
+@cendaro/erp:build: Ôö£ ãÆ /orders/[id]
+@cendaro/erp:build: Ôö£ Ôùï /payments
+@cendaro/erp:build: Ôö£ Ôùï /pos
+@cendaro/erp:build: Ôö£ Ôùï /pricing
+@cendaro/erp:build: Ôö£ Ôùï /rates
+@cendaro/erp:build: Ôö£ Ôùï /settings
+@cendaro/erp:build: Ôö£ Ôùï /users
+@cendaro/erp:build: Ôö£ Ôùï /vendors
+@cendaro/erp:build: Ôöö Ôùï /whatsapp
+@cendaro/erp:build: 
+@cendaro/erp:build: 
+@cendaro/erp:build: ãÆ Proxy (Middleware)
+@cendaro/erp:build: 
+@cendaro/erp:build: Ôùï  (Static)   prerendered as static content
+@cendaro/erp:build: ãÆ  (Dynamic)  server-rendered on demand
+@cendaro/erp:build: 
+
+ Tasks:    5 successful, 5 total
+Cached:    4 cached, 5 total
+  Time:    18.92s 
+
