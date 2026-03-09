@@ -168,50 +168,106 @@ export default function ContainerDetailPage() {
           let lastPromptSource = "";
 
           for (let i = 0; i < chunks.length; i++) {
+            // ── TPM rate limit delay between chunks ──
+            // Groq free tier: 6K TPM for qwen3-32b.
+            // Each chunk uses ~1.5-2K tokens (input + output).
+            // 10s delay ensures ~6 chunks/minute, safely under 6K TPM.
+            if (i > 0) {
+              const delayMs = 10000;
+              const delaySec = delayMs / 1000;
+              for (let sec = delaySec; sec > 0; sec--) {
+                setAiProgress(
+                  `⏳ Esperando ${sec}s antes del lote ${i + 1}/${totalChunks} ` +
+                    `(${allItems.length} items acumulados)...`,
+                );
+                await new Promise((r) => setTimeout(r, 1000));
+              }
+            }
+
             setAiProgress(
               `🤖 Procesando lote ${i + 1} de ${totalChunks} con IA ` +
                 `(${allItems.length} items acumulados)...`,
             );
 
-            try {
-              const response = await fetch("/api/ai/parse-packing-list", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  rows: chunks[i],
-                  containerId: id,
-                  chunkIndex: i,
-                  totalChunks,
-                }),
-              });
+            // ── Retry loop with exponential backoff for 429 errors ──
+            const maxRetries = 3;
+            let chunkSuccess = false;
 
-              if (!response.ok) {
-                const contentType = response.headers.get("content-type") ?? "";
-                let errorDetail: string;
-                if (contentType.includes("application/json")) {
-                  const err = (await response.json()) as { error?: string };
-                  errorDetail = err.error ?? `HTTP ${response.status}`;
-                } else {
-                  errorDetail =
-                    (await response.text()).slice(0, 200) ||
-                    `HTTP ${response.status}`;
+            for (let attempt = 0; attempt < maxRetries; attempt++) {
+              try {
+                const response = await fetch("/api/ai/parse-packing-list", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    rows: chunks[i],
+                    containerId: id,
+                    chunkIndex: i,
+                    totalChunks,
+                  }),
+                });
+
+                if (response.status === 429) {
+                  // Rate limited — wait and retry
+                  const retryAfter = parseInt(
+                    response.headers.get("retry-after") ?? "15",
+                    10,
+                  );
+                  const waitSec = Math.max(retryAfter, 10) * (attempt + 1);
+                  for (let sec = waitSec; sec > 0; sec--) {
+                    setAiProgress(
+                      `⚠️ API rate limit — reintentando lote ${i + 1} en ${sec}s...`,
+                    );
+                    await new Promise((r) => setTimeout(r, 1000));
+                  }
+                  continue; // retry
                 }
-                console.warn(
-                  `Chunk ${i + 1}/${totalChunks} failed: ${errorDetail}`,
-                );
-                failedChunks.push(i);
-                continue;
-              }
 
-              const data = (await response.json()) as AIResponse;
-              allItems.push(...data.items);
-              lastStats = data.stats;
-              if (data.promptSource) lastPromptSource = data.promptSource;
-            } catch (chunkErr) {
-              console.warn(
-                `Chunk ${i + 1}/${totalChunks} network error:`,
-                chunkErr,
-              );
+                if (!response.ok) {
+                  const contentType =
+                    response.headers.get("content-type") ?? "";
+                  let errorDetail: string;
+                  if (contentType.includes("application/json")) {
+                    const err = (await response.json()) as { error?: string };
+                    errorDetail = err.error ?? `HTTP ${response.status}`;
+                  } else {
+                    errorDetail =
+                      (await response.text()).slice(0, 200) ||
+                      `HTTP ${response.status}`;
+                  }
+                  console.warn(
+                    `Chunk ${i + 1}/${totalChunks} failed: ${errorDetail}`,
+                  );
+                  if (attempt < maxRetries - 1) {
+                    // Wait before retry
+                    await new Promise((r) =>
+                      setTimeout(r, 5000 * (attempt + 1)),
+                    );
+                    continue;
+                  }
+                  failedChunks.push(i);
+                  break;
+                }
+
+                const data = (await response.json()) as AIResponse;
+                allItems.push(...data.items);
+                lastStats = data.stats;
+                if (data.promptSource) lastPromptSource = data.promptSource;
+                chunkSuccess = true;
+                break; // success — exit retry loop
+              } catch (chunkErr) {
+                console.warn(
+                  `Chunk ${i + 1}/${totalChunks} attempt ${attempt + 1} error:`,
+                  chunkErr,
+                );
+                if (attempt < maxRetries - 1) {
+                  await new Promise((r) => setTimeout(r, 5000 * (attempt + 1)));
+                  continue;
+                }
+                failedChunks.push(i);
+              }
+            }
+
+            if (!chunkSuccess && !failedChunks.includes(i)) {
               failedChunks.push(i);
             }
           }

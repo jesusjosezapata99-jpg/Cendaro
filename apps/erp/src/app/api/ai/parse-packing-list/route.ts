@@ -74,11 +74,11 @@ interface CatalogProduct {
 
 // ── Config ─────────────────────────────────────────────
 const PRIMARY_MODEL = "qwen/qwen3-32b";
-const FALLBACK_MODEL = "llama-3.3-70b-versatile";
+const FALLBACK_MODEL = "llama-3.3-70b-specdec";
 const VISION_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct";
-const CHUNK_SIZE = 50; // Keep small for Groq free tier (6K TPM)
+const CHUNK_SIZE = 15; // Small chunks for Groq free tier (6K TPM — ~1.7K tokens per chunk)
 const MAX_CONCURRENT = 1; // Serialize to respect 60 RPM
-const INTER_CHUNK_DELAY_MS = 1500; // Delay between chunks to avoid rate limits
+const INTER_CHUNK_DELAY_MS = 5000; // 5s delay between server-side chunks to respect TPM window
 const MAX_RETRIES = 3;
 const MAX_IMAGES_PER_VISION_REQUEST = 5;
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024; // 4MB for Groq base64 limit
@@ -572,7 +572,7 @@ Devuelve SOLO {"items": [...]} sin explicaciones ni markdown.`,
         model,
         messages,
         temperature: 0.3,
-        max_tokens: 32000,
+        max_tokens: 4096, // 15 items generate ~500-1500 tokens of JSON. 4096 is generous.
         response_format: { type: "json_object" },
       }),
     });
