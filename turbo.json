@@ -19,11 +19,16 @@
       "outputLogs": "new-only"
     },
     "lint": {
-      "dependsOn": ["^topo", "^build"],
+      "dependsOn": ["^topo"],
       "outputs": [".cache/.eslintcache"]
     },
+    "lint:fix": {
+      "dependsOn": ["^topo"],
+      "outputs": [".cache/.eslintcache"],
+      "cache": false
+    },
     "typecheck": {
-      "dependsOn": ["^topo", "^build"],
+      "dependsOn": ["^topo"],
       "outputs": [".cache/tsbuildinfo.json"]
     },
     "clean": {
