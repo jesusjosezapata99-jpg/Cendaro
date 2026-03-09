@@ -20,35 +20,31 @@ cat pnpm-workspace.yaml
 
 // turbo
 
-```bash
-find apps packages tooling -name "package.json" -not -path "*/node_modules/*" | head -50
+```powershell
+Get-ChildItem -Path apps, packages, tooling -Filter "package.json" -Recurse | Where-Object { $_.FullName -notmatch "node_modules" } | Select-Object -First 50 -ExpandProperty FullName
 ```
 
 ### 3. Parse installed dependencies and devDependencies
 
 // turbo
 
-```bash
-node -e "
-const fs = require('fs');
-const glob = require('glob');
-const files = glob.sync('{apps,packages,tooling}/**/package.json', { ignore: '**/node_modules/**' });
-const deps = new Set();
-files.forEach(f => {
-  const pkg = JSON.parse(fs.readFileSync(f, 'utf8'));
-  Object.keys(pkg.dependencies || {}).forEach(d => deps.add(d));
-  Object.keys(pkg.devDependencies || {}).forEach(d => deps.add(d));
-});
-console.log(JSON.stringify([...deps].sort(), null, 2));
-"
+```powershell
+$files = Get-ChildItem -Path apps, packages, tooling -Filter "package.json" -Recurse | Where-Object { $_.FullName -notmatch "node_modules" }
+$deps = @{}
+foreach ($f in $files) {
+  $pkg = Get-Content $f.FullName | ConvertFrom-Json
+  if ($pkg.dependencies) { $pkg.dependencies.PSObject.Properties | ForEach-Object { $deps[$_.Name] = $true } }
+  if ($pkg.devDependencies) { $pkg.devDependencies.PSObject.Properties | ForEach-Object { $deps[$_.Name] = $true } }
+}
+$deps.Keys | Sort-Object | ConvertTo-Json
 ```
 
 ### 4. List all Knowledge Item artifact files
 
 // turbo
 
-```bash
-ls -R ~/.gemini/antigravity/knowledge/
+```powershell
+Get-ChildItem -Path "$env:USERPROFILE\.gemini\antigravity\knowledge" -Recurse -File | Select-Object FullName, Length, LastWriteTime | Format-Table -AutoSize
 ```
 
 ### 5. Cross-reference KIs against active dependencies
