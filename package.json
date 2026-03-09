@@ -22,16 +22,26 @@
     "postinstall": "pnpm lint:ws",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
-    "ui-add": "turbo run ui-add"
+    "ui-add": "turbo run ui-add",
+    "audit:memory": "echo 'Triggering Antigravity Epistemic Prune...' && cat .agents/workflows/memory-audit.md",
+    "prepare": "husky"
   },
   "devDependencies": {
     "@cendaro/prettier-config": "workspace:*",
     "@turbo/gen": "^2.8.14",
     "dotenv-cli": "^10.0.0",
+    "eslint": "catalog:",
+    "husky": "^9.1.7",
     "jiti": "^2.6.1",
+    "lint-staged": "^16.3.2",
     "prettier": "catalog:",
     "turbo": "^2.8.14",
     "typescript": "catalog:"
+  },
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx,json,md,yaml,yml,css}": [
+      "prettier --write"
+    ]
   },
   "prettier": "@cendaro/prettier-config"
 }
