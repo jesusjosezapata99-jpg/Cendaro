@@ -1,11 +1,13 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { env } from "~/env";
-import { getDb } from "@cendaro/db/client";
-import { AiPromptConfig, Product, Brand, Category } from "@cendaro/db/schema";
-import { eq, desc, sql } from "@cendaro/db";
 import JSZip from "jszip";
 import sharp from "sharp";
+
+import { desc, eq } from "@cendaro/db";
+import { getDb } from "@cendaro/db/client";
+import { AiPromptConfig, Brand, Category, Product } from "@cendaro/db/schema";
+
+import { env } from "~/env";
 
 // ── Types ──────────────────────────────────────────────
 interface ParsedItem {
@@ -19,31 +21,10 @@ interface ParsedItem {
   confidence: number;
 }
 
-interface GroqMessage {
-  role: "system" | "user" | "assistant";
-  content: string;
-}
-
-interface GroqChoice {
-  message: { content: string };
-}
-
-interface GroqResponse {
-  choices: GroqChoice[];
-}
-
-interface FewShotExample {
-  original: string;
-  wrong?: string;
-  correct: string;
-  category?: string;
-}
-
 interface MatchedItem extends ParsedItem {
   suggested_product_id: string | null;
-  suggested_product_name: string | null;
-  match_confidence: number;
   match_type: "exact_sku" | "name_similarity" | "ai_only" | "no_match";
+  match_confidence: number;
   image_url: string | null;
   image_description: string | null;
 }
@@ -58,14 +39,23 @@ interface ExtractedImage {
 interface VisionResult {
   index: number;
   product_name_es: string;
-  visible_text: string | null;
-  category: string | null;
+  visible_text: string;
+  category: string;
   brand_visible: string | null;
-  material: string | null;
+  material: string;
   colors: string[];
-  size_estimate: string | null;
-  packaging: string | null;
+  size_estimate: string;
+  packaging: string;
   confidence: number;
+}
+
+interface GroqMessage {
+  role: "system" | "user" | "assistant";
+  content: string;
+}
+
+interface GroqResponse {
+  choices: { message: { content: string } }[];
 }
 
 interface GroqVisionResponse {
@@ -76,6 +66,8 @@ interface CatalogProduct {
   id: string;
   sku: string;
   name: string;
+  categoryId: string | null;
+  brandId: string | null;
   categoryName: string | null;
   brandName: string | null;
 }
@@ -84,11 +76,26 @@ interface CatalogProduct {
 const PRIMARY_MODEL = "qwen/qwen3-32b";
 const FALLBACK_MODEL = "llama-3.3-70b-versatile";
 const VISION_MODEL = "meta-llama/llama-4-scout-17b-16e-instruct";
-const CHUNK_SIZE = 500;
-const MAX_CONCURRENT = 3;
+const CHUNK_SIZE = 8; // Strict limit for Groq free tier (6K TPM — ~3K tokens per request)
+const MAX_CONCURRENT = 1; // Serialize to respect 60 RPM
+const INTER_CHUNK_DELAY_MS = 15000; // 15s delay between server-side chunks to respect TPM window
+const MAX_RETRIES = 3;
 const MAX_IMAGES_PER_VISION_REQUEST = 5;
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024; // 4MB for Groq base64 limit
+const MAX_TOTAL_IMAGES = 20;
+const _MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB — reference for client-side validation
 const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
+
+const ALLOWED_EXTENSIONS = [".xlsx", ".xls", ".pdf"] as const;
+const ALLOWED_MIME_TYPES = new Set([
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.ms-excel",
+  "application/pdf",
+]);
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
 // ── Levenshtein Distance ───────────────────────────────
 function levenshtein(a: string, b: string): number {
@@ -137,97 +144,98 @@ async function buildCatalogContext(): Promise<{
   products: CatalogProduct[];
 }> {
   const db = getDb();
-
-  // Fetch categories
-  const categories = await db
-    .select({ name: Category.name, slug: Category.slug })
-    .from(Category)
-    .limit(100);
-
-  // Fetch brands
-  const brands = await db
-    .select({ name: Brand.name })
-    .from(Brand)
-    .limit(50);
-
-  // Fetch recent products with category/brand names
   const products = await db
     .select({
       id: Product.id,
       sku: Product.sku,
       name: Product.name,
-      categoryName: sql<string | null>`(SELECT c.name FROM category c WHERE c.id = ${Product.categoryId})`,
-      brandName: sql<string | null>`(SELECT b.name FROM brand b WHERE b.id = ${Product.brandId})`,
+      categoryId: Product.categoryId,
+      brandId: Product.brandId,
     })
     .from(Product)
     .orderBy(desc(Product.createdAt))
-    .limit(50);
+    .limit(100);
 
-  const parts: string[] = [];
+  const categories = await db
+    .select({ id: Category.id, name: Category.name })
+    .from(Category)
+    .limit(200);
+  const brands = await db
+    .select({ id: Brand.id, name: Brand.name })
+    .from(Brand)
+    .limit(100);
 
-  if (categories.length > 0) {
-    parts.push(
-      `CATEGORÍAS EXISTENTES EN EL CATÁLOGO (usa estas cuando haya match):\n${categories.map((c) => c.name).join(", ")}`,
-    );
+  const catMap = new Map<string, string>();
+  for (const c of categories) catMap.set(c.id, c.name);
+  const brandMap = new Map<string, string>();
+  for (const b of brands) brandMap.set(b.id, b.name);
+
+  const catalogProducts: CatalogProduct[] = products.map((p) => ({
+    id: p.id,
+    sku: p.sku,
+    name: p.name,
+    categoryId: p.categoryId,
+    brandId: p.brandId,
+    categoryName: p.categoryId ? (catMap.get(p.categoryId) ?? null) : null,
+    brandName: p.brandId ? (brandMap.get(p.brandId) ?? null) : null,
+  }));
+
+  if (catalogProducts.length === 0) {
+    return {
+      context:
+        "CATÁLOGO: vacío (nuevos productos serán creados automáticamente).",
+      products: [],
+    };
   }
 
-  if (brands.length > 0) {
-    parts.push(
-      `MARCAS REGISTRADAS:\n${brands.map((b) => b.name).join(", ")}`,
-    );
-  }
+  const productLines = catalogProducts
+    .map(
+      (p) =>
+        `- SKU: ${p.sku} | ${p.name}${p.categoryName ? ` [${p.categoryName}]` : ""}${p.brandName ? ` (${p.brandName})` : ""}`,
+    )
+    .join("\n");
 
-  if (products.length > 0) {
-    parts.push(
-      `PRODUCTOS RECIENTES (referencia para matching):\n${products.map((p) => `${p.sku} "${p.name}"${p.categoryName ? ` [${p.categoryName}]` : ""}`).join("\n")}`,
-    );
-  }
+  const categoryList = categories.map((c) => c.name).join(", ");
 
   return {
-    context:
-      parts.length > 0
-        ? parts.join("\n\n")
-        : "CATÁLOGO VACÍO: No hay productos registrados aún. Sugiere categorías libremente.",
-    products: products as CatalogProduct[],
+    context: `CATÁLOGO EXISTENTE (${catalogProducts.length} productos):\n${productLines}\n\nCATEGORÍAS ACTIVAS: ${categoryList}`,
+    products: catalogProducts,
   };
 }
 
 function buildFewShotExamples(examples: unknown): string {
-  if (!Array.isArray(examples) || examples.length === 0) {
-    return "";
-  }
+  if (!Array.isArray(examples) || examples.length === 0) return "";
 
-  const typedExamples = examples as FewShotExample[];
-  const lines = typedExamples.slice(0, 15).map((ex) => {
-    let line = `Original: "${ex.original}" → Correcto: "${ex.correct}"`;
-    if (ex.wrong) line += ` (NO "${ex.wrong}")`;
-    if (ex.category) line += ` [categoría: ${ex.category}]`;
-    return line;
-  });
+  const lines = (examples as Record<string, string>[])
+    .map((ex) => {
+      let line = `Original: "${ex.original}" → Correcto: "${ex.correct}"`;
+      if (ex.wrong) line += ` (no: "${ex.wrong}")`;
+      if (ex.category) line += ` [${ex.category}]`;
+      return line;
+    })
+    .join("\n");
 
-  return `EJEMPLOS DE CORRECCIONES PREVIAS (aprende de estos patrones):\n${lines.join("\n")}`;
+  return `\nEJEMPLOS DE CORRECCIÓN (aprende de estos):\n${lines}`;
 }
 
 function assembleSystemPrompt(
-  template: string,
+  base: string,
   catalogContext: string,
   fewShotText: string,
 ): string {
-  let prompt = template;
-  prompt = prompt.replace("{CATALOG_CONTEXT}", catalogContext || "");
-  prompt = prompt.replace(
-    "{FEW_SHOT_EXAMPLES}",
-    fewShotText || "",
-  );
-  return prompt;
+  return `${base}\n\n${catalogContext}${fewShotText}`;
 }
 
-// ── Post-processing: Fuzzy Match ───────────────────────
+// ── Post-Processing ────────────────────────────────────
 function postProcessMatching(
   items: ParsedItem[],
   catalogProducts: CatalogProduct[],
 ): MatchedItem[] {
   return items.map((item) => {
+    let bestMatch: CatalogProduct | null = null;
+    let bestSim = 0;
+    let matchType: MatchedItem["match_type"] = "ai_only";
+
     // 1. Try exact SKU match
     if (item.sku_hint) {
       const skuMatch = catalogProducts.find(
@@ -237,92 +245,96 @@ function postProcessMatching(
         return {
           ...item,
           suggested_product_id: skuMatch.id,
-          suggested_product_name: skuMatch.name,
-          match_confidence: 100,
           match_type: "exact_sku" as const,
-          confidence: Math.max(item.confidence, 95),
+          match_confidence: 100,
           image_url: null,
           image_description: null,
         };
       }
     }
 
-    // 2. Try name similarity
-    let bestMatch: CatalogProduct | null = null;
-    let bestScore = 0;
-
+    // 2. Fuzzy name match
     for (const product of catalogProducts) {
-      const score = similarity(item.name_es, product.name);
-      if (score > bestScore) {
-        bestScore = score;
+      const sim = similarity(item.name_es, product.name);
+      if (sim > bestSim) {
+        bestSim = sim;
         bestMatch = product;
       }
     }
 
-    if (bestMatch && bestScore >= 0.6) {
-      return {
-        ...item,
-        suggested_product_id: bestMatch.id,
-        suggested_product_name: bestMatch.name,
-        match_confidence: Math.round(bestScore * 100),
-        match_type: "name_similarity" as const,
-        image_url: null,
-        image_description: null,
-      };
+    if (bestMatch && bestSim >= 0.8) {
+      matchType = "name_similarity";
+    } else if (bestMatch && bestSim >= 0.5) {
+      matchType = "name_similarity";
+    } else {
+      matchType = "no_match";
+      bestMatch = null;
+      bestSim = 0;
     }
 
-    // 3. No match found
     return {
       ...item,
-      suggested_product_id: null,
-      suggested_product_name: null,
-      match_confidence: 0,
-      match_type: catalogProducts.length === 0 ? "ai_only" as const : "no_match" as const,
+      suggested_product_id: bestMatch?.id ?? null,
+      match_type: matchType,
+      match_confidence: Math.round(bestSim * 100),
       image_url: null,
       image_description: null,
     };
   });
 }
 
-// ── File Parsers ───────────────────────────────────────
+// ── File Parsing ───────────────────────────────────────
 async function parseExcel(buffer: ArrayBuffer): Promise<string[][]> {
   const XLSX = await import("xlsx");
   const workbook = XLSX.read(buffer, { type: "array" });
-  const firstSheetName = workbook.SheetNames[0];
-  if (!firstSheetName) return [];
-  const sheet = workbook.Sheets[firstSheetName];
-  if (!sheet) return [];
-  const rows = XLSX.utils.sheet_to_json<string[]>(sheet, { header: 1 });
-  return rows.filter((row) =>
-    row.some((cell) => String(cell).trim() !== ""),
-  );
+  const allRows: string[][] = [];
+
+  for (const sheetName of workbook.SheetNames) {
+    const sheet = workbook.Sheets[sheetName];
+    if (!sheet) continue;
+    const rows = XLSX.utils.sheet_to_json<string[]>(sheet, {
+      header: 1,
+      defval: "",
+      blankrows: false,
+    });
+    for (const row of rows) {
+      const cleaned = row.map((cell) => String(cell).trim());
+      if (cleaned.some((c) => c.length > 0)) {
+        allRows.push(cleaned);
+      }
+    }
+  }
+
+  return allRows;
 }
 
 async function parsePDF(buffer: ArrayBuffer): Promise<string[][]> {
-  const mod = (await import("pdf-parse")) as {
-    default?: (buf: Buffer) => Promise<{ text: string }>;
-    [key: string]: unknown;
-  };
-  const parseFn = (mod.default ?? mod) as unknown as (
-    buf: Buffer,
-  ) => Promise<{ text: string }>;
-  const data = await parseFn(Buffer.from(buffer));
-  const lines = data.text
+  const { PDFParse } = await import("pdf-parse");
+  const parser = new PDFParse({ data: new Uint8Array(buffer) });
+  const result = await parser.getText();
+  const lines = result.text
     .split("\n")
     .map((l) => l.trim())
     .filter((l) => l.length > 0);
   return lines.map((line) => [line]);
 }
 
-function parseCSV(text: string): string[][] {
-  const lines = text.split("\n").filter((l) => l.trim().length > 0);
-  return lines.map((line) => line.split(",").map((cell) => cell.trim()));
-}
+// CSV parsing removed — only Excel and PDF are supported
 
 // ── Image Extraction ───────────────────────────────────
-const IMAGE_EXTENSIONS = new Set(["png", "jpg", "jpeg", "gif", "bmp", "webp", "tiff"]);
+const IMAGE_EXTENSIONS = new Set([
+  "png",
+  "jpg",
+  "jpeg",
+  "gif",
+  "bmp",
+  "webp",
+  "tiff",
+]);
 
-async function extractImagesFromXlsx(buffer: ArrayBuffer): Promise<ExtractedImage[]> {
+async function extractImagesFromXlsx(
+  buffer: ArrayBuffer,
+): Promise<ExtractedImage[]> {
   const zip = await JSZip.loadAsync(buffer);
   const images: ExtractedImage[] = [];
   let idx = 0;
@@ -336,7 +348,8 @@ async function extractImagesFromXlsx(buffer: ArrayBuffer): Promise<ExtractedImag
 
     const data = await file.async("nodebuffer");
     const compressed = await compressImage(data);
-    const mimeType = ext === "png" ? "image/png" : ext === "gif" ? "image/gif" : "image/jpeg";
+    const mimeType =
+      ext === "png" ? "image/png" : ext === "gif" ? "image/gif" : "image/jpeg";
 
     images.push({
       buffer: compressed,
@@ -346,7 +359,7 @@ async function extractImagesFromXlsx(buffer: ArrayBuffer): Promise<ExtractedImag
     });
   }
 
-  return images;
+  return images.slice(0, MAX_TOTAL_IMAGES); // Limit total images
 }
 
 function extractImagesFromPdf(_buffer: ArrayBuffer): Promise<ExtractedImage[]> {
@@ -357,16 +370,15 @@ function extractImagesFromPdf(_buffer: ArrayBuffer): Promise<ExtractedImage[]> {
 }
 
 async function compressImage(input: Buffer): Promise<Buffer> {
-  // If already small enough, return as-is
+  // If already small enough, resize for faster API processing
   if (input.length <= MAX_IMAGE_BYTES) {
-    // Still resize to max 1024px for faster API processing
     return sharp(input)
       .resize(1024, 1024, { fit: "inside", withoutEnlargement: true })
       .jpeg({ quality: 85 })
       .toBuffer();
   }
 
-  // Progressively reduce quality until under 4MB
+  // Progressively reduce quality until under limit
   let quality = 80;
   let result = input;
   while (result.length > MAX_IMAGE_BYTES && quality > 20) {
@@ -424,12 +436,20 @@ async function analyzeImagesWithVision(
   for (let i = 0; i < images.length; i += MAX_IMAGES_PER_VISION_REQUEST) {
     const batch = images.slice(i, i + MAX_IMAGES_PER_VISION_REQUEST);
 
-    const imageContent = batch.map((img) => ({
-      type: "image_url" as const,
-      image_url: {
-        url: `data:${img.mimeType};base64,${img.buffer.toString("base64")}`,
-      },
-    }));
+    // Support both URL references (Tier 3) and base64 (legacy FormData path)
+    const imageContent = batch.map((img) => {
+      const urlImage = img as ExtractedImage & { _url?: string };
+      return {
+        type: "image_url" as const,
+        image_url: {
+          // Tier 3: Use URL directly (Groq fetches up to 20MB server-to-server)
+          // Legacy: Use base64 data URI (for FormData/PDF path, ≤4MB)
+          url:
+            urlImage._url ??
+            `data:${img.mimeType};base64,${img.buffer.toString("base64")}`,
+        },
+      };
+    });
 
     const response = await fetch(GROQ_API_URL, {
       method: "POST",
@@ -502,11 +522,13 @@ function mergeTextAndVision(
     const descParts: string[] = [];
     if (vision.product_name_es) descParts.push(vision.product_name_es);
     if (vision.material) descParts.push(`Material: ${vision.material}`);
-    if (vision.colors.length > 0) descParts.push(`Colores: ${vision.colors.join(", ")}`);
+    if (vision.colors.length > 0)
+      descParts.push(`Colores: ${vision.colors.join(", ")}`);
     if (vision.visible_text) descParts.push(`OCR: ${vision.visible_text}`);
     if (vision.brand_visible) descParts.push(`Marca: ${vision.brand_visible}`);
 
-    enriched.image_description = descParts.length > 0 ? descParts.join(" | ") : null;
+    enriched.image_description =
+      descParts.length > 0 ? descParts.join(" | ") : null;
 
     return enriched;
   });
@@ -538,43 +560,61 @@ Devuelve SOLO {"items": [...]} sin explicaciones ni markdown.`,
     },
   ];
 
-  const response = await fetch(GROQ_API_URL, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model,
-      messages,
-      temperature: 0.3,
-      max_tokens: 32000,
-      response_format: { type: "json_object" },
-    }),
-  });
+  // Retry with exponential backoff for rate limits
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    const response = await fetch(GROQ_API_URL, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model,
+        messages,
+        temperature: 0.3,
+        max_tokens: 2048, // 8 items generate ~300-800 tokens. 2048 keeps total TPM per request ~3K.
+        response_format: { type: "json_object" },
+      }),
+    });
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Groq API error (${response.status}): ${errorText}`);
-  }
-
-  const data = (await response.json()) as GroqResponse;
-  const content = data.choices[0]?.message.content ?? "{}";
-
-  try {
-    const parsed = JSON.parse(content) as Record<string, unknown>;
-    for (const value of Object.values(parsed)) {
-      if (Array.isArray(value)) return value as ParsedItem[];
+    if (response.status === 429) {
+      const retryAfter = parseInt(
+        response.headers.get("retry-after") ?? "2",
+        10,
+      );
+      const delay = retryAfter * 1000 * (attempt + 1); // exponential
+      await sleep(delay);
+      continue;
     }
-    return [];
-  } catch {
-    const regex = /\[[\s\S]*\]/;
-    const match = regex.exec(content);
-    if (match) {
-      return JSON.parse(match[0]) as ParsedItem[];
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Groq API error (${response.status}): ${errorText}`);
     }
-    return [];
+
+    const data = (await response.json()) as GroqResponse;
+    let content = data.choices[0]?.message.content ?? "{}";
+
+    // Sanitize Qwen3 think tags and /no_think markers
+    content = content.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+    content = content.replace(/\/no_think/g, "").trim();
+
+    try {
+      const parsed = JSON.parse(content) as Record<string, unknown>;
+      for (const value of Object.values(parsed)) {
+        if (Array.isArray(value)) return value as ParsedItem[];
+      }
+      return [];
+    } catch {
+      const regex = /\[[\s\S]*\]/;
+      const match = regex.exec(content);
+      if (match) {
+        return JSON.parse(match[0]) as ParsedItem[];
+      }
+      return [];
+    }
   }
+  throw new Error("Groq API: max retries exceeded");
 }
 
 // ── Chunk Processing with Concurrency ──────────────────
@@ -624,6 +664,11 @@ async function processChunks(
     }
 
     await Promise.all(batchPromises);
+
+    // Respect Groq rate limits between batches
+    if (batchStart + MAX_CONCURRENT < chunks.length) {
+      await sleep(INTER_CHUNK_DELAY_MS);
+    }
   }
 
   const allItems: ParsedItem[] = [];
@@ -634,7 +679,30 @@ async function processChunks(
   return { items: allItems, failedChunks };
 }
 
+// ── Route Segment Config ───────────────────────────────
+export const maxDuration = 60; // seconds — AI processing needs time
+export const dynamic = "force-dynamic";
+
 // ── Route Handler ──────────────────────────────────────
+
+// Types for client-parsed input (JSON body from browser pipeline)
+interface ClientParsedInput {
+  rows: string[][];
+  images?: {
+    base64: string;
+    mimeType: string;
+    index: number;
+    fileName: string;
+  }[];
+  /** Supabase Storage public URLs for Groq Vision via URL reference (Tier 3) */
+  imageUrls?: string[];
+  containerId: string;
+  /** Chunk index for chunked uploads (0-based) */
+  chunkIndex?: number;
+  /** Total number of chunks in this upload session */
+  totalChunks?: number;
+}
+
 export async function POST(request: NextRequest) {
   if (!env.GROQ_API_KEY) {
     return NextResponse.json(
@@ -645,13 +713,113 @@ export async function POST(request: NextRequest) {
   const apiKey = String(env.GROQ_API_KEY);
 
   try {
-    const formData = await request.formData();
-    const file = formData.get("file") as File | null;
-    const containerId = formData.get("containerId") as string | null;
+    const contentType = request.headers.get("content-type") ?? "";
 
-    if (!file || !containerId) {
+    // ── Determine input mode ──
+    let rows: string[][];
+    let extractedImages: ExtractedImage[] = [];
+    let containerId: string;
+
+    if (contentType.includes("application/json")) {
+      // ═══ JSON PATH: Client-parsed Excel data (chunked) ═══
+      // Browser already parsed the file — we receive lightweight JSON chunks (≤2MB each)
+      const body = (await request.json()) as ClientParsedInput;
+
+      if (
+        !body.containerId ||
+        !Array.isArray(body.rows) ||
+        body.rows.length === 0
+      ) {
+        return NextResponse.json(
+          { error: "rows (array) y containerId son requeridos" },
+          { status: 400 },
+        );
+      }
+
+      containerId = body.containerId;
+      rows = body.rows;
+
+      // ── Chunked mode: images are NOT embedded in JSON payload ──
+      // Images are either:
+      //   a) Skipped entirely (text-only mode)
+      //   b) Uploaded to Supabase Storage and referenced via imageUrls (Tier 3)
+      // Legacy base64 images are ignored in chunked mode to stay under 4.5MB
+      if (Array.isArray(body.imageUrls) && body.imageUrls.length > 0) {
+        // Tier 3: Groq Vision via URL reference — images stay in Supabase Storage
+        // Each URL can be up to 20MB — Groq fetches directly, zero data through Vercel
+        extractedImages = body.imageUrls
+          .slice(0, MAX_TOTAL_IMAGES)
+          .map((url, idx) => ({
+            buffer: Buffer.alloc(0), // No binary data — URL-only mode
+            index: idx,
+            fileName: `image_${idx}`,
+            mimeType: "image/jpeg",
+            _url: url, // Store URL for vision pipeline
+          })) as (ExtractedImage & { _url?: string })[];
+      }
+      // Note: body.images (legacy base64) is intentionally ignored in chunked mode
+    } else {
+      // ═══ FORMDATA PATH: Raw file upload (PDF ≤ 4MB) ═══
+      const formData = await request.formData();
+      const file = formData.get("file") as File | null;
+      const formContainerId = formData.get("containerId") as string | null;
+
+      if (!file || !formContainerId) {
+        return NextResponse.json(
+          { error: "Archivo y containerId son requeridos" },
+          { status: 400 },
+        );
+      }
+
+      containerId = formContainerId;
+
+      // Validate file size (Vercel limit is 4.5MB, guard at 4MB)
+      if (file.size > 4 * 1024 * 1024) {
+        return NextResponse.json(
+          {
+            error: `Archivo demasiado grande para subida directa (${(file.size / 1024 / 1024).toFixed(1)}MB). Máximo: 4MB. Para archivos más grandes, usa formato Excel — se procesa en el navegador sin límite de tamaño.`,
+          },
+          { status: 413 },
+        );
+      }
+
+      const fileName = file.name.toLowerCase();
+      const hasValidExtension = ALLOWED_EXTENSIONS.some((ext) =>
+        fileName.endsWith(ext),
+      );
+      const hasValidMime =
+        ALLOWED_MIME_TYPES.has(file.type) || file.type === "";
+
+      if (!hasValidExtension || !hasValidMime) {
+        return NextResponse.json(
+          { error: "Formato no soportado. Use Excel (.xlsx/.xls) o PDF" },
+          { status: 400 },
+        );
+      }
+
+      // Parse file server-side
+      const buffer = await file.arrayBuffer();
+
+      if (fileName.endsWith(".xlsx") || fileName.endsWith(".xls")) {
+        const [parsedRows, images] = await Promise.all([
+          parseExcel(buffer),
+          extractImagesFromXlsx(buffer),
+        ]);
+        rows = parsedRows;
+        extractedImages = images;
+      } else {
+        const [parsedRows, images] = await Promise.all([
+          parsePDF(buffer),
+          extractImagesFromPdf(buffer),
+        ]);
+        rows = parsedRows;
+        extractedImages = images;
+      }
+    }
+
+    if (rows.length === 0) {
       return NextResponse.json(
-        { error: "Archivo y containerId son requeridos" },
+        { error: "El archivo está vacío o no se pudo parsear" },
         { status: 400 },
       );
     }
@@ -671,77 +839,64 @@ export async function POST(request: NextRequest) {
     // ── 4. Assemble system prompt ──
     const systemPrompt = config
       ? assembleSystemPrompt(config.systemPrompt, catalogContext, fewShotText)
-      : `Eres un analista de importación. Traduce items al español y responde SOLO con {"items": [...]}.
-         Cada item: {"original_name","name_es","quantity","unit_cost","weight_kg","sku_hint","category_hint","confidence"}`;
+      : `Eres CENDARO-AI, un analista profesional de importación para un distribuidor mayorista multi-categoría en Venezuela.
 
-    // ── 5. Parse file + Extract images ──
-    const buffer = await file.arrayBuffer();
-    const fileName = file.name.toLowerCase();
-    let rows: string[][];
-    let extractedImages: ExtractedImage[] = [];
+Tu ÚNICA tarea: analizar packing lists y devolver JSON estructurado. NO inventes datos. Si no puedes determinar un valor, usa null.
 
-    if (fileName.endsWith(".xlsx") || fileName.endsWith(".xls")) {
-      // Parse text and extract images in parallel
-      const [parsedRows, images] = await Promise.all([
-        parseExcel(buffer),
-        extractImagesFromXlsx(buffer),
-      ]);
-      rows = parsedRows;
-      extractedImages = images;
-    } else if (fileName.endsWith(".pdf")) {
-      const [parsedRows, images] = await Promise.all([
-        parsePDF(buffer),
-        extractImagesFromPdf(buffer),
-      ]);
-      rows = parsedRows;
-      extractedImages = images;
-    } else if (fileName.endsWith(".csv") || fileName.endsWith(".txt")) {
-      const text = new TextDecoder().decode(buffer);
-      rows = parseCSV(text);
-      // CSV files don't contain images
-    } else {
-      return NextResponse.json(
-        { error: "Formato no soportado. Use Excel (.xlsx), PDF o CSV" },
-        { status: 400 },
-      );
-    }
+CATEGORÍAS (NO limitativas): Electrónica, Herramientas, Ferretería, Automotriz, Peluquería y Belleza, Productos Adultos, Hogar y Cocina, Juguetes, Ropa y Accesorios, Deportes, Iluminación, Cables y Conectores, Papelería, Mascotas, Salud y Cuidado Personal, Decoración, Seguridad, y cualquier otra que aplique.
 
-    if (rows.length === 0) {
-      return NextResponse.json(
-        { error: "El archivo está vacío o no se pudo parsear" },
-        { status: 400 },
-      );
-    }
+${catalogContext}
 
-    // ── 6. Chunk text rows ──
+REGLAS DE CONFIANZA:
+- 90-100: Traducción exacta, categoría clara, datos completos
+- 60-89: Traducción probable, categoría inferida
+- <60: Traducción incierta o datos ambiguos
+
+Responde ÚNICAMENTE con JSON válido:
+{"items": [{"original_name": "texto original", "name_es": "traducción al español", "quantity": 1, "unit_cost": null, "weight_kg": null, "sku_hint": null, "category_hint": "categoría", "confidence": 85}]}`;
+
+    // ── 5. Chunk text rows ──
     const chunks: string[][][] = [];
     for (let i = 0; i < rows.length; i += CHUNK_SIZE) {
       chunks.push(rows.slice(i, i + CHUNK_SIZE));
     }
 
-    // ── 7. Run DUAL AI PIPELINES in parallel ──
+    // ── 6. Run DUAL AI PIPELINES in parallel ──
     // Pipeline A: Qwen3-32B processes text (translation, categorization)
     // Pipeline B: Llama 4 Scout processes images (OCR, visual analysis)
+    // Vision is best-effort — if it fails, text still works
     const [textResult, visionResults] = await Promise.all([
       processChunks(chunks, apiKey, systemPrompt),
-      analyzeImagesWithVision(extractedImages, apiKey),
+      analyzeImagesWithVision(extractedImages, apiKey).catch(
+        () => [] as VisionResult[],
+      ),
     ]);
 
     const { items, failedChunks } = textResult;
 
-    // ── 8. Post-process: fuzzy match against catalog ──
+    // ── 7. Post-process: fuzzy match against catalog ──
     const rawMatched = postProcessMatching(items, catalogProducts);
 
-    // ── 9. Merge text + vision results ──
+    // ── 8. Merge text + vision results ──
     const matchedItems = mergeTextAndVision(rawMatched, visionResults);
 
-    // ── 10. Stats ──
+    // ── 9. Stats ──
     const stats = {
-      matched: matchedItems.filter((i) => i.match_type === "exact_sku" || (i.match_type === "name_similarity" && i.match_confidence >= 80)).length,
-      review: matchedItems.filter((i) => i.match_type === "name_similarity" && i.match_confidence < 80).length,
-      newItems: matchedItems.filter((i) => i.match_type === "no_match" || i.match_type === "ai_only").length,
+      matched: matchedItems.filter(
+        (i) =>
+          i.match_type === "exact_sku" ||
+          (i.match_type === "name_similarity" && i.match_confidence >= 80),
+      ).length,
+      review: matchedItems.filter(
+        (i) => i.match_type === "name_similarity" && i.match_confidence < 80,
+      ).length,
+      newItems: matchedItems.filter(
+        (i) => i.match_type === "no_match" || i.match_type === "ai_only",
+      ).length,
       highConfidence: matchedItems.filter((i) => i.confidence >= 90).length,
-      mediumConfidence: matchedItems.filter((i) => i.confidence >= 60 && i.confidence < 90).length,
+      mediumConfidence: matchedItems.filter(
+        (i) => i.confidence >= 60 && i.confidence < 90,
+      ).length,
       lowConfidence: matchedItems.filter((i) => i.confidence < 60).length,
       imagesExtracted: extractedImages.length,
       imagesAnalyzed: visionResults.length,
