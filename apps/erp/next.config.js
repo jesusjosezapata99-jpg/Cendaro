@@ -18,7 +18,13 @@ const config = {
     optimizePackageImports: [
       "@trpc/client",
       "@trpc/tanstack-react-query",
+      "@tanstack/react-query",
+      "@supabase/supabase-js",
+      "@supabase/ssr",
       "clsx",
+      "sonner",
+      "superjson",
+      "zod",
     ],
   },
   /** Sharp uses native binaries — must not be bundled */

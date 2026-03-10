@@ -8,7 +8,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       attribute="class"
       defaultTheme="light"
       enableSystem
-      storageKey="omnicore-theme"
+      storageKey="cendaro-theme"
       themes={["light", "dark"]}
       disableTransitionOnChange={false}
     >

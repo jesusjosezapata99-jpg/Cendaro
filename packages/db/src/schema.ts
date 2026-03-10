@@ -658,6 +658,7 @@ export const ContainerItem = pgTable(
     weightKg: t.doublePrecision(),
     skuHint: t.varchar({ length: 128 }),
     categoryHint: t.varchar({ length: 256 }),
+    matchType: t.varchar({ length: 32 }),
     isMatched: t.boolean().notNull().default(false),
     // AI confidence & matching
     confidence: t.doublePrecision(),
