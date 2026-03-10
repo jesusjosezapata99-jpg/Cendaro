@@ -1,9 +1,13 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+
 import { createSupabaseServerClient } from "@cendaro/auth/server";
 
 export async function POST(request: Request) {
-  const body = (await request.json()) as { username?: string; password?: string };
+  const body = (await request.json()) as {
+    username?: string;
+    password?: string;
+  };
   const { username, password } = body;
 
   if (!username || !password) {
@@ -28,7 +32,11 @@ export async function POST(request: Request) {
   }
 
   const cookieStore = await cookies();
-  const supabase = createSupabaseServerClient(cookieStore, supabaseUrl, supabaseKey);
+  const supabase = createSupabaseServerClient(
+    cookieStore,
+    supabaseUrl,
+    supabaseKey,
+  );
 
   // Resolve username → email using service role to bypass RLS
   const { createClient } = await import("@supabase/supabase-js");

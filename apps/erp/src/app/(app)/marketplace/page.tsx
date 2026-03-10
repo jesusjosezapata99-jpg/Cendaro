@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+
 import { useTRPC } from "~/trpc/client";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 function Skeleton({ className = "" }: { className?: string }) {
-  return <div className={`animate-pulse rounded-lg bg-muted ${className}`} />;
+  return <div className={`bg-muted animate-pulse rounded-lg ${className}`} />;
 }
 
 const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
@@ -38,7 +39,10 @@ export default function MarketplacePage() {
     trpc.integrations.listMlOrders.queryOptions({ limit: 50 }),
   );
   const { data: logs, isLoading: logsLoading } = useQuery(
-    trpc.integrations.listLogs.queryOptions({ source: "mercadolibre", limit: 50 }),
+    trpc.integrations.listLogs.queryOptions({
+      source: "mercadolibre",
+      limit: 50,
+    }),
   );
 
   const [tab, setTab] = useState<"listings" | "orders" | "logs">("listings");
@@ -47,7 +51,7 @@ export default function MarketplacePage() {
   const importOrder = useMutation(
     trpc.integrations.importMlOrder.mutationOptions({
       onSuccess: () => {
-        void qc.invalidateQueries({ queryKey: [['integrations']] });
+        void qc.invalidateQueries({ queryKey: [["integrations"]] });
       },
     }),
   );
@@ -55,7 +59,7 @@ export default function MarketplacePage() {
   const resolveLog = useMutation(
     trpc.integrations.resolveLog.mutationOptions({
       onSuccess: () => {
-        void qc.invalidateQueries({ queryKey: [['integrations']] });
+        void qc.invalidateQueries({ queryKey: [["integrations"]] });
       },
     }),
   );
@@ -64,18 +68,22 @@ export default function MarketplacePage() {
   const orderItems = orders ?? [];
   const logItems = logs ?? [];
 
-  const activeListings = listingItems.filter((l) => l.status === "active").length;
+  const activeListings = listingItems.filter(
+    (l) => l.status === "active",
+  ).length;
   const pendingImport = orderItems.filter((o) => !o.isImported).length;
   const activeAlerts = logItems.filter((a) => !a.isResolved).length;
 
   return (
-    <div className="p-4 lg:p-8 space-y-6">
+    <div className="space-y-6 p-4 lg:p-8">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-black tracking-tight text-foreground">
+          <h1 className="text-foreground text-2xl font-black tracking-tight">
             <span className="mr-2">🛒</span>Mercado Libre
           </h1>
-          <p className="text-sm text-muted-foreground">Panel de control de integración</p>
+          <p className="text-muted-foreground text-sm">
+            Panel de control de integración
+          </p>
         </div>
         <button className="rounded-lg bg-yellow-500 px-4 py-2.5 text-sm font-medium text-black transition-colors hover:bg-yellow-400">
           🔄 Sincronizar Todo
@@ -84,17 +92,47 @@ export default function MarketplacePage() {
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
         {[
-          { label: "Publicaciones Activas", value: activeListings, icon: "package_2", accent: "border-emerald-500/40" },
-          { label: "Total Publicados", value: listingItems.length, icon: "storefront", accent: "border-blue-500/40" },
-          { label: "Órdenes Pendientes", value: pendingImport, icon: "inbox", accent: "border-amber-500/40" },
-          { label: "Alertas Activas", value: activeAlerts, icon: "warning", accent: activeAlerts > 0 ? "border-red-500/40" : "border-slate-500/40" },
+          {
+            label: "Publicaciones Activas",
+            value: activeListings,
+            icon: "package_2",
+            accent: "border-emerald-500/40",
+          },
+          {
+            label: "Total Publicados",
+            value: listingItems.length,
+            icon: "storefront",
+            accent: "border-blue-500/40",
+          },
+          {
+            label: "Órdenes Pendientes",
+            value: pendingImport,
+            icon: "inbox",
+            accent: "border-amber-500/40",
+          },
+          {
+            label: "Alertas Activas",
+            value: activeAlerts,
+            icon: "warning",
+            accent:
+              activeAlerts > 0 ? "border-red-500/40" : "border-slate-500/40",
+          },
         ].map((stat) => (
-          <div key={stat.label} className={`rounded-xl border-l-4 ${stat.accent} bg-card border border-border p-4`}>
+          <div
+            key={stat.label}
+            className={`rounded-xl border-l-4 ${stat.accent} bg-card border-border border p-4`}
+          >
             <div className="flex items-center gap-2">
-              <span className="material-symbols-outlined text-lg text-muted-foreground">{stat.icon}</span>
-              <span className="text-xs text-muted-foreground">{stat.label}</span>
+              <span className="material-symbols-outlined text-muted-foreground text-lg">
+                {stat.icon}
+              </span>
+              <span className="text-muted-foreground text-xs">
+                {stat.label}
+              </span>
             </div>
-            <p className="mt-1 text-2xl font-black tracking-tight text-foreground">{stat.value}</p>
+            <p className="text-foreground mt-1 text-2xl font-black tracking-tight">
+              {stat.value}
+            </p>
           </div>
         ))}
       </div>
@@ -103,57 +141,88 @@ export default function MarketplacePage() {
         <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4">
           <div className="flex items-center gap-2">
             <span className="text-lg">🚨</span>
-            <p className="font-medium text-red-400">{activeAlerts} alerta{activeAlerts > 1 ? "s" : ""} de integración sin resolver</p>
+            <p className="font-medium text-red-400">
+              {activeAlerts} alerta{activeAlerts > 1 ? "s" : ""} de integración
+              sin resolver
+            </p>
           </div>
         </div>
       )}
 
       {/* Tabs */}
-      <div className="flex gap-1 rounded-lg bg-card border border-border p-1">
+      <div className="bg-card border-border flex gap-1 rounded-lg border p-1">
         {(["listings", "orders", "logs"] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
             className={`flex-1 rounded-md px-4 py-2 text-sm font-medium transition-colors ${
-              tab === t ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+              tab === t
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            {t === "listings" ? "📦 Publicaciones" : t === "orders" ? "📥 Órdenes ML" : "📋 Logs"}
+            {t === "listings"
+              ? "📦 Publicaciones"
+              : t === "orders"
+                ? "📥 Órdenes ML"
+                : "📋 Logs"}
           </button>
         ))}
       </div>
 
       {/* Listings Tab */}
-      {tab === "listings" && (
-        listingsLoading ? (
-          <div className="space-y-2">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}</div>
+      {tab === "listings" &&
+        (listingsLoading ? (
+          <div className="space-y-2">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <Skeleton key={i} className="h-12 w-full" />
+            ))}
+          </div>
         ) : (
-          <div className="overflow-hidden rounded-xl border border-border bg-card">
+          <div className="border-border bg-card overflow-hidden rounded-xl border">
             <table className="w-full text-left text-sm">
               <thead>
-                <tr className="border-b border-border text-xs uppercase text-muted-foreground">
+                <tr className="border-border text-muted-foreground border-b text-xs uppercase">
                   <th className="px-4 py-3 font-medium">ML ID</th>
                   <th className="px-4 py-3 font-medium">Título</th>
-                  <th className="px-4 py-3 font-medium text-right">Precio</th>
-                  <th className="px-4 py-3 font-medium text-center">Estado</th>
-                  <th className="px-4 py-3 font-medium text-right">Stock</th>
+                  <th className="px-4 py-3 text-right font-medium">Precio</th>
+                  <th className="px-4 py-3 text-center font-medium">Estado</th>
+                  <th className="px-4 py-3 text-right font-medium">Stock</th>
                   <th className="px-4 py-3 font-medium">Última Sync</th>
                 </tr>
               </thead>
               <tbody>
                 {listingItems.map((l) => {
-                  const cfg = STATUS_CONFIG[l.status] ?? { label: l.status, color: "bg-muted text-muted-foreground" };
+                  const cfg = STATUS_CONFIG[l.status] ?? {
+                    label: l.status,
+                    color: "bg-muted text-muted-foreground",
+                  };
                   return (
-                    <tr key={l.id} className="border-b border-border transition-colors hover:bg-accent/50">
-                      <td className="px-4 py-3 font-mono text-xs text-primary">{l.mlItemId}</td>
-                      <td className="px-4 py-3 text-foreground">{l.title}</td>
-                      <td className="px-4 py-3 text-right font-mono font-bold text-foreground">${l.price.toFixed(2)}</td>
-                      <td className="px-4 py-3 text-center">
-                        <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${cfg.color}`}>{cfg.label}</span>
+                    <tr
+                      key={l.id}
+                      className="border-border hover:bg-accent/50 border-b transition-colors"
+                    >
+                      <td className="text-primary px-4 py-3 font-mono text-xs">
+                        {l.mlItemId}
                       </td>
-                      <td className="px-4 py-3 text-right font-mono font-bold text-foreground">{l.stockSynced}</td>
-                      <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
-                        {l.lastSyncAt ? new Date(l.lastSyncAt).toLocaleString() : "Nunca"}
+                      <td className="text-foreground px-4 py-3">{l.title}</td>
+                      <td className="text-foreground px-4 py-3 text-right font-mono font-bold">
+                        ${l.price.toFixed(2)}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-xs font-medium ${cfg.color}`}
+                        >
+                          {cfg.label}
+                        </span>
+                      </td>
+                      <td className="text-foreground px-4 py-3 text-right font-mono font-bold">
+                        {l.stockSynced}
+                      </td>
+                      <td className="text-muted-foreground px-4 py-3 font-mono text-xs">
+                        {l.lastSyncAt
+                          ? new Date(l.lastSyncAt).toLocaleString()
+                          : "Nunca"}
                       </td>
                     </tr>
                   );
@@ -161,38 +230,60 @@ export default function MarketplacePage() {
               </tbody>
             </table>
           </div>
-        )
-      )}
+        ))}
 
       {/* Orders Tab */}
-      {tab === "orders" && (
-        ordersLoading ? (
-          <div className="space-y-2">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}</div>
+      {tab === "orders" &&
+        (ordersLoading ? (
+          <div className="space-y-2">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="h-12 w-full" />
+            ))}
+          </div>
         ) : (
-          <div className="overflow-hidden rounded-xl border border-border bg-card">
+          <div className="border-border bg-card overflow-hidden rounded-xl border">
             <table className="w-full text-left text-sm">
               <thead>
-                <tr className="border-b border-border text-xs uppercase text-muted-foreground">
+                <tr className="border-border text-muted-foreground border-b text-xs uppercase">
                   <th className="px-4 py-3 font-medium">Orden ML</th>
                   <th className="px-4 py-3 font-medium">Comprador</th>
-                  <th className="px-4 py-3 font-medium text-right">Precio Unit.</th>
-                  <th className="px-4 py-3 font-medium text-right">Cant.</th>
-                  <th className="px-4 py-3 font-medium text-right">Total</th>
-                  <th className="px-4 py-3 font-medium text-center">Envío</th>
-                  <th className="px-4 py-3 font-medium text-center">Importado</th>
+                  <th className="px-4 py-3 text-right font-medium">
+                    Precio Unit.
+                  </th>
+                  <th className="px-4 py-3 text-right font-medium">Cant.</th>
+                  <th className="px-4 py-3 text-right font-medium">Total</th>
+                  <th className="px-4 py-3 text-center font-medium">Envío</th>
+                  <th className="px-4 py-3 text-center font-medium">
+                    Importado
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {orderItems.map((o) => {
                   return (
-                    <tr key={o.id} className="border-b border-border transition-colors hover:bg-accent/50">
-                      <td className="px-4 py-3 font-mono text-xs text-primary">{o.mlOrderId}</td>
-                      <td className="px-4 py-3 text-muted-foreground">{o.buyerNickname ?? "—"}</td>
-                      <td className="px-4 py-3 text-right font-mono text-muted-foreground">${o.unitPrice.toFixed(2)}</td>
-                      <td className="px-4 py-3 text-right font-mono text-muted-foreground">{o.quantity}</td>
-                      <td className="px-4 py-3 text-right font-mono font-bold text-foreground">${(o.unitPrice * o.quantity).toFixed(2)}</td>
+                    <tr
+                      key={o.id}
+                      className="border-border hover:bg-accent/50 border-b transition-colors"
+                    >
+                      <td className="text-primary px-4 py-3 font-mono text-xs">
+                        {o.mlOrderId}
+                      </td>
+                      <td className="text-muted-foreground px-4 py-3">
+                        {o.buyerNickname ?? "—"}
+                      </td>
+                      <td className="text-muted-foreground px-4 py-3 text-right font-mono">
+                        ${o.unitPrice.toFixed(2)}
+                      </td>
+                      <td className="text-muted-foreground px-4 py-3 text-right font-mono">
+                        {o.quantity}
+                      </td>
+                      <td className="text-foreground px-4 py-3 text-right font-mono font-bold">
+                        ${(o.unitPrice * o.quantity).toFixed(2)}
+                      </td>
                       <td className="px-4 py-3 text-center">
-                        <span className="text-xs font-medium text-muted-foreground">{o.shippingStatus ?? "—"}</span>
+                        <span className="text-muted-foreground text-xs font-medium">
+                          {o.shippingStatus ?? "—"}
+                        </span>
                       </td>
                       <td className="px-4 py-3 text-center">
                         {o.isImported ? (
@@ -201,7 +292,7 @@ export default function MarketplacePage() {
                           <button
                             onClick={() => importOrder.mutate({ id: o.id })}
                             disabled={importOrder.isPending}
-                            className="rounded bg-blue-600/20 px-2 py-0.5 text-xs text-primary transition-colors hover:bg-blue-600/40 disabled:opacity-50"
+                            className="text-primary rounded bg-blue-600/20 px-2 py-0.5 text-xs transition-colors hover:bg-blue-600/40 disabled:opacity-50"
                           >
                             {importOrder.isPending ? "..." : "Importar"}
                           </button>
@@ -213,26 +304,38 @@ export default function MarketplacePage() {
               </tbody>
             </table>
           </div>
-        )
-      )}
+        ))}
 
       {/* Logs Tab */}
-      {tab === "logs" && (
-        logsLoading ? (
-          <div className="space-y-2">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-16 w-full" />)}</div>
+      {tab === "logs" &&
+        (logsLoading ? (
+          <div className="space-y-2">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <Skeleton key={i} className="h-16 w-full" />
+            ))}
+          </div>
         ) : (
           <div className="space-y-2">
             {logItems.map((log) => {
-              const lvl = LOG_LEVEL_CFG[log.level] ?? { label: log.level, color: "text-muted-foreground bg-muted" };
+              const lvl = LOG_LEVEL_CFG[log.level] ?? {
+                label: log.level,
+                color: "text-muted-foreground bg-muted",
+              };
               return (
                 <div
                   key={log.id}
-                  className={`rounded-xl border border-border ${log.isResolved ? "bg-card/50 opacity-60" : "bg-card"} p-4`}
+                  className={`border-border rounded-xl border ${log.isResolved ? "bg-card/50 opacity-60" : "bg-card"} p-4`}
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-2">
-                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${lvl.color}`}>{lvl.label}</span>
-                      <p className={`text-sm ${log.isResolved ? "text-muted-foreground line-through" : "text-foreground"}`}>
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-xs font-medium ${lvl.color}`}
+                      >
+                        {lvl.label}
+                      </span>
+                      <p
+                        className={`text-sm ${log.isResolved ? "text-muted-foreground line-through" : "text-foreground"}`}
+                      >
                         {log.message}
                       </p>
                     </div>
@@ -240,26 +343,25 @@ export default function MarketplacePage() {
                       <button
                         onClick={() => resolveLog.mutate({ id: log.id })}
                         disabled={resolveLog.isPending}
-                        className="rounded-lg border border-border bg-secondary px-3 py-1 text-xs font-bold text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-50"
+                        className="border-border bg-secondary text-muted-foreground hover:bg-accent hover:text-foreground rounded-lg border px-3 py-1 text-xs font-bold disabled:opacity-50"
                       >
                         {resolveLog.isPending ? "..." : "Resolver"}
                       </button>
                     )}
                   </div>
-                  <p className="mt-1 text-[10px] text-muted-foreground">
+                  <p className="text-muted-foreground mt-1 text-[10px]">
                     {new Date(log.createdAt).toLocaleString()} · {log.source}
                   </p>
                 </div>
               );
             })}
             {logItems.length === 0 && (
-              <div className="rounded-xl border border-border bg-card p-8 text-center text-muted-foreground">
+              <div className="border-border bg-card text-muted-foreground rounded-xl border p-8 text-center">
                 No hay logs de integración
               </div>
             )}
           </div>
-        )
-      )}
+        ))}
     </div>
   );
 }

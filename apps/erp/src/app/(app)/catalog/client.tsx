@@ -1,25 +1,40 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import dynamic from "next/dynamic";
-import { useTRPC } from "~/trpc/client";
-import { useQuery, keepPreviousData } from "@tanstack/react-query";
+import Link from "next/link";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
+
 import { useDebounce } from "~/hooks/use-debounce";
+import { useTRPC } from "~/trpc/client";
 
 const CreateProductDialog = dynamic(
-  () => import("~/components/forms/create-product").then((m) => ({ default: m.CreateProductDialog })),
+  () =>
+    import("~/components/forms/create-product").then((m) => ({
+      default: m.CreateProductDialog,
+    })),
   { ssr: false },
 );
 
 function Skeleton({ className = "" }: { className?: string }) {
-  return <div className={`animate-pulse rounded-lg bg-muted ${className}`} />;
+  return <div className={`bg-muted animate-pulse rounded-lg ${className}`} />;
 }
 
 const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
-  active: { label: "Activo", color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300" },
-  draft: { label: "Borrador", color: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300" },
-  discontinued: { label: "Descontinuado", color: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300" },
+  active: {
+    label: "Activo",
+    color:
+      "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300",
+  },
+  draft: {
+    label: "Borrador",
+    color:
+      "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
+  },
+  discontinued: {
+    label: "Descontinuado",
+    color: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300",
+  },
 };
 
 export default function CatalogClient() {
@@ -36,7 +51,10 @@ export default function CatalogClient() {
       limit,
       offset: page * limit,
       search: debouncedSearch || undefined,
-      status: statusFilter !== "all" ? (statusFilter as "active" | "draft" | "discontinued") : undefined,
+      status:
+        statusFilter !== "all"
+          ? (statusFilter as "active" | "draft" | "discontinued")
+          : undefined,
     }),
     placeholderData: keepPreviousData,
   });
@@ -46,36 +64,68 @@ export default function CatalogClient() {
   const totalPages = Math.ceil(total / limit);
 
   return (
-    <div className="p-4 lg:p-8 space-y-6">
+    <div className="space-y-6 p-4 lg:p-8">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-black tracking-tight text-foreground">Catálogo de Productos</h1>
-          <p className="text-sm text-muted-foreground">
+          <h1 className="text-foreground text-2xl font-black tracking-tight">
+            Catálogo de Productos
+          </h1>
+          <p className="text-muted-foreground text-sm">
             Gestiona tu catálogo de {total.toLocaleString()} referencias
           </p>
         </div>
-        <button onClick={() => setShowCreate(true)} className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90">
+        <button
+          onClick={() => setShowCreate(true)}
+          className="bg-primary text-primary-foreground hover:bg-primary/90 flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors"
+        >
           <span className="material-symbols-outlined text-lg">add</span>
           Nuevo Producto
         </button>
       </div>
 
-      <CreateProductDialog open={showCreate} onClose={() => setShowCreate(false)} />
+      <CreateProductDialog
+        open={showCreate}
+        onClose={() => setShowCreate(false)}
+      />
 
       {/* Stats */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         {[
-          { label: "Total Productos", value: total, icon: "inventory_2", accent: "border-blue-500/40" },
-          { label: "Mostrando", value: products.length, icon: "visibility", accent: "border-emerald-500/40" },
-          { label: "Página", value: `${page + 1} / ${Math.max(totalPages, 1)}`, icon: "auto_stories", accent: "border-amber-500/40" },
+          {
+            label: "Total Productos",
+            value: total,
+            icon: "inventory_2",
+            accent: "border-blue-500/40",
+          },
+          {
+            label: "Mostrando",
+            value: products.length,
+            icon: "visibility",
+            accent: "border-emerald-500/40",
+          },
+          {
+            label: "Página",
+            value: `${page + 1} / ${Math.max(totalPages, 1)}`,
+            icon: "auto_stories",
+            accent: "border-amber-500/40",
+          },
         ].map((stat) => (
-          <div key={stat.label} className={`rounded-xl border-l-4 ${stat.accent} bg-card border border-border p-4`}>
+          <div
+            key={stat.label}
+            className={`rounded-xl border-l-4 ${stat.accent} bg-card border-border border p-4`}
+          >
             <div className="flex items-center gap-2">
-              <span className="material-symbols-outlined text-lg text-muted-foreground">{stat.icon}</span>
-              <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{stat.label}</span>
+              <span className="material-symbols-outlined text-muted-foreground text-lg">
+                {stat.icon}
+              </span>
+              <span className="text-muted-foreground text-[10px] font-bold tracking-widest uppercase">
+                {stat.label}
+              </span>
             </div>
-            <p className="mt-1 text-2xl font-black tracking-tight text-foreground">{isLoading ? "—" : stat.value}</p>
+            <p className="text-foreground mt-1 text-2xl font-black tracking-tight">
+              {isLoading ? "—" : stat.value}
+            </p>
           </div>
         ))}
       </div>
@@ -86,13 +136,19 @@ export default function CatalogClient() {
           type="text"
           placeholder="Buscar por nombre o SKU..."
           value={search}
-          onChange={(e) => { setSearch(e.target.value); setPage(0); }}
-          className="flex-1 rounded-lg border border-border bg-card px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-ring/20"
+          onChange={(e) => {
+            setSearch(e.target.value);
+            setPage(0);
+          }}
+          className="border-border bg-card text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-ring/20 flex-1 rounded-lg border px-4 py-2.5 text-sm transition-colors outline-none focus:ring-2"
         />
         <select
           value={statusFilter}
-          onChange={(e) => { setStatusFilter(e.target.value); setPage(0); }}
-          className="rounded-lg border border-border bg-card px-3 py-2.5 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-ring/20"
+          onChange={(e) => {
+            setStatusFilter(e.target.value);
+            setPage(0);
+          }}
+          className="border-border bg-card text-foreground focus:border-primary focus:ring-ring/20 rounded-lg border px-3 py-2.5 text-sm outline-none focus:ring-2"
         >
           <option value="all">Todos los estados</option>
           <option value="active">Activos</option>
@@ -102,10 +158,10 @@ export default function CatalogClient() {
       </div>
 
       {/* Table */}
-      <div className="overflow-hidden rounded-xl border border-border bg-card">
+      <div className="border-border bg-card overflow-hidden rounded-xl border">
         <table className="w-full text-left text-sm">
           <thead>
-            <tr className="border-b border-border text-xs uppercase text-muted-foreground">
+            <tr className="border-border text-muted-foreground border-b text-xs uppercase">
               <th className="px-4 py-3 font-medium">SKU</th>
               <th className="px-4 py-3 font-medium">Producto</th>
               <th className="px-4 py-3 font-medium">Estado</th>
@@ -115,38 +171,66 @@ export default function CatalogClient() {
           <tbody>
             {isLoading
               ? Array.from({ length: 5 }).map((_, i) => (
-                  <tr key={i} className="border-b border-border">
-                    <td className="px-4 py-3"><Skeleton className="h-5 w-20" /></td>
-                    <td className="px-4 py-3"><Skeleton className="h-5 w-48" /></td>
-                    <td className="px-4 py-3"><Skeleton className="h-5 w-20" /></td>
-                    <td className="px-4 py-3"><Skeleton className="h-5 w-24" /></td>
+                  <tr key={i} className="border-border border-b">
+                    <td className="px-4 py-3">
+                      <Skeleton className="h-5 w-20" />
+                    </td>
+                    <td className="px-4 py-3">
+                      <Skeleton className="h-5 w-48" />
+                    </td>
+                    <td className="px-4 py-3">
+                      <Skeleton className="h-5 w-20" />
+                    </td>
+                    <td className="px-4 py-3">
+                      <Skeleton className="h-5 w-24" />
+                    </td>
                   </tr>
                 ))
               : products.map((product) => {
-                  const statusCfg = STATUS_CONFIG[product.status] ?? { label: product.status, color: "" };
+                  const statusCfg = STATUS_CONFIG[product.status] ?? {
+                    label: product.status,
+                    color: "",
+                  };
                   return (
-                    <tr key={product.id} className="border-b border-border transition-colors hover:bg-accent/50">
-                      <td className="px-4 py-3 font-mono text-xs text-muted-foreground">{product.sku}</td>
+                    <tr
+                      key={product.id}
+                      className="border-border hover:bg-accent/50 border-b transition-colors"
+                    >
+                      <td className="text-muted-foreground px-4 py-3 font-mono text-xs">
+                        {product.sku}
+                      </td>
                       <td className="px-4 py-3">
-                        <Link href={`/catalog/${product.id}`} className="font-medium text-foreground hover:text-primary transition-colors">
+                        <Link
+                          href={`/catalog/${product.id}`}
+                          className="text-foreground hover:text-primary font-medium transition-colors"
+                        >
                           {product.name}
                         </Link>
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${statusCfg.color}`}>
+                        <span
+                          className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${statusCfg.color}`}
+                        >
                           {statusCfg.label}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-sm text-muted-foreground">
-                        {new Date(product.createdAt).toLocaleDateString("es-VE")}
+                      <td className="text-muted-foreground px-4 py-3 text-sm">
+                        {new Date(product.createdAt).toLocaleDateString(
+                          "es-VE",
+                        )}
                       </td>
                     </tr>
                   );
                 })}
             {!isLoading && products.length === 0 && (
               <tr>
-                <td colSpan={4} className="px-4 py-12 text-center text-muted-foreground">
-                  <span className="material-symbols-outlined text-3xl mb-2 block">search_off</span>
+                <td
+                  colSpan={4}
+                  className="text-muted-foreground px-4 py-12 text-center"
+                >
+                  <span className="material-symbols-outlined mb-2 block text-3xl">
+                    search_off
+                  </span>
                   No se encontraron productos
                 </td>
               </tr>
@@ -156,21 +240,25 @@ export default function CatalogClient() {
       </div>
 
       {/* Pagination */}
-      <div className="flex items-center justify-between text-xs text-muted-foreground">
-        <p>Mostrando {products.length} de {total} productos</p>
+      <div className="text-muted-foreground flex items-center justify-between text-xs">
+        <p>
+          Mostrando {products.length} de {total} productos
+        </p>
         <div className="flex gap-1">
           <button
             onClick={() => setPage((p) => Math.max(0, p - 1))}
             disabled={page === 0}
-            className="rounded bg-secondary px-3 py-1 text-muted-foreground transition-colors hover:bg-accent disabled:opacity-50"
+            className="bg-secondary text-muted-foreground hover:bg-accent rounded px-3 py-1 transition-colors disabled:opacity-50"
           >
             ← Anterior
           </button>
-          <span className="rounded bg-primary px-3 py-1 text-primary-foreground">{page + 1}</span>
+          <span className="bg-primary text-primary-foreground rounded px-3 py-1">
+            {page + 1}
+          </span>
           <button
             onClick={() => setPage((p) => (p + 1 < totalPages ? p + 1 : p))}
             disabled={page + 1 >= totalPages}
-            className="rounded bg-secondary px-3 py-1 text-muted-foreground transition-colors hover:bg-accent disabled:opacity-50"
+            className="bg-secondary text-muted-foreground hover:bg-accent rounded px-3 py-1 transition-colors disabled:opacity-50"
           >
             Siguiente →
           </button>

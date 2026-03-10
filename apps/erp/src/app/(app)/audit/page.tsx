@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { useTRPC } from "~/trpc/client";
 import { useQuery } from "@tanstack/react-query";
 
+import { useTRPC } from "~/trpc/client";
+
 function Skeleton({ className = "" }: { className?: string }) {
-  return <div className={`animate-pulse rounded-lg bg-muted ${className}`} />;
+  return <div className={`bg-muted animate-pulse rounded-lg ${className}`} />;
 }
 
 const ACTION_ICONS: Record<string, string> = {
@@ -34,12 +35,18 @@ const ACTION_ICONS: Record<string, string> = {
 };
 
 const ACTION_COLORS: Record<string, string> = {
-  "user.create": "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-primary",
-  "user.update": "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
-  "price.update": "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300",
-  "inventory.adjust": "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300",
-  "container.close": "bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300",
-  "cash.close": "bg-slate-100 text-slate-700 dark:bg-secondary dark:text-muted-foreground",
+  "user.create":
+    "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-primary",
+  "user.update":
+    "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
+  "price.update":
+    "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300",
+  "inventory.adjust":
+    "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300",
+  "container.close":
+    "bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300",
+  "cash.close":
+    "bg-slate-100 text-slate-700 dark:bg-secondary dark:text-muted-foreground",
 };
 
 export default function AuditPage() {
@@ -55,10 +62,14 @@ export default function AuditPage() {
   const items = entries ?? [];
 
   return (
-    <div className="p-4 lg:p-8 space-y-6">
+    <div className="space-y-6 p-4 lg:p-8">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-foreground">Log de Auditoría</h1>
-        <p className="text-muted-foreground">Registro inmutable de todas las acciones críticas del sistema</p>
+        <h1 className="text-foreground text-2xl font-bold tracking-tight">
+          Log de Auditoría
+        </h1>
+        <p className="text-muted-foreground">
+          Registro inmutable de todas las acciones críticas del sistema
+        </p>
       </div>
 
       {/* Filters */}
@@ -66,7 +77,7 @@ export default function AuditPage() {
         <select
           value={entityFilter}
           onChange={(e) => setEntityFilter(e.target.value)}
-          className="rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground"
+          className="border-border bg-card text-foreground rounded-lg border px-3 py-2 text-sm"
         >
           <option value="">Todas las entidades</option>
           <option value="user_profile">Usuarios</option>
@@ -90,14 +101,18 @@ export default function AuditPage() {
 
       {/* Timeline */}
       {isLoading ? (
-        <div className="space-y-2">{Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-16 w-full" />)}</div>
+        <div className="space-y-2">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Skeleton key={i} className="h-16 w-full" />
+          ))}
+        </div>
       ) : (
-        <div className="rounded-xl border border-border bg-card shadow-sm">
-          <div className="divide-y divide-border">
+        <div className="border-border bg-card rounded-xl border shadow-sm">
+          <div className="divide-border divide-y">
             {items.map((entry) => (
               <div
                 key={entry.id}
-                className="flex items-start gap-4 px-6 py-4 transition-colors hover:bg-muted/30"
+                className="hover:bg-muted/30 flex items-start gap-4 px-6 py-4 transition-colors"
               >
                 <div
                   className={`mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg text-sm ${ACTION_COLORS[entry.action] ?? "bg-muted"}`}
@@ -108,15 +123,19 @@ export default function AuditPage() {
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-foreground">
+                    <span className="text-foreground text-sm font-medium">
                       {entry.action} → {entry.entity}
-                      {entry.entityId ? ` (${entry.entityId.slice(0, 8)}…)` : ""}
+                      {entry.entityId
+                        ? ` (${entry.entityId.slice(0, 8)}…)`
+                        : ""}
                     </span>
-                    <span className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${ACTION_COLORS[entry.action] ?? "bg-muted"}`}>
+                    <span
+                      className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${ACTION_COLORS[entry.action] ?? "bg-muted"}`}
+                    >
                       {entry.action}
                     </span>
                   </div>
-                  <div className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
+                  <div className="text-muted-foreground mt-1 flex items-center gap-3 text-xs">
                     <span>por {entry.actorName ?? "Sistema"}</span>
                     <span>•</span>
                     <span>{entry.actorRole ?? "system"}</span>
@@ -131,8 +150,10 @@ export default function AuditPage() {
       )}
 
       {items.length === 0 && !isLoading && (
-        <div className="flex flex-col items-center justify-center rounded-xl border border-border bg-card py-12 text-muted-foreground">
-          <span className="material-symbols-outlined text-3xl mb-2">history</span>
+        <div className="border-border bg-card text-muted-foreground flex flex-col items-center justify-center rounded-xl border py-12">
+          <span className="material-symbols-outlined mb-2 text-3xl">
+            history
+          </span>
           <p className="text-sm">No hay entradas de auditoría</p>
         </div>
       )}

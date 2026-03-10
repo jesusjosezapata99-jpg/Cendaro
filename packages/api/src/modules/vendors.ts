@@ -5,15 +5,15 @@
  * PRD §16: vendor portal, trazability, commissions.
  * PRD §17: CxC, aging, alerts, credit blocking.
  */
+import { and, desc, eq, lte, sql } from "drizzle-orm";
 import { z } from "zod/v4";
-import { desc, eq, sql, and, lte } from "drizzle-orm";
 
 import {
-  VendorCommission,
   AccountReceivable,
+  arStatusEnum,
   Customer,
   SalesOrder,
-  arStatusEnum,
+  VendorCommission,
 } from "@cendaro/db/schema";
 
 import {
@@ -98,23 +98,24 @@ export const vendorRouter = createTRPCRouter({
       }),
     )
     .query(async ({ ctx, input }) => {
-      let query = ctx.db.select({
-        id: VendorCommission.id,
-        vendorId: VendorCommission.vendorId,
-        orderId: VendorCommission.orderId,
-        orderTotal: VendorCommission.orderTotal,
-        commissionPct: VendorCommission.commissionPct,
-        commissionAmount: VendorCommission.commissionAmount,
-        isPaid: VendorCommission.isPaid,
-        paidAt: VendorCommission.paidAt,
-        createdAt: VendorCommission.createdAt,
-      }).from(VendorCommission).$dynamic();
+      let query = ctx.db
+        .select({
+          id: VendorCommission.id,
+          vendorId: VendorCommission.vendorId,
+          orderId: VendorCommission.orderId,
+          orderTotal: VendorCommission.orderTotal,
+          commissionPct: VendorCommission.commissionPct,
+          commissionAmount: VendorCommission.commissionAmount,
+          isPaid: VendorCommission.isPaid,
+          paidAt: VendorCommission.paidAt,
+          createdAt: VendorCommission.createdAt,
+        })
+        .from(VendorCommission)
+        .$dynamic();
       if (input.vendorId) {
         query = query.where(eq(VendorCommission.vendorId, input.vendorId));
       }
-      return query
-        .orderBy(desc(VendorCommission.createdAt))
-        .limit(input.limit);
+      return query.orderBy(desc(VendorCommission.createdAt)).limit(input.limit);
     }),
 
   payCommission: roleRestrictedProcedure(["owner", "admin"])
@@ -154,25 +155,26 @@ export const vendorRouter = createTRPCRouter({
         conditions.push(eq(AccountReceivable.status, input.status));
       }
 
-      let query = ctx.db.select({
-        id: AccountReceivable.id,
-        customerId: AccountReceivable.customerId,
-        orderId: AccountReceivable.orderId,
-        totalAmount: AccountReceivable.totalAmount,
-        paidAmount: AccountReceivable.paidAmount,
-        balance: AccountReceivable.balance,
-        status: AccountReceivable.status,
-        dueDate: AccountReceivable.dueDate,
-        createdAt: AccountReceivable.createdAt,
-      }).from(AccountReceivable).$dynamic();
+      let query = ctx.db
+        .select({
+          id: AccountReceivable.id,
+          customerId: AccountReceivable.customerId,
+          orderId: AccountReceivable.orderId,
+          totalAmount: AccountReceivable.totalAmount,
+          paidAmount: AccountReceivable.paidAmount,
+          balance: AccountReceivable.balance,
+          status: AccountReceivable.status,
+          dueDate: AccountReceivable.dueDate,
+          createdAt: AccountReceivable.createdAt,
+        })
+        .from(AccountReceivable)
+        .$dynamic();
 
       if (conditions.length > 0) {
         query = query.where(and(...conditions));
       }
 
-      return query
-        .orderBy(desc(AccountReceivable.dueDate))
-        .limit(input.limit);
+      return query.orderBy(desc(AccountReceivable.dueDate)).limit(input.limit);
     }),
 
   arById: protectedProcedure

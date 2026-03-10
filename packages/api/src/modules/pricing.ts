@@ -4,14 +4,14 @@
  * Exchange rates, price history, and repricing engine.
  * PRD §12: admin-only rates panel, 5% auto-repricing trigger, 24h approval window.
  */
-import { z } from "zod/v4";
 import { desc, eq } from "drizzle-orm";
+import { z } from "zod/v4";
 
 import {
   ExchangeRate,
   PriceHistory,
-  RepricingEvent,
   rateTypeEnum,
+  RepricingEvent,
 } from "@cendaro/db/schema";
 
 import {
@@ -58,19 +58,20 @@ export const pricingRouter = createTRPCRouter({
       }),
     )
     .query(async ({ ctx, input }) => {
-      let query = ctx.db.select({
-        id: ExchangeRate.id,
-        rateType: ExchangeRate.rateType,
-        rate: ExchangeRate.rate,
-        source: ExchangeRate.source,
-        createdAt: ExchangeRate.createdAt,
-      }).from(ExchangeRate).$dynamic();
+      let query = ctx.db
+        .select({
+          id: ExchangeRate.id,
+          rateType: ExchangeRate.rateType,
+          rate: ExchangeRate.rate,
+          source: ExchangeRate.source,
+          createdAt: ExchangeRate.createdAt,
+        })
+        .from(ExchangeRate)
+        .$dynamic();
       if (input.rateType) {
         query = query.where(eq(ExchangeRate.rateType, input.rateType));
       }
-      return query
-        .orderBy(desc(ExchangeRate.createdAt))
-        .limit(input.limit);
+      return query.orderBy(desc(ExchangeRate.createdAt)).limit(input.limit);
     }),
 
   /** Update a rate (admin/supervisor only — PRD §12.6) */
@@ -165,22 +166,23 @@ export const pricingRouter = createTRPCRouter({
       }),
     )
     .query(async ({ ctx, input }) => {
-      let query = ctx.db.select({
-        id: PriceHistory.id,
-        productId: PriceHistory.productId,
-        priceType: PriceHistory.priceType,
-        oldAmountUsd: PriceHistory.oldAmountUsd,
-        newAmountUsd: PriceHistory.newAmountUsd,
-        rateUsed: PriceHistory.rateUsed,
-        trigger: PriceHistory.trigger,
-        createdAt: PriceHistory.createdAt,
-      }).from(PriceHistory).$dynamic();
+      let query = ctx.db
+        .select({
+          id: PriceHistory.id,
+          productId: PriceHistory.productId,
+          priceType: PriceHistory.priceType,
+          oldAmountUsd: PriceHistory.oldAmountUsd,
+          newAmountUsd: PriceHistory.newAmountUsd,
+          rateUsed: PriceHistory.rateUsed,
+          trigger: PriceHistory.trigger,
+          createdAt: PriceHistory.createdAt,
+        })
+        .from(PriceHistory)
+        .$dynamic();
       if (input.productId) {
         query = query.where(eq(PriceHistory.productId, input.productId));
       }
-      return query
-        .orderBy(desc(PriceHistory.createdAt))
-        .limit(input.limit);
+      return query.orderBy(desc(PriceHistory.createdAt)).limit(input.limit);
     }),
 
   // ─── Repricing Events ────────────────────────

@@ -1,4 +1,5 @@
-import { HydrationBoundary, dehydrate } from "@tanstack/react-query";
+import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
+
 import { getQueryClient } from "~/trpc/query-client";
 import { api } from "~/trpc/server";
 import CatalogClient from "./client";
@@ -11,7 +12,10 @@ export default async function CatalogPage() {
 
   try {
     await queryClient.prefetchQuery({
-      queryKey: [["catalog", "listProducts"], { input: { limit: 25, offset: 0 }, type: "query" }],
+      queryKey: [
+        ["catalog", "listProducts"],
+        { input: { limit: 25, offset: 0 }, type: "query" },
+      ],
       queryFn: () => api.catalog.listProducts({ limit: 25, offset: 0 }),
     });
   } catch {

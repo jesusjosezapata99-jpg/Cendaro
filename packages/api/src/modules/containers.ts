@@ -4,8 +4,8 @@
  * Container/import lifecycle management.
  * PRD §13: packing list upload, 4-state flow, admin-only release.
  */
-import { z } from "zod/v4";
 import { desc, eq, sql } from "drizzle-orm";
+import { z } from "zod/v4";
 
 import {
   AiPromptConfig,
@@ -13,8 +13,8 @@ import {
   Category,
   Container,
   ContainerItem,
-  Product,
   containerStatusEnum,
+  Product,
 } from "@cendaro/db/schema";
 
 import {
@@ -26,10 +26,7 @@ import { logAudit } from "./audit";
 
 export const containerRouter = createTRPCRouter({
   list: protectedProcedure.query(async ({ ctx }) => {
-    return ctx.db
-      .select()
-      .from(Container)
-      .orderBy(desc(Container.createdAt));
+    return ctx.db.select().from(Container).orderBy(desc(Container.createdAt));
   }),
 
   byId: protectedProcedure
@@ -67,7 +64,9 @@ export const containerRouter = createTRPCRouter({
         .insert(Container)
         .values({
           ...input,
-          departureDate: input.departureDate ? new Date(input.departureDate) : null,
+          departureDate: input.departureDate
+            ? new Date(input.departureDate)
+            : null,
           arrivalDate: input.arrivalDate ? new Date(input.arrivalDate) : null,
           createdBy: ctx.user.id,
         })
@@ -148,15 +147,16 @@ export const containerRouter = createTRPCRouter({
     }),
 
   // ── AI Prompt Config ───────────────────────────────
-  getAIPromptConfig: roleRestrictedProcedure(["owner", "admin"])
-    .query(async ({ ctx }) => {
+  getAIPromptConfig: roleRestrictedProcedure(["owner", "admin"]).query(
+    async ({ ctx }) => {
       const [config] = await ctx.db
         .select()
         .from(AiPromptConfig)
         .where(eq(AiPromptConfig.active, true))
         .limit(1);
       return config ?? null;
-    }),
+    },
+  ),
 
   updateAIPromptConfig: roleRestrictedProcedure(["owner", "admin"])
     .input(
@@ -204,32 +204,31 @@ export const containerRouter = createTRPCRouter({
     }),
 
   // ── Catalog Snapshot (for context injection) ──────
-  getCatalogSnapshot: protectedProcedure
-    .query(async ({ ctx }) => {
-      const categories = await ctx.db
-        .select({ id: Category.id, name: Category.name, slug: Category.slug })
-        .from(Category)
-        .limit(200);
+  getCatalogSnapshot: protectedProcedure.query(async ({ ctx }) => {
+    const categories = await ctx.db
+      .select({ id: Category.id, name: Category.name, slug: Category.slug })
+      .from(Category)
+      .limit(200);
 
-      const brands = await ctx.db
-        .select({ id: Brand.id, name: Brand.name })
-        .from(Brand)
-        .limit(100);
+    const brands = await ctx.db
+      .select({ id: Brand.id, name: Brand.name })
+      .from(Brand)
+      .limit(100);
 
-      const products = await ctx.db
-        .select({
-          id: Product.id,
-          sku: Product.sku,
-          name: Product.name,
-          categoryId: Product.categoryId,
-          brandId: Product.brandId,
-        })
-        .from(Product)
-        .orderBy(desc(Product.createdAt))
-        .limit(100);
+    const products = await ctx.db
+      .select({
+        id: Product.id,
+        sku: Product.sku,
+        name: Product.name,
+        categoryId: Product.categoryId,
+        brandId: Product.brandId,
+      })
+      .from(Product)
+      .orderBy(desc(Product.createdAt))
+      .limit(100);
 
-      return { categories, brands, products };
-    }),
+    return { categories, brands, products };
+  }),
 
   // ── Confirm with Matching (v2) ───────────────────
   confirmWithMatching: roleRestrictedProcedure(["owner", "admin", "supervisor"])
@@ -247,7 +246,13 @@ export const containerRouter = createTRPCRouter({
             categoryHint: z.string().nullable(),
             confidence: z.number().min(0).max(100).nullable(),
             suggestedProductId: z.string().uuid().nullable(),
-            matchType: z.enum(["exact_sku", "name_similarity", "ai_only", "no_match", "manual"]),
+            matchType: z.enum([
+              "exact_sku",
+              "name_similarity",
+              "ai_only",
+              "no_match",
+              "manual",
+            ]),
             createProduct: z.boolean().default(false),
             aiCorrected: z.boolean().default(false),
             imageUrl: z.string().url().nullable().optional(),
@@ -274,7 +279,9 @@ export const containerRouter = createTRPCRouter({
           const [newProduct] = await ctx.db
             .insert(Product)
             .values({
-              sku: item.skuHint ?? `AI-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+              sku:
+                item.skuHint ??
+                `AI-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
               name: item.translatedName,
               weight: item.weightKg,
               costAvg: item.unitCost != null ? String(item.unitCost) : "0",
@@ -333,7 +340,13 @@ export const containerRouter = createTRPCRouter({
         newValue: { total: input.items.length, created, linked, unmatched },
       });
 
-      return { success: true, total: input.items.length, created, linked, unmatched };
+      return {
+        success: true,
+        total: input.items.length,
+        created,
+        linked,
+        unmatched,
+      };
     }),
 
   // ── Save Correction (few-shot learning) ──────────

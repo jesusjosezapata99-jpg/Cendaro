@@ -1,7 +1,7 @@
 "use client";
 
-import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
+import { useTheme } from "next-themes";
 
 export function ThemeToggle() {
   const { theme, setTheme } = useTheme();
@@ -15,7 +15,7 @@ export function ThemeToggle() {
     // Avoid hydration mismatch — render placeholder with same dimensions
     return (
       <button
-        className="flex size-9 items-center justify-center rounded-lg bg-secondary text-muted-foreground"
+        className="bg-secondary text-muted-foreground flex size-9 items-center justify-center rounded-lg"
         aria-label="Toggle theme"
       >
         <span className="material-symbols-outlined text-xl">light_mode</span>
@@ -28,7 +28,7 @@ export function ThemeToggle() {
   return (
     <button
       onClick={() => setTheme(isDark ? "light" : "dark")}
-      className="flex size-9 items-center justify-center rounded-lg bg-secondary text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+      className="bg-secondary text-muted-foreground hover:bg-accent hover:text-foreground flex size-9 items-center justify-center rounded-lg transition-colors"
       aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
       title={isDark ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
     >

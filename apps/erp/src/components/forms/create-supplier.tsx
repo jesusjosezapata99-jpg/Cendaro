@@ -1,11 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import { useTRPC } from "~/trpc/client";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Dialog } from "~/components/dialog";
 
-export function CreateSupplierDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+import { Dialog } from "~/components/dialog";
+import { useTRPC } from "~/trpc/client";
+
+export function CreateSupplierDialog({
+  open,
+  onClose,
+}: {
+  open: boolean;
+  onClose: () => void;
+}) {
   const trpc = useTRPC();
   const qc = useQueryClient();
   const [name, setName] = useState("");
@@ -17,7 +24,9 @@ export function CreateSupplierDialog({ open, onClose }: { open: boolean; onClose
     trpc.catalog.createSupplier.mutationOptions({
       onSuccess: () => {
         void qc.invalidateQueries({ queryKey: [["catalog"]] });
-        setName(""); setContactName(""); setContactEmail("");
+        setName("");
+        setContactName("");
+        setContactEmail("");
         onClose();
       },
     }),
@@ -39,11 +48,20 @@ export function CreateSupplierDialog({ open, onClose }: { open: boolean; onClose
       >
         <div>
           <label className="mb-1 block text-sm font-medium">Nombre *</label>
-          <input value={name} onChange={(e) => setName(e.target.value)} required className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20" />
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            required
+            className="border-border bg-background focus:border-primary focus:ring-primary/20 w-full rounded-lg border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
+          />
         </div>
         <div>
           <label className="mb-1 block text-sm font-medium">País</label>
-          <select value={country} onChange={(e) => setCountry(e.target.value)} className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm">
+          <select
+            value={country}
+            onChange={(e) => setCountry(e.target.value)}
+            className="border-border bg-background w-full rounded-lg border px-3 py-2 text-sm"
+          >
             <option value="CN">🇨🇳 China</option>
             <option value="US">🇺🇸 Estados Unidos</option>
             <option value="CO">🇨🇴 Colombia</option>
@@ -52,13 +70,28 @@ export function CreateSupplierDialog({ open, onClose }: { open: boolean; onClose
         </div>
         <div>
           <label className="mb-1 block text-sm font-medium">Contacto</label>
-          <input value={contactName} onChange={(e) => setContactName(e.target.value)} placeholder="Nombre de contacto" className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20" />
+          <input
+            value={contactName}
+            onChange={(e) => setContactName(e.target.value)}
+            placeholder="Nombre de contacto"
+            className="border-border bg-background focus:border-primary focus:ring-primary/20 w-full rounded-lg border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
+          />
         </div>
         <div>
           <label className="mb-1 block text-sm font-medium">Email</label>
-          <input value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} type="email" placeholder="email@proveedor.com" className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20" />
+          <input
+            value={contactEmail}
+            onChange={(e) => setContactEmail(e.target.value)}
+            type="email"
+            placeholder="email@proveedor.com"
+            className="border-border bg-background focus:border-primary focus:ring-primary/20 w-full rounded-lg border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
+          />
         </div>
-        <button type="submit" disabled={create.isPending || !name} className="w-full rounded-lg bg-primary py-2.5 text-sm font-bold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50">
+        <button
+          type="submit"
+          disabled={create.isPending || !name}
+          className="bg-primary text-primary-foreground hover:bg-primary/90 w-full rounded-lg py-2.5 text-sm font-bold transition-colors disabled:opacity-50"
+        >
           {create.isPending ? "Creando..." : "Crear Proveedor"}
         </button>
       </form>

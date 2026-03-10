@@ -1,17 +1,21 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useMemo, useState } from "react";
 import dynamic from "next/dynamic";
-import { useTRPC } from "~/trpc/client";
 import { useQuery } from "@tanstack/react-query";
 
+import { useTRPC } from "~/trpc/client";
+
 const CreateCategoryDialog = dynamic(
-  () => import("~/components/forms/create-category").then((m) => ({ default: m.CreateCategoryDialog })),
+  () =>
+    import("~/components/forms/create-category").then((m) => ({
+      default: m.CreateCategoryDialog,
+    })),
   { ssr: false },
 );
 
 function Skeleton({ className = "" }: { className?: string }) {
-  return <div className={`animate-pulse rounded-lg bg-muted ${className}`} />;
+  return <div className={`bg-muted animate-pulse rounded-lg ${className}`} />;
 }
 
 interface CategoryRow {
@@ -23,7 +27,9 @@ interface CategoryRow {
   sortOrder: number;
 }
 
-interface TreeNode extends CategoryRow { children: TreeNode[] }
+interface TreeNode extends CategoryRow {
+  children: TreeNode[];
+}
 
 function buildTree(flat: CategoryRow[]): TreeNode[] {
   const map = new Map<string, TreeNode>();
@@ -41,17 +47,23 @@ function buildTree(flat: CategoryRow[]): TreeNode[] {
 
 export default function CategoriesPage() {
   const trpc = useTRPC();
-  const { data: categories, isLoading } = useQuery(trpc.catalog.listCategories.queryOptions());
+  const { data: categories, isLoading } = useQuery(
+    trpc.catalog.listCategories.queryOptions(),
+  );
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
   const [showCreate, setShowCreate] = useState(false);
 
-  const tree = useMemo(() => buildTree((categories ?? []) as CategoryRow[]), [categories]);
+  const tree = useMemo(
+    () => buildTree((categories ?? []) as CategoryRow[]),
+    [categories],
+  );
 
   const toggle = (id: string) => {
     setExpandedIds((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   };
@@ -62,31 +74,42 @@ export default function CategoriesPage() {
     (c) =>
       !search ||
       c.name.toLowerCase().includes(search.toLowerCase()) ||
-      c.children.some((ch) => ch.name.toLowerCase().includes(search.toLowerCase())),
+      c.children.some((ch) =>
+        ch.name.toLowerCase().includes(search.toLowerCase()),
+      ),
   );
 
   return (
-    <div className="p-4 lg:p-8 space-y-6">
+    <div className="space-y-6 p-4 lg:p-8">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-black tracking-tight text-foreground">Categorías</h1>
-          <p className="text-sm text-muted-foreground">
+          <h1 className="text-foreground text-2xl font-black tracking-tight">
+            Categorías
+          </h1>
+          <p className="text-muted-foreground text-sm">
             {totalCategories} categorías organizadas jerárquicamente
           </p>
         </div>
-        <button onClick={() => setShowCreate(true)} className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90">
-          <span className="material-symbols-outlined text-lg">add</span> Nueva Categoría
+        <button
+          onClick={() => setShowCreate(true)}
+          className="bg-primary text-primary-foreground hover:bg-primary/90 flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors"
+        >
+          <span className="material-symbols-outlined text-lg">add</span> Nueva
+          Categoría
         </button>
       </div>
 
-      <CreateCategoryDialog open={showCreate} onClose={() => setShowCreate(false)} />
+      <CreateCategoryDialog
+        open={showCreate}
+        onClose={() => setShowCreate(false)}
+      />
 
       <input
         type="text"
         placeholder="Buscar categoría..."
         value={search}
         onChange={(e) => setSearch(e.target.value)}
-        className="w-full rounded-lg border border-border bg-card px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-primary focus:ring-2 focus:ring-ring/20"
+        className="border-border bg-card text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-ring/20 w-full rounded-lg border px-4 py-2.5 text-sm outline-none focus:ring-2"
       />
 
       {isLoading ? (
@@ -98,25 +121,34 @@ export default function CategoriesPage() {
       ) : (
         <div className="space-y-2">
           {filtered.map((category) => (
-            <div key={category.id} className="overflow-hidden rounded-xl border border-border bg-card">
+            <div
+              key={category.id}
+              className="border-border bg-card overflow-hidden rounded-xl border"
+            >
               <button
                 onClick={() => toggle(category.id)}
-                className="flex w-full items-center justify-between px-4 py-3 text-left transition-colors hover:bg-accent/50"
+                className="hover:bg-accent/50 flex w-full items-center justify-between px-4 py-3 text-left transition-colors"
               >
                 <div className="flex items-center gap-3">
-                  <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-secondary text-base">
+                  <span className="bg-secondary flex h-8 w-8 items-center justify-center rounded-lg text-base">
                     {category.children.length > 0
-                      ? expandedIds.has(category.id) ? "📂" : "📁"
+                      ? expandedIds.has(category.id)
+                        ? "📂"
+                        : "📁"
                       : "📄"}
                   </span>
                   <div>
-                    <p className="font-medium text-foreground">{category.name}</p>
-                    <p className="text-xs text-muted-foreground">{category.slug}</p>
+                    <p className="text-foreground font-medium">
+                      {category.name}
+                    </p>
+                    <p className="text-muted-foreground text-xs">
+                      {category.slug}
+                    </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-4">
                   {category.children.length > 0 && (
-                    <span className="text-xs text-muted-foreground">
+                    <span className="text-muted-foreground text-xs">
                       {category.children.length} subcategorías
                     </span>
                   )}
@@ -127,16 +159,20 @@ export default function CategoriesPage() {
               </button>
 
               {expandedIds.has(category.id) && category.children.length > 0 && (
-                <div className="border-t border-border">
+                <div className="border-border border-t">
                   {category.children.map((child) => (
                     <div
                       key={child.id}
-                      className="flex items-center justify-between border-b border-border/20 px-4 py-2.5 pl-14 last:border-0 hover:bg-accent/10"
+                      className="border-border/20 hover:bg-accent/10 flex items-center justify-between border-b px-4 py-2.5 pl-14 last:border-0"
                     >
                       <div className="flex items-center gap-2">
                         <span className="text-slate-600">└</span>
-                        <p className="text-sm text-muted-foreground">{child.name}</p>
-                        <span className="text-xs text-muted-foreground">/{child.slug}</span>
+                        <p className="text-muted-foreground text-sm">
+                          {child.name}
+                        </p>
+                        <span className="text-muted-foreground text-xs">
+                          /{child.slug}
+                        </span>
                       </div>
                     </div>
                   ))}
@@ -148,8 +184,10 @@ export default function CategoriesPage() {
       )}
 
       {filtered.length === 0 && !isLoading && (
-        <div className="flex flex-col items-center justify-center rounded-xl border border-border bg-card py-12 text-muted-foreground">
-          <span className="material-symbols-outlined text-3xl mb-2">folder_off</span>
+        <div className="border-border bg-card text-muted-foreground flex flex-col items-center justify-center rounded-xl border py-12">
+          <span className="material-symbols-outlined mb-2 text-3xl">
+            folder_off
+          </span>
           <p className="text-sm">No se encontraron categorías</p>
         </div>
       )}

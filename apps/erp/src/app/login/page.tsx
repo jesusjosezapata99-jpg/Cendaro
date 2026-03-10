@@ -40,12 +40,12 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-4">
+    <div className="bg-background relative flex min-h-screen items-center justify-center overflow-hidden px-4">
       {/* Ambient background effects */}
       <div className="pointer-events-none absolute inset-0">
-        <div className="absolute -left-40 -top-40 size-[500px] rounded-full bg-primary/4 blur-[120px]" />
-        <div className="absolute -bottom-32 -right-32 size-[400px] rounded-full bg-primary/6 blur-[100px]" />
-        <div className="absolute left-1/2 top-1/3 size-[300px] -translate-x-1/2 rounded-full bg-primary/2.5 blur-[80px]" />
+        <div className="bg-primary/4 absolute -top-40 -left-40 size-[500px] rounded-full blur-[120px]" />
+        <div className="bg-primary/6 absolute -right-32 -bottom-32 size-[400px] rounded-full blur-[100px]" />
+        <div className="bg-primary/2.5 absolute top-1/3 left-1/2 size-[300px] -translate-x-1/2 rounded-full blur-[80px]" />
       </div>
 
       {/* Subtle grid pattern */}
@@ -60,13 +60,13 @@ export default function LoginPage() {
       <div className="relative z-10 w-full max-w-[420px]">
         {/* Logo & Brand */}
         <div className="mb-10 text-center">
-          <div className="group mx-auto mb-5 flex size-16 items-center justify-center rounded-2xl bg-linear-to-br from-primary to-primary/80 text-primary-foreground shadow-xl shadow-primary/20 transition-transform duration-300 hover:scale-105">
+          <div className="group from-primary to-primary/80 text-primary-foreground shadow-primary/20 mx-auto mb-5 flex size-16 items-center justify-center rounded-2xl bg-linear-to-br shadow-xl transition-transform duration-300 hover:scale-105">
             <span className="text-2xl font-black tracking-tighter">C</span>
           </div>
-          <h1 className="text-[1.75rem] font-black tracking-tight text-foreground">
+          <h1 className="text-foreground text-[1.75rem] font-black tracking-tight">
             Cendaro
           </h1>
-          <p className="mt-1.5 text-[0.8rem] font-medium tracking-wide text-muted-foreground/70 uppercase">
+          <p className="text-muted-foreground/70 mt-1.5 text-[0.8rem] font-medium tracking-wide uppercase">
             Sistema ERP Omnicanal
           </p>
         </div>
@@ -74,20 +74,20 @@ export default function LoginPage() {
         {/* Login Card */}
         <form
           onSubmit={handleSubmit}
-          className="rounded-2xl border border-border/60 bg-card/80 p-8 shadow-2xl shadow-black/5 backdrop-blur-xl"
+          className="border-border/60 bg-card/80 rounded-2xl border p-8 shadow-2xl shadow-black/5 backdrop-blur-xl"
         >
           <div className="mb-7">
-            <h2 className="text-xl font-bold tracking-tight text-foreground">
+            <h2 className="text-foreground text-xl font-bold tracking-tight">
               Iniciar Sesión
             </h2>
-            <p className="mt-1 text-[0.8rem] text-muted-foreground">
+            <p className="text-muted-foreground mt-1 text-[0.8rem]">
               Ingrese sus credenciales para acceder al panel
             </p>
           </div>
 
           {/* Error Alert */}
           {error && (
-            <div className="mb-5 flex items-center gap-2.5 rounded-xl bg-destructive/10 px-4 py-3 text-sm text-destructive border border-destructive/15 animate-in fade-in slide-in-from-top-1 duration-200">
+            <div className="bg-destructive/10 text-destructive border-destructive/15 animate-in fade-in slide-in-from-top-1 mb-5 flex items-center gap-2.5 rounded-xl border px-4 py-3 text-sm duration-200">
               <span className="material-symbols-outlined text-base">error</span>
               <span className="font-medium">{error}</span>
             </div>
@@ -98,11 +98,15 @@ export default function LoginPage() {
             <div className="group">
               <label
                 htmlFor="username"
-                className={`mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider transition-colors duration-200 ${
-                  focusedField === "username" ? "text-primary" : "text-muted-foreground/80"
+                className={`mb-2 flex items-center gap-1.5 text-xs font-semibold tracking-wider uppercase transition-colors duration-200 ${
+                  focusedField === "username"
+                    ? "text-primary"
+                    : "text-muted-foreground/80"
                 }`}
               >
-                <span className="material-symbols-outlined text-sm">person</span>
+                <span className="material-symbols-outlined text-sm">
+                  person
+                </span>
                 Usuario
               </label>
               <div className="relative">
@@ -116,7 +120,7 @@ export default function LoginPage() {
                   required
                   autoComplete="username"
                   placeholder="Ingrese su nombre de usuario"
-                  className="w-full rounded-xl border border-border/80 bg-secondary/50 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/50 focus:border-primary focus:bg-secondary/80 focus:outline-none focus:ring-2 focus:ring-primary/15 transition-all duration-200"
+                  className="border-border/80 bg-secondary/50 text-foreground placeholder:text-muted-foreground/50 focus:border-primary focus:bg-secondary/80 focus:ring-primary/15 w-full rounded-xl border px-4 py-3 text-sm transition-all duration-200 focus:ring-2 focus:outline-none"
                 />
               </div>
             </div>
@@ -125,8 +129,10 @@ export default function LoginPage() {
             <div className="group">
               <label
                 htmlFor="password"
-                className={`mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider transition-colors duration-200 ${
-                  focusedField === "password" ? "text-primary" : "text-muted-foreground/80"
+                className={`mb-2 flex items-center gap-1.5 text-xs font-semibold tracking-wider uppercase transition-colors duration-200 ${
+                  focusedField === "password"
+                    ? "text-primary"
+                    : "text-muted-foreground/80"
                 }`}
               >
                 <span className="material-symbols-outlined text-sm">lock</span>
@@ -143,7 +149,7 @@ export default function LoginPage() {
                   required
                   autoComplete="current-password"
                   placeholder="Ingrese su contraseña"
-                  className="w-full rounded-xl border border-border/80 bg-secondary/50 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground/50 focus:border-primary focus:bg-secondary/80 focus:outline-none focus:ring-2 focus:ring-primary/15 transition-all duration-200"
+                  className="border-border/80 bg-secondary/50 text-foreground placeholder:text-muted-foreground/50 focus:border-primary focus:bg-secondary/80 focus:ring-primary/15 w-full rounded-xl border px-4 py-3 text-sm transition-all duration-200 focus:ring-2 focus:outline-none"
                 />
               </div>
             </div>
@@ -153,30 +159,32 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="group mt-7 flex w-full items-center justify-center gap-2 rounded-xl bg-linear-to-r from-primary to-primary/90 px-5 py-3 text-sm font-bold text-primary-foreground shadow-lg shadow-primary/20 hover:shadow-xl hover:shadow-primary/30 hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-primary/50 focus:ring-offset-2 focus:ring-offset-background disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+            className="group from-primary to-primary/90 text-primary-foreground shadow-primary/20 hover:shadow-primary/30 focus:ring-primary/50 focus:ring-offset-background mt-7 flex w-full items-center justify-center gap-2 rounded-xl bg-linear-to-r px-5 py-3 text-sm font-bold shadow-lg transition-all duration-200 hover:shadow-xl hover:brightness-110 focus:ring-2 focus:ring-offset-2 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
           >
             {loading ? (
               <>
-                <span className="size-4 animate-spin rounded-full border-2 border-primary-foreground/30 border-t-primary-foreground" />
+                <span className="border-primary-foreground/30 border-t-primary-foreground size-4 animate-spin rounded-full border-2" />
                 <span>Verificando credenciales...</span>
               </>
             ) : (
               <>
                 <span>Acceder al Sistema</span>
-                <span className="material-symbols-outlined text-base transition-transform duration-200 group-hover:translate-x-0.5">arrow_forward</span>
+                <span className="material-symbols-outlined text-base transition-transform duration-200 group-hover:translate-x-0.5">
+                  arrow_forward
+                </span>
               </>
             )}
           </button>
 
           {/* Security note */}
-          <div className="mt-5 flex items-center justify-center gap-1.5 text-[0.7rem] text-muted-foreground/50">
+          <div className="text-muted-foreground/50 mt-5 flex items-center justify-center gap-1.5 text-[0.7rem]">
             <span className="material-symbols-outlined text-xs">shield</span>
             <span>Conexión segura · Solo usuarios autorizados</span>
           </div>
         </form>
 
         {/* Footer */}
-        <p className="mt-8 text-center text-[0.7rem] font-medium text-muted-foreground/40 tracking-wide">
+        <p className="text-muted-foreground/40 mt-8 text-center text-[0.7rem] font-medium tracking-wide">
           Cendaro © {new Date().getFullYear()} · Todos los derechos reservados
         </p>
       </div>

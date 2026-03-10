@@ -28,10 +28,10 @@ function makeQueryClient() {
   return new QueryClient({
     defaultOptions: {
       queries: {
-        staleTime: 5 * 60 * 1000,        // 5 min — ERP data rarely changes every second
-        gcTime: 10 * 60 * 1000,           // 10 min — keep inactive cache longer
-        refetchOnWindowFocus: false,       // prevent noisy refetches
-        refetchOnReconnect: true,          // refetch when connection restores
+        staleTime: 5 * 60 * 1000, // 5 min — ERP data rarely changes every second
+        gcTime: 10 * 60 * 1000, // 10 min — keep inactive cache longer
+        refetchOnWindowFocus: false, // prevent noisy refetches
+        refetchOnReconnect: true, // refetch when connection restores
         retry: shouldRetry,
       },
       mutations: {

@@ -4,18 +4,18 @@
  * CRUD + search + filters for products, brands, categories, suppliers.
  * PRD §10: 5000+ SKUs, full-text search, hierarchical categories.
  */
+import { and, count, desc, eq, ilike, or } from "drizzle-orm";
 import { z } from "zod/v4";
-import { desc, eq, ilike, or, and, count } from "drizzle-orm";
 
 import {
-  Product,
   Brand,
   Category,
-  Supplier,
+  priceTypeEnum,
+  Product,
   ProductAttribute,
   ProductPrice,
   productStatusEnum,
-  priceTypeEnum,
+  Supplier,
 } from "@cendaro/db/schema";
 
 import {
@@ -54,8 +54,10 @@ export const catalogRouter = createTRPCRouter({
         );
       }
       if (input.brandId) conditions.push(eq(Product.brandId, input.brandId));
-      if (input.categoryId) conditions.push(eq(Product.categoryId, input.categoryId));
-      if (input.supplierId) conditions.push(eq(Product.supplierId, input.supplierId));
+      if (input.categoryId)
+        conditions.push(eq(Product.categoryId, input.categoryId));
+      if (input.supplierId)
+        conditions.push(eq(Product.supplierId, input.supplierId));
       if (input.status) conditions.push(eq(Product.status, input.status));
 
       const where = conditions.length > 0 ? and(...conditions) : undefined;
@@ -79,10 +81,7 @@ export const catalogRouter = createTRPCRouter({
           .orderBy(desc(Product.createdAt))
           .limit(input.limit)
           .offset(input.offset),
-        ctx.db
-          .select({ total: count() })
-          .from(Product)
-          .where(where),
+        ctx.db.select({ total: count() }).from(Product).where(where),
       ]);
 
       return {
@@ -104,8 +103,14 @@ export const catalogRouter = createTRPCRouter({
       if (!product) return null;
 
       const [attributes, prices] = await Promise.all([
-        ctx.db.select().from(ProductAttribute).where(eq(ProductAttribute.productId, input.id)),
-        ctx.db.select().from(ProductPrice).where(eq(ProductPrice.productId, input.id)),
+        ctx.db
+          .select()
+          .from(ProductAttribute)
+          .where(eq(ProductAttribute.productId, input.id)),
+        ctx.db
+          .select()
+          .from(ProductPrice)
+          .where(eq(ProductPrice.productId, input.id)),
       ]);
 
       return { ...product, attributes, prices };
@@ -130,10 +135,7 @@ export const catalogRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const [product] = await ctx.db
-        .insert(Product)
-        .values(input)
-        .returning();
+      const [product] = await ctx.db.insert(Product).values(input).returning();
 
       await logAudit(ctx.db, ctx.user, {
         action: "product.create",
@@ -211,7 +213,11 @@ export const catalogRouter = createTRPCRouter({
   // ─── Categories ──────────────────────────────
 
   listCategories: protectedProcedure.query(async ({ ctx }) => {
-    return ctx.db.select().from(Category).orderBy(Category.sortOrder, Category.name).limit(500);
+    return ctx.db
+      .select()
+      .from(Category)
+      .orderBy(Category.sortOrder, Category.name)
+      .limit(500);
   }),
 
   createCategory: roleRestrictedProcedure(["owner", "admin", "supervisor"])
@@ -261,7 +267,10 @@ export const catalogRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const [supplier] = await ctx.db.insert(Supplier).values(input).returning();
+      const [supplier] = await ctx.db
+        .insert(Supplier)
+        .values(input)
+        .returning();
       await logAudit(ctx.db, ctx.user, {
         action: "supplier.create",
         entity: "supplier",

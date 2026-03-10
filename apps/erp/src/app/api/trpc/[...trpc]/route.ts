@@ -9,8 +9,8 @@
  *   • Request-ID correlation via x-request-id header
  *   • Full error context in production logs
  */
-import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import { cookies } from "next/headers";
+import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 
 import { appRouter, createTRPCContext } from "@cendaro/api";
 import { createSupabaseServerClient } from "@cendaro/auth/server";
@@ -24,7 +24,11 @@ const handler = async (req: Request) => {
   let user = null;
   if (supabaseUrl && supabaseKey) {
     const cookieStore = await cookies();
-    const supabase = createSupabaseServerClient(cookieStore, supabaseUrl, supabaseKey);
+    const supabase = createSupabaseServerClient(
+      cookieStore,
+      supabaseUrl,
+      supabaseKey,
+    );
     const { data } = await supabase.auth.getUser();
     user = data.user;
   }

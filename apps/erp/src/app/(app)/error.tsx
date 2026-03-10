@@ -18,29 +18,27 @@ export default function AppError({
   return (
     <div className="flex h-full items-center justify-center p-8">
       <div className="flex max-w-md flex-col items-center gap-4 text-center">
-        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-destructive/10">
-          <span className="material-symbols-outlined text-3xl text-destructive">
+        <div className="bg-destructive/10 flex h-16 w-16 items-center justify-center rounded-2xl">
+          <span className="material-symbols-outlined text-destructive text-3xl">
             error
           </span>
         </div>
 
-        <h2 className="text-xl font-bold text-foreground">
-          Algo salió mal
-        </h2>
+        <h2 className="text-foreground text-xl font-bold">Algo salió mal</h2>
 
-        <p className="text-sm text-muted-foreground">
+        <p className="text-muted-foreground text-sm">
           {error.message || "Ocurrió un error inesperado. Intenta de nuevo."}
         </p>
 
         {error.digest && (
-          <p className="font-mono text-xs text-muted-foreground/60">
+          <p className="text-muted-foreground/60 font-mono text-xs">
             Código: {error.digest}
           </p>
         )}
 
         <button
           onClick={reset}
-          className="flex items-center gap-2 rounded-lg bg-primary px-6 py-2.5 text-sm font-bold text-primary-foreground transition-colors hover:bg-primary/90"
+          className="bg-primary text-primary-foreground hover:bg-primary/90 flex items-center gap-2 rounded-lg px-6 py-2.5 text-sm font-bold transition-colors"
         >
           <span className="material-symbols-outlined text-base">refresh</span>
           Intentar de nuevo

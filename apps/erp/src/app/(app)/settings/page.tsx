@@ -1,23 +1,39 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useTRPC } from "~/trpc/client";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+
+import { useTRPC } from "~/trpc/client";
 
 const DEFAULT_MODULES = [
   { key: "catalog", name: "Catálogo", icon: "inventory_2", defaultOn: true },
   { key: "inventory", name: "Inventario", icon: "factory", defaultOn: true },
-  { key: "containers", name: "Contenedores", icon: "local_shipping", defaultOn: true },
+  {
+    key: "containers",
+    name: "Contenedores",
+    icon: "local_shipping",
+    defaultOn: true,
+  },
   { key: "pricing", name: "Pricing", icon: "sell", defaultOn: true },
   { key: "pos", name: "POS", icon: "shopping_cart", defaultOn: true },
-  { key: "marketplace", name: "Mercado Libre", icon: "storefront", defaultOn: false },
+  {
+    key: "marketplace",
+    name: "Mercado Libre",
+    icon: "storefront",
+    defaultOn: false,
+  },
   { key: "whatsapp", name: "WhatsApp", icon: "chat", defaultOn: false },
-  { key: "vendors", name: "Portal Vendedores", icon: "group", defaultOn: false },
+  {
+    key: "vendors",
+    name: "Portal Vendedores",
+    icon: "group",
+    defaultOn: false,
+  },
   { key: "audit", name: "Auditoría", icon: "policy", defaultOn: true },
 ];
 
 function Skeleton({ className = "" }: { className?: string }) {
-  return <div className={`animate-pulse rounded-lg bg-muted ${className}`} />;
+  return <div className={`bg-muted animate-pulse rounded-lg ${className}`} />;
 }
 
 export default function SettingsPage() {
@@ -67,7 +83,7 @@ export default function SettingsPage() {
 
   if (isLoading) {
     return (
-      <div className="p-4 lg:p-8 space-y-8">
+      <div className="space-y-8 p-4 lg:p-8">
         <div>
           <Skeleton className="h-8 w-48" />
           <Skeleton className="mt-2 h-4 w-72" />
@@ -79,7 +95,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="p-4 lg:p-8 space-y-8">
+    <div className="space-y-8 p-4 lg:p-8">
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Configuración</h1>
@@ -90,9 +106,9 @@ export default function SettingsPage() {
 
       {/* Profile Info */}
       {profile && (
-        <section className="rounded-xl border border-primary/20 bg-primary/5 p-6 shadow-sm">
+        <section className="border-primary/20 bg-primary/5 rounded-xl border p-6 shadow-sm">
           <div className="flex items-center gap-4">
-            <div className="flex size-12 items-center justify-center rounded-full bg-primary text-primary-foreground font-bold text-lg">
+            <div className="bg-primary text-primary-foreground flex size-12 items-center justify-center rounded-full text-lg font-bold">
               {profile.fullName
                 .split(" ")
                 .map((n: string) => n[0])
@@ -101,8 +117,9 @@ export default function SettingsPage() {
             </div>
             <div>
               <p className="text-lg font-semibold">{profile.fullName}</p>
-              <p className="text-sm text-muted-foreground">
-                {profile.email} · <span className="capitalize">{profile.role}</span>
+              <p className="text-muted-foreground text-sm">
+                {profile.email} ·{" "}
+                <span className="capitalize">{profile.role}</span>
               </p>
             </div>
           </div>
@@ -110,28 +127,32 @@ export default function SettingsPage() {
       )}
 
       {/* Organization */}
-      <section className="rounded-xl border border-border bg-card p-6 shadow-sm">
+      <section className="border-border bg-card rounded-xl border p-6 shadow-sm">
         <h2 className="text-lg font-semibold">Organización</h2>
-        <p className="mb-4 text-sm text-muted-foreground">
+        <p className="text-muted-foreground mb-4 text-sm">
           Datos de la empresa registrada en el sistema
         </p>
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <label className="mb-1.5 block text-sm font-medium">Nombre Comercial</label>
+            <label className="mb-1.5 block text-sm font-medium">
+              Nombre Comercial
+            </label>
             <input
               type="text"
               value={orgName}
               onChange={(e) => setOrgName(e.target.value)}
-              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+              className="border-border bg-background focus:border-primary focus:ring-primary/20 w-full rounded-lg border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
             />
           </div>
           <div>
-            <label className="mb-1.5 block text-sm font-medium">Razón Social</label>
+            <label className="mb-1.5 block text-sm font-medium">
+              Razón Social
+            </label>
             <input
               type="text"
               value={orgLegalName}
               onChange={(e) => setOrgLegalName(e.target.value)}
-              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+              className="border-border bg-background focus:border-primary focus:ring-primary/20 w-full rounded-lg border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
             />
           </div>
           <div>
@@ -140,44 +161,53 @@ export default function SettingsPage() {
               type="text"
               value={orgRif}
               onChange={(e) => setOrgRif(e.target.value)}
-              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+              className="border-border bg-background focus:border-primary focus:ring-primary/20 w-full rounded-lg border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
             />
           </div>
           <div>
-            <label className="mb-1.5 block text-sm font-medium">Zona Horaria</label>
+            <label className="mb-1.5 block text-sm font-medium">
+              Zona Horaria
+            </label>
             <select
               value={orgTimezone}
               onChange={(e) => setOrgTimezone(e.target.value)}
-              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm"
+              className="border-border bg-background w-full rounded-lg border px-3 py-2 text-sm"
             >
-              <option value="America/Caracas">America/Caracas (VET -04:00)</option>
-              <option value="America/Bogota">America/Bogota (COT -05:00)</option>
+              <option value="America/Caracas">
+                America/Caracas (VET -04:00)
+              </option>
+              <option value="America/Bogota">
+                America/Bogota (COT -05:00)
+              </option>
             </select>
           </div>
         </div>
         <button
           onClick={handleSaveOrg}
-          className="mt-4 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
+          className="bg-primary text-primary-foreground hover:bg-primary/90 mt-4 rounded-lg px-4 py-2 text-sm font-semibold transition-colors"
         >
           {orgSaved ? "✓ Guardado" : "Guardar Cambios"}
         </button>
       </section>
 
       {/* Modules */}
-      <section className="rounded-xl border border-border bg-card p-6 shadow-sm">
+      <section className="border-border bg-card rounded-xl border p-6 shadow-sm">
         <h2 className="text-lg font-semibold">Módulos</h2>
-        <p className="mb-4 text-sm text-muted-foreground">
-          Activa o desactiva módulos del sistema según las necesidades de tu operación
+        <p className="text-muted-foreground mb-4 text-sm">
+          Activa o desactiva módulos del sistema según las necesidades de tu
+          operación
         </p>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {DEFAULT_MODULES.map((mod) => (
             <button
               key={mod.key}
               onClick={() => toggleModule(mod.key)}
-              className="flex items-center justify-between rounded-lg border border-border p-3 transition-colors hover:bg-accent/30"
+              className="border-border hover:bg-accent/30 flex items-center justify-between rounded-lg border p-3 transition-colors"
             >
               <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-lg text-muted-foreground">{mod.icon}</span>
+                <span className="material-symbols-outlined text-muted-foreground text-lg">
+                  {mod.icon}
+                </span>
                 <span className="text-sm font-medium">{mod.name}</span>
               </div>
               <div
@@ -197,9 +227,9 @@ export default function SettingsPage() {
       </section>
 
       {/* Pricing */}
-      <section className="rounded-xl border border-border bg-card p-6 shadow-sm">
+      <section className="border-border bg-card rounded-xl border p-6 shadow-sm">
         <h2 className="text-lg font-semibold">Pricing Engine</h2>
-        <p className="mb-4 text-sm text-muted-foreground">
+        <p className="text-muted-foreground mb-4 text-sm">
           Configuración del motor de repricing automático
         </p>
         <div className="grid gap-4 sm:grid-cols-2">
@@ -213,10 +243,11 @@ export default function SettingsPage() {
               onChange={(e) => setPricingThreshold(e.target.value)}
               min="1"
               max="50"
-              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+              className="border-border bg-background focus:border-primary focus:ring-primary/20 w-full rounded-lg border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
             />
-            <p className="mt-1 text-xs text-muted-foreground">
-              Si la tasa BCV sube este % o más, los precios se actualizan automáticamente
+            <p className="text-muted-foreground mt-1 text-xs">
+              Si la tasa BCV sube este % o más, los precios se actualizan
+              automáticamente
             </p>
           </div>
           <div>
@@ -229,16 +260,16 @@ export default function SettingsPage() {
               onChange={(e) => setAdminWindow(e.target.value)}
               min="1"
               max="72"
-              className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+              className="border-border bg-background focus:border-primary focus:ring-primary/20 w-full rounded-lg border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
             />
-            <p className="mt-1 text-xs text-muted-foreground">
+            <p className="text-muted-foreground mt-1 text-xs">
               Tiempo para que admin revise/ratifique cambios automáticos
             </p>
           </div>
         </div>
         <button
           onClick={handleSavePricing}
-          className="mt-4 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors"
+          className="bg-primary text-primary-foreground hover:bg-primary/90 mt-4 rounded-lg px-4 py-2 text-sm font-semibold transition-colors"
         >
           {pricingSaved ? "✓ Configuración Guardada" : "Guardar Configuración"}
         </button>
