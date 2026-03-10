@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useTRPC } from "~/trpc/client";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Dialog } from "~/components/dialog";
+import { Dialog, Field, Input, Select, TextArea, FormActions } from "~/components/dialog";
 
 interface EditProductDialogProps {
   open: boolean;
@@ -56,30 +56,34 @@ export function EditProductDialog({ open, onClose, product }: EditProductDialogP
         }}
         className="space-y-4"
       >
-        <div>
-          <label className="mb-1 block text-sm font-medium">Nombre</label>
-          <input value={name} onChange={(e) => setName(e.target.value)} required className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20" />
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-medium">Código de Barras</label>
-          <input value={barcode} onChange={(e) => setBarcode(e.target.value)} className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm font-mono focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20" />
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-medium">Descripción Corta</label>
-          <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20" />
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-medium">Estado</label>
-          <select value={status} onChange={(e) => setStatus(e.target.value)} className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm">
+        <Field label="Nombre" required>
+          <Input value={name} onChange={(e) => setName(e.target.value)} required />
+        </Field>
+
+        <Field label="Código de Barras">
+          <Input value={barcode} onChange={(e) => setBarcode(e.target.value)} className="font-mono" />
+        </Field>
+
+        <Field label="Descripción Corta">
+          <TextArea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} />
+        </Field>
+
+        <Field label="Estado">
+          <Select value={status} onChange={(e) => setStatus(e.target.value)}>
             <option value="active">Activo</option>
             <option value="draft">Borrador</option>
             <option value="discontinued">Descontinuado</option>
             <option value="inactive">Inactivo</option>
-          </select>
-        </div>
-        <button type="submit" disabled={update.isPending} className="w-full rounded-lg bg-primary py-2.5 text-sm font-bold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50">
-          {update.isPending ? "Guardando..." : "Guardar Cambios"}
-        </button>
+          </Select>
+        </Field>
+
+        {update.error && (
+          <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+            {update.error.message}
+          </div>
+        )}
+
+        <FormActions onCancel={onClose} submitting={update.isPending} submitLabel="Guardar Cambios" />
       </form>
     </Dialog>
   );

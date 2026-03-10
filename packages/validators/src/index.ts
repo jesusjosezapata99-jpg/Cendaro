@@ -52,3 +52,21 @@ export const barcodeSchema = z
   .string()
   .max(128, "Código de barras demasiado largo")
   .optional();
+
+// ──────────────────────────────────────────────
+// RBAC — Single source of truth for user roles
+// ──────────────────────────────────────────────
+
+/** All user roles — must match the `user_role` enum in the DB schema */
+export const USER_ROLES = [
+  "owner",
+  "admin",
+  "supervisor",
+  "employee",
+  "vendor",
+  "marketing",
+] as const;
+
+export type UserRole = (typeof USER_ROLES)[number];
+
+export const userRoleSchema = z.enum(USER_ROLES);

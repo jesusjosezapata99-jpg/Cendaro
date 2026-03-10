@@ -1,15 +1,16 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { createSupabaseBrowserClient } from "@cendaro/auth/client";
-import { env } from "~/env";
+import { useMemo } from "react";
+import { useTRPC } from "~/trpc/client";
+import { useQuery } from "@tanstack/react-query";
+import type { UserRole } from "@cendaro/validators";
 
 interface UserProfile {
   id: string;
   email: string;
   username: string;
   fullName: string;
-  role: string;
+  role: UserRole;
   avatarUrl: string | null;
 }
 
@@ -22,86 +23,48 @@ const ROLE_LABELS: Record<string, string> = {
   marketing: "Marketing",
 };
 
-let cachedProfile: UserProfile | null = null;
-
+/**
+ * Hook to get the current user's profile.
+ *
+ * Uses tRPC + TanStack Query for automatic caching, stale-while-revalidate,
+ * and proper invalidation when user data changes (e.g., role update).
+ *
+ * Previously used a module-level `cachedProfile` variable that was never
+ * invalidated — if a user's role changed, they saw stale data until hard refresh.
+ */
 export function useCurrentUser() {
-  const [profile, setProfile] = useState<UserProfile | null>(cachedProfile);
-  const [loading, setLoading] = useState(!cachedProfile);
+  const trpc = useTRPC();
 
-  useEffect(() => {
-    if (cachedProfile) return;
+  const { data: profile, isLoading: loading } = useQuery(
+    trpc.users.me.queryOptions(undefined, {
+      staleTime: 5 * 60 * 1000, // 5 min — user data rarely changes mid-session
+      gcTime: 30 * 60 * 1000,   // 30 min — keep in cache for session duration
+      retry: 1,
+    }),
+  );
 
-    async function fetchProfile() {
-      try {
-        const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL;
-        const supabaseKey = env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-        if (!supabaseUrl || !supabaseKey) {
-          setLoading(false);
-          return;
-        }
-
-        const supabase = createSupabaseBrowserClient(supabaseUrl, supabaseKey);
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-
-        if (!user) {
-          setLoading(false);
-          return;
-        }
-
-        const { data } = await supabase
-          .from("user_profile")
-          .select("id, email, username, full_name, role, avatar_url")
-          .eq("id", user.id)
-          .single();
-
-        if (data) {
-          const p: UserProfile = {
-            id: data.id as string,
-            email: data.email as string,
-            username: data.username as string,
-            fullName: data.full_name as string,
-            role: data.role as string,
-            avatarUrl: data.avatar_url as string | null,
-          };
-          cachedProfile = p;
-          setProfile(p);
-        } else {
-          // Fallback: use Supabase auth metadata when user_profile row doesn't exist
-          const meta = user.user_metadata;
-          const fallback: UserProfile = {
-            id: user.id,
-            email: user.email ?? "usuario@cendaro.com",
-            username: (meta.username as string | undefined) ?? user.email?.split("@")[0] ?? "usuario",
-            fullName: (meta.full_name as string | undefined) ?? user.email?.split("@")[0] ?? "Usuario",
-            role: (meta.role as string | undefined) ?? "employee",
-            avatarUrl: null,
-          };
-          cachedProfile = fallback;
-          setProfile(fallback);
-        }
-      } catch {
-        // Silently fail — sidebar/topbar will show defaults
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    void fetchProfile();
-  }, []);
+  const mapped: UserProfile | null = useMemo(() => {
+    if (!profile) return null;
+    return {
+      id: profile.id,
+      email: profile.email,
+      username: profile.email.split("@")[0] ?? "usuario",
+      fullName: profile.fullName,
+      role: profile.role,
+      avatarUrl: profile.avatarUrl ?? null,
+    };
+  }, [profile]);
 
   return {
-    profile,
+    profile: mapped,
     loading,
-    initials: profile
-      ? profile.fullName
+    initials: mapped
+      ? mapped.fullName
           .split(" ")
           .map((n) => n[0])
           .join("")
           .toUpperCase()
       : "U",
-    roleLabel: profile ? (ROLE_LABELS[profile.role] ?? profile.role) : "—",
+    roleLabel: mapped ? (ROLE_LABELS[mapped.role] ?? mapped.role) : "—",
   };
 }
