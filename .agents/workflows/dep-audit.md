@@ -21,20 +21,37 @@ Run this PowerShell script from the project root to get latest stable versions:
 
 ```powershell
 $deps = @(
+  # ── Frameworks ──
   "next", "react", "react-dom",
+  # ── Supabase ──
   "@supabase/ssr", "@supabase/supabase-js",
+  # ── tRPC ──
   "@trpc/client", "@trpc/server", "@trpc/tanstack-react-query",
   "@tanstack/react-query", "superjson",
+  # ── Database ──
   "drizzle-orm", "drizzle-zod", "drizzle-kit", "postgres",
+  # ── Validation & Env ──
   "zod", "@t3-oss/env-nextjs",
+  # ── Styling ──
   "tailwindcss", "@tailwindcss/postcss",
   "class-variance-authority", "clsx", "tailwind-merge",
-  "radix-ui", "sonner",
-  "typescript", "@types/node",
-  "eslint", "@eslint/js", "prettier",
+  "radix-ui", "next-themes", "sonner", "tw-animate-css",
+  # ── TypeScript ──
+  "typescript", "@types/node", "@types/react", "@types/react-dom",
+  # ── Linting & Formatting ──
+  "eslint", "@eslint/js", "@eslint/compat", "prettier",
   "eslint-plugin-react", "eslint-plugin-react-hooks",
-  "eslint-plugin-turbo", "typescript-eslint",
-  "turbo", "@turbo/gen", "dotenv-cli"
+  "eslint-plugin-import", "@next/eslint-plugin-next",
+  "typescript-eslint",
+  "@ianvs/prettier-plugin-sort-imports", "prettier-plugin-tailwindcss",
+  # ── Tooling ──
+  "turbo", "@turbo/gen", "dotenv-cli",
+  "husky", "lint-staged",
+  # ── Utilities ──
+  "jszip", "xlsx", "pdf-parse", "sharp",
+  "@tanstack/react-virtual", "@radix-ui/react-icons",
+  # ── Testing ──
+  "vitest"
 )
 foreach ($d in $deps) {
   $v = npm view $d version 2>$null
@@ -59,17 +76,26 @@ Update non-catalog dependencies in each package (e.g. drizzle-orm, postgres, sup
 
 ### 5. Clean install and verify
 
-```bash
+```powershell
 Remove-Item -Recurse -Force node_modules, pnpm-lock.yaml
 pnpm install
-pnpm build
+pnpm lint
 pnpm typecheck
+pnpm build
 ```
 
 ### 6. Update README.md stack table
 
-Update the version numbers in the Stack Tecnológico table.
+Update the version numbers in the **Tech Stack** table in `README.md`.
 
 ### 7. Add date comment to pnpm-workspace.yaml
 
 Add a comment like `# DEPENDENCY CATALOG — Stabilized YYYY-MM-DD` for traceability.
+
+### 8. Run Memory Audit
+
+After major dependency upgrades, run `/memory-audit` to prune KIs that reference deprecated or removed packages.
+
+### 9. Run PRD Sync
+
+Run `/prd-sync` to update `README.md` and `PRD.md` with any dependency or architecture changes.

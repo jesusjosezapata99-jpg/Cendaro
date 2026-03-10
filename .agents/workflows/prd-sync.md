@@ -8,10 +8,10 @@ This workflow ensures that critical changes to the Cendaro project are verified 
 
 ## Document Locations
 
-| Document | Path | Purpose |
-|----------|------|---------|
-| **PRD** | `PRD.md` (project root) | Product Requirements Document — source of truth for features and business rules |
-| **README** | `README.md` (project root) | Technical reference — architecture, stack, pages, scripts |
+| Document   | Path                       | Purpose                                                                         |
+| ---------- | -------------------------- | ------------------------------------------------------------------------------- |
+| **PRD**    | `PRD.md` (project root)    | Product Requirements Document — source of truth for features and business rules |
+| **README** | `README.md` (project root) | Technical reference — architecture, stack, pages, scripts                       |
 
 > **IMPORTANT**: The ONLY PRD for this project is `PRD.md` at the project root. No other PRD files should exist anywhere in the repository.
 
@@ -31,8 +31,10 @@ This workflow MUST be executed when making any of the following **critical chang
 ## Steps
 
 ### 1. Read PRD
+
 // turbo
 Read `PRD.md` at the project root and verify the proposed change is consistent with the product requirements. Check:
+
 - Does the change align with the PRD section for this module?
 - Are there any PRD constraints that the change might violate?
 - Is the change covered by the PRD, or is it an extension that needs business input?
@@ -40,23 +42,29 @@ Read `PRD.md` at the project root and verify the proposed change is consistent w
 If the change contradicts the PRD, **stop and notify the user** before proceeding.
 
 ### 2. Read README
+
 // turbo
 Read `README.md` at the project root and understand the current project structure, pages map, and architecture.
 
 ### 3. Execute the Change
+
 Proceed with the implementation as planned.
 
 ### 4. Update PRD.md
+
 // turbo
 After the change is complete, update `PRD.md` to reflect:
+
 - **New features** — if a new module or capability was added
 - **Schema changes** — if database tables or columns were modified
 - **Business rules** — if pricing, inventory, or payment logic changed
 - **Phase progress** — if implementation milestones were reached
 
 ### 5. Update README.md
+
 // turbo
 After the change is complete, update `README.md` to reflect:
+
 - **Stack table** — if dependency versions changed
 - **Pages table** — if new pages were added (update status from 🔲 to ✅)
 - **Package descriptions** — if package capabilities changed
@@ -66,9 +74,11 @@ After the change is complete, update `README.md` to reflect:
 - **Environment variables** — if new env vars were added
 
 ### 6. Verify Build
+
 // turbo
 Run the following to ensure nothing is broken:
-```bash
+
+```powershell
 pnpm build
 pnpm typecheck
 ```
