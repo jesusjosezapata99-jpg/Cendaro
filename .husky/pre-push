@@ -1,3 +1,2 @@
-echo "🚀 Antigravity Pre-Push: Executing Epistemic Validation & Memory Audit..."
-pnpm run typecheck
-pnpm run audit:memory
+pnpm typecheck
+pnpm build

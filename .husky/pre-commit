@@ -1,4 +1,1 @@
-echo "🧠 Antigravity Pre-Commit: Validating staged files..."
 pnpm exec lint-staged
-echo "🔍 Running ESLint across affected workspaces..."
-pnpm run lint:fix
