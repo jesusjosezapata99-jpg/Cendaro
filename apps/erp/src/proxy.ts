@@ -1,5 +1,6 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
+
 import { createSupabaseMiddlewareClient } from "@cendaro/auth/middleware";
 
 const PUBLIC_ROUTES = ["/login", "/api/auth"];
@@ -49,7 +50,11 @@ export async function proxy(request: NextRequest) {
             name: c.name,
             value: c.value,
           })),
-        set: (name: string, value: string, options: Record<string, unknown>) => {
+        set: (
+          name: string,
+          value: string,
+          options: Record<string, unknown>,
+        ) => {
           request.cookies.set({ name, value, ...options });
         },
       },
@@ -59,7 +64,11 @@ export async function proxy(request: NextRequest) {
             name: c.name,
             value: c.value,
           })),
-        set: (name: string, value: string, options: Record<string, unknown>) => {
+        set: (
+          name: string,
+          value: string,
+          options: Record<string, unknown>,
+        ) => {
           response.cookies.set({ name, value, ...options });
         },
       },

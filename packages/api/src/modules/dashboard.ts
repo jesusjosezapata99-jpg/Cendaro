@@ -4,16 +4,16 @@
  * Executive KPIs, system alerts.
  * PRD §22: dashboard widgets, PRD §23: system alerts.
  */
+import { and, count, desc, eq, sum } from "drizzle-orm";
 import { z } from "zod/v4";
-import { desc, eq, and, count, sum } from "drizzle-orm";
 
 import {
-  SystemAlert,
-  SalesOrder,
-  Payment,
-  CashClosure,
   AccountReceivable,
   alertTypeEnum,
+  CashClosure,
+  Payment,
+  SalesOrder,
+  SystemAlert,
 } from "@cendaro/db/schema";
 
 import {
@@ -30,17 +30,29 @@ export const dashboardRouter = createTRPCRouter({
     // Each sub-query is wrapped individually so a single table failure
     // doesn't crash the entire dashboard endpoint (cascade prevention).
     // Single retry with 1s delay handles Supabase cold-start connection drops.
-    const safeQuery = async <T>(label: string, fn: () => Promise<T[]>, fallback: T): Promise<T> => {
+    const safeQuery = async <T>(
+      label: string,
+      fn: () => Promise<T[]>,
+      fallback: T,
+    ): Promise<T> => {
       for (let attempt = 0; attempt < 2; attempt++) {
         try {
           const [row] = await fn();
           return row ?? fallback;
         } catch (err) {
           if (attempt === 0) {
-            ctx.log.warn(`Dashboard sub-query failed (retrying in 1s): ${label}`, { module: "dashboard", attempt }, err);
+            ctx.log.warn(
+              `Dashboard sub-query failed (retrying in 1s): ${label}`,
+              { module: "dashboard", attempt },
+              err,
+            );
             await new Promise((r) => setTimeout(r, 1000));
           } else {
-            ctx.log.error(`Dashboard sub-query failed after retry: ${label}`, { module: "dashboard", attempt }, err);
+            ctx.log.error(
+              `Dashboard sub-query failed after retry: ${label}`,
+              { module: "dashboard", attempt },
+              err,
+            );
             return fallback;
           }
         }
@@ -141,23 +153,24 @@ export const dashboardRouter = createTRPCRouter({
         conditions.push(eq(SystemAlert.isDismissed, input.dismissed));
       }
 
-      let query = ctx.db.select({
-        id: SystemAlert.id,
-        alertType: SystemAlert.alertType,
-        title: SystemAlert.title,
-        message: SystemAlert.message,
-        severity: SystemAlert.severity,
-        isDismissed: SystemAlert.isDismissed,
-        createdAt: SystemAlert.createdAt,
-      }).from(SystemAlert).$dynamic();
+      let query = ctx.db
+        .select({
+          id: SystemAlert.id,
+          alertType: SystemAlert.alertType,
+          title: SystemAlert.title,
+          message: SystemAlert.message,
+          severity: SystemAlert.severity,
+          isDismissed: SystemAlert.isDismissed,
+          createdAt: SystemAlert.createdAt,
+        })
+        .from(SystemAlert)
+        .$dynamic();
 
       if (conditions.length > 0) {
         query = query.where(and(...conditions));
       }
 
-      return query
-        .orderBy(desc(SystemAlert.createdAt))
-        .limit(input.limit);
+      return query.orderBy(desc(SystemAlert.createdAt)).limit(input.limit);
     }),
 
   activeAlertCount: protectedProcedure.query(async ({ ctx }) => {

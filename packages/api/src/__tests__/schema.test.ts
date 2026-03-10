@@ -4,7 +4,7 @@
  * Validates that all schema tables, enums, and relations are properly exported
  * and structurally correct without requiring a database connection.
  */
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import * as schema from "@cendaro/db/schema";
 
@@ -33,7 +33,13 @@ describe("Phase 1 — Identity, RBAC, Audit", () => {
 
   it("exports userRoleEnum with correct values", () => {
     expect(schema.userRoleEnum.enumValues).toEqual(
-      expect.arrayContaining(["owner", "admin", "supervisor", "employee", "vendor"]),
+      expect.arrayContaining([
+        "owner",
+        "admin",
+        "supervisor",
+        "employee",
+        "vendor",
+      ]),
     );
   });
 });

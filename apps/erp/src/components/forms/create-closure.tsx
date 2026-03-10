@@ -1,9 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { useTRPC } from "~/trpc/client";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Dialog, Field, Input, TextArea, FormActions } from "~/components/dialog";
+
+import {
+  Dialog,
+  Field,
+  FormActions,
+  Input,
+  TextArea,
+} from "~/components/dialog";
+import { useTRPC } from "~/trpc/client";
 
 interface Props {
   open: boolean;
@@ -28,7 +35,15 @@ export function CreateClosureDialog({ open, onClose }: Props) {
       onSuccess: () => {
         void qc.invalidateQueries({ queryKey: [["sales"]] });
         void qc.invalidateQueries({ queryKey: [["dashboard"]] });
-        setForm({ closureDate: new Date().toISOString().split("T")[0] ?? "", totalSales: "", totalCash: "", totalDigital: "", expectedTotal: "", actualTotal: "", notes: "" });
+        setForm({
+          closureDate: new Date().toISOString().split("T")[0] ?? "",
+          totalSales: "",
+          totalCash: "",
+          totalDigital: "",
+          expectedTotal: "",
+          actualTotal: "",
+          notes: "",
+        });
         onClose();
       },
     }),
@@ -48,14 +63,22 @@ export function CreateClosureDialog({ open, onClose }: Props) {
   };
 
   return (
-    <Dialog open={open} onClose={onClose} title="Cerrar Día" description="Registra el cierre de caja del día" className="max-w-xl">
+    <Dialog
+      open={open}
+      onClose={onClose}
+      title="Cerrar Día"
+      description="Registra el cierre de caja del día"
+      className="max-w-xl"
+    >
       <form onSubmit={handleSubmit} className="space-y-4">
         <Field label="Fecha de Cierre" required>
           <Input
             type="date"
             required
             value={form.closureDate}
-            onChange={(e) => setForm((f) => ({ ...f, closureDate: e.target.value }))}
+            onChange={(e) =>
+              setForm((f) => ({ ...f, closureDate: e.target.value }))
+            }
           />
         </Field>
         <div className="grid grid-cols-3 gap-4">
@@ -67,7 +90,9 @@ export function CreateClosureDialog({ open, onClose }: Props) {
               required
               placeholder="0.00"
               value={form.totalSales}
-              onChange={(e) => setForm((f) => ({ ...f, totalSales: e.target.value }))}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, totalSales: e.target.value }))
+              }
             />
           </Field>
           <Field label="Total Efectivo" required>
@@ -78,7 +103,9 @@ export function CreateClosureDialog({ open, onClose }: Props) {
               required
               placeholder="0.00"
               value={form.totalCash}
-              onChange={(e) => setForm((f) => ({ ...f, totalCash: e.target.value }))}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, totalCash: e.target.value }))
+              }
             />
           </Field>
           <Field label="Total Digital" required>
@@ -89,12 +116,18 @@ export function CreateClosureDialog({ open, onClose }: Props) {
               required
               placeholder="0.00"
               value={form.totalDigital}
-              onChange={(e) => setForm((f) => ({ ...f, totalDigital: e.target.value }))}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, totalDigital: e.target.value }))
+              }
             />
           </Field>
         </div>
         <div className="grid grid-cols-2 gap-4">
-          <Field label="Total Esperado" required hint="Suma automática del sistema">
+          <Field
+            label="Total Esperado"
+            required
+            hint="Suma automática del sistema"
+          >
             <Input
               type="number"
               step="0.01"
@@ -102,7 +135,9 @@ export function CreateClosureDialog({ open, onClose }: Props) {
               required
               placeholder="0.00"
               value={form.expectedTotal}
-              onChange={(e) => setForm((f) => ({ ...f, expectedTotal: e.target.value }))}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, expectedTotal: e.target.value }))
+              }
             />
           </Field>
           <Field label="Total Real" required hint="Conteo físico de caja">
@@ -113,7 +148,9 @@ export function CreateClosureDialog({ open, onClose }: Props) {
               required
               placeholder="0.00"
               value={form.actualTotal}
-              onChange={(e) => setForm((f) => ({ ...f, actualTotal: e.target.value }))}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, actualTotal: e.target.value }))
+              }
             />
           </Field>
         </div>
@@ -125,7 +162,11 @@ export function CreateClosureDialog({ open, onClose }: Props) {
             onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
           />
         </Field>
-        <FormActions onCancel={onClose} submitting={create.isPending} submitLabel="Registrar Cierre" />
+        <FormActions
+          onCancel={onClose}
+          submitting={create.isPending}
+          submitLabel="Registrar Cierre"
+        />
       </form>
     </Dialog>
   );

@@ -11,9 +11,9 @@
  */
 "use client";
 
-import { useCurrentUser } from "~/hooks/use-current-user";
-
 import type { UserRole } from "@cendaro/validators";
+
+import { useCurrentUser } from "~/hooks/use-current-user";
 
 interface RoleGuardProps {
   /** Roles that are allowed to see the children */
@@ -23,7 +23,11 @@ interface RoleGuardProps {
   children: React.ReactNode;
 }
 
-export function RoleGuard({ allow, fallback = null, children }: RoleGuardProps) {
+export function RoleGuard({
+  allow,
+  fallback = null,
+  children,
+}: RoleGuardProps) {
   const { profile, loading } = useCurrentUser();
 
   // While loading, render nothing to prevent flicker

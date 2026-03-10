@@ -1,15 +1,15 @@
-import { createTRPCRouter } from "./trpc";
-import { usersRouter } from "./modules/users";
 import { auditRouter } from "./modules/audit-router";
 import { catalogRouter } from "./modules/catalog";
-import { inventoryRouter } from "./modules/inventory";
 import { containerRouter } from "./modules/containers";
-import { pricingRouter } from "./modules/pricing";
-import { salesRouter } from "./modules/sales";
-import { vendorRouter } from "./modules/vendors";
-import { integrationsRouter } from "./modules/integrations";
 import { dashboardRouter } from "./modules/dashboard";
 import { healthRouter } from "./modules/health/router";
+import { integrationsRouter } from "./modules/integrations";
+import { inventoryRouter } from "./modules/inventory";
+import { pricingRouter } from "./modules/pricing";
+import { salesRouter } from "./modules/sales";
+import { usersRouter } from "./modules/users";
+import { vendorRouter } from "./modules/vendors";
+import { createTRPCRouter } from "./trpc";
 
 export const appRouter = createTRPCRouter({
   users: usersRouter,

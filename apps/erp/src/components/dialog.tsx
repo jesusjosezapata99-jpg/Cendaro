@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useCallback } from "react";
+import { useCallback, useEffect, useRef } from "react";
 
 interface DialogProps {
   open: boolean;
@@ -57,25 +57,25 @@ export function Dialog({
     <dialog
       ref={dialogRef}
       onClick={handleBackdropClick}
-      className={`
-        ${className} m-auto w-full rounded-2xl border border-border bg-card p-0 text-foreground
-        shadow-2xl backdrop:bg-black/60 backdrop:backdrop-blur-sm
-        open:animate-in open:fade-in-0 open:zoom-in-95
-      `}
+      className={` ${className} border-border bg-card text-foreground open:animate-in open:fade-in-0 open:zoom-in-95 m-auto w-full rounded-2xl border p-0 shadow-2xl backdrop:bg-black/60 backdrop:backdrop-blur-sm`}
     >
       <div className="p-6">
         {/* Header */}
         <div className="mb-5 flex items-start justify-between">
           <div>
-            <h2 className="text-lg font-bold tracking-tight text-foreground">{title}</h2>
+            <h2 className="text-foreground text-lg font-bold tracking-tight">
+              {title}
+            </h2>
             {description && (
-              <p className="mt-0.5 text-sm text-muted-foreground">{description}</p>
+              <p className="text-muted-foreground mt-0.5 text-sm">
+                {description}
+              </p>
             )}
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="flex size-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+            className="text-muted-foreground hover:bg-secondary hover:text-foreground flex size-8 items-center justify-center rounded-lg transition-colors"
           >
             <span className="material-symbols-outlined text-lg">close</span>
           </button>
@@ -103,12 +103,20 @@ interface FieldProps {
 export function Field({ label, required, children, hint, error }: FieldProps) {
   return (
     <label className="block">
-      <span className="mb-1 block text-xs font-medium text-muted-foreground">
+      <span className="text-muted-foreground mb-1 block text-xs font-medium">
         {label} {required && <span className="text-destructive">*</span>}
       </span>
       {children}
-      {hint && !error && <span className="mt-0.5 block text-[10px] text-muted-foreground">{hint}</span>}
-      {error && <span className="mt-0.5 block text-[10px] text-destructive">{error}</span>}
+      {hint && !error && (
+        <span className="text-muted-foreground mt-0.5 block text-[10px]">
+          {hint}
+        </span>
+      )}
+      {error && (
+        <span className="text-destructive mt-0.5 block text-[10px]">
+          {error}
+        </span>
+      )}
     </label>
   );
 }
@@ -117,19 +125,30 @@ const inputBase =
   "w-full rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-ring/20";
 
 export function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
-  return <input {...props} className={`${inputBase} ${props.className ?? ""}`} />;
+  return (
+    <input {...props} className={`${inputBase} ${props.className ?? ""}`} />
+  );
 }
 
-export function TextArea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
+export function TextArea(
+  props: React.TextareaHTMLAttributes<HTMLTextAreaElement>,
+) {
   return (
-    <textarea {...props} className={`${inputBase} resize-none ${props.className ?? ""}`} />
+    <textarea
+      {...props}
+      className={`${inputBase} resize-none ${props.className ?? ""}`}
+    />
   );
 }
 
 export function Select(
-  props: React.SelectHTMLAttributes<HTMLSelectElement> & { children: React.ReactNode },
+  props: React.SelectHTMLAttributes<HTMLSelectElement> & {
+    children: React.ReactNode;
+  },
 ) {
-  return <select {...props} className={`${inputBase} ${props.className ?? ""}`} />;
+  return (
+    <select {...props} className={`${inputBase} ${props.className ?? ""}`} />
+  );
 }
 
 export function FormActions({
@@ -146,17 +165,19 @@ export function FormActions({
       <button
         type="button"
         onClick={onCancel}
-        className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-secondary"
+        className="border-border text-muted-foreground hover:bg-secondary rounded-lg border px-4 py-2 text-sm font-medium transition-colors"
       >
         Cancelar
       </button>
       <button
         type="submit"
         disabled={submitting}
-        className="flex items-center gap-2 rounded-lg bg-primary px-5 py-2 text-sm font-bold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+        className="bg-primary text-primary-foreground hover:bg-primary/90 flex items-center gap-2 rounded-lg px-5 py-2 text-sm font-bold transition-colors disabled:opacity-50"
       >
         {submitting && (
-          <span className="material-symbols-outlined animate-spin text-sm">progress_activity</span>
+          <span className="material-symbols-outlined animate-spin text-sm">
+            progress_activity
+          </span>
         )}
         {submitLabel}
       </button>

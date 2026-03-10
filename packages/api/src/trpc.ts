@@ -12,8 +12,8 @@ import { z, ZodError } from "zod/v4";
 import type { userRoleEnum } from "@cendaro/db/schema";
 import { getDb } from "@cendaro/db/client";
 
-import { logger, generateRequestId } from "./logger";
 import type { ILogger } from "./logger";
+import { generateRequestId, logger } from "./logger";
 
 // ──────────────────────────────────────────────
 // 1. CONTEXT
@@ -107,11 +107,24 @@ const loggingMiddleware = t.middleware(async ({ ctx, next, path, type }) => {
 
     if (err instanceof TRPCError) {
       // Expected errors (UNAUTHORIZED, FORBIDDEN, etc.) at warn level
-      const isClientError = ["UNAUTHORIZED", "FORBIDDEN", "BAD_REQUEST", "NOT_FOUND"].includes(err.code);
+      const isClientError = [
+        "UNAUTHORIZED",
+        "FORBIDDEN",
+        "BAD_REQUEST",
+        "NOT_FOUND",
+      ].includes(err.code);
       if (isClientError) {
-        reqLog.warn(`✗ ${path} [${err.code}]`, { durationMs, trpcCode: err.code }, err);
+        reqLog.warn(
+          `✗ ${path} [${err.code}]`,
+          { durationMs, trpcCode: err.code },
+          err,
+        );
       } else {
-        reqLog.error(`✗ ${path} [${err.code}]`, { durationMs, trpcCode: err.code }, err);
+        reqLog.error(
+          `✗ ${path} [${err.code}]`,
+          { durationMs, trpcCode: err.code },
+          err,
+        );
       }
     } else {
       reqLog.error(`✗ ${path} [INTERNAL]`, { durationMs }, err);
@@ -160,4 +173,3 @@ export function roleRestrictedProcedure(
     return next({ ctx });
   });
 }
-

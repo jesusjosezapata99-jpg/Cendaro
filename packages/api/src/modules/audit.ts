@@ -6,8 +6,8 @@
  */
 import type { User } from "@supabase/supabase-js";
 
-import { AuditLog } from "@cendaro/db/schema";
 import type { userRoleEnum } from "@cendaro/db/schema";
+import { AuditLog } from "@cendaro/db/schema";
 
 import type { createTRPCContext } from "../trpc";
 
@@ -25,15 +25,14 @@ interface AuditEntry {
 
 type UserWithMeta =
   | (User & {
-      user_metadata?: { role?: (typeof userRoleEnum.enumValues)[number]; full_name?: string };
+      user_metadata?: {
+        role?: (typeof userRoleEnum.enumValues)[number];
+        full_name?: string;
+      };
     })
   | null;
 
-export async function logAudit(
-  db: Db,
-  user: UserWithMeta,
-  entry: AuditEntry,
-) {
+export async function logAudit(db: Db, user: UserWithMeta, entry: AuditEntry) {
   const meta = user?.user_metadata;
   const actorName = meta?.full_name ?? user?.email ?? "system";
 

@@ -76,11 +76,11 @@ export const productStatusEnum = pgEnum("product_status", [
 ]);
 
 export const priceTypeEnum = pgEnum("price_type", [
-  "store",       // precio tienda
-  "wholesale",   // precio mayor
-  "vendor",      // precio vendedor nacional
-  "promo",       // precio promo online
-  "special",     // precio especial manual
+  "store", // precio tienda
+  "wholesale", // precio mayor
+  "vendor", // precio vendedor nacional
+  "promo", // precio promo online
+  "special", // precio especial manual
 ]);
 
 export const supplierStatusEnum = pgEnum("supplier_status", [
@@ -91,29 +91,29 @@ export const supplierStatusEnum = pgEnum("supplier_status", [
 // --- Phase 3 enums ---
 
 export const salesChannelEnum = pgEnum("sales_channel", [
-  "store",          // tienda física
-  "mercadolibre",   // Mercado Libre
-  "vendors",        // vendedores nacionales (pool compartido)
-  "whatsapp",       // WhatsApp (consumes store stock)
-  "instagram",      // Instagram (consumes store stock)
+  "store", // tienda física
+  "mercadolibre", // Mercado Libre
+  "vendors", // vendedores nacionales (pool compartido)
+  "whatsapp", // WhatsApp (consumes store stock)
+  "instagram", // Instagram (consumes store stock)
 ]);
 
 export const movementTypeEnum = pgEnum("movement_type", [
-  "purchase",         // entrada por compra/importación
-  "sale",             // salida por venta
-  "transfer",         // transferencia entre canales
-  "adjustment_in",    // ajuste positivo
-  "adjustment_out",   // ajuste negativo
-  "return",           // devolución
+  "purchase", // entrada por compra/importación
+  "sale", // salida por venta
+  "transfer", // transferencia entre canales
+  "adjustment_in", // ajuste positivo
+  "adjustment_out", // ajuste negativo
+  "return", // devolución
   "container_receipt", // recepción de contenedor
   "count_adjustment", // ajuste por conteo cíclico
 ]);
 
 export const containerStatusEnum = pgEnum("container_status", [
-  "created",      // creado
-  "in_transit",   // embarcado / en tránsito
-  "received",     // recibido total
-  "closed",       // cerrado
+  "created", // creado
+  "in_transit", // embarcado / en tránsito
+  "received", // recibido total
+  "closed", // cerrado
 ]);
 
 export const countStatusEnum = pgEnum("count_status", [
@@ -124,56 +124,56 @@ export const countStatusEnum = pgEnum("count_status", [
 ]);
 
 export const warehouseTypeEnum = pgEnum("warehouse_type", [
-  "showroom",       // tienda / exhibición
-  "warehouse",      // almacén principal
-  "external",       // almacén externo
-  "transit",        // stock en tránsito / standby
-  "reserved",       // stock reservado / emergencia
-  "defective",      // stock defectuoso
+  "showroom", // tienda / exhibición
+  "warehouse", // almacén principal
+  "external", // almacén externo
+  "transit", // stock en tránsito / standby
+  "reserved", // stock reservado / emergencia
+  "defective", // stock defectuoso
 ]);
 
 // --- Phase 4 enums ---
 
 export const rateTypeEnum = pgEnum("rate_type", [
-  "bcv",        // tasa BCV oficial
-  "parallel",   // tasa paralela interna
-  "rmb_usd",    // RMB/CNY → USD
-  "rmb_bs",     // RMB/CNY → Bs (derivada)
+  "bcv", // tasa BCV oficial
+  "parallel", // tasa paralela interna
+  "rmb_usd", // RMB/CNY → USD
+  "rmb_bs", // RMB/CNY → Bs (derivada)
 ]);
 
 export const repricingTriggerEnum = pgEnum("repricing_trigger", [
-  "auto",       // disparado por variación ≥ 5%
-  "manual",     // editado por admin/supervisor
-  "scheduled",  // programado
+  "auto", // disparado por variación ≥ 5%
+  "manual", // editado por admin/supervisor
+  "scheduled", // programado
 ]);
 
 // --- Phase 5 enums ---
 
 export const customerTypeEnum = pgEnum("customer_type", [
-  "wholesale",     // mayorista
-  "retail",        // detal
-  "distributor",   // distribuidor
-  "vip",           // VIP
-  "marketplace",   // marketplace
+  "wholesale", // mayorista
+  "retail", // detal
+  "distributor", // distribuidor
+  "vip", // VIP
+  "marketplace", // marketplace
   "vendor_client", // cliente de vendedor
 ]);
 
 export const orderStatusEnum = pgEnum("order_status", [
-  "pending",       // pendiente
-  "confirmed",     // confirmado
-  "prepared",      // preparado
-  "dispatched",    // despachado
-  "delivered",     // entregado
-  "cancelled",     // anulado
-  "returned",      // devuelto
+  "pending", // pendiente
+  "confirmed", // confirmado
+  "prepared", // preparado
+  "dispatched", // despachado
+  "delivered", // entregado
+  "cancelled", // anulado
+  "returned", // devuelto
 ]);
 
 export const paymentMethodEnum = pgEnum("payment_method", [
   "mobile_payment", // pago móvil
-  "transfer",       // transferencia
-  "cash",           // efectivo
-  "pos_terminal",   // punto de venta
-  "zelle",          // Zelle / similares
+  "transfer", // transferencia
+  "cash", // efectivo
+  "pos_terminal", // punto de venta
+  "zelle", // Zelle / similares
 ]);
 
 export const closureStatusEnum = pgEnum("closure_status", [
@@ -185,21 +185,21 @@ export const closureStatusEnum = pgEnum("closure_status", [
 // --- Phase 6 enums ---
 
 export const arStatusEnum = pgEnum("ar_status", [
-  "pending",    // pendiente
-  "partial",    // abono parcial
-  "paid",       // pagado completo
-  "overdue",    // vencido
-  "written_off",// castigado
+  "pending", // pendiente
+  "partial", // abono parcial
+  "paid", // pagado completo
+  "overdue", // vencido
+  "written_off", // castigado
 ]);
 
 // --- Phase 7 enums ---
 
 export const mlListingStatusEnum = pgEnum("ml_listing_status", [
-  "active",     // publicado
-  "paused",     // pausado
-  "closed",     // cerrado
+  "active", // publicado
+  "paused", // pausado
+  "closed", // cerrado
   "out_of_stock", // sin stock
-  "error",      // error de sincronización
+  "error", // error de sincronización
 ]);
 
 export const integrationLogLevelEnum = pgEnum("integration_log_level", [
@@ -212,14 +212,14 @@ export const integrationLogLevelEnum = pgEnum("integration_log_level", [
 // --- Phase 8 enums ---
 
 export const alertTypeEnum = pgEnum("alert_type", [
-  "low_stock",           // stock bajo
-  "inventory_diff",      // diferencia de inventario
-  "product_blocked",     // producto bloqueado por inconsistencia
-  "rate_change",         // cambio de tasa / repricing pendiente
+  "low_stock", // stock bajo
+  "inventory_diff", // diferencia de inventario
+  "product_blocked", // producto bloqueado por inconsistencia
+  "rate_change", // cambio de tasa / repricing pendiente
   "vendor_under_target", // vendedor bajo meta
-  "order_late",          // pedido atrasado
-  "ml_failure",          // falla de integración ML
-  "ar_overdue",          // CxC vencidas
+  "order_late", // pedido atrasado
+  "ml_failure", // falla de integración ML
+  "ar_overdue", // CxC vencidas
 ]);
 
 // ╔══════════════════════════════════════════════╗
@@ -252,9 +252,7 @@ export const UserProfile = pgTable(
     status: userStatusEnum().notNull().default("active"),
     phone: t.varchar({ length: 32 }),
     avatarUrl: t.text(),
-    organizationId: t
-      .uuid()
-      .references(() => Organization.id),
+    organizationId: t.uuid().references(() => Organization.id),
     createdAt: t
       .timestamp({ mode: "date", withTimezone: true })
       .defaultNow()
@@ -279,7 +277,9 @@ export const Permission = pgTable(
     action: permissionActionEnum().notNull(),
     description: t.varchar({ length: 512 }),
   }),
-  (table) => [unique("uq_permission_module_action").on(table.module, table.action)],
+  (table) => [
+    unique("uq_permission_module_action").on(table.module, table.action),
+  ],
 );
 
 export const RolePermission = pgTable(
@@ -408,15 +408,9 @@ export const Product = pgTable(
     name: t.varchar({ length: 512 }).notNull(),
     descriptionShort: t.varchar({ length: 512 }),
     descriptionLong: t.text(),
-    brandId: t
-      .uuid()
-      .references(() => Brand.id),
-    categoryId: t
-      .uuid()
-      .references(() => Category.id),
-    supplierId: t
-      .uuid()
-      .references(() => Supplier.id),
+    brandId: t.uuid().references(() => Brand.id),
+    categoryId: t.uuid().references(() => Category.id),
+    supplierId: t.uuid().references(() => Supplier.id),
     imageUrl: t.text(),
     weight: t.doublePrecision(),
     volume: t.doublePrecision(),
@@ -499,9 +493,7 @@ export const Warehouse = pgTable(
       .defaultNow()
       .notNull(),
   }),
-  (table) => [
-    index("idx_warehouse_type").on(table.type),
-  ],
+  (table) => [index("idx_warehouse_type").on(table.type)],
 );
 
 export const StockLedger = pgTable(
@@ -645,9 +637,7 @@ export const ContainerItem = pgTable(
       .uuid()
       .notNull()
       .references(() => Container.id, { onDelete: "cascade" }),
-    productId: t
-      .uuid()
-      .references(() => Product.id),
+    productId: t.uuid().references(() => Product.id),
     quantityExpected: t.integer().notNull(),
     quantityReceived: t.integer().default(0),
     unitCost: t.doublePrecision(),
@@ -694,9 +684,7 @@ export const AiPromptConfig = pgTable(
       .defaultNow()
       .notNull(),
   }),
-  (table) => [
-    unique("uq_ai_prompt_config_key").on(table.configKey),
-  ],
+  (table) => [unique("uq_ai_prompt_config_key").on(table.configKey)],
 );
 
 // ╔══════════════════════════════════════════════╗
@@ -967,9 +955,7 @@ export const AccountReceivable = pgTable(
       .uuid()
       .notNull()
       .references(() => Customer.id),
-    orderId: t
-      .uuid()
-      .references(() => SalesOrder.id),
+    orderId: t.uuid().references(() => SalesOrder.id),
     totalAmount: t.doublePrecision().notNull(),
     paidAmount: t.doublePrecision().notNull().default(0),
     balance: t.doublePrecision().notNull(),
@@ -1151,12 +1137,15 @@ export const productRelations = relations(Product, ({ one, many }) => ({
   prices: many(ProductPrice),
 }));
 
-export const productAttributeRelations = relations(ProductAttribute, ({ one }) => ({
-  product: one(Product, {
-    fields: [ProductAttribute.productId],
-    references: [Product.id],
+export const productAttributeRelations = relations(
+  ProductAttribute,
+  ({ one }) => ({
+    product: one(Product, {
+      fields: [ProductAttribute.productId],
+      references: [Product.id],
+    }),
   }),
-}));
+);
 
 export const productPriceRelations = relations(ProductPrice, ({ one }) => ({
   product: one(Product, {
@@ -1178,12 +1167,15 @@ export const stockLedgerRelations = relations(StockLedger, ({ one }) => ({
   }),
 }));
 
-export const channelAllocationRelations = relations(ChannelAllocation, ({ one }) => ({
-  product: one(Product, {
-    fields: [ChannelAllocation.productId],
-    references: [Product.id],
+export const channelAllocationRelations = relations(
+  ChannelAllocation,
+  ({ one }) => ({
+    product: one(Product, {
+      fields: [ChannelAllocation.productId],
+      references: [Product.id],
+    }),
   }),
-}));
+);
 
 export const stockMovementRelations = relations(StockMovement, ({ one }) => ({
   product: one(Product, {
@@ -1263,27 +1255,33 @@ export const paymentRelations = relations(Payment, ({ one }) => ({
 
 // --- Phase 6 relations ---
 
-export const vendorCommissionRelations = relations(VendorCommission, ({ one }) => ({
-  vendor: one(UserProfile, {
-    fields: [VendorCommission.vendorId],
-    references: [UserProfile.id],
+export const vendorCommissionRelations = relations(
+  VendorCommission,
+  ({ one }) => ({
+    vendor: one(UserProfile, {
+      fields: [VendorCommission.vendorId],
+      references: [UserProfile.id],
+    }),
+    order: one(SalesOrder, {
+      fields: [VendorCommission.orderId],
+      references: [SalesOrder.id],
+    }),
   }),
-  order: one(SalesOrder, {
-    fields: [VendorCommission.orderId],
-    references: [SalesOrder.id],
-  }),
-}));
+);
 
-export const accountReceivableRelations = relations(AccountReceivable, ({ one }) => ({
-  customer: one(Customer, {
-    fields: [AccountReceivable.customerId],
-    references: [Customer.id],
+export const accountReceivableRelations = relations(
+  AccountReceivable,
+  ({ one }) => ({
+    customer: one(Customer, {
+      fields: [AccountReceivable.customerId],
+      references: [Customer.id],
+    }),
+    order: one(SalesOrder, {
+      fields: [AccountReceivable.orderId],
+      references: [SalesOrder.id],
+    }),
   }),
-  order: one(SalesOrder, {
-    fields: [AccountReceivable.orderId],
-    references: [SalesOrder.id],
-  }),
-}));
+);
 
 // --- Phase 7 relations ---
 

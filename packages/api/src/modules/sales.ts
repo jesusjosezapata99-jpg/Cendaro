@@ -4,19 +4,19 @@
  * Customers, orders, order items.
  * PRD §14-17: sales channels, order flow, customer management.
  */
-import { z } from "zod/v4";
 import { desc, eq, sql } from "drizzle-orm";
+import { z } from "zod/v4";
 
 import {
-  Customer,
-  SalesOrder,
-  OrderItem,
-  Payment,
   CashClosure,
+  Customer,
   customerTypeEnum,
-  salesChannelEnum,
+  OrderItem,
   orderStatusEnum,
+  Payment,
   paymentMethodEnum,
+  salesChannelEnum,
+  SalesOrder,
 } from "@cendaro/db/schema";
 
 import {
@@ -38,16 +38,19 @@ export const salesRouter = createTRPCRouter({
       }),
     )
     .query(async ({ ctx, input }) => {
-      let query = ctx.db.select({
-        id: Customer.id,
-        name: Customer.name,
-        customerType: Customer.customerType,
-        phone: Customer.phone,
-        email: Customer.email,
-        assignedVendorId: Customer.assignedVendorId,
-        creditLimit: Customer.creditLimit,
-        createdAt: Customer.createdAt,
-      }).from(Customer).$dynamic();
+      let query = ctx.db
+        .select({
+          id: Customer.id,
+          name: Customer.name,
+          customerType: Customer.customerType,
+          phone: Customer.phone,
+          email: Customer.email,
+          assignedVendorId: Customer.assignedVendorId,
+          creditLimit: Customer.creditLimit,
+          createdAt: Customer.createdAt,
+        })
+        .from(Customer)
+        .$dynamic();
       if (input.customerType) {
         query = query.where(eq(Customer.customerType, input.customerType));
       }
@@ -105,18 +108,21 @@ export const salesRouter = createTRPCRouter({
       }),
     )
     .query(async ({ ctx, input }) => {
-      let query = ctx.db.select({
-        id: SalesOrder.id,
-        orderNumber: SalesOrder.orderNumber,
-        customerId: SalesOrder.customerId,
-        channel: SalesOrder.channel,
-        status: SalesOrder.status,
-        subtotal: SalesOrder.subtotal,
-        discount: SalesOrder.discount,
-        total: SalesOrder.total,
-        totalPaid: SalesOrder.totalPaid,
-        createdAt: SalesOrder.createdAt,
-      }).from(SalesOrder).$dynamic();
+      let query = ctx.db
+        .select({
+          id: SalesOrder.id,
+          orderNumber: SalesOrder.orderNumber,
+          customerId: SalesOrder.customerId,
+          channel: SalesOrder.channel,
+          status: SalesOrder.status,
+          subtotal: SalesOrder.subtotal,
+          discount: SalesOrder.discount,
+          total: SalesOrder.total,
+          totalPaid: SalesOrder.totalPaid,
+          createdAt: SalesOrder.createdAt,
+        })
+        .from(SalesOrder)
+        .$dynamic();
       if (input.status) {
         query = query.where(eq(SalesOrder.status, input.status));
       }
@@ -141,20 +147,19 @@ export const salesRouter = createTRPCRouter({
       if (!order) return null;
 
       const [items, payments] = await Promise.all([
-        ctx.db
-          .select()
-          .from(OrderItem)
-          .where(eq(OrderItem.orderId, input.id)),
-        ctx.db
-          .select()
-          .from(Payment)
-          .where(eq(Payment.orderId, input.id)),
+        ctx.db.select().from(OrderItem).where(eq(OrderItem.orderId, input.id)),
+        ctx.db.select().from(Payment).where(eq(Payment.orderId, input.id)),
       ]);
 
       return { ...order, items, payments };
     }),
 
-  createOrder: roleRestrictedProcedure(["owner", "admin", "supervisor", "employee"])
+  createOrder: roleRestrictedProcedure([
+    "owner",
+    "admin",
+    "supervisor",
+    "employee",
+  ])
     .input(
       z.object({
         customerId: z.string().uuid().optional(),
@@ -290,10 +295,7 @@ export const salesRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const [payment] = await ctx.db
-        .insert(Payment)
-        .values(input)
-        .returning();
+      const [payment] = await ctx.db.insert(Payment).values(input).returning();
 
       // Update totalPaid on order
       await ctx.db
@@ -313,7 +315,12 @@ export const salesRouter = createTRPCRouter({
       return payment;
     }),
 
-  validatePayment: roleRestrictedProcedure(["owner", "admin", "supervisor", "employee"])
+  validatePayment: roleRestrictedProcedure([
+    "owner",
+    "admin",
+    "supervisor",
+    "employee",
+  ])
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       const [updated] = await ctx.db
@@ -384,7 +391,11 @@ export const salesRouter = createTRPCRouter({
         action: "cash.close",
         entity: "cash_closure",
         entityId: closure?.id,
-        newValue: { expectedTotal: input.expectedTotal, actualTotal: input.actualTotal, discrepancy },
+        newValue: {
+          expectedTotal: input.expectedTotal,
+          actualTotal: input.actualTotal,
+          discrepancy,
+        },
       });
 
       return closure;

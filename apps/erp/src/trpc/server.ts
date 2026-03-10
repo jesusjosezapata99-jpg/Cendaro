@@ -4,8 +4,8 @@
  * Creates a tRPC caller for use in React Server Components
  * and Server Actions. No HTTP round-trip — calls procedures directly.
  */
-import { cookies, headers } from "next/headers";
 import { cache } from "react";
+import { cookies, headers } from "next/headers";
 
 import type { AppRouter } from "@cendaro/api";
 import { createCaller, createTRPCContext } from "@cendaro/api";
@@ -28,7 +28,11 @@ const createContext = cache(async () => {
   let user = null;
   if (supabaseUrl && supabaseKey) {
     const cookieStore = await cookies();
-    const supabase = createSupabaseServerClient(cookieStore, supabaseUrl, supabaseKey);
+    const supabase = createSupabaseServerClient(
+      cookieStore,
+      supabaseUrl,
+      supabaseKey,
+    );
     const { data } = await supabase.auth.getUser();
     user = data.user;
   }

@@ -5,17 +5,18 @@
  * Ensures RIF, Cédula, money, exchange rate, and role schemas
  * accept valid inputs and reject invalid ones.
  */
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
+
 import {
-  rifSchema,
-  cedulaSchema,
-  moneySchema,
-  exchangeRateSchema,
-  percentageSchema,
-  skuCodeSchema,
   barcodeSchema,
-  userRoleSchema,
+  cedulaSchema,
+  exchangeRateSchema,
+  moneySchema,
+  percentageSchema,
+  rifSchema,
+  skuCodeSchema,
   USER_ROLES,
+  userRoleSchema,
 } from "../index";
 
 describe("rifSchema", () => {
@@ -29,11 +30,11 @@ describe("rifSchema", () => {
 
   it("rejects invalid RIFs", () => {
     expect(() => rifSchema.parse("")).toThrow();
-    expect(() => rifSchema.parse("J12345678-9")).toThrow();     // missing first dash
-    expect(() => rifSchema.parse("J-1234567-9")).toThrow();     // 7 digits instead of 8
-    expect(() => rifSchema.parse("J-123456789-9")).toThrow();   // 9 digits instead of 8
-    expect(() => rifSchema.parse("X-12345678-9")).toThrow();     // invalid prefix
-    expect(() => rifSchema.parse("J-12345678")).toThrow();       // missing check digit
+    expect(() => rifSchema.parse("J12345678-9")).toThrow(); // missing first dash
+    expect(() => rifSchema.parse("J-1234567-9")).toThrow(); // 7 digits instead of 8
+    expect(() => rifSchema.parse("J-123456789-9")).toThrow(); // 9 digits instead of 8
+    expect(() => rifSchema.parse("X-12345678-9")).toThrow(); // invalid prefix
+    expect(() => rifSchema.parse("J-12345678")).toThrow(); // missing check digit
   });
 });
 
@@ -46,23 +47,23 @@ describe("cedulaSchema", () => {
 
   it("rejects invalid cédulas", () => {
     expect(() => cedulaSchema.parse("")).toThrow();
-    expect(() => cedulaSchema.parse("V-12345")).toThrow();       // too short
-    expect(() => cedulaSchema.parse("V-123456789")).toThrow();   // too long
-    expect(() => cedulaSchema.parse("J-1234567")).toThrow();     // wrong prefix
+    expect(() => cedulaSchema.parse("V-12345")).toThrow(); // too short
+    expect(() => cedulaSchema.parse("V-123456789")).toThrow(); // too long
+    expect(() => cedulaSchema.parse("J-1234567")).toThrow(); // wrong prefix
   });
 });
 
 describe("moneySchema", () => {
   it("accepts valid amounts", () => {
     expect(() => moneySchema.parse(0)).not.toThrow();
-    expect(() => moneySchema.parse(100.50)).not.toThrow();
+    expect(() => moneySchema.parse(100.5)).not.toThrow();
     expect(() => moneySchema.parse(0.01)).not.toThrow();
     expect(() => moneySchema.parse(999999.99)).not.toThrow();
   });
 
   it("rejects invalid amounts", () => {
     expect(() => moneySchema.parse(-1)).toThrow();
-    expect(() => moneySchema.parse(0.001)).toThrow();   // more than 2 decimals
+    expect(() => moneySchema.parse(0.001)).toThrow(); // more than 2 decimals
   });
 });
 
@@ -76,7 +77,7 @@ describe("exchangeRateSchema", () => {
   it("rejects invalid rates", () => {
     expect(() => exchangeRateSchema.parse(0)).toThrow();
     expect(() => exchangeRateSchema.parse(-5)).toThrow();
-    expect(() => exchangeRateSchema.parse(1.00001)).toThrow();  // 5 decimals
+    expect(() => exchangeRateSchema.parse(1.00001)).toThrow(); // 5 decimals
   });
 });
 

@@ -1,4 +1,5 @@
-import { HydrationBoundary, dehydrate } from "@tanstack/react-query";
+import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
+
 import { getQueryClient } from "~/trpc/query-client";
 import { api } from "~/trpc/server";
 import DashboardClient from "./client";
@@ -21,7 +22,10 @@ export default async function DashboardPage() {
         queryFn: () => api.dashboard.salesSummary(),
       }),
       queryClient.prefetchQuery({
-        queryKey: [["dashboard", "latestClosures"], { input: { limit: 5 }, type: "query" }],
+        queryKey: [
+          ["dashboard", "latestClosures"],
+          { input: { limit: 5 }, type: "query" },
+        ],
         queryFn: () => api.dashboard.latestClosures({ limit: 5 }),
       }),
       queryClient.prefetchQuery({

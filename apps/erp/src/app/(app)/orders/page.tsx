@@ -1,4 +1,5 @@
-import { HydrationBoundary, dehydrate } from "@tanstack/react-query";
+import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
+
 import { getQueryClient } from "~/trpc/query-client";
 import { api } from "~/trpc/server";
 import OrdersClient from "./client";
@@ -11,7 +12,10 @@ export default async function OrdersPage() {
 
   try {
     await queryClient.prefetchQuery({
-      queryKey: [["sales", "listOrders"], { input: { limit: 50 }, type: "query" }],
+      queryKey: [
+        ["sales", "listOrders"],
+        { input: { limit: 50 }, type: "query" },
+      ],
       queryFn: () => api.sales.listOrders({ limit: 50 }),
     });
   } catch {

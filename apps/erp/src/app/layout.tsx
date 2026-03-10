@@ -42,10 +42,14 @@ export default function RootLayout({
       <head>
         {/* dns-prefetch + preconnect for Google Fonts CDN */}
         <link rel="dns-prefetch" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          rel="preconnect"
+          href="https://fonts.gstatic.com"
+          crossOrigin="anonymous"
+        />
       </head>
       <body
-        className={`${inter.variable} font-sans bg-background text-foreground antialiased`}
+        className={`${inter.variable} bg-background text-foreground font-sans antialiased`}
       >
         <ThemeProvider>{children}</ThemeProvider>
         <Script

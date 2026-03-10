@@ -4,8 +4,8 @@
  * CRUD operations for user profiles. Admin-only for write operations.
  * Reads allowed for supervisors+.
  */
-import { z } from "zod/v4";
 import { desc, eq } from "drizzle-orm";
+import { z } from "zod/v4";
 
 import { UserProfile, userRoleEnum, userStatusEnum } from "@cendaro/db/schema";
 
@@ -18,8 +18,8 @@ import { logAudit } from "./audit";
 
 export const usersRouter = createTRPCRouter({
   /** List all users (admin, owner, supervisor) */
-  list: roleRestrictedProcedure(["owner", "admin", "supervisor"])
-    .query(async ({ ctx }) => {
+  list: roleRestrictedProcedure(["owner", "admin", "supervisor"]).query(
+    async ({ ctx }) => {
       return ctx.db
         .select({
           id: UserProfile.id,
@@ -33,7 +33,8 @@ export const usersRouter = createTRPCRouter({
         })
         .from(UserProfile)
         .orderBy(desc(UserProfile.createdAt));
-    }),
+    },
+  ),
 
   /** Get current user's profile */
   me: protectedProcedure.query(async ({ ctx }) => {
@@ -121,7 +122,9 @@ export const usersRouter = createTRPCRouter({
         action: "user.update",
         entity: "user_profile",
         entityId: id,
-        oldValue: oldProfile ? { role: oldProfile.role, status: oldProfile.status } : null,
+        oldValue: oldProfile
+          ? { role: oldProfile.role, status: oldProfile.status }
+          : null,
         newValue: updates,
       });
 

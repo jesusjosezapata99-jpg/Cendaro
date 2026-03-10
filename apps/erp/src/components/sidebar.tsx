@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { cn } from "@cendaro/ui";
-import { useCurrentUser } from "~/hooks/use-current-user";
-import { hasRole } from "~/components/role-guard";
 
 import type { UserRole } from "@cendaro/validators";
+import { cn } from "@cendaro/ui";
+
+import { hasRole } from "~/components/role-guard";
+import { useCurrentUser } from "~/hooks/use-current-user";
 
 interface NavItem {
   href: string;
@@ -26,43 +27,118 @@ const navSections: { title: string; items: NavItem[] }[] = [
     title: "Operaciones",
     items: [
       { href: "/catalog", label: "Catálogo", icon: "inventory_2" },
-      { href: "/inventory", label: "Inventario", icon: "warehouse", roles: ["owner", "admin", "supervisor"] },
-      { href: "/containers", label: "Contenedores", icon: "package_2", roles: ["owner", "admin", "supervisor"] },
-      { href: "/pricing", label: "Precios", icon: "sell", roles: ["owner", "admin", "supervisor"] },
+      {
+        href: "/inventory",
+        label: "Inventario",
+        icon: "warehouse",
+        roles: ["owner", "admin", "supervisor"],
+      },
+      {
+        href: "/containers",
+        label: "Contenedores",
+        icon: "package_2",
+        roles: ["owner", "admin", "supervisor"],
+      },
+      {
+        href: "/pricing",
+        label: "Precios",
+        icon: "sell",
+        roles: ["owner", "admin", "supervisor"],
+      },
     ],
   },
   {
     title: "Ventas",
     items: [
-      { href: "/pos", label: "Punto de Venta", icon: "point_of_sale", roles: ["owner", "admin", "supervisor", "employee"] },
+      {
+        href: "/pos",
+        label: "Punto de Venta",
+        icon: "point_of_sale",
+        roles: ["owner", "admin", "supervisor", "employee"],
+      },
       { href: "/orders", label: "Pedidos", icon: "list_alt" },
-      { href: "/vendors", label: "Vendedores", icon: "group", roles: ["owner", "admin", "supervisor"] },
+      {
+        href: "/vendors",
+        label: "Vendedores",
+        icon: "group",
+        roles: ["owner", "admin", "supervisor"],
+      },
       { href: "/customers", label: "Clientes", icon: "person" },
     ],
   },
   {
     title: "Canales",
     items: [
-      { href: "/marketplace", label: "Mercado Libre", icon: "storefront", roles: ["owner", "admin", "supervisor", "marketing"] },
-      { href: "/whatsapp", label: "WhatsApp", icon: "chat", roles: ["owner", "admin", "supervisor", "employee"] },
+      {
+        href: "/marketplace",
+        label: "Mercado Libre",
+        icon: "storefront",
+        roles: ["owner", "admin", "supervisor", "marketing"],
+      },
+      {
+        href: "/whatsapp",
+        label: "WhatsApp",
+        icon: "chat",
+        roles: ["owner", "admin", "supervisor", "employee"],
+      },
     ],
   },
   {
     title: "Finanzas",
     items: [
-      { href: "/payments", label: "Pagos", icon: "payments", roles: ["owner", "admin", "supervisor", "employee"] },
-      { href: "/cash-closure", label: "Cierre de Caja", icon: "lock_clock", roles: ["owner", "admin", "supervisor"] },
-      { href: "/accounts-receivable", label: "CxC", icon: "receipt_long", roles: ["owner", "admin", "supervisor"] },
-      { href: "/rates", label: "Tasas de Cambio", icon: "currency_exchange", roles: ["owner", "admin", "supervisor"] },
+      {
+        href: "/payments",
+        label: "Pagos",
+        icon: "payments",
+        roles: ["owner", "admin", "supervisor", "employee"],
+      },
+      {
+        href: "/cash-closure",
+        label: "Cierre de Caja",
+        icon: "lock_clock",
+        roles: ["owner", "admin", "supervisor"],
+      },
+      {
+        href: "/accounts-receivable",
+        label: "CxC",
+        icon: "receipt_long",
+        roles: ["owner", "admin", "supervisor"],
+      },
+      {
+        href: "/rates",
+        label: "Tasas de Cambio",
+        icon: "currency_exchange",
+        roles: ["owner", "admin", "supervisor"],
+      },
     ],
   },
   {
     title: "Sistema",
     items: [
-      { href: "/alerts", label: "Alertas", icon: "notifications_active", roles: ["owner", "admin", "supervisor"] },
-      { href: "/users", label: "Usuarios", icon: "manage_accounts", roles: ["owner", "admin"] },
-      { href: "/audit", label: "Auditoría", icon: "policy", roles: ["owner", "admin"] },
-      { href: "/settings", label: "Configuración", icon: "settings", roles: ["owner", "admin"] },
+      {
+        href: "/alerts",
+        label: "Alertas",
+        icon: "notifications_active",
+        roles: ["owner", "admin", "supervisor"],
+      },
+      {
+        href: "/users",
+        label: "Usuarios",
+        icon: "manage_accounts",
+        roles: ["owner", "admin"],
+      },
+      {
+        href: "/audit",
+        label: "Auditoría",
+        icon: "policy",
+        roles: ["owner", "admin"],
+      },
+      {
+        href: "/settings",
+        label: "Configuración",
+        icon: "settings",
+        roles: ["owner", "admin"],
+      },
     ],
   },
 ];
@@ -101,30 +177,30 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       {/* Sidebar panel */}
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground transition-transform duration-300 lg:static lg:z-auto lg:translate-x-0",
+          "border-sidebar-border bg-sidebar text-sidebar-foreground fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r transition-transform duration-300 lg:static lg:z-auto lg:translate-x-0",
           open ? "translate-x-0" : "-translate-x-full",
         )}
       >
         {/* Logo */}
-        <div className="flex h-14 items-center justify-between border-b border-sidebar-border px-5">
+        <div className="border-sidebar-border flex h-14 items-center justify-between border-b px-5">
           <div className="flex items-center gap-3">
-            <div className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+            <div className="bg-primary text-primary-foreground flex size-8 items-center justify-center rounded-lg">
               <span className="material-symbols-outlined text-lg">
                 rocket_launch
               </span>
             </div>
             <div>
-              <h1 className="text-sm font-bold tracking-tight text-sidebar-primary">
+              <h1 className="text-sidebar-primary text-sm font-bold tracking-tight">
                 Cendaro
               </h1>
-              <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+              <p className="text-muted-foreground text-[10px] font-semibold tracking-widest uppercase">
                 ERP Omnicanal
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="flex size-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-sidebar-accent lg:hidden"
+            className="text-muted-foreground hover:bg-sidebar-accent flex size-8 items-center justify-center rounded-lg lg:hidden"
           >
             <span className="material-symbols-outlined text-xl">close</span>
           </button>
@@ -142,7 +218,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
 
             return (
               <div key={section.title} className="mb-5">
-                <h2 className="mb-2 px-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                <h2 className="text-muted-foreground mb-2 px-3 text-[10px] font-bold tracking-widest uppercase">
                   {section.title}
                 </h2>
                 <ul className="space-y-0.5">
@@ -158,7 +234,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
                           className={cn(
                             "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
                             isActive
-                              ? "bg-sidebar-accent font-semibold text-sidebar-accent-foreground"
+                              ? "bg-sidebar-accent text-sidebar-accent-foreground font-semibold"
                               : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground",
                           )}
                         >
@@ -167,7 +243,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
                           </span>
                           <span>{item.label}</span>
                           {item.badge && (
-                            <span className="ml-auto rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                            <span className="bg-primary/10 text-primary ml-auto rounded-full px-2 py-0.5 text-xs font-medium">
                               {item.badge}
                             </span>
                           )}
@@ -182,20 +258,20 @@ export function Sidebar({ open, onClose }: SidebarProps) {
         </nav>
 
         {/* Footer — User */}
-        <div className="border-t border-sidebar-border px-4 py-3">
+        <div className="border-sidebar-border border-t px-4 py-3">
           <div className="flex items-center gap-3">
-            <div className="flex size-8 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
+            <div className="bg-primary/10 text-primary flex size-8 items-center justify-center rounded-full text-sm font-bold">
               {loading ? "…" : initials}
             </div>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium text-sidebar-foreground">
+              <p className="text-sidebar-foreground truncate text-sm font-medium">
                 {loading ? "Cargando…" : (profile?.fullName ?? "Usuario")}
               </p>
-              <p className="text-xs text-muted-foreground">{roleLabel}</p>
+              <p className="text-muted-foreground text-xs">{roleLabel}</p>
             </div>
             <button
               onClick={handleLogout}
-              className="flex size-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-destructive"
+              className="text-muted-foreground hover:bg-sidebar-accent hover:text-destructive flex size-8 shrink-0 items-center justify-center rounded-lg transition-colors"
               title="Cerrar sesión"
             >
               <span className="material-symbols-outlined text-lg">logout</span>

@@ -4,18 +4,18 @@
  * Stock management, channel allocations, movements, and cycle counts.
  * PRD §9: multichannel stock, blocking, transfers, cycle counts.
  */
+import { desc, eq, sql, sum } from "drizzle-orm";
 import { z } from "zod/v4";
-import { desc, eq, sum, sql } from "drizzle-orm";
 
 import {
-  StockLedger,
   ChannelAllocation,
+  InventoryCount,
+  movementTypeEnum,
+  salesChannelEnum,
+  StockLedger,
   StockMovement,
   Warehouse,
-  InventoryCount,
   warehouseTypeEnum,
-  salesChannelEnum,
-  movementTypeEnum,
 } from "@cendaro/db/schema";
 
 import {
@@ -29,12 +29,15 @@ export const inventoryRouter = createTRPCRouter({
   // ─── Warehouses ──────────────────────────────
 
   listWarehouses: protectedProcedure.query(async ({ ctx }) => {
-    return ctx.db.select({
-      id: Warehouse.id,
-      name: Warehouse.name,
-      type: Warehouse.type,
-      location: Warehouse.location,
-    }).from(Warehouse).orderBy(Warehouse.name);
+    return ctx.db
+      .select({
+        id: Warehouse.id,
+        name: Warehouse.name,
+        type: Warehouse.type,
+        location: Warehouse.location,
+      })
+      .from(Warehouse)
+      .orderBy(Warehouse.name);
   }),
 
   createWarehouse: roleRestrictedProcedure(["owner", "admin"])
@@ -70,7 +73,9 @@ export const inventoryRouter = createTRPCRouter({
       // to the database instead of loading all rows into JS memory.
       // Before: 3 queries + 10K+ rows transferred + JS Maps → 6.18s
       // After:  1 query + 500 aggregated rows → <100ms
-      const searchPattern = input.search ? `%${input.search.toLowerCase()}%` : null;
+      const searchPattern = input.search
+        ? `%${input.search.toLowerCase()}%`
+        : null;
 
       const rows = await ctx.db.execute<{
         id: string;
@@ -220,16 +225,19 @@ export const inventoryRouter = createTRPCRouter({
       }),
     )
     .query(async ({ ctx, input }) => {
-      let query = ctx.db.select({
-        id: StockMovement.id,
-        productId: StockMovement.productId,
-        movementType: StockMovement.movementType,
-        quantity: StockMovement.quantity,
-        fromChannel: StockMovement.fromChannel,
-        toChannel: StockMovement.toChannel,
-        createdBy: StockMovement.createdBy,
-        createdAt: StockMovement.createdAt,
-      }).from(StockMovement).$dynamic();
+      let query = ctx.db
+        .select({
+          id: StockMovement.id,
+          productId: StockMovement.productId,
+          movementType: StockMovement.movementType,
+          quantity: StockMovement.quantity,
+          fromChannel: StockMovement.fromChannel,
+          toChannel: StockMovement.toChannel,
+          createdBy: StockMovement.createdBy,
+          createdAt: StockMovement.createdAt,
+        })
+        .from(StockMovement)
+        .$dynamic();
 
       if (input.productId) {
         query = query.where(eq(StockMovement.productId, input.productId));

@@ -76,7 +76,8 @@ interface LogEntry {
 
 const IS_PRODUCTION = process.env.NODE_ENV === "production";
 const IS_TEST = process.env.NODE_ENV === "test";
-const LOG_LEVEL = (process.env.LOG_LEVEL ?? (IS_PRODUCTION ? "info" : "debug")) as LogLevel;
+const LOG_LEVEL = (process.env.LOG_LEVEL ??
+  (IS_PRODUCTION ? "info" : "debug")) as LogLevel;
 const VERCEL_ENV = process.env.VERCEL_ENV; // "production" | "preview" | "development" | undefined
 const VERCEL_REGION = process.env.VERCEL_REGION; // e.g. "iad1"
 const VERCEL_GIT_COMMIT_SHA = process.env.VERCEL_GIT_COMMIT_SHA;
@@ -91,10 +92,10 @@ const LEVEL_PRIORITY: Record<LogLevel, number> = {
 };
 
 const LEVEL_COLORS: Record<LogLevel, string> = {
-  debug: "\x1b[90m",  // gray
-  info: "\x1b[36m",   // cyan
-  warn: "\x1b[33m",   // yellow
-  error: "\x1b[31m",  // red
+  debug: "\x1b[90m", // gray
+  info: "\x1b[36m", // cyan
+  warn: "\x1b[33m", // yellow
+  error: "\x1b[31m", // red
 };
 
 const LEVEL_ICONS: Record<LogLevel, string> = {
@@ -143,7 +144,12 @@ function serializeError(err: unknown): LogEntry["error"] | undefined {
       code: (err as Error & { code?: string }).code,
     };
   }
-  return { name: "UnknownError", message: redactPII(err instanceof Error ? err.message : JSON.stringify(err)) };
+  return {
+    name: "UnknownError",
+    message: redactPII(
+      err instanceof Error ? err.message : JSON.stringify(err),
+    ),
+  };
 }
 
 function formatDuration(ms: number): string {
@@ -192,7 +198,9 @@ function formatJSON(entry: LogEntry): string {
 function formatPretty(entry: LogEntry): string {
   const color = LEVEL_COLORS[entry.level];
   const icon = LEVEL_ICONS[entry.level];
-  const time = new Date(entry.timestamp).toLocaleTimeString("en-US", { hour12: false });
+  const time = new Date(entry.timestamp).toLocaleTimeString("en-US", {
+    hour12: false,
+  });
   const levelTag = `${color}${entry.level.toUpperCase().padEnd(5)}${RESET}`;
 
   let line = `${DIM}${time}${RESET} ${icon} ${levelTag} ${BOLD}${entry.message}${RESET}`;
@@ -202,7 +210,8 @@ function formatPretty(entry: LogEntry): string {
   if (ctx) {
     const parts: string[] = [];
     if (ctx.path) parts.push(`path=${ctx.path}`);
-    if (ctx.durationMs != null) parts.push(`duration=${formatDuration(ctx.durationMs)}`);
+    if (ctx.durationMs != null)
+      parts.push(`duration=${formatDuration(ctx.durationMs)}`);
     if (ctx.userId) parts.push(`user=${ctx.userId.slice(0, 8)}…`);
     if (ctx.userRole) parts.push(`role=${ctx.userRole}`);
     if (ctx.requestId) parts.push(`req=${ctx.requestId.slice(0, 8)}…`);
@@ -210,10 +219,21 @@ function formatPretty(entry: LogEntry): string {
     if (ctx.module) parts.push(`module=${ctx.module}`);
 
     // Any extra keys not already handled
-    const handledKeys = new Set(["path", "durationMs", "userId", "userRole", "requestId", "statusCode", "module", "method"]);
+    const handledKeys = new Set([
+      "path",
+      "durationMs",
+      "userId",
+      "userRole",
+      "requestId",
+      "statusCode",
+      "module",
+      "method",
+    ]);
     for (const [key, value] of Object.entries(ctx)) {
       if (!handledKeys.has(key) && value !== undefined) {
-        parts.push(`${key}=${typeof value === "object" ? JSON.stringify(value) : String(value as string | number | boolean)}`);
+        parts.push(
+          `${key}=${typeof value === "object" ? JSON.stringify(value) : String(value as string | number | boolean)}`,
+        );
       }
     }
 
@@ -284,7 +304,12 @@ class Logger {
     this.#log("error", message, context, error);
   }
 
-  #log(level: LogLevel, message: string, context?: LogContext, error?: unknown): void {
+  #log(
+    level: LogLevel,
+    message: string,
+    context?: LogContext,
+    error?: unknown,
+  ): void {
     if (!shouldLog(level)) return;
 
     const entry: LogEntry = {

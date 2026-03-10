@@ -3,7 +3,7 @@
  *
  * Validates that all routers are properly structured and exported.
  */
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { appRouter } from "../root";
 

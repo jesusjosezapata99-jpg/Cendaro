@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+
 import { useTRPC } from "~/trpc/client";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 
 function Skeleton({ className = "" }: { className?: string }) {
-  return <div className={`animate-pulse rounded-lg bg-muted ${className}`} />;
+  return <div className={`bg-muted animate-pulse rounded-lg ${className}`} />;
 }
 
 type FilterMode = "all" | "pending" | "paid";
@@ -28,14 +29,25 @@ export default function VendorsPage() {
   );
 
   const items = commissions ?? [];
-  const totalPending = items.filter((c) => !c.isPaid).reduce((s, c) => s + c.commissionAmount, 0);
-  const totalPaid = items.filter((c) => c.isPaid).reduce((s, c) => s + c.commissionAmount, 0);
+  const totalPending = items
+    .filter((c) => !c.isPaid)
+    .reduce((s, c) => s + c.commissionAmount, 0);
+  const totalPaid = items
+    .filter((c) => c.isPaid)
+    .reduce((s, c) => s + c.commissionAmount, 0);
   const _pendingCount = items.filter((c) => !c.isPaid).length;
 
   // Group by vendorId
-  const vendorMap = new Map<string, { count: number; total: number; pending: number }>();
+  const vendorMap = new Map<
+    string,
+    { count: number; total: number; pending: number }
+  >();
   for (const c of items) {
-    const existing = vendorMap.get(c.vendorId) ?? { count: 0, total: 0, pending: 0 };
+    const existing = vendorMap.get(c.vendorId) ?? {
+      count: 0,
+      total: 0,
+      pending: 0,
+    };
     existing.count++;
     existing.total += c.commissionAmount;
     if (!c.isPaid) existing.pending += c.commissionAmount;
@@ -43,25 +55,54 @@ export default function VendorsPage() {
   }
 
   // Filter items based on active filter
-  const filteredItems = activeFilter === "all"
-    ? items
-    : activeFilter === "pending"
-      ? items.filter((c) => !c.isPaid)
-      : items.filter((c) => c.isPaid);
+  const filteredItems =
+    activeFilter === "all"
+      ? items
+      : activeFilter === "pending"
+        ? items.filter((c) => !c.isPaid)
+        : items.filter((c) => c.isPaid);
 
   const kpis = [
-    { label: "Vendedores Activos", value: vendorMap.size, icon: "group", accent: "border-blue-500/40", filter: "all" as FilterMode },
-    { label: "Comisiones Totales", value: items.length, icon: "receipt_long", accent: "border-emerald-500/40", filter: "all" as FilterMode },
-    { label: "Comisiones Pendientes", value: `$${totalPending.toLocaleString("en-US", { minimumFractionDigits: 2 })}`, icon: "payments", accent: "border-amber-500/40", filter: "pending" as FilterMode },
-    { label: "Total Pagado", value: `$${totalPaid.toLocaleString("en-US", { minimumFractionDigits: 2 })}`, icon: "check_circle", accent: "border-cyan-500/40", filter: "paid" as FilterMode },
+    {
+      label: "Vendedores Activos",
+      value: vendorMap.size,
+      icon: "group",
+      accent: "border-blue-500/40",
+      filter: "all" as FilterMode,
+    },
+    {
+      label: "Comisiones Totales",
+      value: items.length,
+      icon: "receipt_long",
+      accent: "border-emerald-500/40",
+      filter: "all" as FilterMode,
+    },
+    {
+      label: "Comisiones Pendientes",
+      value: `$${totalPending.toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
+      icon: "payments",
+      accent: "border-amber-500/40",
+      filter: "pending" as FilterMode,
+    },
+    {
+      label: "Total Pagado",
+      value: `$${totalPaid.toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
+      icon: "check_circle",
+      accent: "border-cyan-500/40",
+      filter: "paid" as FilterMode,
+    },
   ];
 
   return (
-    <div className="p-4 lg:p-8 space-y-6">
+    <div className="space-y-6 p-4 lg:p-8">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-black tracking-tight text-foreground">Portal de Vendedores</h1>
-          <p className="text-sm text-muted-foreground">Gestión de vendedores nacionales y comisiones</p>
+          <h1 className="text-foreground text-2xl font-black tracking-tight">
+            Portal de Vendedores
+          </h1>
+          <p className="text-muted-foreground text-sm">
+            Gestión de vendedores nacionales y comisiones
+          </p>
         </div>
       </div>
 
@@ -70,15 +111,23 @@ export default function VendorsPage() {
           <button
             key={stat.label}
             onClick={() => setActiveFilter(stat.filter)}
-            className={`rounded-xl border-l-4 ${stat.accent} bg-card border p-4 text-left transition-all cursor-pointer ${
-              activeFilter === stat.filter ? "border-primary/50 ring-2 ring-primary/20" : "border-border hover:border-primary/30 hover:bg-accent/20"
+            className={`rounded-xl border-l-4 ${stat.accent} bg-card cursor-pointer border p-4 text-left transition-all ${
+              activeFilter === stat.filter
+                ? "border-primary/50 ring-primary/20 ring-2"
+                : "border-border hover:border-primary/30 hover:bg-accent/20"
             }`}
           >
             <div className="flex items-center gap-2">
-              <span className="material-symbols-outlined text-lg text-muted-foreground">{stat.icon}</span>
-              <span className="text-xs text-muted-foreground">{stat.label}</span>
+              <span className="material-symbols-outlined text-muted-foreground text-lg">
+                {stat.icon}
+              </span>
+              <span className="text-muted-foreground text-xs">
+                {stat.label}
+              </span>
             </div>
-            <p className="mt-1 text-2xl font-black tracking-tight text-foreground">{stat.value}</p>
+            <p className="text-foreground mt-1 text-2xl font-black tracking-tight">
+              {stat.value}
+            </p>
           </button>
         ))}
       </div>
@@ -86,45 +135,77 @@ export default function VendorsPage() {
       {/* Active filter indicator */}
       {activeFilter !== "all" && (
         <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">
-            Filtrando: <span className="font-bold text-foreground">{activeFilter === "pending" ? "Pendientes" : "Pagadas"}</span>
-            {" "}({filteredItems.length} resultados)
+          <span className="text-muted-foreground text-xs">
+            Filtrando:{" "}
+            <span className="text-foreground font-bold">
+              {activeFilter === "pending" ? "Pendientes" : "Pagadas"}
+            </span>{" "}
+            ({filteredItems.length} resultados)
           </span>
-          <button onClick={() => setActiveFilter("all")} className="text-xs text-primary hover:underline">Ver todas</button>
+          <button
+            onClick={() => setActiveFilter("all")}
+            className="text-primary text-xs hover:underline"
+          >
+            Ver todas
+          </button>
         </div>
       )}
 
       {/* Commissions Table */}
       <div>
-        <h2 className="mb-3 text-sm font-medium text-muted-foreground">
-          Comisiones {activeFilter === "pending" ? "Pendientes" : activeFilter === "paid" ? "Pagadas" : "Recientes"}
-          {" "}({filteredItems.length})
+        <h2 className="text-muted-foreground mb-3 text-sm font-medium">
+          Comisiones{" "}
+          {activeFilter === "pending"
+            ? "Pendientes"
+            : activeFilter === "paid"
+              ? "Pagadas"
+              : "Recientes"}{" "}
+          ({filteredItems.length})
         </h2>
         {isLoading ? (
-          <div className="space-y-2">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}</div>
+          <div className="space-y-2">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <Skeleton key={i} className="h-12 w-full" />
+            ))}
+          </div>
         ) : (
-          <div className="overflow-hidden rounded-xl border border-border bg-card">
+          <div className="border-border bg-card overflow-hidden rounded-xl border">
             <table className="w-full text-left text-sm">
               <thead>
-                <tr className="border-b border-border text-xs uppercase text-muted-foreground">
+                <tr className="border-border text-muted-foreground border-b text-xs uppercase">
                   <th className="px-4 py-3 font-medium">Vendedor ID</th>
-                  <th className="px-4 py-3 font-medium text-right">Total Venta</th>
-                  <th className="px-4 py-3 font-medium text-right">%</th>
-                  <th className="px-4 py-3 font-medium text-right">Comisión</th>
-                  <th className="px-4 py-3 font-medium text-center">Estado</th>
+                  <th className="px-4 py-3 text-right font-medium">
+                    Total Venta
+                  </th>
+                  <th className="px-4 py-3 text-right font-medium">%</th>
+                  <th className="px-4 py-3 text-right font-medium">Comisión</th>
+                  <th className="px-4 py-3 text-center font-medium">Estado</th>
                   <th className="px-4 py-3 font-medium">Fecha</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredItems.map((c) => (
-                  <tr key={c.id} className="border-b border-border transition-colors hover:bg-accent/50">
-                    <td className="px-4 py-3 font-mono text-xs text-primary">{c.vendorId.slice(0, 8)}…</td>
-                    <td className="px-4 py-3 text-right font-mono text-muted-foreground">${c.orderTotal.toFixed(2)}</td>
-                    <td className="px-4 py-3 text-right text-muted-foreground">{c.commissionPct}%</td>
-                    <td className="px-4 py-3 text-right font-mono font-bold text-foreground">${c.commissionAmount.toFixed(2)}</td>
+                  <tr
+                    key={c.id}
+                    className="border-border hover:bg-accent/50 border-b transition-colors"
+                  >
+                    <td className="text-primary px-4 py-3 font-mono text-xs">
+                      {c.vendorId.slice(0, 8)}…
+                    </td>
+                    <td className="text-muted-foreground px-4 py-3 text-right font-mono">
+                      ${c.orderTotal.toFixed(2)}
+                    </td>
+                    <td className="text-muted-foreground px-4 py-3 text-right">
+                      {c.commissionPct}%
+                    </td>
+                    <td className="text-foreground px-4 py-3 text-right font-mono font-bold">
+                      ${c.commissionAmount.toFixed(2)}
+                    </td>
                     <td className="px-4 py-3 text-center">
                       {c.isPaid ? (
-                        <span className="rounded-full bg-emerald-500/20 px-2.5 py-0.5 text-xs font-medium text-emerald-400">Pagada</span>
+                        <span className="rounded-full bg-emerald-500/20 px-2.5 py-0.5 text-xs font-medium text-emerald-400">
+                          Pagada
+                        </span>
                       ) : (
                         <button
                           onClick={() => pay.mutate({ id: c.id })}
@@ -135,7 +216,7 @@ export default function VendorsPage() {
                         </button>
                       )}
                     </td>
-                    <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
+                    <td className="text-muted-foreground px-4 py-3 font-mono text-xs">
                       {new Date(c.createdAt).toLocaleDateString()}
                     </td>
                   </tr>
@@ -147,9 +228,15 @@ export default function VendorsPage() {
       </div>
 
       {filteredItems.length === 0 && !isLoading && (
-        <div className="flex flex-col items-center justify-center rounded-xl border border-border bg-card py-12 text-muted-foreground">
-          <span className="material-symbols-outlined text-3xl mb-2">local_shipping</span>
-          <p className="text-sm">{activeFilter === "all" ? "No hay comisiones registradas" : `No hay comisiones ${activeFilter === "pending" ? "pendientes" : "pagadas"}`}</p>
+        <div className="border-border bg-card text-muted-foreground flex flex-col items-center justify-center rounded-xl border py-12">
+          <span className="material-symbols-outlined mb-2 text-3xl">
+            local_shipping
+          </span>
+          <p className="text-sm">
+            {activeFilter === "all"
+              ? "No hay comisiones registradas"
+              : `No hay comisiones ${activeFilter === "pending" ? "pendientes" : "pagadas"}`}
+          </p>
         </div>
       )}
     </div>

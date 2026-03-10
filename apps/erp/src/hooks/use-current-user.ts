@@ -1,9 +1,11 @@
 "use client";
 
 import { useMemo } from "react";
-import { useTRPC } from "~/trpc/client";
 import { useQuery } from "@tanstack/react-query";
+
 import type { UserRole } from "@cendaro/validators";
+
+import { useTRPC } from "~/trpc/client";
 
 interface UserProfile {
   id: string;
@@ -38,7 +40,7 @@ export function useCurrentUser() {
   const { data: profile, isLoading: loading } = useQuery(
     trpc.users.me.queryOptions(undefined, {
       staleTime: 5 * 60 * 1000, // 5 min — user data rarely changes mid-session
-      gcTime: 30 * 60 * 1000,   // 30 min — keep in cache for session duration
+      gcTime: 30 * 60 * 1000, // 30 min — keep in cache for session duration
       retry: 1,
     }),
   );
