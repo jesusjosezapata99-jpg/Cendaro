@@ -164,7 +164,15 @@ export function TopBar({ onToggleSidebar }: TopBarProps) {
               </button>
               <div className="my-1 h-px bg-border" />
               <button
-                onClick={() => { setShowUserMenu(false); window.location.href = "/login"; }}
+                onClick={async () => {
+                  setShowUserMenu(false);
+                  try {
+                    await fetch("/api/auth/logout", { method: "POST" });
+                  } catch {
+                    // fallback: redirect even if server call fails
+                  }
+                  window.location.href = "/login";
+                }}
                 className="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-red-500 transition-colors hover:bg-accent/50"
               >
                 <span className="material-symbols-outlined text-base">logout</span>

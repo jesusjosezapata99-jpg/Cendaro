@@ -21,7 +21,16 @@ export const usersRouter = createTRPCRouter({
   list: roleRestrictedProcedure(["owner", "admin", "supervisor"])
     .query(async ({ ctx }) => {
       return ctx.db
-        .select()
+        .select({
+          id: UserProfile.id,
+          email: UserProfile.email,
+          fullName: UserProfile.fullName,
+          role: UserProfile.role,
+          status: UserProfile.status,
+          phone: UserProfile.phone,
+          avatarUrl: UserProfile.avatarUrl,
+          createdAt: UserProfile.createdAt,
+        })
         .from(UserProfile)
         .orderBy(desc(UserProfile.createdAt));
     }),

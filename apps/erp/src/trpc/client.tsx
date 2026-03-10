@@ -7,59 +7,20 @@
 "use client";
 
 import { useState } from "react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import {
   createTRPCClient,
   httpBatchLink,
-  TRPCClientError,
 } from "@trpc/client";
 import { createTRPCContext } from "@trpc/tanstack-react-query";
 import type { AppRouter } from "@cendaro/api";
 import { transformer, getUrl } from "./shared";
+import { getQueryClient } from "./query-client";
 
 const { TRPCProvider: InternalTRPCProvider, useTRPC } =
   createTRPCContext<AppRouter>();
 
 export { useTRPC };
-
-/**
- * Determines whether a failed query should be retried.
- * Auth errors (UNAUTHORIZED) should never retry — the user needs to re-login.
- */
-function shouldRetry(failureCount: number, error: unknown): boolean {
-  if (error instanceof TRPCClientError) {
-    const data = error.data as { code?: string } | undefined;
-    const code = data?.code;
-    if (code === "UNAUTHORIZED" || code === "FORBIDDEN") return false;
-  }
-  return failureCount < 2;
-}
-
-function makeQueryClient() {
-  return new QueryClient({
-    defaultOptions: {
-      queries: {
-        staleTime: 5 * 60 * 1000,        // 5 min — ERP data rarely changes every second
-        gcTime: 10 * 60 * 1000,           // 10 min — keep inactive cache longer
-        refetchOnWindowFocus: false,       // prevent noisy refetches
-        refetchOnReconnect: true,          // refetch when connection restores
-        retry: shouldRetry,
-      },
-      mutations: {
-        retry: false,
-      },
-    },
-  });
-}
-
-let browserQueryClient: QueryClient | undefined;
-
-function getQueryClient() {
-  if (typeof window === "undefined") {
-    return makeQueryClient();
-  }
-  return (browserQueryClient ??= makeQueryClient());
-}
 
 function makeTRPCClient() {
   return createTRPCClient<AppRouter>({
