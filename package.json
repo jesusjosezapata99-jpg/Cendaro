@@ -20,6 +20,7 @@
     "lint:fix": "turbo run lint --continue -- --fix --cache --cache-location .cache/.eslintcache",
     "lint:ws": "pnpm dlx sherif@latest",
     "postinstall": "pnpm lint:ws",
+    "prepare": "husky",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
     "ui-add": "turbo run ui-add"
@@ -28,10 +29,20 @@
     "@cendaro/prettier-config": "workspace:*",
     "@turbo/gen": "^2.8.14",
     "dotenv-cli": "^10.0.0",
+    "husky": "^9.1.7",
     "jiti": "^2.6.1",
+    "lint-staged": "^16.1.0",
     "prettier": "catalog:",
     "turbo": "^2.8.14",
     "typescript": "catalog:"
+  },
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx}": [
+      "eslint --cache --cache-location .cache/.eslintcache --no-warn-ignored"
+    ],
+    "*.{js,jsx,ts,tsx,md,json,yaml,yml,css}": [
+      "prettier --write --ignore-unknown --cache --cache-location .cache/.prettiercache"
+    ]
   },
   "prettier": "@cendaro/prettier-config"
 }
