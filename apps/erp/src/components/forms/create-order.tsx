@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import { useTRPC } from "~/trpc/client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Dialog, Field, Input, Select, FormActions } from "~/components/dialog";
@@ -43,6 +43,17 @@ export function CreateOrderDialog({ open, onClose }: Props) {
   const [notes, setNotes] = useState("");
   const [lines, setLines] = useState<OrderLine[]>([]);
   const [addProduct, setAddProduct] = useState({ productId: "", quantity: "1", unitPrice: "", discount: "0" });
+
+  // Reset form state when dialog reopens
+  useEffect(() => {
+    if (open) {
+      setCustomerId("");
+      setChannel("store");
+      setNotes("");
+      setLines([]);
+      setAddProduct({ productId: "", quantity: "1", unitPrice: "", discount: "0" });
+    }
+  }, [open]);
 
   const addLine = useCallback(() => {
     if (!addProduct.productId || !addProduct.unitPrice) return;

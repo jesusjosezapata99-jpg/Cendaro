@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useTRPC } from "~/trpc/client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Dialog, Field, Input, TextArea, Select, FormActions } from "~/components/dialog";
@@ -27,7 +27,7 @@ export function CreateProductDialog({ open, onClose }: Props) {
     }),
   );
 
-  const [form, setForm] = useState({
+  const initialState = {
     sku: "",
     name: "",
     barcode: "",
@@ -40,7 +40,15 @@ export function CreateProductDialog({ open, onClose }: Props) {
     weight: "",
     volume: "",
     status: "draft" as const,
-  });
+  };
+
+  const [form, setForm] = useState(initialState);
+
+  // Reset form state when dialog reopens
+  useEffect(() => {
+    if (open) setForm(initialState);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   const set = (key: string, value: string) => setForm((prev) => ({ ...prev, [key]: value }));
 

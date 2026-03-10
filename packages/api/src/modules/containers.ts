@@ -261,33 +261,42 @@ export const containerRouter = createTRPCRouter({
       let linked = 0;
       let unmatched = 0;
 
+      // Phase 1: Resolve product IDs (sequential — needs returned IDs)
+      const resolvedItems: {
+        productId: string | null;
+        item: (typeof input.items)[number];
+      }[] = [];
+
+      for (const item of input.items) {
+        let productId = item.suggestedProductId;
+
+        if (item.createProduct && !productId) {
+          const [newProduct] = await ctx.db
+            .insert(Product)
+            .values({
+              sku: item.skuHint ?? `AI-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+              name: item.translatedName,
+              weight: item.weightKg,
+              costAvg: item.unitCost != null ? String(item.unitCost) : "0",
+              status: "draft",
+            })
+            .returning();
+          productId = newProduct?.id ?? null;
+          created++;
+        }
+
+        if (productId) linked++;
+        else unmatched++;
+
+        resolvedItems.push({ productId, item });
+      }
+
+      // Phase 2: Batch insert ContainerItems (500 per batch)
       const batchSize = 500;
-      for (let i = 0; i < input.items.length; i += batchSize) {
-        const batch = input.items.slice(i, i + batchSize);
-
-        for (const item of batch) {
-          let productId = item.suggestedProductId;
-
-          // Create new product if requested
-          if (item.createProduct && !productId) {
-            const [newProduct] = await ctx.db
-              .insert(Product)
-              .values({
-                sku: item.skuHint ?? `AI-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-                name: item.translatedName,
-                weight: item.weightKg,
-                costAvg: item.unitCost,
-                status: "draft",
-              })
-              .returning();
-            productId = newProduct?.id ?? null;
-            created++;
-          }
-
-          if (productId) linked++;
-          else unmatched++;
-
-          await ctx.db.insert(ContainerItem).values({
+      for (let i = 0; i < resolvedItems.length; i += batchSize) {
+        const batch = resolvedItems.slice(i, i + batchSize);
+        await ctx.db.insert(ContainerItem).values(
+          batch.map(({ productId, item }) => ({
             containerId: input.containerId,
             productId: productId,
             quantityExpected: item.quantity,
@@ -303,8 +312,8 @@ export const containerRouter = createTRPCRouter({
             aiCorrected: item.aiCorrected,
             imageUrl: item.imageUrl ?? null,
             imageDescription: item.imageDescription ?? null,
-          });
-        }
+          })),
+        );
       }
 
       // Update container metadata

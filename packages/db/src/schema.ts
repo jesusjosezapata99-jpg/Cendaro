@@ -420,7 +420,7 @@ export const Product = pgTable(
     imageUrl: t.text(),
     weight: t.doublePrecision(),
     volume: t.doublePrecision(),
-    costAvg: t.doublePrecision().default(0),
+    costAvg: t.numeric({ precision: 12, scale: 4 }).default("0"),
     status: productStatusEnum().notNull().default("draft"),
     createdAt: t
       .timestamp({ mode: "date", withTimezone: true })

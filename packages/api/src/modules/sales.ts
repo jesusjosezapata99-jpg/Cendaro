@@ -254,7 +254,11 @@ export const salesRouter = createTRPCRouter({
       }),
     )
     .query(async ({ ctx, input }) => {
-      const rows = await ctx.db
+      const where = input.onlyPending
+        ? eq(Payment.isValidated, false)
+        : undefined;
+
+      return ctx.db
         .select({
           id: Payment.id,
           orderId: Payment.orderId,
@@ -267,13 +271,9 @@ export const salesRouter = createTRPCRouter({
           createdAt: Payment.createdAt,
         })
         .from(Payment)
+        .where(where)
         .orderBy(desc(Payment.createdAt))
         .limit(input.limit);
-
-      if (input.onlyPending) {
-        return rows.filter((r) => !r.isValidated);
-      }
-      return rows;
     }),
 
   addPayment: protectedProcedure
