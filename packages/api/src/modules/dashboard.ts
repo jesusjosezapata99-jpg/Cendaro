@@ -133,6 +133,14 @@ export const dashboardRouter = createTRPCRouter({
       }),
     )
     .query(async ({ ctx, input }) => {
+      const conditions = [];
+      if (input.alertType) {
+        conditions.push(eq(SystemAlert.alertType, input.alertType));
+      }
+      if (input.dismissed !== undefined) {
+        conditions.push(eq(SystemAlert.isDismissed, input.dismissed));
+      }
+
       let query = ctx.db.select({
         id: SystemAlert.id,
         alertType: SystemAlert.alertType,
@@ -142,12 +150,11 @@ export const dashboardRouter = createTRPCRouter({
         isDismissed: SystemAlert.isDismissed,
         createdAt: SystemAlert.createdAt,
       }).from(SystemAlert).$dynamic();
-      if (input.alertType) {
-        query = query.where(eq(SystemAlert.alertType, input.alertType));
+
+      if (conditions.length > 0) {
+        query = query.where(and(...conditions));
       }
-      if (input.dismissed !== undefined) {
-        query = query.where(eq(SystemAlert.isDismissed, input.dismissed));
-      }
+
       return query
         .orderBy(desc(SystemAlert.createdAt))
         .limit(input.limit);

@@ -146,6 +146,14 @@ export const vendorRouter = createTRPCRouter({
       }),
     )
     .query(async ({ ctx, input }) => {
+      const conditions = [];
+      if (input.customerId) {
+        conditions.push(eq(AccountReceivable.customerId, input.customerId));
+      }
+      if (input.status) {
+        conditions.push(eq(AccountReceivable.status, input.status));
+      }
+
       let query = ctx.db.select({
         id: AccountReceivable.id,
         customerId: AccountReceivable.customerId,
@@ -157,12 +165,11 @@ export const vendorRouter = createTRPCRouter({
         dueDate: AccountReceivable.dueDate,
         createdAt: AccountReceivable.createdAt,
       }).from(AccountReceivable).$dynamic();
-      if (input.customerId) {
-        query = query.where(eq(AccountReceivable.customerId, input.customerId));
+
+      if (conditions.length > 0) {
+        query = query.where(and(...conditions));
       }
-      if (input.status) {
-        query = query.where(eq(AccountReceivable.status, input.status));
-      }
+
       return query
         .orderBy(desc(AccountReceivable.dueDate))
         .limit(input.limit);

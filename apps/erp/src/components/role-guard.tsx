@@ -13,7 +13,7 @@
 
 import { useCurrentUser } from "~/hooks/use-current-user";
 
-type UserRole = "owner" | "admin" | "supervisor" | "employee" | "vendor" | "marketing";
+import type { UserRole } from "@cendaro/validators";
 
 interface RoleGuardProps {
   /** Roles that are allowed to see the children */
@@ -29,7 +29,7 @@ export function RoleGuard({ allow, fallback = null, children }: RoleGuardProps) 
   // While loading, render nothing to prevent flicker
   if (loading) return null;
 
-  const userRole = profile?.role as UserRole | undefined;
+  const userRole = profile?.role;
 
   if (!userRole || !allow.includes(userRole)) {
     return <>{fallback}</>;

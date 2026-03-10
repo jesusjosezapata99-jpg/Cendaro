@@ -6,7 +6,7 @@ import { cn } from "@cendaro/ui";
 import { useCurrentUser } from "~/hooks/use-current-user";
 import { hasRole } from "~/components/role-guard";
 
-type UserRole = "owner" | "admin" | "supervisor" | "employee" | "vendor" | "marketing";
+import type { UserRole } from "@cendaro/validators";
 
 interface NavItem {
   href: string;
