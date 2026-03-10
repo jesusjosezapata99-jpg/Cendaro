@@ -9,8 +9,10 @@ export const reactConfig = defineConfig({
     "react-hooks": hooksPlugin,
   },
   rules: {
-    ...reactPlugin.configs.flat.recommended.rules,
-    ...reactPlugin.configs.flat["jsx-runtime"].rules,
+    /* eslint-disable @typescript-eslint/no-unnecessary-condition */
+    ...reactPlugin.configs.flat?.recommended?.rules,
+    ...reactPlugin.configs.flat?.["jsx-runtime"]?.rules,
+    /* eslint-enable @typescript-eslint/no-unnecessary-condition */
     ...hooksPlugin.configs.recommended.rules,
   },
   languageOptions: {
