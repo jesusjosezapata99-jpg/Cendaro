@@ -13,19 +13,20 @@ shadcn/ui uses a CSS variable-based theming system, making it easy to customize 
 shadcn/ui uses HSL color values stored as CSS variables. Each color has a base value and a foreground variant for text/content that appears on top of it.
 
 **Base Color Variables** (in `globals.css`):
+
 ```css
 :root {
-  --background: 0 0% 100%;        /* Page background */
-  --foreground: 222.2 84% 4.9%;   /* Primary text color */
-  --primary: 221.2 83.2% 53.3%;   /* Primary brand color */
+  --background: 0 0% 100%; /* Page background */
+  --foreground: 222.2 84% 4.9%; /* Primary text color */
+  --primary: 221.2 83.2% 53.3%; /* Primary brand color */
   --primary-foreground: 210 40% 98%; /* Text on primary */
-  --secondary: 210 40% 96.1%;     /* Secondary actions */
-  --accent: 210 40% 96.1%;        /* Accent highlights */
-  --muted: 210 40% 96.1%;         /* Muted backgrounds */
-  --destructive: 0 84.2% 60.2%;   /* Error/danger */
-  --border: 214.3 31.8% 91.4%;    /* Border colors */
-  --input: 214.3 31.8% 91.4%;     /* Input borders */
-  --ring: 221.2 83.2% 53.3%;      /* Focus rings */
+  --secondary: 210 40% 96.1%; /* Secondary actions */
+  --accent: 210 40% 96.1%; /* Accent highlights */
+  --muted: 210 40% 96.1%; /* Muted backgrounds */
+  --destructive: 0 84.2% 60.2%; /* Error/danger */
+  --border: 214.3 31.8% 91.4%; /* Border colors */
+  --input: 214.3 31.8% 91.4%; /* Input borders */
+  --ring: 221.2 83.2% 53.3%; /* Focus rings */
 }
 ```
 
@@ -37,25 +38,53 @@ To match your brand, update the primary color:
 :root {
   /* Original blue */
   --primary: 221.2 83.2% 53.3%;
-  
+
   /* Change to brand purple */
   --primary: 270 91% 65%;
-  
+
   /* Adjust foreground for contrast */
   --primary-foreground: 0 0% 100%;
 }
 ```
 
-**HSL Format**: `hue saturation lightness`
+**HSL Format** (Tailwind v3): `hue saturation lightness`
+
 - Hue: 0-360 (color wheel position)
 - Saturation: 0-100% (color intensity)
 - Lightness: 0-100% (brightness)
 
+### OKLCH Color Format (Tailwind v4)
+
+Tailwind v4 uses `@theme` declarations with OKLCH color space instead of `@layer base` with HSL:
+
+```css
+/* Tailwind v4 — app/globals.css */
+@theme {
+  --color-background: oklch(1 0 0);
+  --color-foreground: oklch(0.145 0.017 261.325);
+  --color-primary: oklch(0.546 0.245 262.881);
+  --color-primary-foreground: oklch(0.981 0.004 264.449);
+  --color-secondary: oklch(0.97 0.001 264.542);
+  --color-destructive: oklch(0.577 0.245 27.325);
+  --color-border: oklch(0.92 0.004 264.542);
+  --color-ring: oklch(0.546 0.245 262.881);
+}
+```
+
+**OKLCH Format**: `oklch(lightness chroma hue)`
+
+- Lightness: 0-1 (perceptually uniform brightness)
+- Chroma: 0-0.4+ (color intensity / saturation)
+- Hue: 0-360 (color wheel position)
+
+**Why OKLCH over HSL?** OKLCH is perceptually uniform — two colors with the same lightness value will appear equally bright to the human eye, unlike HSL where `hsl(60, 100%, 50%)` (yellow) appears much brighter than `hsl(240, 100%, 50%)` (blue) despite identical lightness values.
+
 ### Tools for Color Selection
 
-1. **HSL Color Picker**: https://hslpicker.com/
-2. **Shadcn Theme Generator**: https://ui.shadcn.com/themes
-3. **Coolors**: https://coolors.co/ (generates palettes)
+1. **OKLCH Color Picker**: https://oklch.com/ (recommended for Tailwind v4)
+2. **HSL Color Picker**: https://hslpicker.com/ (for Tailwind v3)
+3. **Shadcn Theme Generator**: https://ui.shadcn.com/themes
+4. **Coolors**: https://coolors.co/ (generates palettes)
 
 ### Creating a Color Scheme
 
@@ -66,19 +95,19 @@ Start with your primary brand color, then derive other colors:
   /* 1. Primary brand color */
   --primary: 230 90% 60%;
   --primary-foreground: 0 0% 100%;
-  
+
   /* 2. Lighter variant for secondary */
   --secondary: 230 30% 95%;
   --secondary-foreground: 230 90% 30%;
-  
+
   /* 3. Subtle accent (shift hue slightly) */
   --accent: 200 90% 60%;
   --accent-foreground: 0 0% 100%;
-  
+
   /* 4. Muted backgrounds (low saturation) */
   --muted: 230 20% 96%;
   --muted-foreground: 230 20% 40%;
-  
+
   /* 5. Keep destructive red-based */
   --destructive: 0 84% 60%;
   --destructive-foreground: 0 0% 100%;
@@ -104,26 +133,29 @@ shadcn/ui includes dark mode support out of the box. Add dark mode colors:
 ### Toggle Dark Mode
 
 **Next.js with next-themes**:
+
 ```bash
 npm install next-themes
 ```
 
 ```tsx
 // app/providers.tsx
-"use client"
+"use client";
 
-import { ThemeProvider } from "next-themes"
+import { Button } from "@/components/ui/button";
+import { Moon, Sun } from "lucide-react";
+import { ThemeProvider, useTheme } from "next-themes";
+
+// app/layout.tsx
+import { Providers } from "./providers";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
       {children}
     </ThemeProvider>
-  )
+  );
 }
-
-// app/layout.tsx
-import { Providers } from "./providers"
 
 export default function RootLayout({ children }) {
   return (
@@ -132,18 +164,14 @@ export default function RootLayout({ children }) {
         <Providers>{children}</Providers>
       </body>
     </html>
-  )
+  );
 }
 
 // components/theme-toggle.tsx
-"use client"
-
-import { Moon, Sun } from "lucide-react"
-import { useTheme } from "next-themes"
-import { Button } from "@/components/ui/button"
+("use client");
 
 export function ThemeToggle() {
-  const { setTheme, theme } = useTheme()
+  const { setTheme, theme } = useTheme();
 
   return (
     <Button
@@ -155,7 +183,7 @@ export function ThemeToggle() {
       <Moon className="absolute h-5 w-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
       <span className="sr-only">Toggle theme</span>
     </Button>
-  )
+  );
 }
 ```
 
@@ -166,8 +194,10 @@ export function ThemeToggle() {
 shadcn/ui components use `class-variance-authority` (cva) for variants. Example from Button:
 
 ```typescript
+import type { VariantProps } from "class-variance-authority";
+import { cva } from "class-variance-authority";
+
 // components/ui/button.tsx
-import { cva, type VariantProps } from "class-variance-authority"
 
 const buttonVariants = cva(
   "inline-flex items-center justify-center rounded-md text-sm font-medium",
@@ -175,8 +205,9 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default: "bg-primary text-primary-foreground hover:bg-primary/90",
-        destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90",
-        outline: "border border-input bg-background hover:bg-accent",
+        destructive:
+          "bg-destructive text-destructive-foreground hover:bg-destructive/90",
+        outline: "border-input bg-background hover:bg-accent border",
         ghost: "hover:bg-accent hover:text-accent-foreground",
         link: "text-primary underline-offset-4 hover:underline",
       },
@@ -191,8 +222,8 @@ const buttonVariants = cva(
       variant: "default",
       size: "default",
     },
-  }
-)
+  },
+);
 ```
 
 ### Adding Custom Variants
@@ -201,36 +232,37 @@ To add a new variant, edit the component file in `components/ui/`:
 
 ```typescript
 // Add new "success" variant to button
-const buttonVariants = cva(
-  "...",
-  {
-    variants: {
-      variant: {
-        default: "...",
-        destructive: "...",
-        // Add new variant
-        success: "bg-green-600 text-white hover:bg-green-700",
-      },
-      // Add new size
-      size: {
-        default: "...",
-        xl: "h-12 rounded-md px-10 text-base",
-      },
+const buttonVariants = cva("...", {
+  variants: {
+    variant: {
+      default: "...",
+      destructive: "...",
+      // Add new variant
+      success: "bg-green-600 text-white hover:bg-green-700",
     },
-  }
-)
+    // Add new size
+    size: {
+      default: "...",
+      xl: "h-12 rounded-md px-10 text-base",
+    },
+  },
+});
 
 // Update TypeScript interface
 export interface ButtonProps
-  extends React.ButtonHTMLAttributes<HTMLButtonElement>,
+  extends
+    React.ButtonHTMLAttributes<HTMLButtonElement>,
     VariantProps<typeof buttonVariants> {
-  asChild?: boolean
+  asChild?: boolean;
 }
 ```
 
 Usage:
+
 ```tsx
-<Button variant="success" size="xl">Save Changes</Button>
+<Button variant="success" size="xl">
+  Save Changes
+</Button>
 ```
 
 ### Creating Composite Components
@@ -239,25 +271,25 @@ Don't modify `components/ui/` directly. Instead, create wrapper components:
 
 ```tsx
 // components/loading-button.tsx
-import { Button, ButtonProps } from "@/components/ui/button"
-import { Loader2 } from "lucide-react"
+import { Button, ButtonProps } from "@/components/ui/button";
+import { Loader2 } from "lucide-react";
 
 interface LoadingButtonProps extends ButtonProps {
-  loading?: boolean
+  loading?: boolean;
 }
 
-export function LoadingButton({ 
-  loading, 
-  children, 
+export function LoadingButton({
+  loading,
+  children,
   disabled,
-  ...props 
+  ...props
 }: LoadingButtonProps) {
   return (
     <Button disabled={loading || disabled} {...props}>
       {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
       {children}
     </Button>
-  )
+  );
 }
 ```
 
@@ -272,38 +304,39 @@ module.exports = {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif'],
-        heading: ['Poppins', 'system-ui', 'sans-serif'],
-        mono: ['Fira Code', 'monospace'],
+        sans: ["Inter", "system-ui", "sans-serif"],
+        heading: ["Poppins", "system-ui", "sans-serif"],
+        mono: ["Fira Code", "monospace"],
       },
     },
   },
-}
+};
 ```
 
 Import fonts in your layout:
 
 ```tsx
 // app/layout.tsx
-import { Inter, Poppins } from 'next/font/google'
+import { Inter, Poppins } from "next/font/google";
 
-const inter = Inter({ subsets: ['latin'], variable: '--font-sans' })
-const poppins = Poppins({ 
-  weight: ['600', '700'], 
-  subsets: ['latin'],
-  variable: '--font-heading',
-})
+const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
+const poppins = Poppins({
+  weight: ["600", "700"],
+  subsets: ["latin"],
+  variable: "--font-heading",
+});
 
 export default function RootLayout({ children }) {
   return (
     <html className={`${inter.variable} ${poppins.variable}`}>
       <body className="font-sans">{children}</body>
     </html>
-  )
+  );
 }
 ```
 
 Use in components:
+
 ```tsx
 <h1 className="font-heading text-3xl">Heading</h1>
 <p className="font-sans">Body text</p>
@@ -319,21 +352,21 @@ module.exports = {
   theme: {
     extend: {
       fontSize: {
-        'xs': '0.75rem',     // 12px
-        'sm': '0.875rem',    // 14px
-        'base': '1rem',      // 16px
-        'lg': '1.125rem',    // 18px
-        'xl': '1.25rem',     // 20px
-        '2xl': '1.5rem',     // 24px
-        '3xl': '1.875rem',   // 30px
-        '4xl': '2.25rem',    // 36px
-        '5xl': '3rem',       // 48px
-        '6xl': '3.75rem',    // 60px
-        '7xl': '4.5rem',     // 72px
+        xs: "0.75rem", // 12px
+        sm: "0.875rem", // 14px
+        base: "1rem", // 16px
+        lg: "1.125rem", // 18px
+        xl: "1.25rem", // 20px
+        "2xl": "1.5rem", // 24px
+        "3xl": "1.875rem", // 30px
+        "4xl": "2.25rem", // 36px
+        "5xl": "3rem", // 48px
+        "6xl": "3.75rem", // 60px
+        "7xl": "4.5rem", // 72px
       },
     },
   },
-}
+};
 ```
 
 ## Spacing & Layout
@@ -345,16 +378,16 @@ Customize roundedness globally:
 ```css
 /* globals.css */
 :root {
-  --radius: 0.5rem;  /* Default (8px) */
-  
+  --radius: 0.5rem; /* Default (8px) */
+
   /* More rounded */
-  --radius: 1rem;    /* 16px */
-  
+  --radius: 1rem; /* 16px */
+
   /* Sharp edges */
-  --radius: 0;       /* No rounding */
-  
+  --radius: 0; /* No rounding */
+
   /* Very rounded */
-  --radius: 1.5rem;  /* 24px */
+  --radius: 1.5rem; /* 24px */
 }
 ```
 
@@ -370,13 +403,13 @@ module.exports = {
   theme: {
     extend: {
       spacing: {
-        '72': '18rem',
-        '84': '21rem',
-        '96': '24rem',
+        72: "18rem",
+        84: "21rem",
+        96: "24rem",
       },
     },
   },
-}
+};
 ```
 
 ## Animation Customization
@@ -405,7 +438,7 @@ module.exports = {
       },
     },
   },
-}
+};
 ```
 
 ### Adding New Animations
@@ -431,10 +464,11 @@ module.exports = {
       },
     },
   },
-}
+};
 ```
 
 Use in components:
+
 ```tsx
 <div className="animate-fade-in">Content</div>
 ```
@@ -468,33 +502,34 @@ src/
 export const designTokens = {
   colors: {
     brand: {
-      primary: 'hsl(230, 90%, 60%)',
-      secondary: 'hsl(230, 30%, 95%)',
+      primary: "hsl(230, 90%, 60%)",
+      secondary: "hsl(230, 30%, 95%)",
     },
   },
   spacing: {
-    section: '5rem',
-    card: '1.5rem',
+    section: "5rem",
+    card: "1.5rem",
   },
   radius: {
-    card: '1rem',
-    button: '0.5rem',
+    card: "1rem",
+    button: "0.5rem",
   },
   typography: {
-    h1: 'text-5xl font-heading font-bold',
-    h2: 'text-4xl font-heading font-semibold',
-    h3: 'text-3xl font-heading font-semibold',
-    body: 'text-base font-sans',
-    small: 'text-sm text-muted-foreground',
+    h1: "text-5xl font-heading font-bold",
+    h2: "text-4xl font-heading font-semibold",
+    h3: "text-3xl font-heading font-semibold",
+    body: "text-base font-sans",
+    small: "text-sm text-muted-foreground",
   },
-} as const
+} as const;
 ```
 
 Use in components:
-```tsx
-import { designTokens } from "@/lib/design-tokens"
 
-<h1 className={designTokens.typography.h1}>Title</h1>
+```tsx
+import { designTokens } from "@/lib/design-tokens";
+
+<h1 className={designTokens.typography.h1}>Title</h1>;
 ```
 
 ## Best Practices
