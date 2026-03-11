@@ -6,11 +6,17 @@
  */
 import type { User } from "@supabase/supabase-js";
 import { initTRPC, TRPCError } from "@trpc/server";
+import { and, eq } from "drizzle-orm";
 import superjson from "superjson";
 import { z, ZodError } from "zod/v4";
 
-import type { userRoleEnum } from "@cendaro/db/schema";
+import type {
+  erpModuleEnum,
+  permissionActionEnum,
+  userRoleEnum,
+} from "@cendaro/db/schema";
 import { getDb } from "@cendaro/db/client";
+import { Permission, RolePermission } from "@cendaro/db/schema";
 
 import type { ILogger } from "./logger";
 import { generateRequestId, logger } from "./logger";
@@ -170,6 +176,57 @@ export function roleRestrictedProcedure(
         message: `Se requiere uno de los roles: ${allowedRoles.join(", ")}`,
       });
     }
+    return next({ ctx });
+  });
+}
+
+/**
+ * Permission-restricted procedure factory — queries the permission + role_permission tables
+ * Usage: permissionProcedure("catalog", "create").mutation(...)
+ *
+ * This enforces fine-grained, database-driven authorization:
+ * 1. Checks the user has a valid role
+ * 2. Queries role_permission + permission tables for module/action match
+ * 3. Allows dynamic permission changes without re-deploy
+ */
+export function permissionProcedure(
+  module: (typeof erpModuleEnum.enumValues)[number],
+  action: (typeof permissionActionEnum.enumValues)[number],
+) {
+  return protectedProcedure.use(async ({ ctx, next }) => {
+    const userRole = (ctx.user.user_metadata as UserMeta | undefined)?.role;
+    if (!userRole) {
+      throw new TRPCError({
+        code: "FORBIDDEN",
+        message: "No se pudo determinar el rol del usuario",
+      });
+    }
+
+    // Owner bypasses permission checks
+    if (userRole === "owner") {
+      return next({ ctx });
+    }
+
+    const result = await ctx.db
+      .select({ id: Permission.id })
+      .from(RolePermission)
+      .innerJoin(Permission, eq(RolePermission.permissionId, Permission.id))
+      .where(
+        and(
+          eq(RolePermission.role, userRole),
+          eq(Permission.module, module),
+          eq(Permission.action, action),
+        ),
+      )
+      .limit(1);
+
+    if (result.length === 0) {
+      throw new TRPCError({
+        code: "FORBIDDEN",
+        message: `Permiso denegado: ${module}.${action} no asignado al rol ${userRole}`,
+      });
+    }
+
     return next({ ctx });
   });
 }

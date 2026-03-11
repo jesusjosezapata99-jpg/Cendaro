@@ -10,9 +10,13 @@
       "outputs": [".cache/tsbuildinfo.json", "dist/**", ".next/**"]
     },
     "dev": {
-      "dependsOn": ["^dev"],
       "cache": false,
       "persistent": false
+    },
+    "@cendaro/erp#dev": {
+      "cache": false,
+      "persistent": true,
+      "dependsOn": ["^build"]
     },
     "format": {
       "outputs": [".cache/.prettiercache"],

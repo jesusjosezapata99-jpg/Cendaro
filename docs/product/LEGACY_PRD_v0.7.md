@@ -1,12 +1,3 @@
-> [!CAUTION]
-> **DOCUMENTO ARCHIVADO — NO ES LA FUENTE DE VERDAD ACTIVA**
->
-> Este PRD v0.7 ha sido reemplazado por el **PRD v1.0** (cerrado para diseño).
-> La versión canónica se encuentra en: [`docs/product/PRD_v1.0.md`](docs/product/PRD_v1.0.md)
->
-> Este archivo se conserva únicamente como referencia histórica.
-> Consulte [`docs/adr/001-erp-v1-source-of-truth.md`](docs/adr/001-erp-v1-source-of-truth.md) para detalles de la decisión.
-
 # PRD (semi-hecho) — Plataforma ERP Comercial Omnicanal para Mayorista / Retail
 
 ## Estado del documento
