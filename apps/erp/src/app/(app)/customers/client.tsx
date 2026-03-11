@@ -57,7 +57,8 @@ export default function CustomersClient() {
 
   return (
     <div className="space-y-6 p-4 lg:p-8">
-      <div className="flex items-center justify-between">
+      {/* Header — stacks vertically on mobile */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-foreground text-2xl font-black tracking-tight">
             Clientes
@@ -68,7 +69,7 @@ export default function CustomersClient() {
         </div>
         <button
           onClick={() => setShowCreate(true)}
-          className="bg-primary text-primary-foreground hover:bg-primary/90 flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-bold transition-colors"
+          className="bg-primary text-primary-foreground hover:bg-primary/90 flex min-h-[44px] w-full items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-bold transition-colors sm:w-auto"
         >
           <span className="material-symbols-outlined text-lg">person_add</span>
           Nuevo Cliente
@@ -124,7 +125,63 @@ export default function CustomersClient() {
         ))}
       </div>
 
-      <div className="border-border bg-card overflow-hidden rounded-xl border">
+      {/* ── Mobile: Card View ─────────────────────── */}
+      <div className="space-y-3 md:hidden">
+        {isLoading
+          ? Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="h-20 w-full" />
+            ))
+          : list.map((c) => {
+              const typeCfg = TYPE_LABELS[c.customerType] ?? {
+                label: c.customerType,
+                color: "",
+              };
+              return (
+                <Link
+                  key={c.id}
+                  href={`/customers/${c.id}`}
+                  className="border-border bg-card hover:border-primary/30 block rounded-xl border p-4 transition-colors"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-foreground truncate font-medium">
+                        {c.name}
+                      </p>
+                      <p className="text-muted-foreground mt-0.5 font-mono text-xs">
+                        {c.email ?? "—"}
+                      </p>
+                    </div>
+                    <span
+                      className={`shrink-0 rounded-full px-2.5 py-0.5 text-[10px] font-bold ${typeCfg.color}`}
+                    >
+                      {typeCfg.label}
+                    </span>
+                  </div>
+                  <div className="mt-2 flex items-center justify-between">
+                    <span className="text-muted-foreground text-xs">
+                      {c.phone ?? "—"}
+                    </span>
+                    {Number(c.creditLimit ?? 0) > 0 && (
+                      <span className="text-muted-foreground font-mono text-xs">
+                        Crédito: ${Number(c.creditLimit).toLocaleString()}
+                      </span>
+                    )}
+                  </div>
+                </Link>
+              );
+            })}
+        {!isLoading && list.length === 0 && (
+          <div className="text-muted-foreground flex flex-col items-center py-12 text-center">
+            <span className="material-symbols-outlined mb-2 text-3xl">
+              person_off
+            </span>
+            No hay clientes registrados
+          </div>
+        )}
+      </div>
+
+      {/* ── Desktop: Table View ───────────────────── */}
+      <div className="border-border bg-card hidden overflow-hidden rounded-xl border md:block">
         <table className="w-full text-left text-sm">
           <thead>
             <tr className="border-border text-muted-foreground border-b text-[10px] font-bold tracking-widest uppercase">

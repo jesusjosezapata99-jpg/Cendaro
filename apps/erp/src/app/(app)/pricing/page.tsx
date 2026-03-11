@@ -73,7 +73,7 @@ export default function PricingPage() {
 
   return (
     <div className="space-y-6 p-4 lg:p-8">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-foreground text-2xl font-black tracking-tight">
             Motor de Precios

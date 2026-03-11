@@ -130,7 +130,7 @@ export function CreateOrderDialog({ open, onClose }: Props) {
       className="max-w-3xl"
     >
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label="Cliente">
             <Select
               value={customerId}
@@ -164,8 +164,8 @@ export function CreateOrderDialog({ open, onClose }: Props) {
             Líneas de Pedido
           </p>
           {lines.length > 0 && (
-            <div className="border-border mb-3 overflow-hidden rounded-lg border">
-              <table className="w-full text-left text-xs">
+            <div className="border-border mobile-scroll-x mb-3 overflow-hidden rounded-lg border">
+              <table className="w-full min-w-[400px] text-left text-xs">
                 <thead>
                   <tr className="border-border text-muted-foreground border-b text-[10px] uppercase">
                     <th className="px-3 py-2">Producto</th>
@@ -220,7 +220,7 @@ export function CreateOrderDialog({ open, onClose }: Props) {
           )}
 
           {/* Add line row */}
-          <div className="grid grid-cols-5 items-end gap-2">
+          <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-5 sm:gap-2">
             <div className="col-span-2">
               <Select
                 value={addProduct.productId}
@@ -260,7 +260,7 @@ export function CreateOrderDialog({ open, onClose }: Props) {
               type="button"
               onClick={addLine}
               disabled={!addProduct.productId || !addProduct.unitPrice}
-              className="bg-secondary text-muted-foreground hover:bg-accent flex items-center justify-center gap-1 rounded-lg px-3 py-2 text-xs font-bold transition-colors disabled:opacity-40"
+              className="bg-secondary text-muted-foreground hover:bg-accent flex min-h-[44px] items-center justify-center gap-1 rounded-lg px-3 py-2.5 text-xs font-bold transition-colors disabled:opacity-40"
             >
               <span className="material-symbols-outlined text-sm">add</span>{" "}
               Agregar

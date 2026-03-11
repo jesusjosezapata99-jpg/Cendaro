@@ -83,7 +83,8 @@ export default function OrdersClient() {
 
   return (
     <div className="space-y-6 p-4 lg:p-8">
-      <div className="flex items-center justify-between">
+      {/* Header — stacks vertically on mobile */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-foreground text-2xl font-black tracking-tight">
             Órdenes de Venta
@@ -94,7 +95,7 @@ export default function OrdersClient() {
         </div>
         <button
           onClick={() => setShowCreate(true)}
-          className="bg-primary text-primary-foreground hover:bg-primary/90 flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-bold transition-colors"
+          className="bg-primary text-primary-foreground hover:bg-primary/90 flex min-h-[44px] w-full items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-bold transition-colors sm:w-auto"
         >
           <span className="material-symbols-outlined text-lg">add</span>
           Nueva Orden
@@ -150,7 +151,8 @@ export default function OrdersClient() {
         ))}
       </div>
 
-      <div className="flex flex-wrap gap-2">
+      {/* Filter chips — wraps on mobile */}
+      <div className="mobile-scroll-x flex gap-2 pb-1">
         {[
           "all",
           "pending",
@@ -163,7 +165,7 @@ export default function OrdersClient() {
           <button
             key={s}
             onClick={() => setStatusFilter(s)}
-            className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${
+            className={`min-h-[36px] shrink-0 rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${
               statusFilter === s
                 ? "bg-primary text-primary-foreground"
                 : "bg-secondary text-muted-foreground hover:bg-accent"
@@ -174,7 +176,80 @@ export default function OrdersClient() {
         ))}
       </div>
 
-      <div className="border-border bg-card overflow-hidden rounded-xl border">
+      {/* ── Mobile: Card View ─────────────────────── */}
+      <div className="space-y-3 md:hidden">
+        {isLoading
+          ? Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="h-24 w-full" />
+            ))
+          : list.map((order) => {
+              const statusCfg = STATUS_CONFIG[order.status] ?? {
+                label: order.status,
+                color: "",
+              };
+              const isPaid = Number(order.totalPaid) >= Number(order.total);
+              return (
+                <Link
+                  key={order.id}
+                  href={`/orders/${order.id}`}
+                  className="border-border bg-card hover:border-primary/30 block rounded-xl border p-4 transition-colors"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="material-symbols-outlined text-muted-foreground text-lg"
+                        title={order.channel}
+                      >
+                        {CHANNEL_ICONS[order.channel] ?? "list_alt"}
+                      </span>
+                      <span className="text-primary font-mono text-sm font-bold">
+                        {order.orderNumber}
+                      </span>
+                    </div>
+                    <span
+                      className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold ${statusCfg.color}`}
+                    >
+                      {statusCfg.label}
+                    </span>
+                  </div>
+                  <div className="mt-3 flex items-center justify-between">
+                    <div>
+                      <p className="text-muted-foreground text-[10px] font-bold uppercase">
+                        Total
+                      </p>
+                      <p className="text-foreground font-mono font-bold">
+                        ${Number(order.total).toFixed(2)}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-muted-foreground text-[10px] font-bold uppercase">
+                        Pagado
+                      </p>
+                      <p
+                        className={`font-mono font-bold ${isPaid ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"}`}
+                      >
+                        ${Number(order.totalPaid).toFixed(2)}
+                      </p>
+                    </div>
+                  </div>
+                  <p className="text-muted-foreground mt-2 font-mono text-[10px]">
+                    {new Date(order.createdAt).toLocaleString("es-VE")}
+                  </p>
+                </Link>
+              );
+            })}
+        {!isLoading && list.length === 0 && (
+          <div className="text-muted-foreground flex flex-col items-center py-12 text-center">
+            <span className="material-symbols-outlined mb-2 text-3xl">
+              shopping_cart_off
+            </span>
+            No se encontraron órdenes
+          </div>
+        )}
+      </div>
+
+      {/* ── Desktop: Table View ───────────────────── */}
+      <div className="border-border bg-card hidden overflow-hidden rounded-xl border md:block">
         <table className="w-full text-left text-sm">
           <thead>
             <tr className="border-border text-muted-foreground border-b text-[10px] font-bold tracking-widest uppercase">

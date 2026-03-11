@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef } from "react";
 
+import { cn } from "@cendaro/ui";
+
 interface DialogProps {
   open: boolean;
   onClose: () => void;
@@ -13,8 +15,13 @@ interface DialogProps {
 }
 
 /**
- * Accessible modal dialog built on the HTML `<dialog>` element.
- * Supports Escape key, backdrop click, and focus trapping out-of-box.
+ * Accessible modal dialog — mobile-first.
+ *
+ * - Mobile (< md): Full-screen bottom sheet with slide-up animation
+ * - Desktop (md+): Centered modal with zoom-in animation
+ *
+ * Supports Escape key, backdrop click, focus trapping, and
+ * iOS body scroll lock.
  */
 export function Dialog({
   open,
@@ -26,17 +33,38 @@ export function Dialog({
 }: DialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
 
+  const scrollYRef = useRef(0);
+
   useEffect(() => {
     const dialog = dialogRef.current;
     if (!dialog) return;
     if (open && !dialog.open) {
+      // Save scroll position before locking body
+      scrollYRef.current = window.scrollY;
       dialog.showModal();
+      document.documentElement.classList.add("dialog-open");
+      document.body.style.top = `-${scrollYRef.current}px`;
     } else if (!open && dialog.open) {
       dialog.close();
+      document.documentElement.classList.remove("dialog-open");
+      document.body.style.top = "";
+      // Restore scroll position
+      window.scrollTo(0, scrollYRef.current);
     }
   }, [open]);
 
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      document.documentElement.classList.remove("dialog-open");
+      document.body.style.top = "";
+    };
+  }, []);
+
   const handleClose = useCallback(() => {
+    document.documentElement.classList.remove("dialog-open");
+    document.body.style.top = "";
+    window.scrollTo(0, scrollYRef.current);
     onClose();
   }, [onClose]);
 
@@ -50,18 +78,29 @@ export function Dialog({
 
   /* Backdrop click */
   const handleBackdropClick = (e: React.MouseEvent) => {
-    if (e.target === dialogRef.current) onClose();
+    if (e.target === dialogRef.current) handleClose();
   };
 
   return (
     <dialog
       ref={dialogRef}
       onClick={handleBackdropClick}
-      className={` ${className} border-border bg-card text-foreground open:animate-in open:fade-in-0 open:zoom-in-95 m-auto w-full rounded-2xl border p-0 shadow-2xl backdrop:bg-black/60 backdrop:backdrop-blur-sm`}
+      className={cn(
+        /* Base — shared */
+        "border-border bg-card text-foreground w-full p-0 shadow-2xl backdrop:bg-black/60 backdrop:backdrop-blur-sm",
+        /* Mobile: full-screen bottom sheet */
+        "fixed inset-0 m-0 max-h-dvh max-w-none rounded-none border-0",
+        "open:animate-in open:slide-in-from-bottom open:duration-300",
+        /* Desktop: centered modal */
+        "md:m-auto md:max-h-[85dvh] md:max-w-lg md:rounded-2xl md:border",
+        "md:open:slide-in-from-bottom-0 md:open:fade-in-0 md:open:zoom-in-95",
+        className,
+      )}
     >
-      <div className="p-6">
-        {/* Header */}
-        <div className="mb-5 flex items-start justify-between">
+      {/* Inner wrapper with safe-area + scroll */}
+      <div className="safe-pt safe-pb flex max-h-dvh flex-col md:max-h-[85dvh]">
+        {/* Header — sticky */}
+        <div className="border-border flex shrink-0 items-start justify-between border-b p-4 md:p-6">
           <div>
             <h2 className="text-foreground text-lg font-bold tracking-tight">
               {title}
@@ -72,17 +111,20 @@ export function Dialog({
               </p>
             )}
           </div>
+          {/* Close — 44px touch target */}
           <button
             type="button"
-            onClick={onClose}
-            className="text-muted-foreground hover:bg-secondary hover:text-foreground flex size-8 items-center justify-center rounded-lg transition-colors"
+            onClick={handleClose}
+            className="text-muted-foreground hover:bg-secondary hover:text-foreground flex size-11 items-center justify-center rounded-lg transition-colors"
           >
             <span className="material-symbols-outlined text-lg">close</span>
           </button>
         </div>
 
-        {/* Body */}
-        {children}
+        {/* Body — scrollable */}
+        <div className="flex-1 overflow-y-auto overscroll-contain p-4 md:p-6">
+          {children}
+        </div>
       </div>
     </dialog>
   );
@@ -121,8 +163,9 @@ export function Field({ label, required, children, hint, error }: FieldProps) {
   );
 }
 
+/* 44px min touch target on all inputs */
 const inputBase =
-  "w-full rounded-lg border border-border bg-card px-3 py-2 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-ring/20";
+  "w-full min-h-[44px] rounded-lg border border-border bg-card px-3 py-2.5 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-ring/20";
 
 export function Input(props: React.InputHTMLAttributes<HTMLInputElement>) {
   return (
@@ -161,18 +204,18 @@ export function FormActions({
   submitLabel?: string;
 }) {
   return (
-    <div className="mt-6 flex items-center justify-end gap-3">
+    <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end">
       <button
         type="button"
         onClick={onCancel}
-        className="border-border text-muted-foreground hover:bg-secondary rounded-lg border px-4 py-2 text-sm font-medium transition-colors"
+        className="border-border text-muted-foreground hover:bg-secondary min-h-[44px] rounded-lg border px-4 py-2.5 text-sm font-medium transition-colors"
       >
         Cancelar
       </button>
       <button
         type="submit"
         disabled={submitting}
-        className="bg-primary text-primary-foreground hover:bg-primary/90 flex items-center gap-2 rounded-lg px-5 py-2 text-sm font-bold transition-colors disabled:opacity-50"
+        className="bg-primary text-primary-foreground hover:bg-primary/90 flex min-h-[44px] items-center justify-center gap-2 rounded-lg px-5 py-2.5 text-sm font-bold transition-colors disabled:opacity-50"
       >
         {submitting && (
           <span className="material-symbols-outlined animate-spin text-sm">
