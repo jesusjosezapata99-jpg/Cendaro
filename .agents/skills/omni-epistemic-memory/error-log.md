@@ -1,7 +1,7 @@
 ---
-version: "2.0"
-last-audit: "2026-03-10"
-entries: 5
+version: "2.1"
+last-audit: "2026-03-11"
+entries: 7
 shared-by: ["Gemini/Antigravity", "Claude Code"]
 ---
 
@@ -18,6 +18,8 @@ This file is the **single source of truth** for error history, shared by ALL age
 | 3   | `?.` + `eslint-disable` for third-party type mismatches | TS ↔ ESLint     |
 | 4   | Always `pnpm exec` prefix in lint-staged                | Windows bins    |
 | 5   | Verify `exports` field matches file extensions          | Shared packages |
+| 6   | NEVER use `npx skills add` — git clone + manual copy    | Skills install  |
+| 7   | Always commit + push BEFORE handing off to user         | Git discipline  |
 
 ## Entry Template
 
@@ -34,6 +36,22 @@ This file is the **single source of truth** for error history, shared by ALL age
 ---
 
 ## Entries
+
+### [2026-03-11] `npx skills add` creates cross-directory contamination
+
+- **Error**: `npx skills add` created files in BOTH `.agents/skills/` AND `.agent/skills/`, duplicating content across 2 parallel directory trees, generating ~100 unnecessary files (READMEs, configs, lock files, test scaffolds) with 25,320 lines of insertions — structural chaos
+- **Root Cause**: The `npx skills add` CLI is not monorepo-aware. It auto-detects (or creates) `.agent/skills/` as a secondary target in addition to `.agents/skills/`, dumping redundant scaffolding files (`.gitignore`, `package.json`, `pnpm-lock.yaml`, `TESTS.md`, etc.) that don't belong in a curated skill directory
+- **Fix**: `git reset --hard afe09bd` to revert entirely, then manually re-created the 3 skills using `git clone --depth 1` from GitHub + surgical `Copy-Item` of ONLY `SKILL.md` files and `resources/`/`references/` directories — zero scaffolding
+- **Prevention**: **NEVER use `npx skills add` or any automated skill installer.** Always use `git clone --depth 1` to a temp directory, copy only the needed files (`SKILL.md` + resource dirs), then delete the temp repo. Verify: (a) no `.agent/` directory created, (b) no `.git/`, `package.json`, lock files, or test scaffolds copied, (c) skill count matches expected total
+- **Workspace**: `.agents/skills/` (root monorepo)
+
+### [2026-03-11] Local changes not committed before user pull attempt
+
+- **Error**: User ran `git pull` and got merge conflicts because local changes (shadcn/ui improvements + new Resend skill files) were uncommitted while remote still had the old broken commit
+- **Root Cause**: After `git reset --hard` and re-applying changes, the agent handed off to the user without first committing the new changes and syncing with remote. This left modified files (shadcn-ui) and untracked files (resend skills) in a limbo state that conflicts with `git pull`
+- **Fix**: Commit all local changes, then force push to overwrite the broken remote state
+- **Prevention**: **After ANY git reset or file modifications, ALWAYS: (1) `git add .`, (2) `git commit -m "..."`, (3) `git push` (or `git push --force-with-lease` if history was rewritten via reset) BEFORE handing off to the user.** Never leave the working tree dirty when the user is expected to interact with git
+- **Workspace**: Root monorepo
 
 ### [2026-03-10] ESLint not found in lint-staged pre-commit hook
 
