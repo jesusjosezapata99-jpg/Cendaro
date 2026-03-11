@@ -64,7 +64,7 @@ export default function ContainersPage() {
   return (
     <>
       <div className="space-y-6 p-4 lg:p-8">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-foreground text-2xl font-black tracking-tight">
               Contenedores
@@ -75,7 +75,7 @@ export default function ContainersPage() {
           </div>
           <button
             onClick={() => setShowCreate(true)}
-            className="bg-primary text-primary-foreground hover:bg-primary/90 flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-bold transition-colors"
+            className="bg-primary text-primary-foreground hover:bg-primary/90 flex min-h-[44px] w-full items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-bold transition-colors sm:w-auto"
           >
             <span className="material-symbols-outlined text-lg">add</span>
             Nuevo Contenedor

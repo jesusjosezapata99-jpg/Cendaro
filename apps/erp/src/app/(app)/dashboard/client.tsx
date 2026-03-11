@@ -78,7 +78,7 @@ export default function DashboardClient() {
         </p>
       </div>
 
-      {/* Primary KPIs */}
+      {/* Primary KPIs — 2 cols on mobile, 3 on sm, 6 on lg */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         {summaryLoading
           ? Array.from({ length: 6 }).map((_, i) => (
@@ -111,9 +111,9 @@ export default function DashboardClient() {
             ))}
       </div>
 
-      {/* Alert strip */}
+      {/* Alert strip — horizontally scrollable on mobile */}
       {(alertCount ?? 0) > 0 && (
-        <div className="flex gap-3 overflow-x-auto">
+        <div className="mobile-scroll-x flex gap-3">
           <div className="shrink-0 rounded-lg border border-red-300 bg-red-100 px-4 py-2 text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-400">
             <span className="text-xs font-medium">Alertas activas: </span>
             <span className="text-sm font-bold">{alertCount}</span>
@@ -165,7 +165,7 @@ export default function DashboardClient() {
               <Link
                 key={item.label}
                 href={item.href}
-                className="border-border hover:bg-accent/30 hover:border-primary/30 flex cursor-pointer items-center justify-between rounded-lg border p-3 transition-colors"
+                className="border-border hover:bg-accent/30 hover:border-primary/30 flex min-h-[44px] cursor-pointer items-center justify-between rounded-lg border p-3 transition-colors"
               >
                 <span className="text-foreground flex items-center gap-2 text-sm">
                   <span className="material-symbols-outlined text-muted-foreground text-lg">
@@ -187,7 +187,7 @@ export default function DashboardClient() {
             Estado del Sistema
           </h3>
           <div className="space-y-3">
-            <div className="border-border flex items-center justify-between rounded-lg border p-3">
+            <div className="border-border flex min-h-[44px] items-center justify-between rounded-lg border p-3">
               <span className="text-foreground flex items-center gap-2 text-sm">
                 <span className="material-symbols-outlined text-muted-foreground text-lg">
                   database
@@ -198,7 +198,7 @@ export default function DashboardClient() {
                 Conectado
               </span>
             </div>
-            <div className="border-border flex items-center justify-between rounded-lg border p-3">
+            <div className="border-border flex min-h-[44px] items-center justify-between rounded-lg border p-3">
               <span className="text-foreground flex items-center gap-2 text-sm">
                 <span className="material-symbols-outlined text-muted-foreground text-lg">
                   api
@@ -211,7 +211,7 @@ export default function DashboardClient() {
             </div>
             <Link
               href="/alerts"
-              className="border-border hover:bg-accent/30 hover:border-primary/30 flex cursor-pointer items-center justify-between rounded-lg border p-3 transition-colors"
+              className="border-border hover:bg-accent/30 hover:border-primary/30 flex min-h-[44px] cursor-pointer items-center justify-between rounded-lg border p-3 transition-colors"
             >
               <span className="text-foreground flex items-center gap-2 text-sm">
                 <span className="material-symbols-outlined text-muted-foreground text-lg">
@@ -232,7 +232,7 @@ export default function DashboardClient() {
           </div>
         </div>
 
-        {/* Cash Summary */}
+        {/* Cash Closures — horizontal scroll wrapper for mobile table */}
         <div className="border-border bg-card rounded-xl border p-5 lg:col-span-2">
           <h3 className="text-muted-foreground mb-4 text-sm font-semibold">
             Cierres de Caja Recientes
@@ -244,8 +244,8 @@ export default function DashboardClient() {
               ))}
             </div>
           ) : closures && closures.length > 0 ? (
-            <div className="overflow-hidden rounded-lg">
-              <table className="w-full text-left text-sm">
+            <div className="mobile-scroll-x overflow-hidden rounded-lg">
+              <table className="w-full min-w-[500px] text-left text-sm">
                 <thead>
                   <tr className="text-muted-foreground text-[10px] font-bold tracking-widest uppercase">
                     <th className="py-2 pr-4">Fecha</th>

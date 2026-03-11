@@ -26,7 +26,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
         <div className="flex flex-1 flex-col overflow-hidden">
           <TopBar onToggleSidebar={() => setSidebarOpen((o) => !o)} />
-          <main className="bg-background flex-1 overflow-y-auto">
+          <main className="bg-background safe-pb flex-1 overflow-y-auto overscroll-contain">
             <Suspense fallback={<PageSkeleton />}>{children}</Suspense>
           </main>
         </div>

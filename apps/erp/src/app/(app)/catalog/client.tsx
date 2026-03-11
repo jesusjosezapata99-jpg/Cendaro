@@ -65,8 +65,8 @@ export default function CatalogClient() {
 
   return (
     <div className="space-y-6 p-4 lg:p-8">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+      {/* Header — stacks vertically on mobile */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-foreground text-2xl font-black tracking-tight">
             Catálogo de Productos
@@ -77,7 +77,7 @@ export default function CatalogClient() {
         </div>
         <button
           onClick={() => setShowCreate(true)}
-          className="bg-primary text-primary-foreground hover:bg-primary/90 flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors"
+          className="bg-primary text-primary-foreground hover:bg-primary/90 flex min-h-[44px] w-full items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors sm:w-auto"
         >
           <span className="material-symbols-outlined text-lg">add</span>
           Nuevo Producto
@@ -131,7 +131,7 @@ export default function CatalogClient() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
         <input
           type="text"
           placeholder="Buscar por nombre o SKU..."
@@ -140,7 +140,7 @@ export default function CatalogClient() {
             setSearch(e.target.value);
             setPage(0);
           }}
-          className="border-border bg-card text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-ring/20 flex-1 rounded-lg border px-4 py-2.5 text-sm transition-colors outline-none focus:ring-2"
+          className="border-border bg-card text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-ring/20 min-h-[44px] flex-1 rounded-lg border px-4 py-2.5 text-sm transition-colors outline-none focus:ring-2"
         />
         <select
           value={statusFilter}
@@ -148,7 +148,7 @@ export default function CatalogClient() {
             setStatusFilter(e.target.value);
             setPage(0);
           }}
-          className="border-border bg-card text-foreground focus:border-primary focus:ring-ring/20 rounded-lg border px-3 py-2.5 text-sm outline-none focus:ring-2"
+          className="border-border bg-card text-foreground focus:border-primary focus:ring-ring/20 min-h-[44px] rounded-lg border px-3 py-2.5 text-sm outline-none focus:ring-2"
         >
           <option value="all">Todos los estados</option>
           <option value="active">Activos</option>
@@ -157,8 +157,56 @@ export default function CatalogClient() {
         </select>
       </div>
 
-      {/* Table */}
-      <div className="border-border bg-card overflow-hidden rounded-xl border">
+      {/* ── Mobile: Card View ─────────────────────── */}
+      <div className="space-y-3 md:hidden">
+        {isLoading
+          ? Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="h-20 w-full" />
+            ))
+          : products.map((product) => {
+              const statusCfg = STATUS_CONFIG[product.status] ?? {
+                label: product.status,
+                color: "",
+              };
+              return (
+                <Link
+                  key={product.id}
+                  href={`/catalog/${product.id}`}
+                  className="border-border bg-card hover:border-primary/30 block rounded-xl border p-4 transition-colors"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-foreground truncate font-medium">
+                        {product.name}
+                      </p>
+                      <p className="text-muted-foreground mt-0.5 font-mono text-xs">
+                        {product.sku}
+                      </p>
+                    </div>
+                    <span
+                      className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${statusCfg.color}`}
+                    >
+                      {statusCfg.label}
+                    </span>
+                  </div>
+                  <p className="text-muted-foreground mt-2 text-xs">
+                    {new Date(product.createdAt).toLocaleDateString("es-VE")}
+                  </p>
+                </Link>
+              );
+            })}
+        {!isLoading && products.length === 0 && (
+          <div className="text-muted-foreground flex flex-col items-center py-12 text-center">
+            <span className="material-symbols-outlined mb-2 text-3xl">
+              search_off
+            </span>
+            No se encontraron productos
+          </div>
+        )}
+      </div>
+
+      {/* ── Desktop: Table View ───────────────────── */}
+      <div className="border-border bg-card hidden overflow-hidden rounded-xl border md:block">
         <table className="w-full text-left text-sm">
           <thead>
             <tr className="border-border text-muted-foreground border-b text-xs uppercase">
@@ -239,8 +287,8 @@ export default function CatalogClient() {
         </table>
       </div>
 
-      {/* Pagination */}
-      <div className="text-muted-foreground flex items-center justify-between text-xs">
+      {/* Pagination — simplified on mobile */}
+      <div className="text-muted-foreground flex flex-col items-center gap-3 text-xs sm:flex-row sm:justify-between">
         <p>
           Mostrando {products.length} de {total} productos
         </p>
@@ -248,17 +296,17 @@ export default function CatalogClient() {
           <button
             onClick={() => setPage((p) => Math.max(0, p - 1))}
             disabled={page === 0}
-            className="bg-secondary text-muted-foreground hover:bg-accent rounded px-3 py-1 transition-colors disabled:opacity-50"
+            className="bg-secondary text-muted-foreground hover:bg-accent min-h-[36px] rounded px-3 py-1 transition-colors disabled:opacity-50"
           >
             ← Anterior
           </button>
-          <span className="bg-primary text-primary-foreground rounded px-3 py-1">
+          <span className="bg-primary text-primary-foreground flex min-h-[36px] items-center rounded px-3 py-1">
             {page + 1}
           </span>
           <button
             onClick={() => setPage((p) => (p + 1 < totalPages ? p + 1 : p))}
             disabled={page + 1 >= totalPages}
-            className="bg-secondary text-muted-foreground hover:bg-accent rounded px-3 py-1 transition-colors disabled:opacity-50"
+            className="bg-secondary text-muted-foreground hover:bg-accent min-h-[36px] rounded px-3 py-1 transition-colors disabled:opacity-50"
           >
             Siguiente →
           </button>

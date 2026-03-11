@@ -190,12 +190,14 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       {/* Sidebar panel */}
       <aside
         className={cn(
-          "border-sidebar-border bg-sidebar text-sidebar-foreground fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r transition-transform duration-300 lg:static lg:z-auto lg:translate-x-0",
+          "border-sidebar-border bg-sidebar text-sidebar-foreground fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r transition-transform duration-300 ease-out lg:static lg:z-auto lg:translate-x-0",
+          /* iOS safe-area: pad left for landscape notch */
+          "safe-pl",
           open ? "translate-x-0" : "-translate-x-full",
         )}
       >
         {/* Logo */}
-        <div className="border-sidebar-border flex h-14 items-center justify-between border-b px-5">
+        <div className="border-sidebar-border safe-pt flex h-14 items-center justify-between border-b px-5">
           <div className="flex items-center gap-3">
             <div className="bg-primary text-primary-foreground flex size-8 items-center justify-center rounded-lg">
               <span className="material-symbols-outlined text-lg">
@@ -211,16 +213,17 @@ export function Sidebar({ open, onClose }: SidebarProps) {
               </p>
             </div>
           </div>
+          {/* Close — 44px touch target */}
           <button
             onClick={onClose}
-            className="text-muted-foreground hover:bg-sidebar-accent flex size-8 items-center justify-center rounded-lg lg:hidden"
+            className="text-muted-foreground hover:bg-sidebar-accent flex size-11 items-center justify-center rounded-lg lg:hidden"
           >
             <span className="material-symbols-outlined text-xl">close</span>
           </button>
         </div>
 
-        {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto px-3 py-4">
+        {/* Navigation — overscroll containment for iOS */}
+        <nav className="flex-1 overflow-y-auto overscroll-contain px-3 py-4">
           {navSections.map((section) => {
             // Filter items by role
             const visibleItems = section.items.filter(
@@ -245,7 +248,8 @@ export function Sidebar({ open, onClose }: SidebarProps) {
                           href={item.href}
                           onClick={onClose}
                           className={cn(
-                            "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
+                            /* 44px min touch target via min-h-[44px] + py-2.5 */
+                            "flex min-h-[44px] items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors",
                             isActive
                               ? "bg-sidebar-accent text-sidebar-accent-foreground font-semibold"
                               : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground",
@@ -270,8 +274,8 @@ export function Sidebar({ open, onClose }: SidebarProps) {
           })}
         </nav>
 
-        {/* Footer — User */}
-        <div className="border-sidebar-border border-t px-4 py-3">
+        {/* Footer — User — with safe-area-inset-bottom */}
+        <div className="border-sidebar-border safe-pb border-t px-4 py-3">
           <div className="flex items-center gap-3">
             <div className="bg-primary/10 text-primary flex size-8 items-center justify-center rounded-full text-sm font-bold">
               {loading ? "…" : initials}
@@ -282,9 +286,10 @@ export function Sidebar({ open, onClose }: SidebarProps) {
               </p>
               <p className="text-muted-foreground text-xs">{roleLabel}</p>
             </div>
+            {/* Logout — 44px touch target */}
             <button
               onClick={handleLogout}
-              className="text-muted-foreground hover:bg-sidebar-accent hover:text-destructive flex size-8 shrink-0 items-center justify-center rounded-lg transition-colors"
+              className="text-muted-foreground hover:bg-sidebar-accent hover:text-destructive flex size-11 shrink-0 items-center justify-center rounded-lg transition-colors"
               title="Cerrar sesión"
             >
               <span className="material-symbols-outlined text-lg">logout</span>
