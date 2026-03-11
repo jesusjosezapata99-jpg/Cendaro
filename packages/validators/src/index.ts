@@ -53,6 +53,25 @@ export const barcodeSchema = z
   .max(128, "Código de barras demasiado largo")
   .optional();
 
+/** Venezuelan phone number: +58-XXX-XXXXXXX or 0XXX-XXXXXXX */
+export const phoneSchema = z
+  .string()
+  .regex(
+    /^(\+58|0)\d{3}-?\d{7}$/,
+    "Teléfono debe tener formato VE válido (ej: 0414-1234567)",
+  );
+
+/** Order number: ORD-XXXXXXXX */
+export const orderNumberSchema = z
+  .string()
+  .regex(/^ORD-[A-Z0-9]{4,16}$/, "Número de orden inválido (ej: ORD-A1B2C3D4)");
+
+/** Container number format */
+export const containerNumberSchema = z
+  .string()
+  .min(4, "Número de contenedor muy corto")
+  .max(64, "Número de contenedor muy largo");
+
 // ──────────────────────────────────────────────
 // RBAC — Single source of truth for user roles
 // ──────────────────────────────────────────────
@@ -70,3 +89,65 @@ export const USER_ROLES = [
 export type UserRole = (typeof USER_ROLES)[number];
 
 export const userRoleSchema = z.enum(USER_ROLES);
+
+// ──────────────────────────────────────────────
+// Composite form schemas (frontend ↔ backend)
+// ──────────────────────────────────────────────
+
+/** Create order form schema */
+export const createOrderSchema = z.object({
+  customerId: z.string().uuid().optional(),
+  channel: z.enum([
+    "store",
+    "mercadolibre",
+    "vendors",
+    "whatsapp",
+    "instagram",
+  ]),
+  items: z
+    .array(
+      z.object({
+        productId: z.string().uuid(),
+        quantity: z.number().int().positive(),
+        unitPrice: moneySchema,
+        discount: percentageSchema.optional(),
+      }),
+    )
+    .min(1, "Se requiere al menos un producto"),
+  notes: z.string().optional(),
+});
+
+/** Create quote form schema */
+export const createQuoteSchema = z.object({
+  customerId: z.string().uuid(),
+  expiresAt: z.string().datetime().optional(),
+  items: z
+    .array(
+      z.object({
+        productId: z.string().uuid(),
+        quantity: z.number().int().positive(),
+        unitPrice: moneySchema,
+        discount: percentageSchema.optional(),
+      }),
+    )
+    .min(1, "Se requiere al menos un producto"),
+  notes: z.string().optional(),
+});
+
+/** Payment form schema */
+export const createPaymentSchema = z.object({
+  orderId: z.string().uuid(),
+  method: z.enum([
+    "mobile_payment",
+    "transfer",
+    "cash",
+    "pos_terminal",
+    "zelle",
+  ]),
+  amount: moneySchema,
+  reference: z.string().max(128).optional(),
+  bankName: z.string().max(128).optional(),
+  payerName: z.string().max(256).optional(),
+  payerIdDoc: z.string().max(32).optional(),
+  notes: z.string().optional(),
+});

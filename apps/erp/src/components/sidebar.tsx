@@ -57,6 +57,19 @@ const navSections: { title: string; items: NavItem[] }[] = [
         roles: ["owner", "admin", "supervisor", "employee"],
       },
       { href: "/orders", label: "Pedidos", icon: "list_alt" },
+      { href: "/quotes", label: "Cotizaciones", icon: "request_quote" },
+      {
+        href: "/delivery-notes",
+        label: "Notas de Entrega",
+        icon: "local_shipping",
+        roles: ["owner", "admin", "supervisor"],
+      },
+      {
+        href: "/invoices",
+        label: "Facturas",
+        icon: "description",
+        roles: ["owner", "admin", "supervisor"],
+      },
       {
         href: "/vendors",
         label: "Vendedores",

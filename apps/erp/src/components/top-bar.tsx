@@ -41,6 +41,21 @@ const SEARCH_ROUTES = [
     keywords: "tasa bcv dólar bolívar",
   },
   { label: "Órdenes", path: "/orders", keywords: "pedido venta order" },
+  {
+    label: "Cotizaciones",
+    path: "/quotes",
+    keywords: "cotización quote presupuesto",
+  },
+  {
+    label: "Notas de Entrega",
+    path: "/delivery-notes",
+    keywords: "nota entrega delivery despacho",
+  },
+  {
+    label: "Facturas",
+    path: "/invoices",
+    keywords: "factura invoice documento",
+  },
   { label: "Clientes", path: "/customers", keywords: "cliente customer" },
   { label: "Vendedores", path: "/vendors", keywords: "vendedor comisión" },
   { label: "Marketplace", path: "/marketplace", keywords: "mercadolibre ml" },

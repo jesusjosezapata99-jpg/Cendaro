@@ -159,11 +159,14 @@ export const customerTypeEnum = pgEnum("customer_type", [
 ]);
 
 export const orderStatusEnum = pgEnum("order_status", [
+  "draft", // borrador
   "pending", // pendiente
+  "pending_confirmation", // pendiente de confirmación
   "confirmed", // confirmado
   "prepared", // preparado
   "dispatched", // despachado
   "delivered", // entregado
+  "invoiced", // facturado
   "cancelled", // anulado
   "returned", // devuelto
 ]);
@@ -220,6 +223,50 @@ export const alertTypeEnum = pgEnum("alert_type", [
   "order_late", // pedido atrasado
   "ml_failure", // falla de integración ML
   "ar_overdue", // CxC vencidas
+]);
+
+// --- Phase 9 enums (Approvals & Signatures) ---
+
+export const approvalTypeEnum = pgEnum("approval_type", [
+  "credit_sale", // venta a crédito
+  "inventory_adjustment", // ajuste de inventario
+  "channel_stock_move", // movimiento entre canales
+  "product_unblock", // desbloqueo de producto
+  "price_change", // cambio de precio / repricing
+  "container_close", // cierre de contenedor
+  "cash_closure", // cierre de caja
+  "edit_post_issue_document", // edición de doc post-emisión
+]);
+
+export const approvalStatusEnum = pgEnum("approval_status", [
+  "pending", // pendiente de aprobación
+  "approved", // aprobado
+  "rejected", // rechazado
+  "expired", // expirado
+]);
+
+// --- Sprint 2 enums (Commercial Flow) ---
+
+export const quoteStatusEnum = pgEnum("quote_status", [
+  "draft", // borrador
+  "sent", // enviada al cliente
+  "accepted", // aceptada → se convierte en orden
+  "rejected", // rechazada por el cliente
+  "expired", // expirada
+  "converted", // convertida en orden
+]);
+
+export const documentStatusEnum = pgEnum("document_status", [
+  "draft", // borrador
+  "issued", // emitido
+  "cancelled", // anulado
+]);
+
+export const installmentStatusEnum = pgEnum("installment_status", [
+  "pending", // pendiente
+  "paid", // pagado
+  "overdue", // vencido
+  "partially_paid", // parcialmente pagado
 ]);
 
 // ╔══════════════════════════════════════════════╗
@@ -452,6 +499,53 @@ export const ProductAttribute = pgTable(
   ],
 );
 
+export const ProductUomEquivalence = pgTable(
+  "product_uom_equivalence",
+  (t) => ({
+    id: t.uuid().notNull().primaryKey().defaultRandom(),
+    productId: t
+      .uuid()
+      .notNull()
+      .references(() => Product.id, { onDelete: "cascade" }),
+    baseUom: t.varchar({ length: 32 }).notNull().default("unit"),
+    altUom: t.varchar({ length: 32 }).notNull(),
+    conversionFactor: t.doublePrecision().notNull().default(1),
+    createdAt: t
+      .timestamp({ mode: "date", withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  }),
+  (table) => [index("idx_puom_product").on(table.productId)],
+);
+
+export const ProductSupplier = pgTable(
+  "product_supplier",
+  (t) => ({
+    id: t.uuid().notNull().primaryKey().defaultRandom(),
+    productId: t
+      .uuid()
+      .notNull()
+      .references(() => Product.id, { onDelete: "cascade" }),
+    supplierId: t
+      .uuid()
+      .notNull()
+      .references(() => Supplier.id),
+    supplierSku: t.varchar({ length: 128 }),
+    cost: t.doublePrecision(),
+    leadTimeDays: t.integer(),
+    isPrimary: t.boolean().notNull().default(false),
+    createdAt: t
+      .timestamp({ mode: "date", withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  }),
+  (table) => [
+    unique("uq_product_supplier").on(table.productId, table.supplierId),
+    index("idx_ps_product").on(table.productId),
+    index("idx_ps_supplier").on(table.supplierId),
+  ],
+);
+
 export const ProductPrice = pgTable(
   "product_price",
   (t) => ({
@@ -494,6 +588,28 @@ export const Warehouse = pgTable(
       .notNull(),
   }),
   (table) => [index("idx_warehouse_type").on(table.type)],
+);
+
+export const WarehouseLocation = pgTable(
+  "warehouse_location",
+  (t) => ({
+    id: t.uuid().notNull().primaryKey().defaultRandom(),
+    warehouseId: t
+      .uuid()
+      .notNull()
+      .references(() => Warehouse.id, { onDelete: "cascade" }),
+    code: t.varchar({ length: 32 }).notNull(),
+    description: t.varchar({ length: 256 }),
+    isActive: t.boolean().notNull().default(true),
+    createdAt: t
+      .timestamp({ mode: "date", withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  }),
+  (table) => [
+    unique("uq_wl_warehouse_code").on(table.warehouseId, table.code),
+    index("idx_wl_warehouse").on(table.warehouseId),
+  ],
 );
 
 export const StockLedger = pgTable(
@@ -598,6 +714,58 @@ export const InventoryCount = pgTable(
   ],
 );
 
+export const InventoryCountItem = pgTable(
+  "inventory_count_item",
+  (t) => ({
+    id: t.uuid().notNull().primaryKey().defaultRandom(),
+    countId: t
+      .uuid()
+      .notNull()
+      .references(() => InventoryCount.id, { onDelete: "cascade" }),
+    productId: t
+      .uuid()
+      .notNull()
+      .references(() => Product.id),
+    systemQty: t.integer().notNull().default(0),
+    countedQty: t.integer(),
+    difference: t.integer(),
+    notes: t.text(),
+  }),
+  (table) => [
+    index("idx_ici_count").on(table.countId),
+    index("idx_ici_product").on(table.productId),
+  ],
+);
+
+export const InventoryDiscrepancy = pgTable(
+  "inventory_discrepancy",
+  (t) => ({
+    id: t.uuid().notNull().primaryKey().defaultRandom(),
+    countId: t
+      .uuid()
+      .notNull()
+      .references(() => InventoryCount.id),
+    productId: t
+      .uuid()
+      .notNull()
+      .references(() => Product.id),
+    systemQty: t.integer().notNull(),
+    countedQty: t.integer().notNull(),
+    difference: t.integer().notNull(),
+    resolution: t.text(),
+    resolvedBy: t.uuid().references(() => UserProfile.id),
+    resolvedAt: t.timestamp({ mode: "date", withTimezone: true }),
+    createdAt: t
+      .timestamp({ mode: "date", withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  }),
+  (table) => [
+    index("idx_id_count").on(table.countId),
+    index("idx_id_product").on(table.productId),
+  ],
+);
+
 export const Container = pgTable(
   "container",
   (t) => ({
@@ -662,6 +830,26 @@ export const ContainerItem = pgTable(
     index("idx_citem_container").on(table.containerId),
     index("idx_citem_product").on(table.productId),
   ],
+);
+
+export const ContainerDocument = pgTable(
+  "container_document",
+  (t) => ({
+    id: t.uuid().notNull().primaryKey().defaultRandom(),
+    containerId: t
+      .uuid()
+      .notNull()
+      .references(() => Container.id, { onDelete: "cascade" }),
+    documentType: t.varchar({ length: 64 }).notNull(),
+    fileUrl: t.text().notNull(),
+    fileName: t.varchar({ length: 256 }),
+    uploadedBy: t.uuid().references(() => UserProfile.id),
+    createdAt: t
+      .timestamp({ mode: "date", withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  }),
+  (table) => [index("idx_cd_container").on(table.containerId)],
 );
 
 // AI Prompt Configuration
@@ -741,6 +929,30 @@ export const PriceHistory = pgTable(
   ],
 );
 
+export const PricingRule = pgTable(
+  "pricing_rule",
+  (t) => ({
+    id: t.uuid().notNull().primaryKey().defaultRandom(),
+    name: t.varchar({ length: 128 }).notNull(),
+    ruleType: t.varchar({ length: 32 }).notNull(),
+    conditions: t.jsonb().notNull().default({}),
+    adjustments: t.jsonb().notNull().default({}),
+    priority: t.integer().notNull().default(0),
+    isActive: t.boolean().notNull().default(true),
+    validFrom: t.timestamp({ mode: "date", withTimezone: true }),
+    validUntil: t.timestamp({ mode: "date", withTimezone: true }),
+    createdBy: t.uuid().references(() => UserProfile.id),
+    createdAt: t
+      .timestamp({ mode: "date", withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  }),
+  (table) => [
+    index("idx_pr_type").on(table.ruleType),
+    index("idx_pr_active").on(table.isActive),
+  ],
+);
+
 export const RepricingEvent = pgTable(
   "repricing_event",
   (t) => ({
@@ -800,6 +1012,29 @@ export const Customer = pgTable(
     index("idx_customer_name").on(table.name),
     index("idx_customer_vendor").on(table.assignedVendorId),
   ],
+);
+
+export const CustomerAddress = pgTable(
+  "customer_address",
+  (t) => ({
+    id: t.uuid().notNull().primaryKey().defaultRandom(),
+    customerId: t
+      .uuid()
+      .notNull()
+      .references(() => Customer.id, { onDelete: "cascade" }),
+    label: t.varchar({ length: 64 }).notNull().default("principal"),
+    addressLine: t.text().notNull(),
+    city: t.varchar({ length: 128 }),
+    state: t.varchar({ length: 128 }),
+    zip: t.varchar({ length: 16 }),
+    country: t.varchar({ length: 64 }).default("VE"),
+    isDefault: t.boolean().notNull().default(false),
+    createdAt: t
+      .timestamp({ mode: "date", withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  }),
+  (table) => [index("idx_ca_customer").on(table.customerId)],
 );
 
 export const SalesOrder = pgTable(
@@ -887,6 +1122,49 @@ export const Payment = pgTable(
   ],
 );
 
+export const PaymentEvidence = pgTable(
+  "payment_evidence",
+  (t) => ({
+    id: t.uuid().notNull().primaryKey().defaultRandom(),
+    paymentId: t
+      .uuid()
+      .notNull()
+      .references(() => Payment.id, { onDelete: "cascade" }),
+    evidenceUrl: t.text().notNull(),
+    evidenceType: t.varchar({ length: 32 }).notNull().default("image"),
+    uploadedBy: t.uuid().references(() => UserProfile.id),
+    createdAt: t
+      .timestamp({ mode: "date", withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  }),
+  (table) => [index("idx_pe_payment").on(table.paymentId)],
+);
+
+export const PaymentAllocation = pgTable(
+  "payment_allocation",
+  (t) => ({
+    id: t.uuid().notNull().primaryKey().defaultRandom(),
+    paymentId: t
+      .uuid()
+      .notNull()
+      .references(() => Payment.id),
+    receivableId: t
+      .uuid()
+      .notNull()
+      .references(() => AccountReceivable.id),
+    amount: t.doublePrecision().notNull(),
+    createdAt: t
+      .timestamp({ mode: "date", withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  }),
+  (table) => [
+    index("idx_pa_payment").on(table.paymentId),
+    index("idx_pa_receivable").on(table.receivableId),
+  ],
+);
+
 export const CashClosure = pgTable(
   "cash_closure",
   (t) => ({
@@ -910,6 +1188,166 @@ export const CashClosure = pgTable(
   (table) => [
     index("idx_closure_date").on(table.closureDate),
     index("idx_closure_status").on(table.status),
+  ],
+);
+
+// ╔══════════════════════════════════════════════╗
+// ║ PHASE 5b — Quotes, Delivery Notes, Invoices  ║
+// ╚══════════════════════════════════════════════╝
+
+export const Quote = pgTable(
+  "quote",
+  (t) => ({
+    id: t.uuid().notNull().primaryKey().defaultRandom(),
+    quoteNumber: t.varchar({ length: 32 }).notNull(),
+    customerId: t.uuid().references(() => Customer.id),
+    status: quoteStatusEnum().notNull().default("draft"),
+    channel: salesChannelEnum().notNull().default("store"),
+    subtotal: t.doublePrecision().notNull().default(0),
+    discount: t.doublePrecision().default(0),
+    total: t.doublePrecision().notNull().default(0),
+    validUntil: t.timestamp({ mode: "date", withTimezone: true }),
+    convertedOrderId: t.uuid().references(() => SalesOrder.id),
+    notes: t.text(),
+    createdBy: t.uuid().references(() => UserProfile.id),
+    createdAt: t
+      .timestamp({ mode: "date", withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: t.timestamp({ mode: "date", withTimezone: true }),
+  }),
+  (table) => [
+    unique("uq_quote_number").on(table.quoteNumber),
+    index("idx_quote_customer").on(table.customerId),
+    index("idx_quote_status").on(table.status),
+  ],
+);
+
+export const QuoteItem = pgTable(
+  "quote_item",
+  (t) => ({
+    id: t.uuid().notNull().primaryKey().defaultRandom(),
+    quoteId: t
+      .uuid()
+      .notNull()
+      .references(() => Quote.id, { onDelete: "cascade" }),
+    productId: t
+      .uuid()
+      .notNull()
+      .references(() => Product.id),
+    quantity: t.integer().notNull(),
+    unitPrice: t.doublePrecision().notNull(),
+    discount: t.doublePrecision().default(0),
+    lineTotal: t.doublePrecision().notNull(),
+  }),
+  (table) => [
+    index("idx_qi_quote").on(table.quoteId),
+    index("idx_qi_product").on(table.productId),
+  ],
+);
+
+export const DeliveryNote = pgTable(
+  "delivery_note",
+  (t) => ({
+    id: t.uuid().notNull().primaryKey().defaultRandom(),
+    noteNumber: t.varchar({ length: 32 }).notNull(),
+    orderId: t
+      .uuid()
+      .notNull()
+      .references(() => SalesOrder.id),
+    status: documentStatusEnum().notNull().default("draft"),
+    deliveryAddress: t.text(),
+    recipientName: t.varchar({ length: 256 }),
+    recipientIdDoc: t.varchar({ length: 32 }),
+    dispatchedAt: t.timestamp({ mode: "date", withTimezone: true }),
+    deliveredAt: t.timestamp({ mode: "date", withTimezone: true }),
+    notes: t.text(),
+    createdBy: t.uuid().references(() => UserProfile.id),
+    createdAt: t
+      .timestamp({ mode: "date", withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  }),
+  (table) => [
+    unique("uq_delivery_note_number").on(table.noteNumber),
+    index("idx_dn_order").on(table.orderId),
+    index("idx_dn_status").on(table.status),
+  ],
+);
+
+export const DeliveryNoteItem = pgTable(
+  "delivery_note_item",
+  (t) => ({
+    id: t.uuid().notNull().primaryKey().defaultRandom(),
+    deliveryNoteId: t
+      .uuid()
+      .notNull()
+      .references(() => DeliveryNote.id, { onDelete: "cascade" }),
+    productId: t
+      .uuid()
+      .notNull()
+      .references(() => Product.id),
+    quantityDispatched: t.integer().notNull(),
+    quantityDelivered: t.integer().default(0),
+    notes: t.text(),
+  }),
+  (table) => [
+    index("idx_dni_note").on(table.deliveryNoteId),
+    index("idx_dni_product").on(table.productId),
+  ],
+);
+
+export const InternalInvoice = pgTable(
+  "internal_invoice",
+  (t) => ({
+    id: t.uuid().notNull().primaryKey().defaultRandom(),
+    invoiceNumber: t.varchar({ length: 32 }).notNull(),
+    orderId: t
+      .uuid()
+      .notNull()
+      .references(() => SalesOrder.id),
+    customerId: t.uuid().references(() => Customer.id),
+    status: documentStatusEnum().notNull().default("draft"),
+    subtotal: t.doublePrecision().notNull().default(0),
+    discount: t.doublePrecision().default(0),
+    tax: t.doublePrecision().default(0),
+    total: t.doublePrecision().notNull().default(0),
+    issuedAt: t.timestamp({ mode: "date", withTimezone: true }),
+    notes: t.text(),
+    createdBy: t.uuid().references(() => UserProfile.id),
+    createdAt: t
+      .timestamp({ mode: "date", withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  }),
+  (table) => [
+    unique("uq_invoice_number").on(table.invoiceNumber),
+    index("idx_inv_order").on(table.orderId),
+    index("idx_inv_customer").on(table.customerId),
+    index("idx_inv_status").on(table.status),
+  ],
+);
+
+export const InternalInvoiceItem = pgTable(
+  "internal_invoice_item",
+  (t) => ({
+    id: t.uuid().notNull().primaryKey().defaultRandom(),
+    invoiceId: t
+      .uuid()
+      .notNull()
+      .references(() => InternalInvoice.id, { onDelete: "cascade" }),
+    productId: t
+      .uuid()
+      .notNull()
+      .references(() => Product.id),
+    quantity: t.integer().notNull(),
+    unitPrice: t.doublePrecision().notNull(),
+    discount: t.doublePrecision().default(0),
+    lineTotal: t.doublePrecision().notNull(),
+  }),
+  (table) => [
+    index("idx_iii_invoice").on(table.invoiceId),
+    index("idx_iii_product").on(table.productId),
   ],
 );
 
@@ -972,6 +1410,35 @@ export const AccountReceivable = pgTable(
     index("idx_ar_customer").on(table.customerId),
     index("idx_ar_status").on(table.status),
     index("idx_ar_due").on(table.dueDate),
+  ],
+);
+
+// --- AR Installments (PRD §18) ---
+
+export const ArInstallment = pgTable(
+  "ar_installment",
+  (t) => ({
+    id: t.uuid().notNull().primaryKey().defaultRandom(),
+    receivableId: t
+      .uuid()
+      .notNull()
+      .references(() => AccountReceivable.id, { onDelete: "cascade" }),
+    installmentNumber: t.integer().notNull(),
+    amount: t.doublePrecision().notNull(),
+    dueDate: t.timestamp({ mode: "date", withTimezone: true }).notNull(),
+    status: installmentStatusEnum().notNull().default("pending"),
+    paidAmount: t.doublePrecision().default(0),
+    paidAt: t.timestamp({ mode: "date", withTimezone: true }),
+    notes: t.text(),
+    createdAt: t
+      .timestamp({ mode: "date", withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  }),
+  (table) => [
+    index("idx_ari_receivable").on(table.receivableId),
+    index("idx_ari_status").on(table.status),
+    index("idx_ari_due").on(table.dueDate),
   ],
 );
 
@@ -1054,6 +1521,67 @@ export const IntegrationLog = pgTable(
   ],
 );
 
+export const MercadolibreAccount = pgTable(
+  "mercadolibre_account",
+  (t) => ({
+    id: t.uuid().notNull().primaryKey().defaultRandom(),
+    nickname: t.varchar({ length: 128 }).notNull(),
+    mlUserId: t.varchar({ length: 64 }),
+    accessToken: t.text(),
+    refreshToken: t.text(),
+    tokenExpiresAt: t.timestamp({ mode: "date", withTimezone: true }),
+    isActive: t.boolean().notNull().default(true),
+    createdAt: t
+      .timestamp({ mode: "date", withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  }),
+  (table) => [unique("uq_ml_user").on(table.mlUserId)],
+);
+
+export const MercadolibreOrderEvent = pgTable(
+  "mercadolibre_order_event",
+  (t) => ({
+    id: t.uuid().notNull().primaryKey().defaultRandom(),
+    mlOrderId: t.uuid().references(() => MlOrder.id),
+    eventType: t.varchar({ length: 64 }).notNull(),
+    payload: t.jsonb(),
+    processedAt: t.timestamp({ mode: "date", withTimezone: true }),
+    createdAt: t
+      .timestamp({ mode: "date", withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  }),
+  (table) => [
+    index("idx_moe_order").on(table.mlOrderId),
+    index("idx_moe_type").on(table.eventType),
+  ],
+);
+
+export const IntegrationFailure = pgTable(
+  "integration_failure",
+  (t) => ({
+    id: t.uuid().notNull().primaryKey().defaultRandom(),
+    source: t.varchar({ length: 64 }).notNull(),
+    errorCode: t.varchar({ length: 64 }),
+    errorMessage: t.text().notNull(),
+    payload: t.jsonb(),
+    retryCount: t.integer().notNull().default(0),
+    maxRetries: t.integer().notNull().default(3),
+    isResolved: t.boolean().notNull().default(false),
+    resolvedBy: t.uuid().references(() => UserProfile.id),
+    resolvedAt: t.timestamp({ mode: "date", withTimezone: true }),
+    createdAt: t
+      .timestamp({ mode: "date", withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  }),
+  (table) => [
+    index("idx_if_source").on(table.source),
+    index("idx_if_resolved").on(table.isResolved),
+  ],
+);
+
 // ╔══════════════════════════════════════════════╗
 // ║ PHASE 8 — Dashboard & Alerts                  ║
 // ╚══════════════════════════════════════════════╝
@@ -1081,6 +1609,67 @@ export const SystemAlert = pgTable(
     index("idx_alert_severity").on(table.severity),
     index("idx_alert_dismissed").on(table.isDismissed),
     index("idx_alert_created").on(table.createdAt),
+  ],
+);
+
+// ╔══════════════════════════════════════════════╗
+// ║ PHASE 9 — Approvals & Signatures             ║
+// ╚══════════════════════════════════════════════╝
+
+export const Approval = pgTable(
+  "approval",
+  (t) => ({
+    id: t.uuid().notNull().primaryKey().defaultRandom(),
+    approvalType: approvalTypeEnum().notNull(),
+    status: approvalStatusEnum().notNull().default("pending"),
+    entityType: t.varchar({ length: 64 }).notNull(),
+    entityId: t.uuid().notNull(),
+    requestedBy: t
+      .uuid()
+      .notNull()
+      .references(() => UserProfile.id),
+    requestedAt: t
+      .timestamp({ mode: "date", withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    resolvedBy: t.uuid().references(() => UserProfile.id),
+    resolvedAt: t.timestamp({ mode: "date", withTimezone: true }),
+    reason: t.text(),
+    metadata: t.jsonb(),
+    expiresAt: t.timestamp({ mode: "date", withTimezone: true }),
+  }),
+  (table) => [
+    index("idx_approval_type").on(table.approvalType),
+    index("idx_approval_status").on(table.status),
+    index("idx_approval_entity").on(table.entityType, table.entityId),
+    index("idx_approval_requested").on(table.requestedBy),
+    index("idx_approval_resolved").on(table.resolvedBy),
+  ],
+);
+
+export const Signature = pgTable(
+  "signature",
+  (t) => ({
+    id: t.uuid().notNull().primaryKey().defaultRandom(),
+    approvalId: t
+      .uuid()
+      .notNull()
+      .references(() => Approval.id, { onDelete: "cascade" }),
+    signedBy: t
+      .uuid()
+      .notNull()
+      .references(() => UserProfile.id),
+    role: userRoleEnum().notNull(),
+    action: t.varchar({ length: 32 }).notNull(),
+    ipAddress: t.varchar({ length: 45 }),
+    signedAt: t
+      .timestamp({ mode: "date", withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  }),
+  (table) => [
+    index("idx_sig_approval").on(table.approvalId),
+    index("idx_sig_signed_by").on(table.signedBy),
   ],
 );
 
@@ -1301,5 +1890,32 @@ export const mlOrderRelations = relations(MlOrder, ({ one }) => ({
   salesOrder: one(SalesOrder, {
     fields: [MlOrder.salesOrderId],
     references: [SalesOrder.id],
+  }),
+}));
+
+// --- Phase 9 relations ---
+
+export const approvalRelations = relations(Approval, ({ one, many }) => ({
+  requestedByUser: one(UserProfile, {
+    fields: [Approval.requestedBy],
+    references: [UserProfile.id],
+    relationName: "approvalRequester",
+  }),
+  resolvedByUser: one(UserProfile, {
+    fields: [Approval.resolvedBy],
+    references: [UserProfile.id],
+    relationName: "approvalResolver",
+  }),
+  signatures: many(Signature),
+}));
+
+export const signatureRelations = relations(Signature, ({ one }) => ({
+  approval: one(Approval, {
+    fields: [Signature.approvalId],
+    references: [Approval.id],
+  }),
+  user: one(UserProfile, {
+    fields: [Signature.signedBy],
+    references: [UserProfile.id],
   }),
 }));

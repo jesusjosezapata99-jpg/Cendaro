@@ -1,0 +1,514 @@
+Project ERP_OMNICHANNEL_V1 {
+  database_type: 'PostgreSQL'
+  Note: 'Schema inicial ERP omnicanal mayorista/retail basado en PRD master v1.1'
+}
+
+Enum warehouse_type {
+  main
+  store
+  in_transit
+  reserved
+  defective
+}
+
+Enum channel_code {
+  store
+  mercadolibre
+  vendors
+  whatsapp
+  instagram
+}
+
+Enum uom_code {
+  unit
+  dozen
+  box
+  bundle
+}
+
+Enum movement_type {
+  receipt
+  sale
+  transfer_out
+  transfer_in
+  adjustment
+  count_lock
+  count_release
+  allocation
+  deallocation
+  mercadolibre_sync
+}
+
+Enum container_status {
+  created
+  in_transit
+  received_total
+  closed
+}
+
+Enum rate_type {
+  bcv
+  parallel
+  rmb
+}
+
+Enum price_type {
+  store_retail
+  store_wholesale
+  national_vendor
+  online_promo
+}
+
+Enum order_status {
+  draft
+  pending_confirmation
+  confirmed
+  invoiced
+  dispatched
+  delivered
+  cancelled
+}
+
+Enum payment_method {
+  mobile_payment
+  bank_transfer
+  cash
+  pos
+  zelle
+  other
+}
+
+Enum receivable_status {
+  open
+  overdue
+  paid
+  blocked
+}
+
+Enum approval_type {
+  credit_sale
+  inventory_adjustment
+  channel_stock_move
+  product_unblock
+  price_change
+  container_close
+  cash_closure
+  edit_post_issue_document
+}
+
+Table users {
+  id uuid [pk]
+  email text [unique, not null]
+  full_name text [not null]
+  is_active boolean [not null, default: true]
+  created_at timestamptz [not null]
+}
+
+Table roles {
+  id uuid [pk]
+  code text [unique, not null]
+  name text [not null]
+}
+
+Table user_roles {
+  user_id uuid [not null]
+  role_id uuid [not null]
+  Indexes { (user_id, role_id) [unique] }
+}
+
+Table brands {
+  id uuid [pk]
+  name text [not null, unique]
+}
+
+Table categories {
+  id uuid [pk]
+  parent_id uuid
+  name text [not null]
+  slug text [not null, unique]
+}
+
+Table products {
+  id uuid [pk]
+  internal_code text [not null, unique]
+  barcode text [not null, unique]
+  name text [not null]
+  brand_id uuid [not null]
+  category_id uuid [not null]
+  short_description text [not null]
+  long_description text
+  weight_grams int [not null]
+  volume_ml int [not null]
+  compatibility text
+  is_blocked boolean [not null, default: false]
+  is_active boolean [not null, default: true]
+  created_at timestamptz [not null]
+}
+
+Table product_technical_attributes {
+  id uuid [pk]
+  product_id uuid [not null]
+  attribute_key text [not null]
+  attribute_label text [not null]
+  attribute_type text [not null]
+  value_text text
+  value_number numeric(14,4)
+  sort_order int [not null, default: 0]
+}
+
+Table product_uom_equivalences {
+  id uuid [pk]
+  product_id uuid [not null]
+  uom uom_code [not null]
+  units_per_uom numeric(12,4) [not null]
+  is_default_sale_uom boolean [not null, default: false]
+  created_by uuid [not null]
+}
+
+Table product_suppliers {
+  id uuid [pk]
+  product_id uuid [not null]
+  supplier_name text [not null]
+  is_preferred boolean [not null, default: false]
+}
+
+Table warehouses {
+  id uuid [pk]
+  code text [not null, unique]
+  name text [not null]
+  warehouse_type warehouse_type [not null]
+  is_sellable boolean [not null, default: true]
+}
+
+Table sales_channels {
+  id uuid [pk]
+  code channel_code [not null, unique]
+  name text [not null]
+  consumes_from_channel_id uuid
+}
+
+Table inventory_balances {
+  id uuid [pk]
+  product_id uuid [not null]
+  warehouse_id uuid [not null]
+  channel_id uuid
+  on_hand_qty numeric(14,4) [not null, default: 0]
+  allocated_qty numeric(14,4) [not null, default: 0]
+  available_qty numeric(14,4) [not null, default: 0]
+  Indexes { (product_id, warehouse_id, channel_id) [unique] }
+}
+
+Table inventory_ledger {
+  id uuid [pk]
+  product_id uuid [not null]
+  movement_type movement_type [not null]
+  source_warehouse_id uuid
+  destination_warehouse_id uuid
+  channel_id uuid
+  quantity numeric(14,4) [not null]
+  reference_type text [not null]
+  reference_id uuid
+  reason text
+  performed_by uuid [not null]
+  approved_by uuid
+  occurred_at timestamptz [not null]
+}
+
+Table containers {
+  id uuid [pk]
+  container_number text [not null, unique]
+  status container_status [not null]
+  departure_date date
+  arrival_date date
+  fob_cost_usd numeric(14,2)
+  approved_by uuid
+}
+
+Table packing_list_imports {
+  id uuid [pk]
+  container_id uuid [not null]
+  source_type text [not null]
+  source_filename text
+  raw_storage_path text
+  parsed_ok boolean [not null, default: false]
+  created_at timestamptz [not null]
+}
+
+Table container_items {
+  id uuid [pk]
+  container_id uuid [not null]
+  product_id uuid [not null]
+  expected_qty numeric(14,4) [not null]
+  received_qty numeric(14,4) [not null, default: 0]
+  cost_base_china numeric(14,4)
+  cost_freight numeric(14,4)
+  cost_total_imported numeric(14,4)
+  average_cost_after_receipt numeric(14,4)
+}
+
+Table exchange_rates {
+  id uuid [pk]
+  rate_type rate_type [not null]
+  rate_value numeric(14,6) [not null]
+  effective_at timestamptz [not null]
+  created_by uuid [not null]
+}
+
+Table product_prices {
+  id uuid [pk]
+  product_id uuid [not null]
+  price_type price_type [not null]
+  amount numeric(14,2) [not null]
+  currency text [not null]
+  active_from timestamptz [not null]
+  active_to timestamptz
+}
+
+Table price_change_batches {
+  id uuid [pk]
+  trigger_type text [not null]
+  bcv_rate_snapshot numeric(14,6)
+  parallel_rate_snapshot numeric(14,6)
+  rmb_rate_snapshot numeric(14,6)
+  threshold_percent numeric(5,2)
+  auto_applied boolean [not null, default: false]
+  requires_admin_review_until timestamptz
+  status text [not null]
+  created_by uuid [not null]
+}
+
+Table price_history {
+  id uuid [pk]
+  batch_id uuid [not null]
+  product_id uuid [not null]
+  price_type price_type [not null]
+  old_amount numeric(14,2) [not null]
+  new_amount numeric(14,2) [not null]
+  reason text
+  created_at timestamptz [not null]
+}
+
+Table customers {
+  id uuid [pk]
+  customer_type text [not null]
+  name text [not null]
+  document_type text
+  document_number text
+  assigned_vendor_user_id uuid
+  credit_days int
+  credit_due_date date
+  credit_balance_pending numeric(14,2)
+  is_credit_blocked boolean [not null, default: false]
+}
+
+Table quotes {
+  id uuid [pk]
+  quote_number text [not null, unique]
+  customer_id uuid
+  channel_id uuid [not null]
+  seller_user_id uuid [not null]
+  status text [not null]
+  grand_total numeric(14,2) [not null]
+  created_at timestamptz [not null]
+}
+
+Table orders {
+  id uuid [pk]
+  order_number text [not null, unique]
+  customer_id uuid
+  channel_id uuid [not null]
+  seller_user_id uuid [not null]
+  status order_status [not null]
+  grand_total numeric(14,2) [not null]
+  created_at timestamptz [not null]
+}
+
+Table order_items {
+  id uuid [pk]
+  order_id uuid [not null]
+  product_id uuid [not null]
+  uom uom_code [not null]
+  uom_quantity numeric(14,4) [not null]
+  base_units_quantity numeric(14,4) [not null]
+  unit_price numeric(14,2) [not null]
+  line_total numeric(14,2) [not null]
+}
+
+Table delivery_notes {
+  id uuid [pk]
+  order_id uuid [not null]
+  delivery_note_number text [not null, unique]
+  issued_by uuid [not null]
+  issued_at timestamptz [not null]
+}
+
+Table internal_invoices {
+  id uuid [pk]
+  order_id uuid [not null, unique]
+  invoice_number text [not null, unique]
+  issued_by uuid [not null]
+  issued_at timestamptz [not null]
+}
+
+Table payments {
+  id uuid [pk]
+  order_id uuid [not null]
+  invoice_id uuid
+  payment_method payment_method [not null]
+  amount numeric(14,2) [not null]
+  reference_number text
+  payer_name text
+  payer_document text
+  paid_at timestamptz [not null]
+  validated_by uuid [not null]
+}
+
+Table payment_evidence {
+  id uuid [pk]
+  payment_id uuid [not null]
+  storage_path text [not null]
+  uploaded_by uuid [not null]
+  created_at timestamptz [not null]
+}
+
+Table accounts_receivable {
+  id uuid [pk]
+  invoice_id uuid [not null]
+  customer_id uuid [not null]
+  original_amount numeric(14,2) [not null]
+  pending_amount numeric(14,2) [not null]
+  due_date date [not null]
+  status receivable_status [not null]
+  created_by uuid [not null]
+  approved_by uuid [not null]
+}
+
+Table cash_closures {
+  id uuid [pk]
+  closure_date date [not null, unique]
+  status text [not null]
+  expected_total numeric(14,2) [not null]
+  counted_total numeric(14,2) [not null]
+  difference_total numeric(14,2) [not null]
+  closed_by uuid [not null]
+  approved_by uuid
+}
+
+Table mercadolibre_accounts {
+  id uuid [pk]
+  nickname text [not null]
+  account_external_id text [not null, unique]
+}
+
+Table mercadolibre_listings {
+  id uuid [pk]
+  account_id uuid [not null]
+  product_id uuid [not null]
+  listing_external_id text [not null, unique]
+  status text [not null]
+}
+
+Table mercadolibre_orders {
+  id uuid [pk]
+  ml_order_id text [not null, unique]
+  account_id uuid [not null]
+  listing_id uuid
+  order_id uuid
+  shipping_status text
+  sync_status text [not null]
+  last_synced_at timestamptz
+}
+
+Table integration_failures {
+  id uuid [pk]
+  integration_name text [not null]
+  reference_type text [not null]
+  reference_id text [not null]
+  error_message text [not null]
+  status text [not null]
+  created_at timestamptz [not null]
+}
+
+Table approvals {
+  id uuid [pk]
+  approval_type approval_type [not null]
+  reference_type text [not null]
+  reference_id uuid [not null]
+  requested_by uuid [not null]
+  approved_by uuid
+  status text [not null]
+  notes text
+}
+
+Table audit_logs {
+  id uuid [pk]
+  actor_user_id uuid [not null]
+  module text [not null]
+  entity_type text [not null]
+  entity_id uuid [not null]
+  action text [not null]
+  before_json jsonb
+  after_json jsonb
+  created_at timestamptz [not null]
+}
+
+Ref: user_roles.user_id > users.id
+Ref: user_roles.role_id > roles.id
+Ref: categories.parent_id > categories.id
+Ref: products.brand_id > brands.id
+Ref: products.category_id > categories.id
+Ref: product_technical_attributes.product_id > products.id
+Ref: product_uom_equivalences.product_id > products.id
+Ref: product_uom_equivalences.created_by > users.id
+Ref: product_suppliers.product_id > products.id
+Ref: sales_channels.consumes_from_channel_id > sales_channels.id
+Ref: inventory_balances.product_id > products.id
+Ref: inventory_balances.warehouse_id > warehouses.id
+Ref: inventory_balances.channel_id > sales_channels.id
+Ref: inventory_ledger.product_id > products.id
+Ref: inventory_ledger.source_warehouse_id > warehouses.id
+Ref: inventory_ledger.destination_warehouse_id > warehouses.id
+Ref: inventory_ledger.channel_id > sales_channels.id
+Ref: inventory_ledger.performed_by > users.id
+Ref: inventory_ledger.approved_by > users.id
+Ref: packing_list_imports.container_id > containers.id
+Ref: container_items.container_id > containers.id
+Ref: container_items.product_id > products.id
+Ref: containers.approved_by > users.id
+Ref: exchange_rates.created_by > users.id
+Ref: product_prices.product_id > products.id
+Ref: price_history.batch_id > price_change_batches.id
+Ref: price_history.product_id > products.id
+Ref: price_change_batches.created_by > users.id
+Ref: customers.assigned_vendor_user_id > users.id
+Ref: quotes.customer_id > customers.id
+Ref: quotes.channel_id > sales_channels.id
+Ref: quotes.seller_user_id > users.id
+Ref: orders.customer_id > customers.id
+Ref: orders.channel_id > sales_channels.id
+Ref: orders.seller_user_id > users.id
+Ref: order_items.order_id > orders.id
+Ref: order_items.product_id > products.id
+Ref: delivery_notes.order_id > orders.id
+Ref: delivery_notes.issued_by > users.id
+Ref: internal_invoices.order_id > orders.id
+Ref: internal_invoices.issued_by > users.id
+Ref: payments.order_id > orders.id
+Ref: payments.invoice_id > internal_invoices.id
+Ref: payments.validated_by > users.id
+Ref: payment_evidence.payment_id > payments.id
+Ref: payment_evidence.uploaded_by > users.id
+Ref: accounts_receivable.invoice_id > internal_invoices.id
+Ref: accounts_receivable.customer_id > customers.id
+Ref: accounts_receivable.created_by > users.id
+Ref: accounts_receivable.approved_by > users.id
+Ref: cash_closures.closed_by > users.id
+Ref: cash_closures.approved_by > users.id
+Ref: mercadolibre_listings.account_id > mercadolibre_accounts.id
+Ref: mercadolibre_listings.product_id > products.id
+Ref: mercadolibre_orders.account_id > mercadolibre_accounts.id
+Ref: mercadolibre_orders.listing_id > mercadolibre_listings.id
+Ref: mercadolibre_orders.order_id > orders.id
+Ref: approvals.requested_by > users.id
+Ref: approvals.approved_by > users.id
+Ref: audit_logs.actor_user_id > users.id
