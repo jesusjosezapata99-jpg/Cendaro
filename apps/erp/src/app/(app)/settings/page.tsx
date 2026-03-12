@@ -230,12 +230,13 @@ export default function SettingsPage() {
       <section className="border-border bg-card rounded-xl border p-6 shadow-sm">
         <h2 className="text-lg font-semibold">Pricing Engine</h2>
         <p className="text-muted-foreground mb-4 text-sm">
-          Configuración del motor de repricing automático
+          Configuración del motor de repricing automático basado en la tasa{" "}
+          <strong className="text-foreground">BCV</strong>
         </p>
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label className="mb-1.5 block text-sm font-medium">
-              Umbral BCV para auto-repricing (%)
+              Umbral <strong>BCV</strong> para auto-repricing (%)
             </label>
             <input
               type="number"
@@ -246,8 +247,8 @@ export default function SettingsPage() {
               className="border-border bg-background focus:border-primary focus:ring-primary/20 w-full rounded-lg border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
             />
             <p className="text-muted-foreground mt-1 text-xs">
-              Si la tasa BCV sube este % o más, los precios se actualizan
-              automáticamente
+              Si la tasa <strong className="text-foreground">BCV</strong> sube
+              este % o más, los precios se actualizan automáticamente
             </p>
           </div>
           <div>

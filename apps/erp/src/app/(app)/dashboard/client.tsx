@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useQueries } from "@tanstack/react-query";
 
+import { useBcvRate } from "~/hooks/use-bcv-rate";
+import { formatDualCurrency } from "~/lib/format-currency";
 import { useTRPC } from "~/trpc/client";
 
 function Skeleton({ className = "" }: { className?: string }) {
@@ -22,6 +24,8 @@ export default function DashboardClient() {
   const { data: closures, isLoading: closuresLoading } = closuresResult;
   const { data: alertCount } = alertResult;
 
+  const bcv = useBcvRate();
+
   const kpis = [
     {
       label: "Órdenes Totales",
@@ -32,14 +36,16 @@ export default function DashboardClient() {
     },
     {
       label: "Ingresos",
-      value: `$${(summary?.orders.revenue ?? 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
+      value: formatDualCurrency(summary?.orders.revenue ?? 0, bcv.rate).usd,
+      sub: formatDualCurrency(summary?.orders.revenue ?? 0, bcv.rate).bs,
       icon: "payments",
       accent: "border-blue-500/40",
       href: "/orders",
     },
     {
       label: "Cobrado",
-      value: `$${(summary?.orders.paid ?? 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
+      value: formatDualCurrency(summary?.orders.paid ?? 0, bcv.rate).usd,
+      sub: formatDualCurrency(summary?.orders.paid ?? 0, bcv.rate).bs,
       icon: "trending_up",
       accent: "border-violet-500/40",
       href: "/payments",
@@ -53,7 +59,10 @@ export default function DashboardClient() {
     },
     {
       label: "CxC Pendiente",
-      value: `$${(summary?.accountsReceivable.debt ?? 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
+      value: formatDualCurrency(summary?.accountsReceivable.debt ?? 0, bcv.rate)
+        .usd,
+      sub: formatDualCurrency(summary?.accountsReceivable.debt ?? 0, bcv.rate)
+        .bs,
       icon: "account_balance_wallet",
       accent: "border-amber-500/40",
       href: "/accounts-receivable",
@@ -76,6 +85,12 @@ export default function DashboardClient() {
         <p className="text-muted-foreground mt-1 text-sm">
           Visibilidad operativa completa
         </p>
+        {bcv.rate > 0 && (
+          <span className="mt-1 inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-bold text-emerald-600 dark:text-emerald-400">
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
+            BCV: {bcv.rate.toFixed(2)} Bs/$ ({bcv.date})
+          </span>
+        )}
       </div>
 
       {/* Primary KPIs — 2 cols on mobile, 3 on sm, 6 on lg */}
@@ -107,6 +122,11 @@ export default function DashboardClient() {
                 <p className="text-foreground mt-1 text-lg font-bold">
                   {stat.value}
                 </p>
+                {"sub" in stat && stat.sub && (
+                  <p className="text-muted-foreground text-[10px] font-medium">
+                    {stat.sub}
+                  </p>
+                )}
               </Link>
             ))}
       </div>
@@ -157,7 +177,14 @@ export default function DashboardClient() {
               },
               {
                 label: "Total Recaudado",
-                value: `$${(summary?.payments.collected ?? 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
+                value: formatDualCurrency(
+                  summary?.payments.collected ?? 0,
+                  bcv.rate,
+                ).usd,
+                sub: formatDualCurrency(
+                  summary?.payments.collected ?? 0,
+                  bcv.rate,
+                ).bs,
                 icon: "attach_money",
                 href: "/cash-closure",
               },
@@ -175,6 +202,11 @@ export default function DashboardClient() {
                 </span>
                 <span className="font-mono text-sm font-bold text-emerald-600 dark:text-emerald-400">
                   {item.value}
+                  {"sub" in item && item.sub && (
+                    <span className="text-muted-foreground ml-2 text-[10px] font-normal">
+                      {item.sub}
+                    </span>
+                  )}
                 </span>
               </Link>
             ))}

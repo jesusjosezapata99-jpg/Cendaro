@@ -107,6 +107,7 @@ export const movementTypeEnum = pgEnum("movement_type", [
   "return", // devolución
   "container_receipt", // recepción de contenedor
   "count_adjustment", // ajuste por conteo cíclico
+  "initial_stock", // stock inicial al crear producto
 ]);
 
 export const containerStatusEnum = pgEnum("container_status", [
@@ -462,6 +463,10 @@ export const Product = pgTable(
     imageUrl: t.text(),
     weight: t.doublePrecision(),
     volume: t.doublePrecision(),
+    baseUom: t.varchar({ length: 32 }).notNull().default("unit"),
+    unitsPerBox: t.integer(),
+    boxesPerBulk: t.integer(),
+    sellingUnit: t.varchar({ length: 32 }).notNull().default("unit"),
     costAvg: t.numeric({ precision: 12, scale: 4 }).default("0"),
     status: productStatusEnum().notNull().default("draft"),
     createdAt: t
@@ -1051,6 +1056,7 @@ export const SalesOrder = pgTable(
     total: t.doublePrecision().notNull().default(0),
     totalPaid: t.doublePrecision().default(0),
     notes: t.text(),
+    stockDeducted: t.boolean().notNull().default(false),
     closedBy: t.uuid().references(() => UserProfile.id),
     createdBy: t.uuid().references(() => UserProfile.id),
     createdAt: t
