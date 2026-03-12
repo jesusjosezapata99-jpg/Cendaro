@@ -10,6 +10,7 @@ export const env = createEnv({
       z.string().url().optional(),
     ),
     GROQ_API_KEY: z.string().min(1).optional(),
+    EXCHANGE_RATE_API_KEY: z.string().min(1).optional(),
     MERCADOLIBRE_APP_ID: z.string().optional(),
     MERCADOLIBRE_SECRET: z.string().optional(),
     NODE_ENV: z

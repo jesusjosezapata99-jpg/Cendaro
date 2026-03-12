@@ -2,6 +2,8 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { useBcvRate } from "~/hooks/use-bcv-rate";
+import { formatDualCurrency } from "~/lib/format-currency";
 import { useTRPC } from "~/trpc/client";
 
 function Skeleton({ className = "" }: { className?: string }) {
@@ -61,6 +63,7 @@ export default function PaymentsPage() {
 
   const items = payments ?? [];
   const totalCollected = items.reduce((s, p) => s + p.amount, 0);
+  const bcv = useBcvRate();
   const pendingValidation = items.filter((p) => !p.isValidated).length;
   const validatedCount = items.filter((p) => p.isValidated).length;
 
@@ -90,7 +93,8 @@ export default function PaymentsPage() {
         {[
           {
             label: "Total Cobrado",
-            value: `$${totalCollected.toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
+            value: formatDualCurrency(totalCollected, bcv.rate).usd,
+            sub: formatDualCurrency(totalCollected, bcv.rate).bs,
             icon: "attach_money",
             accent: "border-emerald-500/40",
           },
@@ -128,6 +132,9 @@ export default function PaymentsPage() {
             <p className="text-foreground mt-1 text-2xl font-black tracking-tight">
               {stat.value}
             </p>
+            {"sub" in stat && stat.sub && (
+              <p className="text-muted-foreground text-xs">{stat.sub}</p>
+            )}
           </div>
         ))}
       </div>
@@ -154,6 +161,11 @@ export default function PaymentsPage() {
               </p>
               <p className="text-muted-foreground text-xs">
                 ${(group?.total ?? 0).toFixed(2)}
+                {bcv.rate > 0 && (
+                  <span className="ml-1 text-[10px]">
+                    {formatDualCurrency(group?.total ?? 0, bcv.rate).bs}
+                  </span>
+                )}
               </p>
             </div>
           );
@@ -201,6 +213,11 @@ export default function PaymentsPage() {
                     </td>
                     <td className="text-foreground px-4 py-3 text-right font-mono font-bold">
                       ${p.amount.toFixed(2)}
+                      {bcv.rate > 0 && (
+                        <span className="text-muted-foreground ml-1 text-[10px] font-normal">
+                          {formatDualCurrency(p.amount, bcv.rate).bs}
+                        </span>
+                      )}
                     </td>
                     <td className="text-muted-foreground px-4 py-3 font-mono text-xs">
                       {p.reference ?? "—"}

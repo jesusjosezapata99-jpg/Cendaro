@@ -3,6 +3,8 @@
 import { lazy, Suspense, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { useBcvRate } from "~/hooks/use-bcv-rate";
+import { formatDualCurrency } from "~/lib/format-currency";
 import { useTRPC } from "~/trpc/client";
 
 const CreateClosureDialog = lazy(() =>
@@ -61,6 +63,7 @@ export default function CashClosurePage() {
     (s, c) => s + Math.abs(c.discrepancy ?? 0),
     0,
   );
+  const bcv = useBcvRate();
 
   return (
     <>
@@ -89,25 +92,30 @@ export default function CashClosurePage() {
           {[
             {
               label: "Ventas Hoy",
-              value: `$${todaySales.toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
+              value: formatDualCurrency(todaySales, bcv.rate).usd,
+              sub: formatDualCurrency(todaySales, bcv.rate).bs,
               icon: "payments",
               accent: "border-emerald-500/40",
             },
             {
               label: "Efectivo Hoy",
-              value: `$${(items[0]?.totalCash ?? 0).toFixed(2)}`,
+              value: formatDualCurrency(items[0]?.totalCash ?? 0, bcv.rate).usd,
+              sub: formatDualCurrency(items[0]?.totalCash ?? 0, bcv.rate).bs,
               icon: "money",
               accent: "border-green-500/40",
             },
             {
               label: "Digital Hoy",
-              value: `$${(items[0]?.totalDigital ?? 0).toFixed(2)}`,
+              value: formatDualCurrency(items[0]?.totalDigital ?? 0, bcv.rate)
+                .usd,
+              sub: formatDualCurrency(items[0]?.totalDigital ?? 0, bcv.rate).bs,
               icon: "contactless",
               accent: "border-blue-500/40",
             },
             {
               label: "Discrepancias Total",
-              value: `$${totalDiscrepancies.toFixed(2)}`,
+              value: formatDualCurrency(totalDiscrepancies, bcv.rate).usd,
+              sub: formatDualCurrency(totalDiscrepancies, bcv.rate).bs,
               icon: "warning",
               accent: "border-red-500/40",
             },
@@ -127,6 +135,9 @@ export default function CashClosurePage() {
               <p className="text-foreground mt-1 text-2xl font-bold">
                 {stat.value}
               </p>
+              {"sub" in stat && stat.sub && (
+                <p className="text-muted-foreground text-xs">{stat.sub}</p>
+              )}
             </div>
           ))}
         </div>

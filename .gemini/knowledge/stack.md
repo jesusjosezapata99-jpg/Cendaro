@@ -82,16 +82,18 @@
 
 ## Infrastructure
 
-| Category           | Technology          | Version | Usage in this project                       |
-| ------------------ | ------------------- | ------- | ------------------------------------------- |
-| **Hosting**        | Vercel              | —       | Next.js deployment, serverless functions    |
-| **Database**       | Supabase PostgreSQL | —       | Primary database with RLS                   |
-| **Auth Provider**  | Supabase Auth       | —       | Email/password authentication, SSR sessions |
-| **Error Tracking** | Sentry              | —       | Production error monitoring (optional)      |
-| **AI/LLM**         | Groq                | —       | LLM inference (optional)                    |
-| **Marketplace**    | MercadoLibre API    | —       | Marketplace integration (Phase 5, future)   |
-| **Payments**       | Stripe (MCP)        | —       | Payment processing (via MCP server)         |
-| **CI/CD**          | GitHub Actions      | —       | Automated typecheck → lint → build → test   |
+| Category           | Technology          | Version | Usage in this project                        |
+| ------------------ | ------------------- | ------- | -------------------------------------------- |
+| **Hosting**        | Vercel              | —       | Next.js deployment, serverless functions     |
+| **Database**       | Supabase PostgreSQL | —       | Primary database with RLS                    |
+| **Auth Provider**  | Supabase Auth       | —       | Email/password authentication, SSR sessions  |
+| **Error Tracking** | Sentry              | —       | Production error monitoring (optional)       |
+| **AI/LLM**         | Groq                | —       | LLM inference (optional)                     |
+| **Exchange Rates** | Frankfurter API     | —       | Primary USD/CNY rate source (ECB data, free) |
+| **Exchange Rates** | ExchangeRate-API    | —       | Fallback USD/CNY rate source (optional key)  |
+| **Marketplace**    | MercadoLibre API    | —       | Marketplace integration (Phase 5, future)    |
+| **Payments**       | Stripe (MCP)        | —       | Payment processing (via MCP server)          |
+| **CI/CD**          | GitHub Actions      | —       | Automated typecheck → lint → build → test    |
 
 ---
 

@@ -5,6 +5,8 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 
+import { useBcvRate } from "~/hooks/use-bcv-rate";
+import { formatDualCurrency } from "~/lib/format-currency";
 import { useTRPC } from "~/trpc/client";
 
 const CreateOrderDialog = dynamic(
@@ -80,6 +82,9 @@ export default function OrdersClient() {
   );
 
   const list = orders ?? [];
+  const bcv = useBcvRate();
+  const totalIngresos = list.reduce((s, o) => s + Number(o.total), 0);
+  const totalCobrado = list.reduce((s, o) => s + Number(o.totalPaid), 0);
 
   return (
     <div className="space-y-6 p-4 lg:p-8">
@@ -119,7 +124,10 @@ export default function OrdersClient() {
             label: "Total Ingresos",
             value: isLoading
               ? "—"
-              : `$${list.reduce((s, o) => s + Number(o.total), 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
+              : formatDualCurrency(totalIngresos, bcv.rate).usd,
+            sub: isLoading
+              ? ""
+              : formatDualCurrency(totalIngresos, bcv.rate).bs,
             icon: "payments",
             accent: "border-emerald-500/40",
           },
@@ -127,7 +135,8 @@ export default function OrdersClient() {
             label: "Total Cobrado",
             value: isLoading
               ? "—"
-              : `$${list.reduce((s, o) => s + Number(o.totalPaid), 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
+              : formatDualCurrency(totalCobrado, bcv.rate).usd,
+            sub: isLoading ? "" : formatDualCurrency(totalCobrado, bcv.rate).bs,
             icon: "check_circle",
             accent: "border-violet-500/40",
           },
@@ -147,6 +156,9 @@ export default function OrdersClient() {
             <p className="text-foreground mt-1 text-2xl font-bold">
               {stat.value}
             </p>
+            {"sub" in stat && stat.sub && (
+              <p className="text-muted-foreground text-xs">{stat.sub}</p>
+            )}
           </div>
         ))}
       </div>
@@ -220,6 +232,11 @@ export default function OrdersClient() {
                       <p className="text-foreground font-mono font-bold">
                         ${Number(order.total).toFixed(2)}
                       </p>
+                      {bcv.rate > 0 && (
+                        <p className="text-muted-foreground text-[10px]">
+                          {formatDualCurrency(Number(order.total), bcv.rate).bs}
+                        </p>
+                      )}
                     </div>
                     <div className="text-right">
                       <p className="text-muted-foreground text-[10px] font-bold uppercase">
@@ -321,12 +338,30 @@ export default function OrdersClient() {
                       </td>
                       <td className="text-foreground px-4 py-3 text-right font-mono font-bold">
                         ${Number(order.total).toFixed(2)}
+                        {bcv.rate > 0 && (
+                          <span className="text-muted-foreground ml-1 text-[10px] font-normal">
+                            {
+                              formatDualCurrency(Number(order.total), bcv.rate)
+                                .bs
+                            }
+                          </span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-right">
                         <span
                           className={`font-mono ${isPaid ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"}`}
                         >
                           ${Number(order.totalPaid).toFixed(2)}
+                          {bcv.rate > 0 && (
+                            <span className="text-muted-foreground ml-1 text-[10px] font-normal">
+                              {
+                                formatDualCurrency(
+                                  Number(order.totalPaid),
+                                  bcv.rate,
+                                ).bs
+                              }
+                            </span>
+                          )}
                         </span>
                       </td>
                       <td className="text-muted-foreground px-4 py-3 font-mono text-xs">

@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
+import { useBcvRate } from "~/hooks/use-bcv-rate";
+import { formatDualCurrency } from "~/lib/format-currency";
 import { useTRPC } from "~/trpc/client";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
@@ -49,6 +51,7 @@ export default function QuotesClient() {
   );
 
   const list = quotes ?? [];
+  const bcv = useBcvRate();
 
   return (
     <div className="space-y-6 p-4 lg:p-8">
@@ -197,6 +200,16 @@ export default function QuotesClient() {
                         </td>
                         <td className="text-foreground px-4 py-3 text-right font-mono font-bold">
                           ${Number(quote.total).toFixed(2)}
+                          {bcv.rate > 0 && (
+                            <span className="text-muted-foreground ml-1 text-[10px] font-normal">
+                              {
+                                formatDualCurrency(
+                                  Number(quote.total),
+                                  bcv.rate,
+                                ).bs
+                              }
+                            </span>
+                          )}
                         </td>
                         <td className="text-muted-foreground px-4 py-3 font-mono text-xs">
                           {quote.validUntil

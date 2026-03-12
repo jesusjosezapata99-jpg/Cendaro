@@ -7,15 +7,15 @@
 
 ## Session Registry
 
-- **Total agent sessions**: 5
-- **Last Modified By**: Antigravity Agent — 2026-03-12T16:20:00+01:00
+- **Total agent sessions**: 13
+- **Last Modified By**: Antigravity Agent — 2026-03-12T20:03:00+01:00
 
 ---
 
 ## Current Status
 
-- **Project health**: ✅ Operational — monorepo builds, lints, typechecks, and tests pass cleanly
-- **Last agent interaction**: 2026-03-12T16:20:00+01:00
+- **Project health**: ✅ Operational — DolarAPI.com migration complete, pending full typecheck verification
+- **Last agent interaction**: 2026-03-12T20:03:00+01:00
 - **Known issues**: None critical
 
 ---
@@ -46,6 +46,87 @@
 ## Progress Log
 
 <!-- Entries should be prepended (newest first) -->
+
+### [2026-03-12] DolarAPI.com Migration — BCV Replacement + Parallel/USDT Rate
+
+- **Objective**: Replace legacy BCV scraper APIs with DolarAPI.com; implement new parallel/USDT market rate feature.
+- **Modified files**: `api/bcv-rate/route.ts` (complete rewrite → DolarAPI.com, returns both oficial + paralelo), `hooks/use-bcv-rate.ts` (new `useVesRates()` + backwards-compat `useBcvRate()`), `lib/sync-bcv-rate.ts` (new `maybeSyncVesRates()` syncs both rates), `rates/page.tsx` (parallel card + spread section + rate selector), `catalog/new/create-product-page.tsx` (rate type selector Oficial/Paralelo), `command-search.tsx` (+paralelo/usdt keywords), `settings/page.tsx` (label: "Umbral Tasa Oficial").
+- **Key decisions**: Backwards-compatible wrappers (`useBcvRate`, `maybeSyncBcvRate`) ensure 7 consuming pages require zero changes. DB schema already had `parallel` in `rateTypeEnum` — no migration needed. Spread calculation: `((paralelo - oficial) / oficial) * 100`.
+- **Data source**: `https://ve.dolarapi.com/v1/dolares` — MIT-licensed, no API key, returns both rates in single call.
+- **Frankfurter/RMB untouched**: Explicitly verified zero changes to CNY pipeline.
+- **Pending**: Full `pnpm typecheck` verification (commands were cancelled).
+
+### [2026-03-12] USD/CNY Exchange Rate — Frankfurter API Integration
+
+- **New files**: `api/exchange/usd-cny/route.ts` (server proxy, Frankfurter primary + ExchangeRate-API fallback, ISR 15min, sanity bounds 5.0-10.0), `hooks/use-cny-rate.ts` (client hook, 15min staleTime), `lib/sync-cny-rate.ts` (auto-sync to ExchangeRate DB)
+- **Modified files**: `env.ts` (+EXCHANGE_RATE_API_KEY optional), `format-currency.ts` (+formatCnyCurrency), `rates/page.tsx` (live RMB card + converter using live rate + auto-sync)
+- **Key decisions**: Mirrored existing BCV pipeline pattern (proxy → hook → sync → format). DB schema already had `rmb_usd` rateTypeEnum — no migration needed. Rate cards now show "En vivo" badge for both BCV and RMB.
+- **Verification**: `pnpm exec tsc --noEmit` ✅ | `pnpm exec eslint . --quiet` ✅ (exit 0)
+- **Health**: ✅ Operational
+
+### [2026-03-12] ESLint Fix — BCV Rate Route Array Type
+
+- **File changed**: `apps/erp/src/app/api/bcv-rate/route.ts`
+- **Error**: `@typescript-eslint/array-type` — `Array<T>` syntax forbidden, must use `T[]`
+- **Fix**: Changed `Array<{ exchange: number; date: string }>` → `{ exchange: number; date: string }[]` on line 43
+- **Verification**: `pnpm build` ✅ | `pnpm lint` ✅ | `pnpm typecheck` ✅
+- **Health**: ✅ Operational
+
+### [2026-03-12] CORS Fix — Server-Side BCV Proxy
+
+- **Root cause**: External BCV APIs (`bcv-api.rafnixg.dev`, `bcv-api.deno.dev`) block browser-side `fetch()` due to missing CORS headers. Hook silently fell back to stale DB rate (36.50 from 2026-03-07).
+- **Fix**:
+  - **[NEW]** `api/bcv-rate/route.ts` — Next.js server-side proxy (no CORS on server), ISR cache 1h
+  - **[MODIFIED]** `use-bcv-rate.ts` — calls `/api/bcv-rate` proxy instead of external APIs
+  - **[MODIFIED]** `sync-bcv-rate.ts` — also uses proxy
+- **Verified**: API returns `{"rate":440.9657,"date":"2026-03-12","source":"bcv-api"}`, live rate displays on all 7 pages, 0 CORS errors in console
+
+- **New file**: `format-currency.ts` — reusable dual-currency formatter (USD + Bs)
+- **Modified 7 pages** with `useBcvRate` + `formatDualCurrency`:
+  - `rates/page.tsx` — live BCV rate, auto-sync to ExchangeRate, "En vivo" badge
+  - `dashboard/client.tsx` — KPIs (Ingresos, Cobrado, CxC, Total Recaudado) show Bs equivalent, BCV badge in header
+  - `orders/client.tsx` — summary cards + mobile/desktop table dual currency
+  - `quotes/client.tsx` — table total column Bs equivalent
+  - `payments/page.tsx` — Total Cobrado card + method groups + table rows
+  - `cash-closure/page.tsx` — all 4 summary cards dual currency
+  - `vendors/page.tsx` — commission KPIs + table (Total Venta + Comisión) dual currency
+- **TypeScript**: 0 errors (exit code 0)
+- **BCV cache**: 1h staleTime (user approved)
+
+### [2026-03-12] Inline Create + Precios USD/BCV
+
+- **New files**: `creatable-select.tsx` (reusable inline-create select), `use-bcv-rate.ts` (triple fallback BCV hook), `sync-bcv-rate.ts` (auto-sync BCV rate to ExchangeRate)
+- **Modified**: `create-product-page.tsx` — CreatableSelect for brand/cat/supplier, pricing section (USD + tasa BCV + Bs), setPrice on product creation, auto-sync BCV rate
+- **BCV API**: Primary `bcv-api.rafnixg.dev` + backup `bcv-api.deno.dev` + DB fallback + manual override
+- **priceType**: Uses `store` enum value (precio tienda)
+- **Verification**: ERP typecheck ✅ 0 errors
+- **Health**: ✅ Operational
+
+### [2026-03-12] Sistema de Conversión de Empaque (UOM)
+
+- **Migration**: `add_packaging_fields_to_product` (unitsPerBox, boxesPerBulk, sellingUnit)
+- **Files modified**: `schema.ts` (+3 fields), `catalog.ts` (createProduct with auto-conversion), `create-product-page.tsx` (packaging config + incoming unit selector + auto-calc)
+- **UOM reduced**: 4 types (unit, box, bulk, pack). Selling: unit, box, dozen, half_dozen, bulk
+- **Auto-calc**: 5 bultos × 10 cajas × 12 und = 600 unidades en StockLedger
+- **Verification**: 39/39 tests ✅ | API typecheck ✅ | ERP typecheck ✅
+- **Health**: ✅ Operational
+
+### [2026-03-12] Stock Inicial + Deducción por Cierre de Venta
+
+- **Migrations**: `add_base_uom_and_initial_stock_movement`, `add_stock_deducted_to_sales_order`
+- **Files modified**: `schema.ts` (+3 fields), `catalog.ts` (createProduct extended with initialStock[]), `create-product-page.tsx` (+Inventario Inicial section), `sales.ts` (stock deduction moved from createOrder to updateOrderStatus)
+- **Bug fixed**: Stock was deducted at order creation (even drafts). Now only deducts on `delivered`/`invoiced`, reverts on `returned`/`cancelled`
+- **Verification**: 39/39 tests ✅ | API typecheck ✅ | ERP typecheck ✅
+- **Health**: ✅ Operational
+
+### [2026-03-12] Catalog & Inventory Production Readiness Overhaul
+
+- **Files created**: `catalog/new/page.tsx`, `catalog/new/create-product-page.tsx`, `inventory/warehouse/[id]/page.tsx`
+- **Files modified**: `catalog/client.tsx` (dialog→link), `inventory.ts` (+7 procedures, fixed `transferStock`), `sales.ts` (+stock deduction on `createOrder`), `catalog.ts` (+stock in `productById`), `catalog/[id]/page.tsx` (+stock sections), `layout.tsx` (+Sonner Toaster), `router.test.ts` (+7 procedure assertions)
+- **Dependencies**: Added `sonner` to `@cendaro/erp`
+- **Cross-module fixes**: (1) Sales deduct `ChannelAllocation` on orders, (2) `transferStock` updates actual quantities, (3) `productById` returns `stockLedger`+`channelAllocations`, (4) Count items CRUD + `finalizeCount` with auto-discrepancy detection
+- **Verification**: 39/39 tests ✅ | API typecheck ✅ | ERP typecheck ✅ | Lint 6/6 ✅
+- **Health**: ✅ Operational
 
 ### [2026-03-12] Fix Stale API Unit Tests
 
