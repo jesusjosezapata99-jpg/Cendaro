@@ -3,6 +3,8 @@ import { NextResponse } from "next/server";
 
 import { createSupabaseServerClient } from "@cendaro/auth/server";
 
+import { env } from "~/env";
+
 /**
  * POST /api/auth/create-user
  *
@@ -54,16 +56,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Rol inválido" }, { status: 400 });
   }
 
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
-
-  if (!supabaseUrl || !supabaseKey || !serviceKey) {
-    return NextResponse.json(
-      { error: "Configuración del servidor incompleta" },
-      { status: 500 },
-    );
-  }
+  const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const serviceKey = env.SUPABASE_SERVICE_ROLE_KEY;
 
   // Verify caller is authenticated and has owner/admin role
   const cookieStore = await cookies();
