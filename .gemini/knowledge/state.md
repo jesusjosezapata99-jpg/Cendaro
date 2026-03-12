@@ -7,15 +7,15 @@
 
 ## Session Registry
 
-- **Total agent sessions**: 4
-- **Last Modified By**: Antigravity Agent — 2026-03-12T03:45:00+01:00
+- **Total agent sessions**: 5
+- **Last Modified By**: Antigravity Agent — 2026-03-12T16:20:00+01:00
 
 ---
 
 ## Current Status
 
-- **Project health**: ✅ Operational — monorepo builds, lints, and typechecks cleanly
-- **Last agent interaction**: 2026-03-12T03:45:00+01:00
+- **Project health**: ✅ Operational — monorepo builds, lints, typechecks, and tests pass cleanly
+- **Last agent interaction**: 2026-03-12T16:20:00+01:00
 - **Known issues**: None critical
 
 ---
@@ -47,7 +47,21 @@
 
 <!-- Entries should be prepended (newest first) -->
 
-### [2026-03-12] Product Reference System + Order Typeahead
+### [2026-03-12] Fix Stale API Unit Tests
+
+- **Files changed**: Modified `packages/api/src/__tests__/schema.test.ts`, `packages/api/src/__tests__/router.test.ts`
+- **Root cause**: Tests had hardcoded counts that fell behind schema/router evolution. `orderStatusEnum` grew from 7→10 values (added `pending_confirmation`, `invoiced`, `returned`). `appRouter` grew from 11→16 routers (added `approvals`, `quotes`, `payments`, `receivables`, `reporting`).
+- **Fix**: Updated enum length assertion (7→10), router count assertion (11→16), added procedure assertions for 5 new routers.
+- **Verification**: `pnpm --filter @cendaro/api test` ✅ — 39/39 tests passing
+- **Health**: ✅ Operational
+
+### [2026-03-12] Fix ESLint `process.env` Violation in create-user Route
+
+- **Files changed**: Modified `apps/erp/src/app/api/auth/create-user/route.ts`
+- **Root cause**: Direct `process.env` usage violated `no-restricted-properties` ESLint rule. Project uses t3-env for validated env access.
+- **Fix**: Imported `env` from `~/env`, replaced 3 `process.env` calls, removed redundant null-check block.
+- **Verification**: `pnpm lint` ✅
+- **Health**: ✅ Operational
 
 - **Files changed**: Modified `create-product.tsx` (SKU → Referencia label), `catalog/client.tsx` (table header + search placeholder), rewrote `create-order.tsx` (replaced `<Select>` dropdown with typeahead autocomplete)
 - **Decisions**: Reused existing `sku` column as product reference (already UNIQUE, NOT NULL, indexed). No DB migration needed. Typeahead matches on sku/name/barcode with keyboard navigation (↑↓ Enter Escape). Order table now shows reference column.
