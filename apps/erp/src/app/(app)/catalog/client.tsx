@@ -134,7 +134,7 @@ export default function CatalogClient() {
       <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
         <input
           type="text"
-          placeholder="Buscar por nombre o SKU..."
+          placeholder="Buscar por nombre o referencia..."
           value={search}
           onChange={(e) => {
             setSearch(e.target.value);
@@ -210,7 +210,7 @@ export default function CatalogClient() {
         <table className="w-full text-left text-sm">
           <thead>
             <tr className="border-border text-muted-foreground border-b text-xs uppercase">
-              <th className="px-4 py-3 font-medium">SKU</th>
+              <th className="px-4 py-3 font-medium">Referencia</th>
               <th className="px-4 py-3 font-medium">Producto</th>
               <th className="px-4 py-3 font-medium">Estado</th>
               <th className="px-4 py-3 font-medium">Creado</th>

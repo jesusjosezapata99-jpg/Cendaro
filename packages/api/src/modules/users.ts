@@ -3,12 +3,18 @@
  *
  * CRUD operations for user profiles. Admin-only for write operations.
  * Reads allowed for supervisors+.
+ *
+ * Owner-protection rules:
+ *  - Only owner can assign the "owner" role
+ *  - Only owner can demote another owner
+ *  - Owner cannot change another owner's role (peer protection)
  */
 import { desc, eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { UserProfile, userRoleEnum, userStatusEnum } from "@cendaro/db/schema";
 
+import type { UserMeta } from "../trpc";
 import {
   createTRPCRouter,
   protectedProcedure,
@@ -24,6 +30,7 @@ export const usersRouter = createTRPCRouter({
         .select({
           id: UserProfile.id,
           email: UserProfile.email,
+          username: UserProfile.username,
           fullName: UserProfile.fullName,
           role: UserProfile.role,
           status: UserProfile.status,
@@ -64,17 +71,28 @@ export const usersRouter = createTRPCRouter({
       z.object({
         id: z.string().uuid(),
         email: z.email(),
+        username: z.string().min(3).max(128),
         fullName: z.string().min(1).max(256),
         role: z.enum(userRoleEnum.enumValues),
         phone: z.string().max(32).optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      // Owner-protection: only owner can create another owner
+      const callerRole = (ctx.user.user_metadata as UserMeta | undefined)?.role;
+      if (input.role === "owner" && callerRole !== "owner") {
+        throw new (await import("@trpc/server")).TRPCError({
+          code: "FORBIDDEN",
+          message: "Solo un dueño puede asignar el rol de dueño a otro usuario",
+        });
+      }
+
       const [created] = await ctx.db
         .insert(UserProfile)
         .values({
           id: input.id,
           email: input.email,
+          username: input.username,
           fullName: input.fullName,
           role: input.role,
           phone: input.phone,
@@ -85,13 +103,17 @@ export const usersRouter = createTRPCRouter({
         action: "user.create",
         entity: "user_profile",
         entityId: input.id,
-        newValue: { email: input.email, role: input.role },
+        newValue: {
+          email: input.email,
+          username: input.username,
+          role: input.role,
+        },
       });
 
       return created;
     }),
 
-  /** Update user profile (admin, owner) */
+  /** Update user profile (admin, owner) with owner-protection */
   update: roleRestrictedProcedure(["owner", "admin"])
     .input(
       z.object({
@@ -104,6 +126,53 @@ export const usersRouter = createTRPCRouter({
     )
     .mutation(async ({ ctx, input }) => {
       const { id, ...updates } = input;
+      const callerRole = (ctx.user.user_metadata as UserMeta | undefined)?.role;
+
+      // Get target user's current profile
+      const [targetProfile] = await ctx.db
+        .select({ role: UserProfile.role })
+        .from(UserProfile)
+        .where(eq(UserProfile.id, id))
+        .limit(1);
+
+      if (!targetProfile) {
+        throw new (await import("@trpc/server")).TRPCError({
+          code: "NOT_FOUND",
+          message: "Usuario no encontrado",
+        });
+      }
+
+      // Owner-protection rules
+      if (input.role !== undefined) {
+        // Rule 1: Only owner can assign owner role
+        if (input.role === "owner" && callerRole !== "owner") {
+          throw new (await import("@trpc/server")).TRPCError({
+            code: "FORBIDDEN",
+            message:
+              "Solo un dueño puede asignar el rol de dueño a otro usuario",
+          });
+        }
+
+        // Rule 2: Cannot change an owner's role if you're not an owner
+        if (targetProfile.role === "owner" && callerRole !== "owner") {
+          throw new (await import("@trpc/server")).TRPCError({
+            code: "FORBIDDEN",
+            message: "Solo un dueño puede cambiar el rol de otro dueño",
+          });
+        }
+
+        // Rule 3: Owner cannot change another owner's role (peer protection)
+        if (
+          targetProfile.role === "owner" &&
+          callerRole === "owner" &&
+          ctx.user.id !== id
+        ) {
+          throw new (await import("@trpc/server")).TRPCError({
+            code: "FORBIDDEN",
+            message: "No puedes cambiar el rol de otro dueño",
+          });
+        }
+      }
 
       // Get old values for audit trail
       const [oldProfile] = await ctx.db

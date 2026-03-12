@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Dialog, Field, FormActions, Input, Select } from "~/components/dialog";
@@ -14,6 +14,7 @@ interface Props {
 interface OrderLine {
   productId: string;
   productName: string;
+  productRef: string;
   quantity: number;
   unitPrice: number;
   discount: number;
@@ -47,12 +48,35 @@ export function CreateOrderDialog({ open, onClose }: Props) {
   const [channel, setChannel] = useState("store");
   const [notes, setNotes] = useState("");
   const [lines, setLines] = useState<OrderLine[]>([]);
-  const [addProduct, setAddProduct] = useState({
-    productId: "",
-    quantity: "1",
-    unitPrice: "",
-    discount: "0",
-  });
+
+  // ── Typeahead state ─────────────────────────────
+  const [productSearch, setProductSearch] = useState("");
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [highlightIdx, setHighlightIdx] = useState(0);
+  const [addQuantity, setAddQuantity] = useState("1");
+  const [addPrice, setAddPrice] = useState("");
+  const [addDiscount, setAddDiscount] = useState("0");
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const quantityInputRef = useRef<HTMLInputElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const filteredProducts = useMemo(() => {
+    if (!productSearch.trim()) return [];
+    const q = productSearch.toLowerCase();
+    return productList
+      .filter(
+        (p: {
+          id: string;
+          name: string;
+          sku: string;
+          barcode: string | null;
+        }) =>
+          p.sku.toLowerCase().includes(q) ||
+          p.name.toLowerCase().includes(q) ||
+          p.barcode?.toLowerCase().includes(q),
+      )
+      .slice(0, 10);
+  }, [productSearch, productList]);
 
   // Reset form state when dialog reopens
   useEffect(() => {
@@ -61,40 +85,107 @@ export function CreateOrderDialog({ open, onClose }: Props) {
       setChannel("store");
       setNotes("");
       setLines([]);
-      setAddProduct({
-        productId: "",
-        quantity: "1",
-        unitPrice: "",
-        discount: "0",
-      });
+      setProductSearch("");
+      setShowDropdown(false);
+      setAddQuantity("1");
+      setAddPrice("");
+      setAddDiscount("0");
     }
   }, [open]);
 
-  const addLine = useCallback(() => {
-    if (!addProduct.productId || !addProduct.unitPrice) return;
-    const product = productList.find(
-      (p: { id: string; name: string }) => p.id === addProduct.productId,
+  // Close dropdown on outside click
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(e.target as Node)
+      ) {
+        setShowDropdown(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  const selectProduct = useCallback(
+    (product: { id: string; name: string; sku: string }) => {
+      setProductSearch(`${product.sku} — ${product.name}`);
+      setShowDropdown(false);
+      // Focus quantity input after selection
+      setTimeout(() => quantityInputRef.current?.focus(), 50);
+    },
+    [],
+  );
+
+  const getSelectedProduct = useCallback(() => {
+    // Find product matching current search by exact sku prefix
+    const skuPart = productSearch.split(" — ")[0]?.trim();
+    if (!skuPart) return null;
+    return (
+      productList.find(
+        (p: { id: string; sku: string }) =>
+          p.sku.toLowerCase() === skuPart.toLowerCase(),
+      ) ?? null
     );
+  }, [productSearch, productList]);
+
+  const addLine = useCallback(() => {
+    const product = getSelectedProduct();
+    if (!product || !addPrice) return;
     setLines((prev) => [
       ...prev,
       {
-        productId: addProduct.productId,
-        productName: product?.name ?? "—",
-        quantity: parseInt(addProduct.quantity, 10) || 1,
-        unitPrice: parseFloat(addProduct.unitPrice) || 0,
-        discount: parseFloat(addProduct.discount) || 0,
+        productId: product.id,
+        productName: product.name,
+        productRef: product.sku,
+        quantity: parseInt(addQuantity, 10) || 1,
+        unitPrice: parseFloat(addPrice) || 0,
+        discount: parseFloat(addDiscount) || 0,
       },
     ]);
-    setAddProduct({
-      productId: "",
-      quantity: "1",
-      unitPrice: "",
-      discount: "0",
-    });
-  }, [addProduct, productList]);
+    setProductSearch("");
+    setAddQuantity("1");
+    setAddPrice("");
+    setAddDiscount("0");
+    setTimeout(() => searchInputRef.current?.focus(), 50);
+  }, [getSelectedProduct, addPrice, addQuantity, addDiscount]);
 
   const removeLine = (idx: number) =>
     setLines((prev) => prev.filter((_, i) => i !== idx));
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (!showDropdown || filteredProducts.length === 0) {
+        if (e.key === "ArrowDown" && productSearch.trim()) {
+          setShowDropdown(true);
+          setHighlightIdx(0);
+          e.preventDefault();
+        }
+        return;
+      }
+
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setHighlightIdx((i) => Math.min(i + 1, filteredProducts.length - 1));
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setHighlightIdx((i) => Math.max(i - 1, 0));
+      } else if (e.key === "Enter") {
+        e.preventDefault();
+        const product = filteredProducts[highlightIdx];
+        if (product) selectProduct(product);
+      } else if (e.key === "Escape") {
+        setShowDropdown(false);
+      }
+    },
+    [
+      showDropdown,
+      filteredProducts,
+      highlightIdx,
+      selectProduct,
+      productSearch,
+    ],
+  );
 
   const subtotal = lines.reduce((s, l) => s + l.unitPrice * l.quantity, 0);
   const totalDiscount = lines.reduce((s, l) => s + l.discount * l.quantity, 0);
@@ -120,6 +211,8 @@ export function CreateOrderDialog({ open, onClose }: Props) {
       })),
     });
   };
+
+  const selectedProduct = getSelectedProduct();
 
   return (
     <Dialog
@@ -165,9 +258,10 @@ export function CreateOrderDialog({ open, onClose }: Props) {
           </p>
           {lines.length > 0 && (
             <div className="border-border mobile-scroll-x mb-3 overflow-hidden rounded-lg border">
-              <table className="w-full min-w-[400px] text-left text-xs">
+              <table className="w-full min-w-[500px] text-left text-xs">
                 <thead>
                   <tr className="border-border text-muted-foreground border-b text-[10px] uppercase">
+                    <th className="px-3 py-2">Ref.</th>
                     <th className="px-3 py-2">Producto</th>
                     <th className="px-3 py-2 text-right">Cant.</th>
                     <th className="px-3 py-2 text-right">Precio</th>
@@ -182,6 +276,9 @@ export function CreateOrderDialog({ open, onClose }: Props) {
                       key={idx}
                       className="border-border border-b last:border-0"
                     >
+                      <td className="text-primary px-3 py-2 font-mono text-[11px] font-bold">
+                        {line.productRef}
+                      </td>
                       <td className="text-foreground px-3 py-2">
                         {line.productName}
                       </td>
@@ -219,52 +316,122 @@ export function CreateOrderDialog({ open, onClose }: Props) {
             </div>
           )}
 
-          {/* Add line row */}
-          <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-5 sm:gap-2">
-            <div className="col-span-2">
-              <Select
-                value={addProduct.productId}
-                onChange={(e) =>
-                  setAddProduct((p) => ({ ...p, productId: e.target.value }))
-                }
-              >
-                <option value="">Seleccionar producto...</option>
-                {productList.map(
-                  (p: { id: string; name: string; sku: string }) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name} ({p.sku})
-                    </option>
-                  ),
+          {/* Add line — Typeahead */}
+          <div className="space-y-2">
+            <div className="relative" ref={dropdownRef}>
+              <div className="relative">
+                <span className="material-symbols-outlined text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-lg">
+                  search
+                </span>
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  value={productSearch}
+                  onChange={(e) => {
+                    setProductSearch(e.target.value);
+                    setShowDropdown(true);
+                    setHighlightIdx(0);
+                  }}
+                  onFocus={() => {
+                    if (productSearch.trim()) setShowDropdown(true);
+                  }}
+                  onKeyDown={handleKeyDown}
+                  placeholder="Escribe la referencia, nombre o código de barras..."
+                  className="border-border bg-card text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-ring/20 min-h-[44px] w-full rounded-lg border py-2.5 pr-4 pl-10 text-sm transition-colors outline-none focus:ring-2"
+                />
+                {selectedProduct && (
+                  <span className="material-symbols-outlined pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-lg text-emerald-400">
+                    check_circle
+                  </span>
                 )}
-              </Select>
+              </div>
+
+              {/* Dropdown results */}
+              {showDropdown && filteredProducts.length > 0 && (
+                <div className="border-border bg-card absolute z-50 mt-1 w-full overflow-hidden rounded-lg border shadow-xl">
+                  {filteredProducts.map(
+                    (
+                      p: {
+                        id: string;
+                        name: string;
+                        sku: string;
+                        barcode: string | null;
+                      },
+                      idx: number,
+                    ) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => selectProduct(p)}
+                        className={`flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition-colors ${
+                          idx === highlightIdx
+                            ? "bg-primary/10 text-primary"
+                            : "text-foreground hover:bg-accent"
+                        }`}
+                      >
+                        <span className="text-primary shrink-0 font-mono text-xs font-bold">
+                          {p.sku}
+                        </span>
+                        <span className="min-w-0 flex-1 truncate">
+                          {p.name}
+                        </span>
+                        {p.barcode && (
+                          <span className="text-muted-foreground shrink-0 font-mono text-[10px]">
+                            {p.barcode}
+                          </span>
+                        )}
+                      </button>
+                    ),
+                  )}
+                </div>
+              )}
+
+              {showDropdown &&
+                productSearch.trim() &&
+                filteredProducts.length === 0 && (
+                  <div className="border-border bg-card text-muted-foreground absolute z-50 mt-1 w-full rounded-lg border p-3 text-center text-xs shadow-xl">
+                    <span className="material-symbols-outlined mb-1 block text-lg">
+                      search_off
+                    </span>
+                    No se encontró ningún producto
+                  </div>
+                )}
             </div>
-            <Input
-              type="number"
-              min="1"
-              value={addProduct.quantity}
-              onChange={(e) =>
-                setAddProduct((p) => ({ ...p, quantity: e.target.value }))
-              }
-              placeholder="Cant."
-            />
-            <Input
-              type="number"
-              step="0.01"
-              value={addProduct.unitPrice}
-              onChange={(e) =>
-                setAddProduct((p) => ({ ...p, unitPrice: e.target.value }))
-              }
-              placeholder="Precio $"
-            />
-            <button
-              type="button"
-              onClick={addLine}
-              disabled={!addProduct.productId || !addProduct.unitPrice}
-              className="bg-secondary text-muted-foreground hover:bg-accent flex min-h-[44px] items-center justify-center gap-1 rounded-lg px-3 py-2.5 text-xs font-bold transition-colors disabled:opacity-40"
-            >
-              <span className="material-symbols-outlined text-sm">add</span>{" "}
-              Agregar
-            </button>
+
+            <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-4 sm:gap-2">
+              <input
+                ref={quantityInputRef}
+                type="number"
+                min="1"
+                value={addQuantity}
+                onChange={(e) => setAddQuantity(e.target.value)}
+                placeholder="Cant."
+                className="border-border bg-card text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-ring/20 min-h-[44px] w-full rounded-lg border px-4 py-2.5 text-sm transition-colors outline-none focus:ring-2"
+              />
+              <Input
+                type="number"
+                step="0.01"
+                value={addPrice}
+                onChange={(e) => setAddPrice(e.target.value)}
+                placeholder="Precio $"
+              />
+              <Input
+                type="number"
+                step="0.01"
+                value={addDiscount}
+                onChange={(e) => setAddDiscount(e.target.value)}
+                placeholder="Desc. $"
+              />
+              <button
+                type="button"
+                onClick={addLine}
+                disabled={!selectedProduct || !addPrice}
+                className="bg-secondary text-muted-foreground hover:bg-accent flex min-h-[44px] items-center justify-center gap-1 rounded-lg px-3 py-2.5 text-xs font-bold transition-colors disabled:opacity-40"
+              >
+                <span className="material-symbols-outlined text-sm">add</span>{" "}
+                Agregar
+              </button>
+            </div>
           </div>
         </div>
 

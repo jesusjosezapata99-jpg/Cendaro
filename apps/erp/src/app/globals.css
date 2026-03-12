@@ -35,8 +35,7 @@
   /* Kill iOS tap highlight & enforce fast taps */
   * {
     -webkit-tap-highlight-color: transparent;
-    scrollbar-width: thin;
-    scrollbar-color: hsl(0 0% 30%) transparent;
+    scrollbar-width: none; /* invisible scrollbars — content still scrollable */
   }
 
   /* Fast taps on all interactive elements (kills 300ms delay) */
@@ -94,30 +93,25 @@
 }
 
 /* ── iOS body scroll lock (when dialog is open) ── */
+/* NOTE: Do NOT use position:fixed — it causes iOS to lose scroll position
+   when the dialog closes, creating the "stuck scroll" symptom. */
 html.dialog-open,
 html.dialog-open body {
   overflow: hidden !important;
-  position: fixed;
-  width: 100%;
-  height: 100%;
+  touch-action: none;
+}
+
+/* ── Dynamic Viewport Height Fallback ──────────── */
+/* Browsers that don't support dvh fall back gracefully */
+@supports not (height: 100dvh) {
+  .h-dvh {
+    height: 100vh;
+    height: -webkit-fill-available;
+  }
 }
 
 /* ── Custom Scrollbars ─────────────────────────── */
-/* Webkit (Chrome, Edge, Safari) */
+/* Hidden for Chrome, Edge, Safari — content remains scrollable */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: hsl(0 0% 30%);
-  border-radius: 9999px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: hsl(0 0% 45%);
-}
-::-webkit-scrollbar-corner {
-  background: transparent;
+  display: none;
 }
