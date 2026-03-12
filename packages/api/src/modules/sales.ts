@@ -4,11 +4,12 @@
  * Customers, orders, order items.
  * PRD §14-17: sales channels, order flow, customer management.
  */
-import { desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import {
   CashClosure,
+  ChannelAllocation,
   Customer,
   customerTypeEnum,
   OrderItem,
@@ -17,6 +18,7 @@ import {
   paymentMethodEnum,
   salesChannelEnum,
   SalesOrder,
+  StockMovement,
 } from "@cendaro/db/schema";
 
 import {
@@ -233,17 +235,85 @@ export const salesRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      // Fetch the current order before updating
+      const [currentOrder] = await ctx.db
+        .select()
+        .from(SalesOrder)
+        .where(eq(SalesOrder.id, input.id))
+        .limit(1);
+
+      if (!currentOrder) throw new Error("Order not found");
+
       const [updated] = await ctx.db
         .update(SalesOrder)
         .set({ status: input.status })
         .where(eq(SalesOrder.id, input.id))
         .returning();
 
+      // ── Stock lifecycle: deduct on close, revert on return/cancel ──
+      const closingStatuses = ["delivered", "invoiced"] as const;
+      const revertStatuses = ["returned", "cancelled"] as const;
+
+      const isClosing =
+        (closingStatuses as readonly string[]).includes(input.status) &&
+        !currentOrder.stockDeducted;
+
+      const isReverting =
+        (revertStatuses as readonly string[]).includes(input.status) &&
+        currentOrder.stockDeducted;
+
+      if (isClosing || isReverting) {
+        const items = await ctx.db
+          .select()
+          .from(OrderItem)
+          .where(eq(OrderItem.orderId, input.id));
+
+        for (const item of items) {
+          const sign = isClosing ? -1 : 1;
+          const movementType = isClosing ? "sale" : "return";
+
+          await ctx.db
+            .update(ChannelAllocation)
+            .set({
+              quantity: sql`GREATEST(quantity + ${sign * item.quantity}, 0)`,
+            })
+            .where(
+              and(
+                eq(ChannelAllocation.productId, item.productId),
+                eq(ChannelAllocation.channel, currentOrder.channel),
+              ),
+            );
+
+          await ctx.db.insert(StockMovement).values({
+            productId: item.productId,
+            movementType,
+            quantity: sign * item.quantity,
+            fromChannel: isClosing ? currentOrder.channel : undefined,
+            toChannel: isReverting ? currentOrder.channel : undefined,
+            createdBy: ctx.user.id,
+            referenceId: input.id,
+            referenceType: "sales_order",
+          });
+        }
+
+        // Update the stockDeducted flag
+        await ctx.db
+          .update(SalesOrder)
+          .set({ stockDeducted: isClosing })
+          .where(eq(SalesOrder.id, input.id));
+      }
+
       await logAudit(ctx.db, ctx.user, {
         action: `order.status_${input.status}`,
         entity: "sales_order",
         entityId: input.id,
-        newValue: { status: input.status },
+        newValue: {
+          status: input.status,
+          stockDeducted:
+            isClosing ||
+            (currentOrder.stockDeducted &&
+              !(revertStatuses as readonly string[]).includes(input.status)),
+        },
       });
 
       return updated;

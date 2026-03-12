@@ -20,4 +20,9 @@ export const reactConfig = defineConfig({
       React: "writable",
     },
   },
+  settings: {
+    react: {
+      version: "detect",
+    },
+  },
 });

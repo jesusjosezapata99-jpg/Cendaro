@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import Script from "next/script";
+import { Toaster } from "sonner";
 
 import { ThemeProvider } from "~/components/theme-provider";
 
@@ -61,6 +62,7 @@ export default function RootLayout({
         className={`${inter.variable} bg-background text-foreground font-sans antialiased`}
       >
         <ThemeProvider>{children}</ThemeProvider>
+        <Toaster richColors position="top-right" />
         <Script
           id="material-symbols"
           strategy="afterInteractive"

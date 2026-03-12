@@ -10,11 +10,14 @@ import { z } from "zod/v4";
 import {
   Brand,
   Category,
+  ChannelAllocation,
   priceTypeEnum,
   Product,
   ProductAttribute,
   ProductPrice,
   productStatusEnum,
+  StockLedger,
+  StockMovement,
   Supplier,
 } from "@cendaro/db/schema";
 
@@ -102,18 +105,33 @@ export const catalogRouter = createTRPCRouter({
 
       if (!product) return null;
 
-      const [attributes, prices] = await Promise.all([
-        ctx.db
-          .select()
-          .from(ProductAttribute)
-          .where(eq(ProductAttribute.productId, input.id)),
-        ctx.db
-          .select()
-          .from(ProductPrice)
-          .where(eq(ProductPrice.productId, input.id)),
-      ]);
+      const [attributes, prices, stockLedger, channelAllocations] =
+        await Promise.all([
+          ctx.db
+            .select()
+            .from(ProductAttribute)
+            .where(eq(ProductAttribute.productId, input.id)),
+          ctx.db
+            .select()
+            .from(ProductPrice)
+            .where(eq(ProductPrice.productId, input.id)),
+          ctx.db
+            .select()
+            .from(StockLedger)
+            .where(eq(StockLedger.productId, input.id)),
+          ctx.db
+            .select()
+            .from(ChannelAllocation)
+            .where(eq(ChannelAllocation.productId, input.id)),
+        ]);
 
-      return { ...product, attributes, prices };
+      return {
+        ...product,
+        attributes,
+        prices,
+        stockLedger,
+        channelAllocations,
+      };
     }),
 
   /** Create product (admin, owner, supervisor) */
@@ -131,17 +149,81 @@ export const catalogRouter = createTRPCRouter({
         imageUrl: z.string().url().optional(),
         weight: z.number().nonnegative().optional(),
         volume: z.number().nonnegative().optional(),
+        baseUom: z.enum(["unit", "box", "bulk", "pack"]).default("unit"),
+        unitsPerBox: z.number().int().positive().optional(),
+        boxesPerBulk: z.number().int().positive().optional(),
+        sellingUnit: z
+          .enum(["unit", "box", "dozen", "half_dozen", "bulk"])
+          .default("unit"),
         status: z.enum(productStatusEnum.enumValues).default("draft"),
+        initialStock: z
+          .array(
+            z.object({
+              warehouseId: z.string().uuid(),
+              quantity: z.number().int().positive(),
+              incomingUnit: z.enum(["unit", "box", "bulk"]).default("unit"),
+            }),
+          )
+          .optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const [product] = await ctx.db.insert(Product).values(input).returning();
+      const { initialStock, ...productData } = input;
+
+      const [product] = await ctx.db
+        .insert(Product)
+        .values(productData)
+        .returning();
+
+      // ── Create initial stock entries with unit conversion ──
+      if (product && initialStock && initialStock.length > 0) {
+        const unitsPerBox = input.unitsPerBox ?? 1;
+        const boxesPerBulk = input.boxesPerBulk ?? 1;
+
+        const resolvedEntries = initialStock.map((entry) => {
+          let totalUnits = entry.quantity;
+
+          if (entry.incomingUnit === "box") {
+            totalUnits = entry.quantity * unitsPerBox;
+          } else if (entry.incomingUnit === "bulk") {
+            totalUnits = entry.quantity * boxesPerBulk * unitsPerBox;
+          }
+
+          return { warehouseId: entry.warehouseId, totalUnits };
+        });
+
+        await ctx.db.insert(StockLedger).values(
+          resolvedEntries.map((e) => ({
+            productId: product.id,
+            warehouseId: e.warehouseId,
+            quantity: e.totalUnits,
+          })),
+        );
+
+        await ctx.db.insert(StockMovement).values(
+          resolvedEntries.map((e) => ({
+            productId: product.id,
+            movementType: "initial_stock" as const,
+            quantity: e.totalUnits,
+            warehouseId: e.warehouseId,
+            createdBy: ctx.user.id,
+            referenceId: product.id,
+            referenceType: "product_creation",
+          })),
+        );
+      }
 
       await logAudit(ctx.db, ctx.user, {
         action: "product.create",
         entity: "product",
         entityId: product?.id,
-        newValue: { sku: input.sku, name: input.name },
+        newValue: {
+          sku: input.sku,
+          name: input.name,
+          baseUom: input.baseUom,
+          sellingUnit: input.sellingUnit,
+          stockEntries: initialStock?.length ?? 0,
+        },
       });
 
       return product;
