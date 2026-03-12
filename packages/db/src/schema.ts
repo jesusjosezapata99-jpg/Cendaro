@@ -298,6 +298,7 @@ export const UserProfile = pgTable(
     role: userRoleEnum().notNull().default("employee"),
     status: userStatusEnum().notNull().default("active"),
     phone: t.varchar({ length: 32 }),
+    username: t.varchar({ length: 128 }).notNull(),
     avatarUrl: t.text(),
     organizationId: t.uuid().references(() => Organization.id),
     createdAt: t

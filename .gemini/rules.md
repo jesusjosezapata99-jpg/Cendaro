@@ -15,16 +15,88 @@
 
 ```
 apps/erp/            → Next.js 16 ERP frontend (@cendaro/erp)
-packages/api/        → tRPC router layer (@cendaro/api)
-packages/auth/       → Supabase auth helpers (@cendaro/auth)
-packages/db/         → Drizzle ORM schema + queries (@cendaro/db)
-packages/ui/         → Shared UI components (@cendaro/ui)
-packages/validators/ → Zod schemas (@cendaro/validators)
-tooling/eslint/      → Shared ESLint configs (@cendaro/eslint-config)
+packages/api/        → tRPC v11 router layer (@cendaro/api)
+packages/auth/       → Supabase SSR auth helpers (@cendaro/auth)
+packages/db/         → Drizzle ORM v0.45 schema + queries (@cendaro/db)
+packages/ui/         → shadcn/ui + Radix UI components (@cendaro/ui)
+packages/validators/ → Zod v4 schemas (@cendaro/validators)
+tooling/eslint/      → Shared ESLint v9 flat configs (@cendaro/eslint-config)
 tooling/prettier/    → Shared Prettier config (@cendaro/prettier-config)
-tooling/tailwind/    → Shared Tailwind config (@cendaro/tailwind-config)
+tooling/tailwind/    → Shared Tailwind CSS v4 config (@cendaro/tailwind-config)
 tooling/typescript/  → Shared TSConfig (@cendaro/tsconfig)
+docs/                → Architecture docs, ADRs, data schemas, product docs
 ```
+
+---
+
+### Mandatory Conventions
+
+#### Package Manager
+
+- **Always use `pnpm`**. Never use `npm`, `yarn`, or `bun`.
+- Use `pnpm exec <tool>` for binary execution — never bare `eslint`, `prettier`, `tsc`.
+
+#### Import Style
+
+- In `@cendaro/erp`: use `~/` path alias (maps to `./src/*`)
+- Between packages: use workspace references (`@cendaro/api`, `@cendaro/db`, etc.)
+- Within packages: use relative imports (`./`, `../`)
+
+#### File Naming
+
+- React components: `PascalCase.tsx` or `kebab-case.tsx`
+- Non-component files: `kebab-case.ts`
+- Route directories: `kebab-case` (e.g., `accounts-receivable`, `cash-closure`)
+- Schema files: `kebab-case.ts` within `packages/db/src/`
+
+#### Component Patterns
+
+- Use Server Components by default in Next.js App Router
+- Add `"use client"` directive only when using hooks, event handlers, or browser APIs
+- Use `@t3-oss/env-nextjs` with Zod v4 for environment variable validation
+- Use tRPC for all data fetching — never raw `fetch` to internal APIs
+
+#### Zod Import
+
+- Import from `"zod/v4"` (not `"zod"`) — Zod v4 uses the `/v4` subpath
+
+#### Type Exports
+
+- Always export inferred types from Drizzle schema for tRPC consumption
+- Use `AppRouter` type from `@cendaro/api` for client-side type safety
+
+---
+
+### Approved Commands
+
+| Action          | Command                                                         |
+| --------------- | --------------------------------------------------------------- |
+| **Dev**         | `pnpm dev` (all) or `pnpm dev:erp` (ERP only)                   |
+| **Build**       | `pnpm build`                                                    |
+| **Lint**        | `pnpm lint`                                                     |
+| **Lint (fix)**  | `pnpm lint:fix`                                                 |
+| **Format**      | `pnpm format`                                                   |
+| **Typecheck**   | `pnpm typecheck`                                                |
+| **Test**        | `pnpm test`                                                     |
+| **DB Push**     | `pnpm db:push`                                                  |
+| **DB Studio**   | `pnpm db:studio`                                                |
+| **DB Generate** | `pnpm db:generate`                                              |
+| **UI Add**      | `pnpm ui-add`                                                   |
+| **Clean**       | `pnpm clean` (root) or `pnpm clean:workspaces` (all workspaces) |
+
+---
+
+### Forbidden Actions
+
+1. Never install dependencies not already in the stack without explicit user approval
+2. Never write project-specific knowledge to the global `~/.gemini/` directory
+3. Never assume technologies from other projects exist here
+4. Never use bare `eslint`, `prettier`, or `tsc` — always `pnpm exec` prefix
+5. Never use bash/Unix syntax on Windows — use PowerShell equivalents
+6. Never use `npm`, `yarn`, or `bun` commands
+7. Never target Supabase project `xlgyogcaflsmmwpcuiwk` (Svartx) — always verify `ljwoptpaxazqmnhdczsb` (Cendaro)
+8. Never run destructive database operations without user confirmation
+9. Never use `pnpm exec tsc --noEmit` with workspace globs — it breaks on Windows
 
 ---
 
@@ -32,13 +104,25 @@ tooling/typescript/  → Shared TSConfig (@cendaro/tsconfig)
 
 1. Read the `omni-epistemic-memory` skill at `.agents/skills/omni-epistemic-memory/SKILL.md`.
 2. Read the Error Log at `.agents/skills/omni-epistemic-memory/error-log.md` — check the Quick Reference table for matching patterns.
-3. Read the relevant KI from the OmniCore ERP Technical Handbook before touching architecture.
+3. Read `.gemini/knowledge/architecture.md` before touching architecture.
 4. Cross-reference your current task against all known error patterns before writing any code.
 
 ### Validation Protocol
 
 5. Always verify changes with `pnpm lint`, `pnpm typecheck`, `pnpm build`. Exit Code 0 = Empirical Truth.
 6. Never use bare `eslint` or `prettier` — always `pnpm exec` prefix.
+
+### Post-Task Protocol (MANDATORY)
+
+After completing any significant task, you MUST execute the **Post-Task Synchronization Protocol** defined in `.agents/skills/omni-epistemic-memory/SKILL.md` Section 7. This is not optional. Failure to update the living memory after a task means the next agent session loses your learnings.
+
+Specifically, you must:
+
+- **Always**: Update `.gemini/knowledge/state.md` with a Progress Log entry
+- **On bug fixes**: Update `.agents/skills/omni-epistemic-memory/error-log.md`
+- **On dependency changes**: Update `.gemini/knowledge/stack.md`
+- **On structural changes**: Update `.gemini/knowledge/architecture.md`
+- **On new error patterns**: Update the Error Prevention Matrix in this file
 
 ### Safety Protocol
 
@@ -52,6 +136,30 @@ tooling/typescript/  → Shared TSConfig (@cendaro/tsconfig)
 ### Environment
 
 10. Windows PowerShell only — no bash/Unix syntax. Use `Get-Content` not `cat`, `Remove-Item` not `rm`, `Get-ChildItem` not `ls`.
+
+---
+
+### Code Quality Rules
+
+#### TypeScript
+
+- **Strict mode**: `true` (enforced via `tooling/typescript/base.json`)
+- `noUncheckedIndexedAccess`: `true` — all indexed access returns `T | undefined`
+- `isolatedModules`: `true` — compatible with Turbopack/esbuild
+- Target: `ES2024`, Module: `Preserve`, Resolution: `Bundler`
+- Incremental builds with `tsBuildInfoFile` in `.cache/`
+
+#### ESLint
+
+- Flat config format (`eslint.config.ts`) using `defineConfig` from `eslint/config`
+- Root extends `@cendaro/eslint-config/base`
+- ERP app extends: `base` + `react` + `nextjs` + `restrictEnvAccess`
+- ESLint plugins: `eslint-plugin-import`, `eslint-plugin-react`, `eslint-plugin-react-hooks`, `@next/eslint-plugin-next`, `typescript-eslint`
+
+#### Prettier
+
+- Config: `@cendaro/prettier-config`
+- Plugins: `@ianvs/prettier-plugin-sort-imports`, `prettier-plugin-tailwindcss`
 
 ---
 
@@ -103,6 +211,8 @@ Before making changes, scan this matrix. If your task matches a pattern, follow 
 | Wrong Supabase project targeted          | Multiple projects in account                     | Verify `project_id = ljwoptpaxazqmnhdczsb` before any MCP DB operation                    |
 | Bare `eslint`/`prettier` fail on Windows | `node_modules/.bin` not in system PATH           | Always prefix: `pnpm exec eslint`, `pnpm exec prettier`                                   |
 | Agent rules invisible to other AI        | Only one config file existed                     | Maintain `.gemini/rules.md` and `.agents/skills/` as shared references                    |
+| `npx skills add` cross-contamination     | CLI not monorepo-aware, creates dual directories | NEVER use `npx skills add` — git clone + manual copy only                                 |
+| Uncommitted changes before user handoff  | Working tree dirty when user interacts with git  | Always `git add . && git commit && git push` BEFORE handing off to user                   |
 
 ---
 
@@ -174,9 +284,10 @@ Before making changes, scan this matrix. If your task matches a pattern, follow 
 
 #### Drizzle ORM
 
-- Schema changes go in `packages/db/src/schema/`
+- Schema changes go in `packages/db/src/schema.ts` (single 60KB file)
 - Always export inferred types for tRPC consumption in `@cendaro/api`
-- Run `pnpm -F @cendaro/db generate` after schema changes
+- Run `pnpm db:generate` after schema changes, then `pnpm db:push`
+- Database driver: `postgres` (pg.js) — NOT `pg` or `@neondatabase/serverless`
 
 ---
 
@@ -188,10 +299,17 @@ Before making changes, scan this matrix. If your task matches a pattern, follow 
 | **Stripe**   | Payments        | Use for billing/payment features                               |
 | **Stitch**   | UI design       | Use with `stitch-loop` and `design-md` skills                  |
 
-### Git Hooks
+### Git Hooks (Husky)
 
-- **pre-commit**: `pnpm exec lint-staged` → `pnpm exec eslint` + `pnpm exec prettier`
+- **pre-commit**: `pnpm exec lint-staged` → runs ESLint + Prettier on staged files
 - **pre-push**: `pnpm typecheck` + `pnpm build`
+
+### CI/CD Pipeline
+
+- **GitHub Actions** on push to `main` + all PRs
+- Steps: `install` → `typecheck` → `lint` → `build` → `test` (test is non-blocking)
+- Runner: `ubuntu-latest`, Node 20, pnpm 10.30.3
+- Remote caching: Turbo Token + Team via GitHub secrets
 
 ### Key Files
 
@@ -203,5 +321,9 @@ Before making changes, scan this matrix. If your task matches a pattern, follow 
 | `.agents/workflows/memory-audit.md`                 | KI pruning protocol                         |
 | `.agents/workflows/prd-sync.md`                     | README/PRD sync protocol                    |
 | `.agents/workflows/supabase-safety.md`              | DB operation safety                         |
+| `.gemini/knowledge/architecture.md`                 | System topological map                      |
+| `.gemini/knowledge/stack.md`                        | Technology inventory (exact versions)       |
+| `.gemini/knowledge/state.md`                        | Living memory — rolling agent log           |
 | `PRD.md`                                            | Product Requirements Document               |
 | `README.md`                                         | Technical reference                         |
+| `docs/`                                             | Architecture docs, ADRs, data schemas       |

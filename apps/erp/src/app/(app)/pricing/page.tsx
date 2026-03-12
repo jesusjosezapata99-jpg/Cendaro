@@ -35,7 +35,7 @@ const TRIGGER_CONFIG: Record<
 const PRICE_TYPE_LABELS: Record<string, string> = {
   store: "Tienda",
   wholesale: "Mayor",
-  vendor: "Vendedor",
+  vendor: "Vendedor Nacional",
   promo: "Promo",
   special: "Especial",
 };

@@ -18,6 +18,21 @@ interface Props {
   onClose: () => void;
 }
 
+const initialState = {
+  sku: "",
+  name: "",
+  barcode: "",
+  descriptionShort: "",
+  descriptionLong: "",
+  brandId: "",
+  categoryId: "",
+  supplierId: "",
+  imageUrl: "",
+  weight: "",
+  volume: "",
+  status: "draft" as const,
+};
+
 export function CreateProductDialog({ open, onClose }: Props) {
   const trpc = useTRPC();
   const qc = useQueryClient();
@@ -39,27 +54,11 @@ export function CreateProductDialog({ open, onClose }: Props) {
     }),
   );
 
-  const initialState = {
-    sku: "",
-    name: "",
-    barcode: "",
-    descriptionShort: "",
-    descriptionLong: "",
-    brandId: "",
-    categoryId: "",
-    supplierId: "",
-    imageUrl: "",
-    weight: "",
-    volume: "",
-    status: "draft" as const,
-  };
-
   const [form, setForm] = useState(initialState);
 
   // Reset form state when dialog reopens
   useEffect(() => {
     if (open) setForm(initialState);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   const set = (key: string, value: string) =>
@@ -93,11 +92,15 @@ export function CreateProductDialog({ open, onClose }: Props) {
     >
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="grid grid-cols-2 gap-4">
-          <Field label="SKU" required>
+          <Field
+            label="Referencia"
+            required
+            hint="Código único de referencia rápida"
+          >
             <Input
               value={form.sku}
               onChange={(e) => set("sku", e.target.value)}
-              placeholder="SKU-001"
+              placeholder="REF-001"
               required
             />
           </Field>

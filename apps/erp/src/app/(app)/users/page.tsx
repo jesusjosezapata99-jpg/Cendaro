@@ -4,6 +4,7 @@ import { useState } from "react";
 import dynamic from "next/dynamic";
 import { useQuery } from "@tanstack/react-query";
 
+import { useCurrentUser } from "~/hooks/use-current-user";
 import { useDebounce } from "~/hooks/use-debounce";
 import { useTRPC } from "~/trpc/client";
 
@@ -11,6 +12,14 @@ const EditUserDialog = dynamic(
   () =>
     import("~/components/forms/edit-user").then((m) => ({
       default: m.EditUserDialog,
+    })),
+  { ssr: false },
+);
+
+const CreateUserDialog = dynamic(
+  () =>
+    import("~/components/forms/create-user").then((m) => ({
+      default: m.CreateUserDialog,
     })),
   { ssr: false },
 );
@@ -24,7 +33,7 @@ const ROLE_LABELS: Record<string, string> = {
   admin: "Administrador",
   supervisor: "Supervisor",
   employee: "Empleado",
-  vendor: "Vendedor",
+  vendor: "Vendedor Nacional",
   marketing: "Marketing",
 };
 
@@ -60,11 +69,16 @@ const STATUS_BADGES: Record<string, { label: string; class: string }> = {
 
 export default function UsersPage() {
   const trpc = useTRPC();
+  const { profile: currentUser } = useCurrentUser();
+  const currentUserRole = currentUser?.role ?? "employee";
+  const canCreate = currentUserRole === "owner" || currentUserRole === "admin";
+
   const { data: users, isLoading } = useQuery(trpc.users.list.queryOptions());
 
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebounce(search, 300);
   const [roleFilter, setRoleFilter] = useState("");
+  const [showCreate, setShowCreate] = useState(false);
   const [editingUser, setEditingUser] = useState<null | {
     id: string;
     fullName: string;
@@ -78,7 +92,8 @@ export default function UsersPage() {
     const matchSearch =
       !debouncedSearch ||
       u.fullName.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
-      u.email.toLowerCase().includes(debouncedSearch.toLowerCase());
+      u.email.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
+      u.username.toLowerCase().includes(debouncedSearch.toLowerCase());
     const matchRole = !roleFilter || u.role === roleFilter;
     return matchSearch && matchRole;
   });
@@ -101,6 +116,17 @@ export default function UsersPage() {
             Administra usuarios, roles y permisos del sistema
           </p>
         </div>
+        {canCreate && (
+          <button
+            onClick={() => setShowCreate(true)}
+            className="bg-primary text-primary-foreground hover:bg-primary/90 flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-bold shadow-sm transition-colors"
+          >
+            <span className="material-symbols-outlined text-base">
+              person_add
+            </span>
+            Crear Usuario
+          </button>
+        )}
       </div>
 
       {/* Stats */}
@@ -136,7 +162,7 @@ export default function UsersPage() {
           <div className="flex items-center gap-3">
             <input
               type="text"
-              placeholder="Buscar usuario..."
+              placeholder="Buscar por nombre, email o usuario..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="border-border bg-background placeholder:text-muted-foreground focus:border-primary focus:ring-primary/20 w-full max-w-sm rounded-lg border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
@@ -151,7 +177,7 @@ export default function UsersPage() {
               <option value="admin">Administrador</option>
               <option value="supervisor">Supervisor</option>
               <option value="employee">Empleado</option>
-              <option value="vendor">Vendedor</option>
+              <option value="vendor">Vendedor Nacional</option>
               <option value="marketing">Marketing</option>
             </select>
           </div>
@@ -162,9 +188,10 @@ export default function UsersPage() {
             <thead>
               <tr className="border-border text-muted-foreground border-b text-left text-xs font-medium tracking-wider uppercase">
                 <th className="px-6 py-3">Usuario</th>
+                <th className="hidden px-6 py-3 sm:table-cell">Username</th>
                 <th className="px-6 py-3">Rol</th>
                 <th className="px-6 py-3">Estado</th>
-                <th className="px-6 py-3">Creado</th>
+                <th className="hidden px-6 py-3 md:table-cell">Creado</th>
                 <th className="px-6 py-3 text-right">Acciones</th>
               </tr>
             </thead>
@@ -175,13 +202,16 @@ export default function UsersPage() {
                       <td className="px-6 py-4">
                         <Skeleton className="h-9 w-48" />
                       </td>
+                      <td className="hidden px-6 py-4 sm:table-cell">
+                        <Skeleton className="h-5 w-24" />
+                      </td>
                       <td className="px-6 py-4">
                         <Skeleton className="h-5 w-24" />
                       </td>
                       <td className="px-6 py-4">
                         <Skeleton className="h-5 w-20" />
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="hidden px-6 py-4 md:table-cell">
                         <Skeleton className="h-5 w-28" />
                       </td>
                       <td className="px-6 py-4">
@@ -212,6 +242,11 @@ export default function UsersPage() {
                           </div>
                         </div>
                       </td>
+                      <td className="text-muted-foreground hidden px-6 py-4 text-sm sm:table-cell">
+                        <span className="bg-secondary inline-flex items-center gap-1 rounded px-2 py-0.5 font-mono text-xs">
+                          @{user.username}
+                        </span>
+                      </td>
                       <td className="px-6 py-4">
                         <span
                           className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${ROLE_COLORS[user.role] ?? ""}`}
@@ -226,7 +261,7 @@ export default function UsersPage() {
                           {STATUS_BADGES[user.status]?.label ?? user.status}
                         </span>
                       </td>
-                      <td className="text-muted-foreground px-6 py-4 text-sm">
+                      <td className="text-muted-foreground hidden px-6 py-4 text-sm md:table-cell">
                         {new Date(user.createdAt).toLocaleDateString("es-VE")}
                       </td>
                       <td className="px-6 py-4 text-right">
@@ -261,10 +296,20 @@ export default function UsersPage() {
         )}
       </div>
 
+      {/* Dialogs */}
+      {showCreate && (
+        <CreateUserDialog
+          open={showCreate}
+          onClose={() => setShowCreate(false)}
+          currentUserRole={currentUserRole}
+        />
+      )}
+
       {editingUser && (
         <EditUserDialog
           open={!!editingUser}
           onClose={() => setEditingUser(null)}
+          currentUserRole={currentUserRole}
           user={editingUser}
         />
       )}
