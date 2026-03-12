@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { useBcvRate } from "~/hooks/use-bcv-rate";
+import { formatDualCurrency } from "~/lib/format-currency";
 import { useTRPC } from "~/trpc/client";
 
 function Skeleton({ className = "" }: { className?: string }) {
@@ -36,6 +38,7 @@ export default function VendorsPage() {
     .filter((c) => c.isPaid)
     .reduce((s, c) => s + c.commissionAmount, 0);
   const _pendingCount = items.filter((c) => !c.isPaid).length;
+  const bcv = useBcvRate();
 
   // Group by vendorId
   const vendorMap = new Map<
@@ -79,14 +82,16 @@ export default function VendorsPage() {
     },
     {
       label: "Comisiones Pendientes",
-      value: `$${totalPending.toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
+      value: formatDualCurrency(totalPending, bcv.rate).usd,
+      sub: formatDualCurrency(totalPending, bcv.rate).bs,
       icon: "payments",
       accent: "border-amber-500/40",
       filter: "pending" as FilterMode,
     },
     {
       label: "Total Pagado",
-      value: `$${totalPaid.toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
+      value: formatDualCurrency(totalPaid, bcv.rate).usd,
+      sub: formatDualCurrency(totalPaid, bcv.rate).bs,
       icon: "check_circle",
       accent: "border-cyan-500/40",
       filter: "paid" as FilterMode,
@@ -128,6 +133,9 @@ export default function VendorsPage() {
             <p className="text-foreground mt-1 text-2xl font-black tracking-tight">
               {stat.value}
             </p>
+            {"sub" in stat && stat.sub && (
+              <p className="text-muted-foreground text-xs">{stat.sub}</p>
+            )}
           </button>
         ))}
       </div>
@@ -194,12 +202,22 @@ export default function VendorsPage() {
                     </td>
                     <td className="text-muted-foreground px-4 py-3 text-right font-mono">
                       ${c.orderTotal.toFixed(2)}
+                      {bcv.rate > 0 && (
+                        <span className="ml-1 text-[10px]">
+                          {formatDualCurrency(c.orderTotal, bcv.rate).bs}
+                        </span>
+                      )}
                     </td>
                     <td className="text-muted-foreground px-4 py-3 text-right">
                       {c.commissionPct}%
                     </td>
                     <td className="text-foreground px-4 py-3 text-right font-mono font-bold">
                       ${c.commissionAmount.toFixed(2)}
+                      {bcv.rate > 0 && (
+                        <span className="text-muted-foreground ml-1 text-[10px] font-normal">
+                          {formatDualCurrency(c.commissionAmount, bcv.rate).bs}
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-center">
                       {c.isPaid ? (

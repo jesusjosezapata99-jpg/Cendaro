@@ -76,7 +76,7 @@ const ROUTES: SearchRoute[] = [
     label: "Tasas de Cambio",
     path: "/rates",
     icon: "currency_exchange",
-    keywords: "tasa bcv dólar",
+    keywords: "tasa bcv dólar paralelo usdt",
     roles: ["owner", "admin", "supervisor"],
   },
   {

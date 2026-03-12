@@ -1,20 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import dynamic from "next/dynamic";
 import Link from "next/link";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import { useDebounce } from "~/hooks/use-debounce";
 import { useTRPC } from "~/trpc/client";
-
-const CreateProductDialog = dynamic(
-  () =>
-    import("~/components/forms/create-product").then((m) => ({
-      default: m.CreateProductDialog,
-    })),
-  { ssr: false },
-);
 
 function Skeleton({ className = "" }: { className?: string }) {
   return <div className={`bg-muted animate-pulse rounded-lg ${className}`} />;
@@ -43,7 +34,6 @@ export default function CatalogClient() {
   const debouncedSearch = useDebounce(search, 300);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [page, setPage] = useState(0);
-  const [showCreate, setShowCreate] = useState(false);
   const limit = 25;
 
   const { data, isLoading } = useQuery({
@@ -75,19 +65,14 @@ export default function CatalogClient() {
             Gestiona tu catálogo de {total.toLocaleString()} referencias
           </p>
         </div>
-        <button
-          onClick={() => setShowCreate(true)}
+        <Link
+          href="/catalog/new"
           className="bg-primary text-primary-foreground hover:bg-primary/90 flex min-h-[44px] w-full items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors sm:w-auto"
         >
           <span className="material-symbols-outlined text-lg">add</span>
           Nuevo Producto
-        </button>
+        </Link>
       </div>
-
-      <CreateProductDialog
-        open={showCreate}
-        onClose={() => setShowCreate(false)}
-      />
 
       {/* Stats */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">

@@ -184,6 +184,16 @@ export default function ProductDetailPage() {
             value: new Date(product.createdAt).toLocaleDateString("es-VE"),
             icon: "calendar_today",
           },
+          {
+            label: "Stock Total",
+            value: product.stockLedger
+              .reduce(
+                (sum: number, s: { quantity: number }) => sum + s.quantity,
+                0,
+              )
+              .toLocaleString(),
+            icon: "inventory_2",
+          },
         ].map((stat) => (
           <div
             key={stat.label}
@@ -201,6 +211,76 @@ export default function ProductDetailPage() {
           </div>
         ))}
       </div>
+
+      {/* Stock por Almacén */}
+      {product.stockLedger.length > 0 && (
+        <section className="border-border bg-card rounded-xl border p-6 shadow-sm">
+          <h2 className="text-muted-foreground mb-4 text-sm font-bold tracking-widest uppercase">
+            Stock por Almacén
+          </h2>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {product.stockLedger.map(
+              (s: {
+                id: string;
+                warehouseId: string;
+                quantity: number;
+                isLocked: boolean;
+              }) => (
+                <div
+                  key={s.id}
+                  className="border-border flex items-center justify-between rounded-lg border p-3"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="material-symbols-outlined text-muted-foreground text-lg">
+                      warehouse
+                    </span>
+                    <span className="text-sm font-medium">
+                      {s.warehouseId.slice(0, 8)}…
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-bold">{s.quantity}</span>
+                    {s.isLocked && (
+                      <span className="material-symbols-outlined text-sm text-red-500">
+                        lock
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ),
+            )}
+          </div>
+        </section>
+      )}
+
+      {/* Stock por Canal */}
+      {product.channelAllocations.length > 0 && (
+        <section className="border-border bg-card rounded-xl border p-6 shadow-sm">
+          <h2 className="text-muted-foreground mb-4 text-sm font-bold tracking-widest uppercase">
+            Stock por Canal
+          </h2>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {product.channelAllocations.map(
+              (c: { id: string; channel: string; quantity: number }) => (
+                <div
+                  key={c.id}
+                  className="border-border flex items-center justify-between rounded-lg border p-3"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="material-symbols-outlined text-muted-foreground text-lg">
+                      storefront
+                    </span>
+                    <span className="text-sm font-medium capitalize">
+                      {c.channel}
+                    </span>
+                  </div>
+                  <span className="text-sm font-bold">{c.quantity}</span>
+                </div>
+              ),
+            )}
+          </div>
+        </section>
+      )}
 
       {/* Metadata */}
       <section className="border-border bg-card rounded-xl border p-6 shadow-sm">

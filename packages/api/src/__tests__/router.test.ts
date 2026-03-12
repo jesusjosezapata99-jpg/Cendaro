@@ -27,6 +27,13 @@ describe("appRouter", () => {
 
     // Phase 3
     expect(procedures).toHaveProperty("inventory.stockByProduct");
+    expect(procedures).toHaveProperty("inventory.getWarehouseDetail");
+    expect(procedures).toHaveProperty("inventory.warehouseStock");
+    expect(procedures).toHaveProperty("inventory.updateStockQuantity");
+    expect(procedures).toHaveProperty("inventory.listCountItems");
+    expect(procedures).toHaveProperty("inventory.addCountItems");
+    expect(procedures).toHaveProperty("inventory.submitCountItem");
+    expect(procedures).toHaveProperty("inventory.finalizeCount");
     expect(procedures).toHaveProperty("container.list");
 
     // Phase 4

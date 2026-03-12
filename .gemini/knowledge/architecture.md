@@ -36,6 +36,7 @@ graph TB
         MELI["MercadoLibre<br/>Marketplace (Phase 5)"]
         STRIPE["Stripe<br/>Payments"]
         GROQ["Groq<br/>AI/LLM (optional)"]
+        FRANK["Frankfurter<br/>USD/CNY Exchange Rate"]
     end
 
     subgraph Infra["Infrastructure"]
