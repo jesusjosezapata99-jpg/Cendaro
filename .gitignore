@@ -31,3 +31,6 @@ coverage/
 # PWA
 sw.js
 workbox-*.js
+
+# Turborepo
+.turbo
