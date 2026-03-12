@@ -50,17 +50,32 @@ describe("appRouter", () => {
     expect(procedures).toHaveProperty("dashboard.listAlerts");
     expect(procedures).toHaveProperty("dashboard.dismissAlert");
 
+    // Phase 9 — Approvals
+    expect(procedures).toHaveProperty("approvals.list");
+
+    // Sprint 2 — Quotes
+    expect(procedures).toHaveProperty("quotes.list");
+
+    // Payments
+    expect(procedures).toHaveProperty("payments.list");
+
+    // Receivables
+    expect(procedures).toHaveProperty("receivables.list");
+
+    // Reporting
+    expect(procedures).toHaveProperty("reporting.salesSummary");
+
     // Health
     expect(procedures).toHaveProperty("health.ping");
   });
 
   it("has the correct number of top-level routers", () => {
-    // 11 routers: users, audit, catalog, inventory, container, pricing, sales, vendor, integrations, dashboard, health
+    // 16 routers: users, audit, approvals, catalog, inventory, container, pricing, quotes, sales, payments, receivables, reporting, vendor, integrations, dashboard, health
     const topLevel = new Set<string>();
     for (const key of Object.keys(appRouter._def.procedures)) {
       const router = key.split(".")[0];
       if (router) topLevel.add(router);
     }
-    expect(topLevel.size).toBe(11);
+    expect(topLevel.size).toBe(16);
   });
 });

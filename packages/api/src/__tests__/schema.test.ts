@@ -122,8 +122,8 @@ describe("Phase 5 — Ventas y Pagos", () => {
     expect(schema.CashClosure).toBeDefined();
   });
 
-  it("exports orderStatusEnum with 7 statuses", () => {
-    expect(schema.orderStatusEnum.enumValues).toHaveLength(7);
+  it("exports orderStatusEnum with 10 statuses", () => {
+    expect(schema.orderStatusEnum.enumValues).toHaveLength(10);
   });
 
   it("exports paymentMethodEnum with 5 methods", () => {
