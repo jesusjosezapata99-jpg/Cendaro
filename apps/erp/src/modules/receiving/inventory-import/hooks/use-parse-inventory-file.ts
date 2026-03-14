@@ -11,10 +11,7 @@
 import { useCallback, useState } from "react";
 import { read, utils } from "xlsx";
 
-import {
-  autoMapHeaders,
-  normalizeHeader,
-} from "../lib/inventory-header-aliases";
+import { autoMapHeaders } from "../lib/inventory-header-aliases";
 import { MAX_ROW_COUNT, validateFile } from "../lib/inventory-validators";
 
 // ── Types ────────────────────────────────────────
@@ -50,6 +47,30 @@ export interface UseParseInventoryFileReturn {
   parseFile: (file: File) => Promise<ParseResult | null>;
   /** Reset state */
   reset: () => void;
+}
+
+// ── Smart Header Detection ──────────────────────
+
+/**
+ * Scan the first 20 rows looking for the first row that contains
+ * ≥2 recognized column aliases. This automatically skips legend,
+ * instruction, and separator rows.
+ */
+function findHeaderRow(
+  rows: string[][],
+): { index: number; headers: string[] } | null {
+  const maxScan = Math.min(rows.length, 20);
+  for (let i = 0; i < maxScan; i++) {
+    const row = rows[i];
+    if (!row || row.length === 0) continue;
+    const stringRow = row.map((cell) => String(cell));
+    const { map } = autoMapHeaders(stringRow);
+    // ≥2 recognized fields → this is the header row
+    if (Object.keys(map).length >= 2) {
+      return { index: i, headers: stringRow };
+    }
+  }
+  return null;
 }
 
 // ── Hook ─────────────────────────────────────────
@@ -120,22 +141,31 @@ export function useParseInventoryFile(): UseParseInventoryFileReturn {
           return null;
         }
 
-        const firstRow = rawRows[0];
-        if (!firstRow) {
-          setError({ code: "EMPTY_FILE", message: "Archivo vacío" });
+        // 7. Smart header row detection — scan first 20 rows for
+        //    the first row containing ≥2 recognized column aliases.
+        //    This skips legend/instruction rows automatically.
+        const headerResult = findHeaderRow(rawRows);
+
+        if (!headerResult) {
+          setError({
+            code: "MISSING_HEADER",
+            message:
+              "No se encontró una fila de encabezados válida. Asegúrese de que la plantilla contenga columnas como Referencia, Bultos, etc.",
+          });
           setIsParsing(false);
           return null;
         }
-        const headers = firstRow.map((h) => String(h));
+
+        const { index: headerIndex, headers } = headerResult;
         const dataRows = rawRows
-          .slice(1)
+          .slice(headerIndex + 1)
           .map((row) => row.map((cell) => String(cell)));
 
-        // Headers only, no data rows (§21.2)
+        // No data rows after header (§21.2)
         if (dataRows.length === 0) {
           setError({
             code: "NO_DATA",
-            message: "No se encontraron filas de datos",
+            message: "No se encontraron filas de datos después del encabezado",
           });
           setIsParsing(false);
           return null;
@@ -151,9 +181,8 @@ export function useParseInventoryFile(): UseParseInventoryFileReturn {
           return null;
         }
 
-        // 7. Auto-detect headers using alias map
-        const normalizedHeaders = headers.map(normalizeHeader);
-        const { map: headerMap, unmapped } = autoMapHeaders(normalizedHeaders);
+        // 8. Auto-detect header mapping (autoMapHeaders normalizes internally)
+        const { map: headerMap, unmapped } = autoMapHeaders(headers);
 
         const parseResult: ParseResult = {
           headers,

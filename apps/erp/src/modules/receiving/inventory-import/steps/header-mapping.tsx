@@ -91,7 +91,15 @@ export function HeaderMapping({
             <p className="font-medium">Columnas requeridas no encontradas:</p>
             <p>
               {missingRequired
-                .map((f) => (f === "sku" ? "SKU / Referencia" : "Cantidad"))
+                .map((f) => {
+                  const labels: Record<string, string> = {
+                    sku: "SKU / Referencia",
+                    bultos: "Bultos",
+                    cajasPerBulk: "Cajas/Bulto",
+                    presentacion: "Presentación",
+                  };
+                  return labels[f] ?? f;
+                })
                 .join(", ")}
             </p>
           </div>
