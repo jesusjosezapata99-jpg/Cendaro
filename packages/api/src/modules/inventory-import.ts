@@ -33,8 +33,6 @@ export const inventoryImportRowSchema = z.object({
   sku: z.string().min(1).max(64),
   /** Target quantity (Replace: absolute | Adjust: delta) */
   quantity: z.int(),
-  /** Optional per-row notes */
-  notes: z.string().max(512).optional(),
   /** Resolved product ID (populated during client-side validation) */
   productId: z.string().uuid(),
   /** Current stock quantity (populated during client-side validation) */
@@ -117,23 +115,36 @@ export const inventoryImportRouter = createTRPCRouter({
         id: string;
         sku: string;
         name: string;
+        brand_name: string;
+        units_per_box: number | null;
+        boxes_per_bulk: number | null;
+        presentation_qty: number;
         quantity: number;
         is_locked: boolean;
       }>(sql`
         SELECT p.id, p.sku, p.name,
+          COALESCE(b.name, '') AS brand_name,
+          p.units_per_box,
+          p.boxes_per_bulk,
+          p.presentation_qty,
           COALESCE(sl.quantity, 0)::int AS quantity,
           COALESCE(sl.is_locked, false) AS is_locked
         FROM product p
+        LEFT JOIN brand b ON b.id = p.brand_id
         LEFT JOIN stock_ledger sl
           ON sl.product_id = p.id AND sl.warehouse_id = ${input.warehouseId}
         WHERE p.status != 'discontinued'
-        ORDER BY p.sku
+        ORDER BY b.name NULLS LAST, p.sku
       `);
 
       return rows.map((r) => ({
         id: r.id,
         sku: r.sku,
         name: r.name,
+        brandName: r.brand_name,
+        unitsPerBox: r.units_per_box,
+        boxesPerBulk: r.boxes_per_bulk,
+        presentationQty: r.presentation_qty,
         quantity: r.quantity,
         isLocked: r.is_locked,
       }));
@@ -295,7 +306,7 @@ export const inventoryImportRouter = createTRPCRouter({
                 quantity: Math.abs(delta),
                 warehouseId: input.warehouseId,
                 referenceType: "inventory_import",
-                notes: row.notes ?? `Import ${input.mode}: ${row.sku}`,
+                notes: `Import ${input.mode}: ${row.sku}`,
                 createdBy: ctx.user.id,
               });
 

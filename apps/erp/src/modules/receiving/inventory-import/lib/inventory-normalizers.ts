@@ -6,10 +6,8 @@
  * PRD: FEATURE_PRD_INVENTORY_IMPORT.md §12
  */
 
-import type { ImportMode } from "@cendaro/api";
-
-/** Result of quantity normalization with optional warning */
-export interface NormalizedQuantity {
+/** Result of integer normalization with optional warning */
+export interface NormalizedInteger {
   value: number;
   isValid: boolean;
   warning?: string;
@@ -33,24 +31,63 @@ export function normalizeSku(
 }
 
 /**
- * Normalize a quantity value.
- * - Trim whitespace
- * - Parse as integer
- * - Detect and warn on float truncation
- * - Mode-specific validation
+ * Normalize a bultos value (integer ≥ 0).
  *
- * @example "150" → { value: 150, isValid: true }
- * @example "12.5" → { value: 12, isValid: true, warning: "Valor truncado de 12.5 a entero: 12" }
+ * @example "5" → { value: 5, isValid: true }
+ * @example "2.7" → { value: 2, isValid: true, warning: "Truncado a entero: 2" }
+ * @example "" → { value: 0, isValid: true }  — empty = 0 bultos
  * @example "abc" → { value: NaN, isValid: false }
  */
-export function normalizeQuantity(
+export function normalizeBultos(
   value: string | number | null | undefined,
-  mode: ImportMode,
-): NormalizedQuantity {
+): NormalizedInteger {
   const raw = String(value ?? "").trim();
 
+  // Empty cell = 0 bultos
   if (raw === "") {
-    return { value: NaN, isValid: false, raw };
+    return { value: 0, isValid: true, raw };
+  }
+
+  return normalizePositiveInteger(raw);
+}
+
+/**
+ * Normalize a cajas/bulto value.
+ * "—" means no inner boxes (valid scenario B).
+ *
+ * @example "5" → { value: 5, isValid: true }
+ * @example "—" → { value: 0, isValid: true }  — scenario B (no inner boxes)
+ * @example "-" → { value: 0, isValid: true }  — alt dash accepted
+ */
+export function normalizeCajasPerBulk(
+  value: string | number | null | undefined,
+): NormalizedInteger {
+  const raw = String(value ?? "").trim();
+
+  // "—" or "-" or empty = no inner boxes (scenario B)
+  if (raw === "" || raw === "—" || raw === "-" || raw === "–") {
+    return { value: 0, isValid: true, raw };
+  }
+
+  return normalizePositiveInteger(raw);
+}
+
+/**
+ * Normalize a presentación value.
+ * Valid values: 1, 3, 6, 12, 24.
+ *
+ * @example "12" → { value: 12, isValid: true }
+ * @example "7" → { value: 7, isValid: false }
+ * @example "" → { value: 1, isValid: true }  — default to unitario
+ */
+export function normalizePresentacion(
+  value: string | number | null | undefined,
+): NormalizedInteger {
+  const raw = String(value ?? "").trim();
+
+  // Empty = default to unitario (1)
+  if (raw === "") {
+    return { value: 1, isValid: true, raw };
   }
 
   const parsed = parseInt(raw, 10);
@@ -59,36 +96,38 @@ export function normalizeQuantity(
     return { value: NaN, isValid: false, raw };
   }
 
-  // Detect float truncation (PRD §21.13)
+  const validValues = [1, 3, 6, 12, 24];
+  if (!validValues.includes(parsed)) {
+    return {
+      value: parsed,
+      isValid: false,
+      warning: `Presentación inválida: ${parsed}. Valores válidos: 1, 3, 6, 12, 24`,
+      raw,
+    };
+  }
+
+  return { value: parsed, isValid: true, raw };
+}
+
+// ── Internal Helper ───────────────────────────────
+
+function normalizePositiveInteger(raw: string): NormalizedInteger {
+  const parsed = parseInt(raw, 10);
+
+  if (isNaN(parsed)) {
+    return { value: NaN, isValid: false, raw };
+  }
+
+  if (parsed < 0) {
+    return { value: parsed, isValid: false, raw };
+  }
+
+  // Detect float truncation
   const floatParsed = parseFloat(raw);
   let warning: string | undefined;
   if (!isNaN(floatParsed) && floatParsed !== parsed) {
     warning = `Valor truncado de ${raw} a entero: ${parsed}`;
   }
 
-  // Mode-specific validation
-  if (mode === "replace" && parsed < 0) {
-    return {
-      value: parsed,
-      isValid: false,
-      raw,
-    };
-  }
-
   return { value: parsed, isValid: true, warning, raw };
-}
-
-/**
- * Normalize a notes value.
- * - Trim whitespace
- * - Limit to 512 characters
- *
- * @example "  recount  " → "recount"
- */
-export function normalizeNotes(
-  value: string | number | null | undefined,
-): string | undefined {
-  const trimmed = String(value ?? "").trim();
-  if (trimmed === "") return undefined;
-  return trimmed.slice(0, 512);
 }

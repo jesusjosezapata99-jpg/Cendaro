@@ -11,11 +11,12 @@ import Link from "next/link";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-import { downloadAsXlsx } from "~/lib/xlsx/download";
+import type { WarehouseProduct } from "./lib/inventory-template-builder";
 import { useTRPC } from "~/trpc/client";
 import { useInventoryImport } from "./hooks/use-inventory-import";
 import { useParseInventoryFile } from "./hooks/use-parse-inventory-file";
 import { useValidateInventory } from "./hooks/use-validate-inventory";
+import { downloadInventoryTemplate } from "./lib/inventory-template-builder";
 import { DryRunSummary } from "./steps/dry-run-summary";
 import { FileUpload } from "./steps/file-upload";
 import { HeaderMapping } from "./steps/header-mapping";
@@ -206,7 +207,6 @@ export function InventoryImportWizard({
         rowNumber: r.rowNumber,
         sku: r.sku,
         quantity: r.quantity,
-        notes: r.notes,
         productId: r.productId,
         currentQuantity: r.currentQuantity,
       })),
@@ -217,23 +217,22 @@ export function InventoryImportWizard({
   };
 
   const handleDownloadTemplate = () => {
-    downloadAsXlsx(
-      [
-        {
-          Referencia: "REF-001",
-          Cantidad: 150,
-          "Código de Barras": "7501234567890",
-          Notas: "",
-        },
-        {
-          Referencia: "REF-002",
-          Cantidad: 75,
-          "Código de Barras": "",
-          Notas: "Reconteo físico",
-        },
-      ],
-      "plantilla-importacion-inventario.xlsx",
-    );
+    if (!products) {
+      toast.error("Cargando catálogo de productos...");
+      return;
+    }
+    const warehouseProducts: WarehouseProduct[] = products.map((p) => ({
+      id: p.id,
+      sku: p.sku,
+      name: p.name,
+      brandName: p.brandName,
+      unitsPerBox: p.unitsPerBox,
+      boxesPerBulk: p.boxesPerBulk,
+      presentationQty: p.presentationQty,
+      quantity: p.quantity,
+      isLocked: p.isLocked,
+    }));
+    downloadInventoryTemplate(state.mode ?? "replace", warehouseProducts);
   };
 
   const handleReset = () => {

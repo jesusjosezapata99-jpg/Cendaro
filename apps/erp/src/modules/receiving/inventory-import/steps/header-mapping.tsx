@@ -22,9 +22,13 @@ interface HeaderMappingProps {
 const FIELD_OPTIONS: { value: ImportField | ""; label: string }[] = [
   { value: "", label: "— Ignorar —" },
   { value: "sku", label: "SKU / Referencia" },
-  { value: "quantity", label: "Cantidad" },
-  { value: "barcode", label: "Código de Barras" },
-  { value: "notes", label: "Notas" },
+  { value: "bultos", label: "Bultos" },
+  { value: "cajasPerBulk", label: "Cajas/Bulto" },
+  { value: "presentacion", label: "Presentación" },
+  { value: "marca", label: "Marca" },
+  { value: "producto", label: "Producto" },
+  { value: "unidPerCaja", label: "Unid/Caja" },
+  { value: "stockTotal", label: "Stock Total" },
 ];
 
 export function HeaderMapping({
