@@ -4,22 +4,28 @@
  * Row-level validation logic for inventory import data.
  * Produces ValidatedRow[] with per-row status/message.
  *
+ * Packaging calculation:
+ * - Scenario A (with inner boxes): total = Bultos × Cajas/Bulto × Unid/Caja
+ * - Scenario B (no inner boxes):   total = Bultos × Unid/Caja
+ *
  * PRD: FEATURE_PRD_INVENTORY_IMPORT.md §11, Appendix B
  */
 
 import type { ImportMode, ValidatedRow } from "@cendaro/api";
 
 import {
-  normalizeNotes,
-  normalizeQuantity,
+  normalizeBultos,
+  normalizeCajasPerBulk,
+  normalizePresentacion,
   normalizeSku,
 } from "./inventory-normalizers";
 
-// ── Error Codes (Appendix B — 13 codes) ──────────
+// ── Error Codes ──────────────────────────────────
 
 export const ERROR_CODES = {
   PRODUCT_NOT_FOUND: "PRODUCT_NOT_FOUND",
   INVALID_QUANTITY: "INVALID_QUANTITY",
+  INVALID_PRESENTATION: "INVALID_PRESENTATION",
   NEGATIVE_RESULT: "NEGATIVE_RESULT",
   PRODUCT_LOCKED: "PRODUCT_LOCKED",
   DUPLICATE_SKU: "DUPLICATE_SKU",
@@ -27,6 +33,7 @@ export const ERROR_CODES = {
   FILE_TOO_LARGE: "FILE_TOO_LARGE",
   TOO_MANY_ROWS: "TOO_MANY_ROWS",
   MISSING_HEADER: "MISSING_HEADER",
+  MISSING_PACKAGING: "MISSING_PACKAGING",
   WAREHOUSE_INACTIVE: "WAREHOUSE_INACTIVE",
   DUPLICATE_HEADERS: "DUPLICATE_HEADERS",
   UNKNOWN_COLUMN: "UNKNOWN_COLUMN",
@@ -40,6 +47,10 @@ export interface ProductInfo {
   id: string;
   sku: string;
   name: string;
+  brandName: string;
+  unitsPerBox: number | null;
+  boxesPerBulk: number | null;
+  presentationQty: number;
   quantity: number;
   isLocked: boolean;
 }
@@ -98,17 +109,39 @@ export function validateFile(file: File): {
   return { valid: true };
 }
 
+// ── Packaging Calculation ────────────────────────
+
+/**
+ * Calculate total units from packaging breakdown.
+ *
+ * Scenario A (with inner boxes): total = bultos × cajasPerBulk × unitsPerBox
+ * Scenario B (no inner boxes):   total = bultos × unitsPerBox
+ */
+export function calculateTotalUnits(
+  bultos: number,
+  cajasPerBulk: number,
+  unitsPerBox: number,
+): number {
+  if (cajasPerBulk > 0) {
+    // Scenario A: with inner boxes
+    return bultos * cajasPerBulk * unitsPerBox;
+  }
+  // Scenario B: no inner boxes, units directly in bulto
+  return bultos * unitsPerBox;
+}
+
 // ── Row-level validation ─────────────────────────
 
 /**
  * Validate all data rows against the product map.
  *
- * Pipeline per PRD §11:
- * 1. Normalize values
+ * Pipeline:
+ * 1. Normalize values (SKU, bultos, cajas/bulto, presentación)
  * 2. Resolve SKU against productMap
- * 3. Check quantity validity
+ * 3. Calculate total units from packaging
  * 4. Check lock status
  * 5. Detect duplicate SKUs
+ * 6. Enhanced error messages with product name + row
  *
  * @param dataRows - Parsed spreadsheet data (array of arrays, NO header row)
  * @param headerMap - Map of field name → column index
@@ -132,33 +165,41 @@ export function validateRows(
   for (let i = 0; i < dataRows.length; i++) {
     const row = dataRows[i];
     if (!row) continue;
-    const rowNumber = i + 2; // 1-indexed, +1 for header row
+    const rowNumber = i + 2; // 1-indexed, +1 for header row (accounts for legend rows in template)
 
     // Extract raw values
     const rawSku =
       headerMap.sku !== undefined ? String(row[headerMap.sku] ?? "") : "";
-    const rawQty =
-      headerMap.quantity !== undefined
-        ? String(row[headerMap.quantity] ?? "")
+    const rawBultos =
+      headerMap.bultos !== undefined ? String(row[headerMap.bultos] ?? "") : "";
+    const rawCajas =
+      headerMap.cajasPerBulk !== undefined
+        ? String(row[headerMap.cajasPerBulk] ?? "")
         : "";
-    const rawNotes =
-      headerMap.notes !== undefined
-        ? String(row[headerMap.notes] ?? "")
-        : undefined;
+    const rawPresentacion =
+      headerMap.presentacion !== undefined
+        ? String(row[headerMap.presentacion] ?? "")
+        : "";
 
     // Normalize
     const sku = normalizeSku(rawSku);
-    const qtyResult = normalizeQuantity(rawQty, mode);
-    const notes = normalizeNotes(rawNotes);
+    const bultosResult = normalizeBultos(rawBultos);
+    const cajasResult = normalizeCajasPerBulk(rawCajas);
+    const presentacionResult = normalizePresentacion(rawPresentacion);
 
-    // Skip empty rows (§21.12, Appendix B: EMPTY_ROW)
-    if (!sku && !rawQty.trim()) {
+    // Skip empty rows (no SKU and no bultos)
+    if (!sku && !rawBultos.trim()) {
       skippedCount++;
       continue;
     }
 
     // Resolve product
     const product = productMap.get(sku);
+
+    // Build detailed error prefix: "Fila {row} — {sku} ({name})"
+    const errorPrefix = product
+      ? `Fila ${rowNumber} — ${sku} (${product.name})`
+      : `Fila ${rowNumber} — ${sku}`;
 
     // Determine status
     let status: "valid" | "warning" | "error" = "valid";
@@ -167,49 +208,104 @@ export function validateRows(
     // 1. SKU not found
     if (!sku) {
       status = "error";
-      message = "SKU vacío";
+      message = `${errorPrefix}: SKU vacío`;
     } else if (!product) {
       status = "error";
-      message = `Producto con SKU "${sku}" no encontrado`;
+      message = `${errorPrefix}: Producto no encontrado en el catálogo`;
     }
-    // 2. Invalid quantity
-    else if (!qtyResult.isValid) {
-      if (mode === "replace" && qtyResult.value < 0) {
-        status = "error";
-        message = "Cantidad negativa no permitida en modo Reemplazar";
-      } else {
-        status = "error";
-        message = `Cantidad inválida: "${qtyResult.raw}"`;
-      }
-    }
-    // 3. Negative result (Adjust mode)
-    else if (mode === "adjust" && product.quantity + qtyResult.value < 0) {
+    // 2. Invalid bultos
+    else if (!bultosResult.isValid) {
       status = "error";
-      message = `La cantidad resultante sería negativa (${product.quantity + qtyResult.value})`;
+      message = `${errorPrefix}: Los bultos deben ser un número entero ≥ 0`;
     }
-    // 4. Locked product
-    else if (product.isLocked) {
-      status = "warning";
-      message = `Producto "${sku}" está bloqueado en este almacén`;
+    // 3. Invalid presentación
+    else if (!presentacionResult.isValid) {
+      status = "error";
+      message = `${errorPrefix}: Presentación debe ser 1, 3, 6, 12 o 24`;
     }
-    // 5. Float truncation warning
-    else if (qtyResult.warning) {
-      status = "warning";
-      message = qtyResult.warning;
+    // 4. Calculate total quantity
+    else {
+      // Determine packaging config: use spreadsheet value if provided, else product config
+      const cajasPerBulk =
+        cajasResult.value > 0 ? cajasResult.value : (product.boxesPerBulk ?? 0);
+      const unitsPerBox = product.unitsPerBox ?? 1;
+
+      const totalUnits = calculateTotalUnits(
+        bultosResult.value,
+        cajasPerBulk,
+        unitsPerBox,
+      );
+
+      // Check negative result in adjust mode
+      if (mode === "adjust") {
+        const delta = totalUnits - product.quantity;
+        if (product.quantity + delta < 0) {
+          status = "error";
+          message = `${errorPrefix}: Stock resultante negativo (${product.quantity + delta}). Actual: ${product.quantity}`;
+        }
+      }
+
+      // 5. Locked product
+      if (status === "valid" && product.isLocked) {
+        status = "warning";
+        message = `${errorPrefix}: Producto bloqueado en este almacén`;
+      }
+
+      // 6. Truncation warnings
+      if (status === "valid" && bultosResult.warning) {
+        status = "warning";
+        message = `${errorPrefix}: ${bultosResult.warning}`;
+      }
+
+      // Build the validated row with calculated quantity
+      const quantity =
+        mode === "replace" ? totalUnits : totalUnits - product.quantity; // delta for adjust
+
+      // 7. Duplicate SKU detection
+      if (sku && seenSKUs.has(sku)) {
+        const prevIndex = seenSKUs.get(sku);
+        if (prevIndex !== undefined) {
+          const prevRow = validatedRows[prevIndex];
+          if (prevRow && prevRow.status !== "error") {
+            if (prevRow.status === "valid") validCount--;
+            prevRow.status = "warning";
+            prevRow.message = `${errorPrefix}: Duplicado — se usa la última fila`;
+            warningCount++;
+          }
+        }
+      }
+      if (sku) {
+        seenSKUs.set(sku, validatedRows.length);
+      }
+
+      // Track stats
+      if (status === "valid") validCount++;
+      else if (status === "warning") warningCount++;
+      else errorCount++;
+
+      validatedRows.push({
+        rowNumber,
+        sku,
+        quantity,
+        productId: product.id,
+        currentQuantity: product.quantity,
+        status,
+        message,
+        productName: product.name,
+        isLocked: product.isLocked,
+      });
+      continue;
     }
 
-    // 6. Duplicate SKU detection — keep last, mark previous as warning
+    // Fallback for error rows (no product resolved)
     if (sku && seenSKUs.has(sku)) {
       const prevIndex = seenSKUs.get(sku);
       if (prevIndex !== undefined) {
         const prevRow = validatedRows[prevIndex];
         if (prevRow && prevRow.status !== "error") {
-          // If it was counted as valid before, adjust
-          if (prevRow.status === "valid") {
-            validCount--;
-          }
+          if (prevRow.status === "valid") validCount--;
           prevRow.status = "warning";
-          prevRow.message = "Duplicado — se usa la última fila";
+          prevRow.message = `${errorPrefix}: Duplicado — se usa la última fila`;
           warningCount++;
         }
       }
@@ -218,16 +314,12 @@ export function validateRows(
       seenSKUs.set(sku, validatedRows.length);
     }
 
-    // Track stats
-    if (status === "valid") validCount++;
-    else if (status === "warning") warningCount++;
-    else errorCount++;
+    errorCount++;
 
     validatedRows.push({
       rowNumber,
       sku,
-      quantity: qtyResult.isValid ? qtyResult.value : 0,
-      notes,
+      quantity: 0,
       productId: product?.id ?? "",
       currentQuantity: product?.quantity ?? 0,
       status,

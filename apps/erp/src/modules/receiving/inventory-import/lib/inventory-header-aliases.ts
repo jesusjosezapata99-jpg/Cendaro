@@ -7,18 +7,43 @@
  * PRD: FEATURE_PRD_INVENTORY_IMPORT.md Appendix A
  */
 
-/** Standard field names used in the import process */
-export type ImportField = "sku" | "barcode" | "quantity" | "notes";
+/**
+ * Standard field names used in the import process.
+ *
+ * - sku, bultos, cajasPerBulk, presentacion: Import fields
+ * - marca, producto, unidPerCaja, stockTotal: Info fields (recognized but ignored)
+ */
+export type ImportField =
+  | "sku"
+  | "bultos"
+  | "cajasPerBulk"
+  | "presentacion"
+  | "marca"
+  | "producto"
+  | "unidPerCaja"
+  | "stockTotal";
+
+/** Fields that drive the import calculation */
+export const REQUIRED_IMPORT_FIELDS: ImportField[] = ["sku", "bultos"];
+
+/** Fields recognized by the parser but not required */
+export const OPTIONAL_IMPORT_FIELDS: ImportField[] = [
+  "cajasPerBulk",
+  "presentacion",
+  "marca",
+  "producto",
+  "unidPerCaja",
+  "stockTotal",
+];
 
 /**
- * Header alias map — 43 aliases across 4 groups.
+ * Header alias map — maps normalized header strings to field names.
  *
- * IMPORTANT: Barcode is SEPARATE from SKU. Barcode aliases must NEVER
- * be mapped to 'sku'. Barcode is optional and used for cross-validation
- * only — product lookup is ALWAYS by SKU (Referencia).
+ * Green fields (editable): bultos, cajasPerBulk, presentacion
+ * Blue fields (reference): sku, marca, producto, unidPerCaja, stockTotal
  */
 export const INVENTORY_HEADER_ALIASES: Record<string, ImportField> = {
-  // ── SKU / Reference (17 aliases) ──────────────────
+  // ── SKU / Reference ────────────────────────────
   sku: "sku",
   ref: "sku",
   referencia: "sku",
@@ -33,56 +58,59 @@ export const INVENTORY_HEADER_ALIASES: Record<string, ImportField> = {
   "item no": "sku",
   "item number": "sku",
   art: "sku",
-  "\u7f16\u53f7": "sku",
-  "\u8d27\u53f7": "sku",
-  // Note: "código" and "artículo" are matched after NFD normalization strips accents
+  "\u7f16\u53f7": "sku", // 编号
+  "\u8d27\u53f7": "sku", // 货号
 
-  // ── Barcode (9 aliases) — NOT used for SKU lookup ──
-  barcode: "barcode",
-  "bar code": "barcode",
-  ean: "barcode",
-  upc: "barcode",
-  gtin: "barcode",
-  "codigo de barras": "barcode",
-  "\u6761\u7801": "barcode",
-  "\u6761\u5f62\u7801": "barcode",
-  // Note: "código de barras" matched after accent stripping
+  // ── Bultos ─────────────────────────────────────
+  bultos: "bultos",
+  bulto: "bultos",
+  bales: "bultos",
+  packages: "bultos",
+  paquetes: "bultos",
+  fardos: "bultos",
+  cajas_grandes: "bultos",
 
-  // ── Quantity (17 aliases) ─────────────────────────
-  quantity: "quantity",
-  cantidad: "quantity",
-  qty: "quantity",
-  stock: "quantity",
-  existencia: "quantity",
-  existencias: "quantity",
-  inventario: "quantity",
-  unidades: "quantity",
-  units: "quantity",
-  count: "quantity",
-  conteo: "quantity",
-  cantidad_fisica: "quantity",
-  physical_count: "quantity",
-  pcs: "quantity",
-  pieces: "quantity",
-  "\u6570\u91cf": "quantity",
-  "qty.": "quantity",
+  // ── Cajas per Bulto ────────────────────────────
+  "cajas/bulto": "cajasPerBulk",
+  cajas_por_bulto: "cajasPerBulk",
+  "cajas por bulto": "cajasPerBulk",
+  "cases/bulk": "cajasPerBulk",
+  boxes_per_bulk: "cajasPerBulk",
 
-  // ── Notes (8 aliases) ────────────────────────────
-  notes: "notes",
-  notas: "notes",
-  observaciones: "notes",
-  comentarios: "notes",
-  comments: "notes",
-  nota: "notes",
-  "\u5907\u6ce8": "notes",
-  "\u8bf4\u660e": "notes",
+  // ── Presentación ───────────────────────────────
+  presentacion: "presentacion",
+  presentation: "presentacion",
+  "pack size": "presentacion",
+  pack_size: "presentacion",
+  display: "presentacion",
+  empaque: "presentacion",
+
+  // ── Marca (info — ignored by import engine) ────
+  marca: "marca",
+  brand: "marca",
+  "\u54c1\u724c": "marca", // 品牌
+
+  // ── Producto (info — ignored by import engine) ─
+  producto: "producto",
+  product: "producto",
+  nombre: "producto",
+  name: "producto",
+  "\u4ea7\u54c1": "producto", // 产品
+
+  // ── Unid/Caja (info — read-only) ───────────────
+  "unid/caja": "unidPerCaja",
+  unidades_por_caja: "unidPerCaja",
+  "unidades por caja": "unidPerCaja",
+  units_per_box: "unidPerCaja",
+  "units per box": "unidPerCaja",
+
+  // ── Stock Total (info — read-only, adjust mode) ─
+  "stock total": "stockTotal",
+  stock_total: "stockTotal",
+  "total stock": "stockTotal",
+  existencias: "stockTotal",
+  inventario: "stockTotal",
 };
-
-/** Required fields that MUST be present for a valid import */
-export const REQUIRED_IMPORT_FIELDS: ImportField[] = ["sku", "quantity"];
-
-/** Optional fields */
-export const OPTIONAL_IMPORT_FIELDS: ImportField[] = ["barcode", "notes"];
 
 /**
  * Normalize a header string for matching against alias map.

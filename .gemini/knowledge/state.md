@@ -7,8 +7,37 @@
 
 ## Session Registry
 
-- **Total agent sessions**: 18
-- **Last Modified By**: Antigravity Agent — 2026-03-14T03:40:00+01:00
+- **Total agent sessions**: 19
+- **Last Modified By**: Antigravity Agent — 2026-03-14T04:25:00+01:00
+
+---
+
+### 2026-03-14T04:25:00+01:00 — Inventory Import Template Redesign
+
+**Changes:**
+
+- **DB**: Added `presentation_qty` column to `product` table (migration `add_presentation_qty_to_product`)
+- **Schema**: Added `presentationQty` to Drizzle `Product` table
+- **tRPC**: `getWarehouseProducts` now JOINs `brand`, returns `brandName`, `unitsPerBox`, `boxesPerBulk`, `presentationQty`
+- **Template Builder** (`inventory-template-builder.ts`): Full rewrite — 3 sheets (Plantilla, Instrucciones, Reglas), legend block, color-coded cells, frozen panes, mode-specific columns
+- **Header Aliases** (`inventory-header-aliases.ts`): Removed barcode/notes/quantity, added bultos/cajasPerBulk/presentacion
+- **Normalizers** (`inventory-normalizers.ts`): Removed normalizeQuantity/Notes, added normalizeBultos/CajasPerBulk/Presentacion
+- **Validators** (`inventory-validators.ts`): Packaging calculation (Scenario A/B), enhanced error messages with product name + row
+- **Wizard**: Wired template download with products data, removed notes from commit payload
+- **Header Mapping UI**: Updated dropdown options for new packaging fields
+
+**Files changed:**
+
+- `packages/db/src/schema.ts`
+- `packages/api/src/modules/inventory-import.ts`
+- `apps/erp/src/modules/receiving/inventory-import/lib/inventory-template-builder.ts`
+- `apps/erp/src/modules/receiving/inventory-import/lib/inventory-header-aliases.ts`
+- `apps/erp/src/modules/receiving/inventory-import/lib/inventory-normalizers.ts`
+- `apps/erp/src/modules/receiving/inventory-import/lib/inventory-validators.ts`
+- `apps/erp/src/modules/receiving/inventory-import/inventory-import-wizard.tsx`
+- `apps/erp/src/modules/receiving/inventory-import/steps/header-mapping.tsx`
+
+---
 
 ---
 
