@@ -7,7 +7,19 @@
     },
     "build": {
       "dependsOn": ["^build"],
-      "outputs": [".cache/tsbuildinfo.json", "dist/**", ".next/**"]
+      "outputs": [
+        ".cache/tsbuildinfo.json",
+        "dist/**",
+        ".next/build/**",
+        ".next/server/**",
+        ".next/static/**",
+        ".next/types/**",
+        ".next/cache/**",
+        ".next/*.json",
+        ".next/*.js",
+        ".next/BUILD_ID",
+        ".next/package.json"
+      ]
     },
     "dev": {
       "cache": false,

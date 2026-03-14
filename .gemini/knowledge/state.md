@@ -7,8 +7,20 @@
 
 ## Session Registry
 
-- **Total agent sessions**: 19
-- **Last Modified By**: Antigravity Agent — 2026-03-14T04:25:00+01:00
+- **Total agent sessions**: 20
+- **Last Modified By**: Antigravity Agent — 2026-03-14T05:05:00+01:00
+
+---
+
+### 2026-03-14T05:05:00+01:00 — Turborepo Remote Cache 413 Fix
+
+**Root cause**: `turbo.json` build outputs glob `.next/**` was capturing the massive `.next/dev/` directory (875 MB of Turbopack dev cache), making the cache artifact exceed Vercel's 500 MB remote cache upload limit → `413 Request Entity Too Large`.
+
+**Fix**: Replaced `.next/**` with specific subdirectory globs: `.next/build/**`, `.next/server/**`, `.next/static/**`, `.next/types/**`, `.next/cache/**`, `.next/*.json`, `.next/*.js`, `.next/BUILD_ID`, `.next/package.json`. Cleaned stale `.next/dev` (875 MB) and `.next/diagnostics` directories. Post-cleanup cache payload: ~35 MB.
+
+**Files changed**: `turbo.json`, `.gemini/rules.md` (Error Prevention Matrix)
+
+**Verification**: `pnpm build` exit code 0, zero `413` warnings, remote cache upload successful.
 
 ---
 
