@@ -148,6 +148,13 @@ export default function WarehouseDetailPage() {
             </p>
           )}
         </div>
+        <Link
+          href={`/inventory/warehouse/${id}/import`}
+          className="bg-primary hover:bg-primary/90 inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors"
+        >
+          <span className="material-symbols-outlined text-lg">upload_file</span>
+          Importar Inventario
+        </Link>
       </div>
 
       {/* KPI Cards */}
