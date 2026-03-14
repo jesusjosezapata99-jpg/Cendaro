@@ -6,6 +6,7 @@ import { dashboardRouter } from "./modules/dashboard";
 import { healthRouter } from "./modules/health/router";
 import { integrationsRouter } from "./modules/integrations";
 import { inventoryRouter } from "./modules/inventory";
+import { inventoryImportRouter } from "./modules/inventory-import";
 import { paymentsRouter } from "./modules/payments";
 import { pricingRouter } from "./modules/pricing";
 import { quotesRouter } from "./modules/quotes";
@@ -22,6 +23,7 @@ export const appRouter = createTRPCRouter({
   approvals: approvalsRouter,
   catalog: catalogRouter,
   inventory: inventoryRouter,
+  inventoryImport: inventoryImportRouter,
   container: containerRouter,
   pricing: pricingRouter,
   quotes: quotesRouter,

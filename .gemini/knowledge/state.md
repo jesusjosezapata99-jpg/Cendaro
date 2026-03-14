@@ -7,16 +7,17 @@
 
 ## Session Registry
 
-- **Total agent sessions**: 15
-- **Last Modified By**: Antigravity Agent — 2026-03-14T01:00:00+01:00
+- **Total agent sessions**: 18
+- **Last Modified By**: Antigravity Agent — 2026-03-14T03:40:00+01:00
 
 ---
 
 ## Current Status
 
-- **Project health**: ✅ Operational — ESLint skill-file ignore fix applied
-- **Last agent interaction**: 2026-03-14T01:00:00+01:00
+- **Project health**: ✅ Operational — Inventory Import feature fully implemented
+- **Last agent interaction**: 2026-03-14T03:40:00+01:00
 - **Known issues**: None critical
+- **Latest work**: Implemented Inventory Import feature (21+ files across 5 phases). API: 6 Zod schemas, 2 tRPC procedures (getWarehouseProducts, commit) with batched upserts, idempotency, RBAC. Client: SheetJS utilities, 43 header aliases, row validation (13 error codes), 3 normalizers, 3 hooks (parse, validate, state machine). UI: 6-step wizard (mode → upload → mapping → preview → dry-run → results) + orchestrator + route page. Integration: "Importar Inventario" button on warehouse detail page. Types re-exported from `@cendaro/api` barrel. Verified: `pnpm typecheck` zero errors, 39 tests passing.
 
 ---
 

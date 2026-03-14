@@ -8,4 +8,13 @@ export { createTRPCContext, createCallerFactory } from "./trpc";
 export { logger } from "./logger";
 export type { ILogger, LogContext } from "./logger";
 
+// Inventory Import types (PRD §10)
+export type {
+  ImportMode,
+  ImportResult,
+  InventoryImportCommit,
+  InventoryImportRow,
+  ValidatedRow,
+} from "./modules/inventory-import";
+
 export const createCaller = createCallerFactory(appRouter);
