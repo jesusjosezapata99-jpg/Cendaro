@@ -7,15 +7,15 @@
 
 ## Session Registry
 
-- **Total agent sessions**: 13
-- **Last Modified By**: Antigravity Agent — 2026-03-12T20:03:00+01:00
+- **Total agent sessions**: 15
+- **Last Modified By**: Antigravity Agent — 2026-03-14T01:00:00+01:00
 
 ---
 
 ## Current Status
 
-- **Project health**: ✅ Operational — DolarAPI.com migration complete, pending full typecheck verification
-- **Last agent interaction**: 2026-03-12T20:03:00+01:00
+- **Project health**: ✅ Operational — ESLint skill-file ignore fix applied
+- **Last agent interaction**: 2026-03-14T01:00:00+01:00
 - **Known issues**: None critical
 
 ---
@@ -46,6 +46,21 @@
 ## Progress Log
 
 <!-- Entries should be prepended (newest first) -->
+
+### [2026-03-14] ESLint — Skill Source File Ignore
+
+- **Root cause**: `lint-staged` feeds ALL staged `*.ts(x)` files to ESLint, including `.agents/skills/sheetjs-nextjs/source/` template files. These are not in any `tsconfig.json`, causing 11 `projectService` parsing errors that block commits.
+- **Fix**: Added global ESLint ignores in `eslint.config.ts` for `.agents/**`, `_agents/**`, `.agent/**`, `_agent/**`.
+- **Verification**: `pnpm exec eslint --cache --no-warn-ignored` on all 11 files → exit 0, zero errors.
+- **Health**: ✅ Operational
+
+### [2026-03-14] SheetJS–Next.js Skill Integration
+
+- **Objective**: Analyze downloaded `sheetjs-nextjs-utils` skill and integrate professionally into `.agents/skills/sheetjs-nextjs/`.
+- **New files**: `SKILL.md` (7 sections, YAML frontmatter), `REFERENCE.md` (15 functions + 4 components API reference), `PATTERNS.md` (5 Cendaro-specific integration patterns), `source/` (10 reference files).
+- **Gap analysis**: Project already had `xlsx ^0.18.5` + `parse-file-browser.ts` (3-Tier pipeline for packing lists). Skill adds complementary capabilities: typed `T[]` parsing, browser download triggers, server-side Excel responses, and 3 reusable React components.
+- **Key decisions**: Skill is agent documentation only — zero production code modified. Import paths use `~/lib/xlsx` (Cendaro convention). Server module isolated from barrel to prevent client-side `fs` errors.
+- **Health**: ✅ Operational
 
 ### [2026-03-12] DolarAPI.com Migration — BCV Replacement + Parallel/USDT Rate
 
