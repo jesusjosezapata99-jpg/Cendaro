@@ -3,18 +3,26 @@
 /**
  * Cendaro — Inventory Import State Machine Hook
  *
- * Manages the 6-step wizard state via useReducer.
+ * Manages the 7-step wizard state via useReducer.
+ * Steps: Mode → File → Columns → Validation → Catálogo → Summary → Result
  *
- * PRD: FEATURE_PRD_INVENTORY_IMPORT.md §15, §20
+ * PRD: FEATURE_PRD_INVENTORY_IMPORT.md §15, §20, §23
  */
 import { useCallback, useReducer } from "react";
 
-import type { ImportMode, ImportResult, ValidatedRow } from "@cendaro/api";
+import type {
+  ImportMode,
+  ImportResult,
+  InitializeResult,
+  ValidatedRow,
+} from "@cendaro/api";
+
+import type { InitializeValidatedRow } from "../lib/inventory-validators";
 
 // ── State ────────────────────────────────────────
 
 export interface ImportState {
-  step: 1 | 2 | 3 | 4 | 5 | 6;
+  step: 1 | 2 | 3 | 4 | 5 | 6 | 7;
   warehouseId: string;
   warehouseName: string;
   mode: ImportMode | null;
@@ -33,6 +41,15 @@ export interface ImportState {
     skipped: number;
   } | null;
   commitResult: ImportResult | null;
+  /** Initialize mode: validated rows ready for catalog preview */
+  initializeRows: InitializeValidatedRow[];
+  /** Initialize mode: catalog preview data (brands + products to create) */
+  catalogPreview: {
+    brands: { name: string; isNew: boolean }[];
+    products: { sku: string; name: string; brand: string; isNew: boolean }[];
+  } | null;
+  /** Initialize mode: commit result */
+  initializeResult: InitializeResult | null;
   idempotencyKey: string;
   forceLocked: boolean;
   isProcessing: boolean;
@@ -58,9 +75,16 @@ type ImportAction =
       validatedRows: ValidatedRow[];
       stats: ImportState["validationStats"];
     }
+  | {
+      type: "INITIALIZE_VALIDATION_COMPLETE";
+      initializeRows: InitializeValidatedRow[];
+      stats: ImportState["validationStats"];
+      catalogPreview: NonNullable<ImportState["catalogPreview"]>;
+    }
   | { type: "SET_FORCE_LOCKED"; value: boolean }
   | { type: "SET_PROCESSING"; value: boolean }
   | { type: "COMMIT_COMPLETE"; result: ImportResult }
+  | { type: "INITIALIZE_COMPLETE"; result: InitializeResult }
   | { type: "SET_ERROR"; error: string }
   | { type: "CLEAR_ERROR" }
   | { type: "GO_TO_STEP"; step: ImportState["step"] }
@@ -86,6 +110,9 @@ function createInitialState(
     validatedRows: [],
     validationStats: null,
     commitResult: null,
+    initializeRows: [],
+    catalogPreview: null,
+    initializeResult: null,
     idempotencyKey: crypto.randomUUID(),
     forceLocked: false,
     isProcessing: false,
@@ -136,7 +163,25 @@ function importReducer(state: ImportState, action: ImportAction): ImportState {
         ...state,
         commitResult: action.result,
         isProcessing: false,
-        step: 6,
+        step: 7,
+      };
+
+    case "INITIALIZE_VALIDATION_COMPLETE":
+      return {
+        ...state,
+        initializeRows: action.initializeRows,
+        validationStats: action.stats,
+        catalogPreview: action.catalogPreview,
+        isProcessing: false,
+        step: 4,
+      };
+
+    case "INITIALIZE_COMPLETE":
+      return {
+        ...state,
+        initializeResult: action.result,
+        isProcessing: false,
+        step: 7,
       };
 
     case "SET_ERROR":
@@ -209,6 +254,26 @@ export function useInventoryImport(warehouseId: string, warehouseName: string) {
     dispatch({ type: "COMMIT_COMPLETE", result });
   }, []);
 
+  const initializeValidationComplete = useCallback(
+    (
+      initializeRows: InitializeValidatedRow[],
+      stats: ImportState["validationStats"],
+      catalogPreview: NonNullable<ImportState["catalogPreview"]>,
+    ) => {
+      dispatch({
+        type: "INITIALIZE_VALIDATION_COMPLETE",
+        initializeRows,
+        stats,
+        catalogPreview,
+      });
+    },
+    [],
+  );
+
+  const initializeComplete = useCallback((result: InitializeResult) => {
+    dispatch({ type: "INITIALIZE_COMPLETE", result });
+  }, []);
+
   const setError = useCallback((error: string) => {
     dispatch({ type: "SET_ERROR", error });
   }, []);
@@ -232,6 +297,8 @@ export function useInventoryImport(warehouseId: string, warehouseName: string) {
     parseComplete,
     updateHeaderMap,
     validationComplete,
+    initializeValidationComplete,
+    initializeComplete,
     setForceLocked,
     setProcessing,
     commitComplete,

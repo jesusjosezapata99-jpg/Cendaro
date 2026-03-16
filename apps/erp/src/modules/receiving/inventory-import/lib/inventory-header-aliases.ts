@@ -11,7 +11,8 @@
  * Standard field names used in the import process.
  *
  * - sku, bultos, cajasPerBulk, presentacion: Import fields
- * - marca, producto, unidPerCaja, stockTotal: Info fields (recognized but ignored)
+ * - marca, producto: Info-only for Replace/Adjust, REQUIRED for Initialize
+ * - unidPerCaja, stockTotal: Info fields (recognized but not required)
  */
 export type ImportField =
   | "sku"
@@ -23,8 +24,18 @@ export type ImportField =
   | "unidPerCaja"
   | "stockTotal";
 
-/** Fields that drive the import calculation */
+/** Fields that drive the import calculation (Replace/Adjust) */
 export const REQUIRED_IMPORT_FIELDS: ImportField[] = ["sku", "bultos"];
+
+/** Returns the required fields for a given import mode */
+export function getRequiredFieldsForMode(
+  mode: "replace" | "adjust" | "initialize",
+): ImportField[] {
+  if (mode === "initialize") {
+    return ["sku", "bultos", "marca", "producto"];
+  }
+  return ["sku", "bultos"];
+}
 
 /** Fields recognized by the parser but not required */
 export const OPTIONAL_IMPORT_FIELDS: ImportField[] = [

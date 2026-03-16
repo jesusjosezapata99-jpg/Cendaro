@@ -131,3 +131,47 @@ function normalizePositiveInteger(raw: string): NormalizedInteger {
 
   return { value: parsed, isValid: true, warning, raw };
 }
+
+// ── Initialize Mode Normalizers ──────────────────
+
+/**
+ * Normalize a brand name.
+ * - Trim whitespace
+ * - Title-case (first letter of each word capitalized)
+ *
+ * @example " samsung electronics " → "Samsung Electronics"
+ * @example "" → ""  (empty = invalid, but caller decides)
+ */
+export function normalizeBrandName(
+  value: string | number | null | undefined,
+): string {
+  const trimmed = String(value ?? "").trim();
+  if (trimmed === "") return "";
+  return trimmed.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+/**
+ * Normalize a product name.
+ * - Trim whitespace only (preserve original casing)
+ *
+ * @example " Cargador USB-C 65W " → "Cargador USB-C 65W"
+ */
+export function normalizeProductName(
+  value: string | number | null | undefined,
+): string {
+  return String(value ?? "").trim();
+}
+
+/**
+ * Normalize a unid/caja (units per box) value.
+ * Same logic as cajasPerBulk — "—" means N/A.
+ */
+export function normalizeUnidPerCaja(
+  value: string | number | null | undefined,
+): NormalizedInteger {
+  const raw = String(value ?? "").trim();
+  if (raw === "" || raw === "—" || raw === "-" || raw === "–") {
+    return { value: 0, isValid: true, raw };
+  }
+  return normalizePositiveInteger(raw);
+}

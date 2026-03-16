@@ -3,8 +3,8 @@
 /**
  * Step 1 — Mode Selection
  *
- * Replace vs Adjust mode selector with descriptive cards.
- * PRD: FEATURE_PRD_INVENTORY_IMPORT.md §15, §20 (ModeSelected)
+ * Replace vs Adjust vs Initialize mode selector with premium cards.
+ * PRD: FEATURE_PRD_INVENTORY_IMPORT.md §15, §20, §23
  */
 import type { ImportMode } from "@cendaro/api";
 
@@ -17,87 +17,164 @@ const modes: {
   value: ImportMode;
   icon: string;
   title: string;
+  subtitle: string;
   description: string;
-  warning?: string;
+  bullets: string[];
+  badge?: { label: string; variant: "amber" | "emerald" | "sky" };
 }[] = [
   {
     value: "replace",
     icon: "swap_horiz",
     title: "Reemplazar",
+    subtitle: "Conteo Físico",
     description:
-      "Establece la cantidad exacta del conteo físico. Sobrescribe el stock actual con el valor del archivo.",
-    warning: "Reemplazar sobreescribe el stock actual",
+      "Sobrescribe el stock actual con las cantidades exactas del archivo.",
+    bullets: [
+      "Establece la cantidad exacta por SKU",
+      "Ideal para conciliación post-conteo",
+      "Requiere productos existentes en el catálogo",
+    ],
+    badge: { label: "Sobreescribe stock", variant: "amber" },
   },
   {
     value: "adjust",
     icon: "tune",
     title: "Ajustar",
+    subtitle: "Ajuste Parcial",
     description:
-      "Suma o resta cantidades a lo existente. Use valores positivos para agregar y negativos para restar.",
+      "Suma o resta cantidades al stock existente de forma incremental.",
+    bullets: [
+      "Valores positivos (+) agregan stock",
+      "Valores negativos (−) restan stock",
+      "No modifica productos sin cambios",
+    ],
+  },
+  {
+    value: "initialize",
+    icon: "database",
+    title: "Inicializar",
+    subtitle: "Desde Cero",
+    description:
+      "Crea marcas, productos y stock en una sola operación desde el archivo.",
+    bullets: [
+      "Crea marcas automáticamente",
+      "Registra productos nuevos con su SKU",
+      "Establece el stock inicial por bultos",
+    ],
+    badge: { label: "Primera subida o reset", variant: "sky" },
   },
 ];
 
+const badgeStyles = {
+  amber:
+    "bg-amber-500/10 text-amber-500 ring-amber-500/20 dark:bg-amber-400/10 dark:text-amber-400 dark:ring-amber-400/20",
+  emerald:
+    "bg-emerald-500/10 text-emerald-500 ring-emerald-500/20 dark:bg-emerald-400/10 dark:text-emerald-400 dark:ring-emerald-400/20",
+  sky: "bg-sky-500/10 text-sky-500 ring-sky-500/20 dark:bg-sky-400/10 dark:text-sky-400 dark:ring-sky-400/20",
+};
+
 export function ModeSelect({ selectedMode, onSelect }: ModeSelectProps) {
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
+    <div className="mx-auto max-w-4xl space-y-8">
+      {/* Header */}
       <div className="text-center">
-        <h2 className="text-foreground text-xl font-bold">
+        <h2 className="text-foreground text-2xl font-black tracking-tight">
           Seleccionar Modo de Importación
         </h2>
-        <p className="text-muted-foreground mt-1 text-sm">
+        <p className="text-muted-foreground mt-2 text-sm">
           Elija cómo se aplicarán las cantidades del archivo al inventario
         </p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      {/* Cards */}
+      <div className="grid gap-5 sm:grid-cols-3">
         {modes.map((m) => {
           const isSelected = selectedMode === m.value;
           return (
             <button
               key={m.value}
               onClick={() => onSelect(m.value)}
-              className={`border-border bg-card group relative cursor-pointer rounded-xl border-2 p-6 text-left transition-all hover:shadow-md ${
+              className={`group relative flex cursor-pointer flex-col rounded-2xl border-2 p-0 text-left transition-all duration-200 ${
                 isSelected
-                  ? "border-primary ring-primary/20 shadow-md ring-2"
-                  : "hover:border-primary/40"
+                  ? "border-primary bg-primary/[0.03] shadow-primary/10 ring-primary/20 shadow-lg ring-1"
+                  : "border-border bg-card hover:border-primary/30 hover:bg-card/80 hover:shadow-md"
               }`}
             >
-              <div className="flex items-start gap-3">
-                <span
-                  className={`material-symbols-outlined rounded-lg p-2 text-2xl ${
-                    isSelected
-                      ? "bg-primary/10 text-primary"
-                      : "bg-muted text-muted-foreground"
-                  }`}
-                >
-                  {m.icon}
-                </span>
-                <div className="flex-1">
-                  <h3 className="text-foreground text-lg font-bold">
+              {/* ── Top section: icon + title ─────── */}
+              <div className="flex flex-col gap-3 px-5 pt-5 pb-3">
+                <div className="flex items-center justify-between">
+                  <div
+                    className={`flex size-10 items-center justify-center rounded-xl transition-colors ${
+                      isSelected
+                        ? "bg-primary shadow-primary/30 text-white shadow-md"
+                        : "bg-muted text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary"
+                    }`}
+                  >
+                    <span className="material-symbols-outlined text-xl">
+                      {m.icon}
+                    </span>
+                  </div>
+                  {isSelected && (
+                    <div className="bg-primary flex size-6 items-center justify-center rounded-full shadow-sm">
+                      <span className="material-symbols-outlined text-sm text-white">
+                        check
+                      </span>
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <h3 className="text-foreground text-lg leading-tight font-bold">
                     {m.title}
                   </h3>
-                  <p className="text-muted-foreground mt-1 text-sm leading-relaxed">
-                    {m.description}
-                  </p>
+                  <span className="text-muted-foreground text-xs font-medium tracking-wider uppercase">
+                    {m.subtitle}
+                  </span>
                 </div>
               </div>
 
-              {m.warning && (
-                <div className="mt-3 flex items-center gap-1.5 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:bg-amber-900/20 dark:text-amber-400">
-                  <span className="material-symbols-outlined text-sm">
-                    warning
-                  </span>
-                  {m.warning}
-                </div>
-              )}
+              {/* ── Divider ─────────────────────── */}
+              <div className="border-border mx-5 border-t" />
 
-              {isSelected && (
-                <div className="bg-primary absolute top-3 right-3 flex size-6 items-center justify-center rounded-full">
-                  <span className="material-symbols-outlined text-sm text-white">
-                    check
-                  </span>
-                </div>
-              )}
+              {/* ── Body: description + bullets ─── */}
+              <div className="flex flex-1 flex-col gap-3 px-5 pt-3 pb-5">
+                <p className="text-muted-foreground text-[13px] leading-relaxed">
+                  {m.description}
+                </p>
+
+                <ul className="space-y-1.5">
+                  {m.bullets.map((b) => (
+                    <li
+                      key={b}
+                      className="text-muted-foreground flex items-start gap-2 text-xs"
+                    >
+                      <span
+                        className={`material-symbols-outlined mt-px text-xs ${
+                          isSelected
+                            ? "text-primary"
+                            : "text-muted-foreground/60"
+                        }`}
+                      >
+                        check_circle
+                      </span>
+                      <span>{b}</span>
+                    </li>
+                  ))}
+                </ul>
+
+                {/* ── Badge (optional) ───────────── */}
+                {m.badge && (
+                  <div className="mt-auto pt-2">
+                    <span
+                      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 ring-inset ${badgeStyles[m.badge.variant]}`}
+                    >
+                      <span className="material-symbols-outlined text-xs">
+                        {m.badge.variant === "amber" ? "warning" : "info"}
+                      </span>
+                      {m.badge.label}
+                    </span>
+                  </div>
+                )}
+              </div>
             </button>
           );
         })}

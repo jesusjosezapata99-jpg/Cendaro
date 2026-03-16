@@ -4,10 +4,12 @@
  * Step 3 — Header Mapping
  *
  * Auto-detected + manual override column mapping.
- * PRD: FEATURE_PRD_INVENTORY_IMPORT.md §15, §20 (HeaderAnalysis)
+ * PRD: FEATURE_PRD_INVENTORY_IMPORT.md §15, §20, §23
  */
+import type { ImportMode } from "@cendaro/api";
+
 import type { ImportField } from "../lib/inventory-header-aliases";
-import { REQUIRED_IMPORT_FIELDS } from "../lib/inventory-header-aliases";
+import { getRequiredFieldsForMode } from "../lib/inventory-header-aliases";
 
 interface HeaderMappingProps {
   headers: string[];
@@ -15,6 +17,7 @@ interface HeaderMappingProps {
   unmapped: string[];
   sheetName: string;
   totalRows: number;
+  mode: ImportMode;
   onUpdateMap: (map: Record<string, number>) => void;
   onConfirm: () => void;
 }
@@ -37,6 +40,7 @@ export function HeaderMapping({
   unmapped,
   sheetName,
   totalRows,
+  mode,
   onUpdateMap,
   onConfirm,
 }: HeaderMappingProps) {
@@ -46,9 +50,8 @@ export function HeaderMapping({
     reverseMap.set(index, field);
   }
 
-  const missingRequired = REQUIRED_IMPORT_FIELDS.filter(
-    (f) => !(f in headerMap),
-  );
+  const requiredFields = getRequiredFieldsForMode(mode);
+  const missingRequired = requiredFields.filter((f) => !(f in headerMap));
   const canConfirm = missingRequired.length === 0;
 
   const handleFieldChange = (colIndex: number, newField: string) => {
