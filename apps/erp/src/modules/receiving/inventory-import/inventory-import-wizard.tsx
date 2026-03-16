@@ -3,9 +3,9 @@
 /**
  * Cendaro — Inventory Import Wizard
  *
- * Main orchestrator connecting all 6 steps via state machine.
+ * Main orchestrator connecting all 7 steps via state machine.
  *
- * PRD: FEATURE_PRD_INVENTORY_IMPORT.md §15, §20, §22
+ * PRD: FEATURE_PRD_INVENTORY_IMPORT.md §15, §20, §22, §23
  */
 import Link from "next/link";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -17,6 +17,8 @@ import { useInventoryImport } from "./hooks/use-inventory-import";
 import { useParseInventoryFile } from "./hooks/use-parse-inventory-file";
 import { useValidateInventory } from "./hooks/use-validate-inventory";
 import { downloadInventoryTemplate } from "./lib/inventory-template-builder";
+import { validateInitializeRows } from "./lib/inventory-validators";
+import { CatalogPreview } from "./steps/catalog-preview";
 import { DryRunSummary } from "./steps/dry-run-summary";
 import { FileUpload } from "./steps/file-upload";
 import { HeaderMapping } from "./steps/header-mapping";
@@ -31,8 +33,9 @@ const STEPS = [
   { num: 2, label: "Archivo" },
   { num: 3, label: "Columnas" },
   { num: 4, label: "Validación" },
-  { num: 5, label: "Resumen" },
-  { num: 6, label: "Resultado" },
+  { num: 5, label: "Catálogo" },
+  { num: 6, label: "Resumen" },
+  { num: 7, label: "Resultado" },
 ] as const;
 
 function StepIndicator({ current }: { current: number }) {
@@ -100,6 +103,8 @@ export function InventoryImportWizard({
     parseComplete,
     updateHeaderMap,
     validationComplete,
+    initializeValidationComplete,
+    initializeComplete,
     setForceLocked,
     setProcessing,
     commitComplete,
@@ -124,7 +129,7 @@ export function InventoryImportWizard({
     trpc.inventoryImport.getWarehouseProducts.queryOptions({ warehouseId }),
   );
 
-  // Commit mutation
+  // Commit mutation (Replace/Adjust)
   const commitMutation = useMutation(
     trpc.inventoryImport.commit.mutationOptions({
       onSuccess: (result) => {
@@ -147,7 +152,24 @@ export function InventoryImportWizard({
     }),
   );
 
-  // ── Handlers ─────────────────────────────────
+  // Initialize commit mutation
+  const initializeCommitMutation = useMutation(
+    trpc.inventoryImport.initializeCommit.mutationOptions({
+      onSuccess: (result) => {
+        initializeComplete(result);
+        toast.success(
+          `Inicialización completada: ${result.brandsCreated} marcas, ${result.productsCreated} productos, ${result.stockEntries} stock`,
+        );
+      },
+      onError: (err) => {
+        setError(err.message);
+        setProcessing(false);
+        toast.error("Error al inicializar: " + err.message);
+      },
+    }),
+  );
+
+  // ── Handlers ─────────────────────────
 
   const handleFileSelect = async (file: File) => {
     const result = await parseFile(file);
@@ -163,25 +185,68 @@ export function InventoryImportWizard({
   };
 
   const handleConfirmMapping = () => {
-    if (!state.mode || !products) return;
+    if (!state.mode) return;
 
-    // Run validation
-    const validated = validate(
-      state.rawRows,
-      state.headerMap,
-      products,
-      state.mode,
-    );
+    if (state.mode === "initialize") {
+      // Initialize mode: validate with Initialize validator
+      const result = validateInitializeRows(state.rawRows, state.headerMap);
 
-    const stats = {
-      total: validated.length,
-      valid: validated.filter((r) => r.status === "valid").length,
-      warnings: validated.filter((r) => r.status === "warning").length,
-      errors: validated.filter((r) => r.status === "error").length,
-      skipped: state.rawRows.length - validated.length,
-    };
+      // Build catalog preview
+      const brandSet = new Map<string, boolean>();
+      const productList: {
+        sku: string;
+        name: string;
+        brand: string;
+        isNew: boolean;
+      }[] = [];
 
-    validationComplete(validated, stats);
+      for (const row of result.validatedRows) {
+        if (row.status === "error") continue;
+        if (!brandSet.has(row.brand)) {
+          brandSet.set(row.brand, true); // isNew (we don't know for sure yet, treat all as new in preview)
+        }
+        productList.push({
+          sku: row.sku,
+          name: row.productName,
+          brand: row.brand,
+          isNew: true,
+        });
+      }
+
+      const catalogPreview = {
+        brands: Array.from(brandSet.entries()).map(([name]) => ({
+          name,
+          isNew: true,
+        })),
+        products: productList,
+      };
+
+      initializeValidationComplete(
+        result.validatedRows,
+        result.stats,
+        catalogPreview,
+      );
+    } else {
+      // Replace/Adjust mode: original validation
+      if (!products) return;
+
+      const validated = validate(
+        state.rawRows,
+        state.headerMap,
+        products,
+        state.mode,
+      );
+
+      const stats = {
+        total: validated.length,
+        valid: validated.filter((r) => r.status === "valid").length,
+        warnings: validated.filter((r) => r.status === "warning").length,
+        errors: validated.filter((r) => r.status === "error").length,
+        skipped: state.rawRows.length - validated.length,
+      };
+
+      validationComplete(validated, stats);
+    }
   };
 
   const handleConfirmImport = () => {
@@ -216,7 +281,40 @@ export function InventoryImportWizard({
     });
   };
 
+  const handleConfirmInitialize = () => {
+    const validRows = state.initializeRows.filter(
+      (r) => r.status === "valid" || r.status === "warning",
+    );
+    if (validRows.length === 0) {
+      setError("No hay filas válidas para inicializar");
+      return;
+    }
+
+    setProcessing(true);
+    initializeCommitMutation.mutate({
+      warehouseId,
+      rows: validRows.map((r) => ({
+        rowNumber: r.rowNumber,
+        brand: r.brand,
+        sku: r.sku,
+        productName: r.productName,
+        bultos: r.bultos,
+        cajasPerBulk: r.cajasPerBulk,
+        unidPerCaja: r.unidPerCaja,
+        presentacion: r.presentacion,
+        totalUnits: r.totalUnits,
+      })),
+      filename: state.file?.name ?? "import.xlsx",
+      idempotencyKey: state.idempotencyKey,
+    });
+  };
+
   const handleDownloadTemplate = () => {
+    if (state.mode === "initialize") {
+      // Initialize mode: empty template, no products needed
+      downloadInventoryTemplate("initialize");
+      return;
+    }
     if (!products) {
       toast.error("Cargando catálogo de productos...");
       return;
@@ -272,7 +370,7 @@ export function InventoryImportWizard({
         <h1 className="text-foreground text-2xl font-black tracking-tight">
           Importar Inventario
         </h1>
-        {state.step < 6 && (
+        {state.step < 7 && (
           <button
             onClick={handleReset}
             disabled={state.isProcessing}
@@ -313,13 +411,14 @@ export function InventoryImportWizard({
           />
         )}
 
-        {state.step === 3 && (
+        {state.step === 3 && state.mode && (
           <HeaderMapping
             headers={state.headers}
             headerMap={state.headerMap}
             unmapped={state.unmapped}
             sheetName={state.sheetName}
             totalRows={state.rawRows.length + 1}
+            mode={state.mode}
             onUpdateMap={updateHeaderMap}
             onConfirm={handleConfirmMapping}
           />
@@ -331,36 +430,84 @@ export function InventoryImportWizard({
             stats={state.validationStats}
             mode={state.mode}
             onProceed={() => {
-              // Advance to dry-run summary (step 5)
-              goToStep(5);
+              if (state.mode === "initialize") {
+                // Initialize: go to Catalog Preview (step 5)
+                goToStep(5);
+              } else {
+                // Replace/Adjust: skip catalog, go to Dry-Run Summary (step 6)
+                goToStep(6);
+              }
             }}
             onBack={() => handleReset()}
           />
         )}
 
-        {state.step === 5 && state.mode && (
-          <DryRunSummary
-            validatedRows={state.validatedRows}
-            mode={state.mode}
-            warehouseName={warehouseName}
-            forceLocked={state.forceLocked}
-            onSetForceLocked={setForceLocked}
-            onConfirm={handleConfirmImport}
-            onBack={() => handleReset()}
-            isProcessing={state.isProcessing}
-            canForceLock={true}
-          />
-        )}
+        {state.step === 5 &&
+          state.mode === "initialize" &&
+          state.catalogPreview && (
+            <CatalogPreview
+              initializeRows={state.initializeRows}
+              catalogPreview={state.catalogPreview}
+              onProceed={() => goToStep(6)}
+              onBack={() => handleReset()}
+            />
+          )}
 
-        {state.step === 6 && state.commitResult && (
-          <ResultSummary
-            result={state.commitResult}
-            warehouseId={warehouseId}
-            warehouseName={warehouseName}
-            filename={state.file?.name ?? "import.xlsx"}
-            onNewImport={handleReset}
-          />
-        )}
+        {state.step === 6 &&
+          state.mode &&
+          (state.mode === "initialize" ? (
+            // Initialize mode: dry-run using initializeRows
+            <DryRunSummary
+              validatedRows={state.validatedRows}
+              mode={state.mode}
+              warehouseName={warehouseName}
+              forceLocked={false}
+              onSetForceLocked={() => {
+                /* noop — initialize mode has no lock toggle */
+              }}
+              onConfirm={handleConfirmInitialize}
+              onBack={() => handleReset()}
+              isProcessing={state.isProcessing}
+              canForceLock={false}
+            />
+          ) : (
+            <DryRunSummary
+              validatedRows={state.validatedRows}
+              mode={state.mode}
+              warehouseName={warehouseName}
+              forceLocked={state.forceLocked}
+              onSetForceLocked={setForceLocked}
+              onConfirm={handleConfirmImport}
+              onBack={() => handleReset()}
+              isProcessing={state.isProcessing}
+              canForceLock={true}
+            />
+          ))}
+
+        {state.step === 7 &&
+          (state.mode === "initialize" && state.initializeResult ? (
+            <ResultSummary
+              result={{
+                committed: state.initializeResult.productsCreated,
+                skipped: state.initializeResult.skipped,
+                failed: state.initializeResult.failed,
+                totalDelta: state.initializeResult.totalUnits,
+                errors: state.initializeResult.errors,
+              }}
+              warehouseId={warehouseId}
+              warehouseName={warehouseName}
+              filename={state.file?.name ?? "import.xlsx"}
+              onNewImport={handleReset}
+            />
+          ) : state.commitResult ? (
+            <ResultSummary
+              result={state.commitResult}
+              warehouseId={warehouseId}
+              warehouseName={warehouseName}
+              filename={state.file?.name ?? "import.xlsx"}
+              onNewImport={handleReset}
+            />
+          ) : null)}
       </div>
     </div>
   );

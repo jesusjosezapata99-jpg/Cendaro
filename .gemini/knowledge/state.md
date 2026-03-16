@@ -7,8 +7,23 @@
 
 ## Session Registry
 
-- **Total agent sessions**: 20
-- **Last Modified By**: Antigravity Agent — 2026-03-14T05:05:00+01:00
+- **Total agent sessions**: 21
+- **Last Modified By**: Antigravity Agent — 2026-03-16T18:30:00+01:00
+
+---
+
+### 2026-03-16T18:30:00+01:00 — Inventory Import: Initialize Mode (PRD §23)
+
+**What**: Full implementation of the "Initialize" import mode that creates brands, products, and stock from scratch in a single operation. Resolves the blocker where first-time imports failed due to non-existent entities.
+
+**Files changed**:
+
+- **Backend**: `packages/api/src/modules/inventory-import.ts` (extended `importModeSchema`, added `initializeRowSchema`, `initializeCommitSchema`, `initializeResultSchema`, `slugify()` helper, `initializeCommit` tRPC procedure with transactional brand→product→stock creation), `packages/api/src/index.ts` (new type exports)
+- **Libs**: `inventory-header-aliases.ts` (`getRequiredFieldsForMode()`), `inventory-normalizers.ts` (`normalizeBrandName`, `normalizeProductName`, `normalizeUnidPerCaja`), `inventory-validators.ts` (`InitializeValidatedRow`, `validateInitializeRows()`, 3 new error codes), `inventory-template-builder.ts` (`INITIALIZE_HEADERS`, wider types for download/build/getCellValue)
+- **Hooks**: `use-inventory-import.ts` (7-step state machine, `initializeRows`/`catalogPreview`/`initializeResult` state, `INITIALIZE_VALIDATION_COMPLETE`/`INITIALIZE_COMPLETE` actions)
+- **UI**: `catalog-preview.tsx` (**NEW** — 240 LOC), `mode-select.tsx` (3-col grid + Initialize card), `header-mapping.tsx` (mode-aware required fields), `inventory-import-wizard.tsx` (7-step STEPS, `initializeCommit` mutation, `handleConfirmInitialize`, catalog preview routing)
+
+**Verification**: `tsc --noEmit` pass, full `pnpm build` pass (exit code 0, 27s).
 
 ---
 

@@ -83,6 +83,17 @@ const ADJUST_HEADERS = [
   "Stock Total",
 ];
 
+// ── Initialize Mode Headers ────────────────────
+
+const INITIALIZE_HEADERS = [
+  "Marca",
+  "Referencia",
+  "Producto",
+  "Bultos",
+  "Cajas/Bulto",
+  "Unid/Caja",
+  "Presentación",
+];
 // ── Column Widths ─────────────────────────────────
 
 const COL_WIDTHS: Record<string, number> = {
@@ -101,37 +112,48 @@ const COL_WIDTHS: Record<string, number> = {
 /**
  * Build and download a professional inventory import template.
  *
- * @param mode - "replace" = fresh count, "adjust" = modify existing stock
- * @param products - warehouse product data from getWarehouseProducts
+ * @param mode - "replace" = fresh count, "adjust" = modify existing stock, "initialize" = create from scratch
+ * @param products - warehouse product data (optional for initialize mode)
  */
 export function downloadInventoryTemplate(
-  mode: "replace" | "adjust",
-  products: WarehouseProduct[],
+  mode: "replace" | "adjust" | "initialize",
+  products?: WarehouseProduct[],
 ): void {
   const wb = utils.book_new();
 
-  // ── Sheet 1: Plantilla (Data) ─────────────────
-  const headers = mode === "replace" ? REPLACE_HEADERS : ADJUST_HEADERS;
-  const ws = buildDataSheet(mode, headers, products);
+  // ── Sheet 1: Plantilla (Data) ───────────────
+  let headers: string[];
+  if (mode === "initialize") {
+    headers = INITIALIZE_HEADERS;
+  } else if (mode === "adjust") {
+    headers = ADJUST_HEADERS;
+  } else {
+    headers = REPLACE_HEADERS;
+  }
+  const ws = buildDataSheet(mode, headers, products ?? []);
   utils.book_append_sheet(wb, ws, "Plantilla");
 
-  // ── Sheet 2: Instrucciones ────────────────────
+  // ── Sheet 2: Instrucciones ────────────────
   const instrSheet = buildInstructionsSheet(mode);
   utils.book_append_sheet(wb, instrSheet, "Instrucciones");
 
-  // ── Sheet 3: Reglas ───────────────────────────
+  // ── Sheet 3: Reglas ─────────────────────
   const rulesSheet = buildRulesSheet();
   utils.book_append_sheet(wb, rulesSheet, "Reglas");
 
-  // ── Download ──────────────────────────────────
-  const modeLabel = mode === "replace" ? "reemplazar" : "ajustar";
-  writeFile(wb, `plantilla-inventario-${modeLabel}.xlsx`);
+  // ── Download ──────────────────────────
+  const modeLabels: Record<string, string> = {
+    replace: "reemplazar",
+    adjust: "ajustar",
+    initialize: "inicializar",
+  };
+  writeFile(wb, `plantilla-inventario-${modeLabels[mode]}.xlsx`);
 }
 
 // ── Data Sheet Builder ────────────────────────────
 
 function buildDataSheet(
-  mode: "replace" | "adjust",
+  mode: "replace" | "adjust" | "initialize",
   headers: string[],
   products: WarehouseProduct[],
 ): WorkSheet {
@@ -140,11 +162,13 @@ function buildDataSheet(
   const HEADER_ROW = LEGEND_ROWS + 1; // row 8
   const DATA_START = HEADER_ROW + 1; // row 9
 
-  // ── Legend Block (rows 1–6) ────────────────────
-  const modeLabel =
-    mode === "replace"
-      ? "Reemplazar (Conteo Nuevo)"
-      : "Ajustar (Sobre Stock Existente)";
+  // ── Legend Block (rows 1–6) ────────────────
+  const modeLabelMap: Record<string, string> = {
+    replace: "Reemplazar (Conteo Nuevo)",
+    adjust: "Ajustar (Sobre Stock Existente)",
+    initialize: "Inicializar (Catálogo + Stock desde Cero)",
+  };
+  const modeLabel = modeLabelMap[mode] ?? mode;
 
   writeLegendCell(
     ws,
@@ -269,7 +293,7 @@ function buildDataSheet(
 function getCellValue(
   header: string,
   product: WarehouseProduct,
-  mode: "replace" | "adjust",
+  mode: "replace" | "adjust" | "initialize",
 ): string | number {
   switch (header) {
     case "Marca":
@@ -323,7 +347,9 @@ function deriveBultos(product: WarehouseProduct): number | string {
 
 // ── Instructions Sheet Builder ────────────────────
 
-function buildInstructionsSheet(mode: "replace" | "adjust"): WorkSheet {
+function buildInstructionsSheet(
+  mode: "replace" | "adjust" | "initialize",
+): WorkSheet {
   const data = [
     {
       Columna: "Marca",

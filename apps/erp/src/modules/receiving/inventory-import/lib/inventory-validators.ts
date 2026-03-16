@@ -14,10 +14,13 @@
 import type { ImportMode, ValidatedRow } from "@cendaro/api";
 
 import {
+  normalizeBrandName,
   normalizeBultos,
   normalizeCajasPerBulk,
   normalizePresentacion,
+  normalizeProductName,
   normalizeSku,
+  normalizeUnidPerCaja,
 } from "./inventory-normalizers";
 
 // ── Error Codes ──────────────────────────────────
@@ -39,6 +42,10 @@ export const ERROR_CODES = {
   UNKNOWN_COLUMN: "UNKNOWN_COLUMN",
   VALUE_TRUNCATED: "VALUE_TRUNCATED",
   IDEMPOTENCY_CONFLICT: "IDEMPOTENCY_CONFLICT",
+  // Initialize mode
+  BRAND_EMPTY: "BRAND_EMPTY",
+  PRODUCT_NAME_EMPTY: "PRODUCT_NAME_EMPTY",
+  SKU_ALREADY_EXISTS: "SKU_ALREADY_EXISTS",
 } as const;
 
 // ── Product lookup map type ──────────────────────
@@ -347,4 +354,222 @@ export interface ValidationStats {
   warnings: number;
   errors: number;
   skipped: number;
+}
+
+// ── Initialize Mode Types ────────────────────────
+
+export interface InitializeValidatedRow {
+  rowNumber: number;
+  brand: string;
+  sku: string;
+  productName: string;
+  bultos: number;
+  cajasPerBulk: number | null;
+  unidPerCaja: number | null;
+  presentacion: number;
+  totalUnits: number;
+  status: "valid" | "warning" | "error";
+  message?: string;
+}
+
+// ── Initialize Row Validator ─────────────────────
+
+/**
+ * Validate all data rows for Initialize mode.
+ *
+ * Unlike validateRows() which resolves against existing products,
+ * this validates brand/product names and packaging for creation.
+ *
+ * @param dataRows - Parsed spreadsheet data (array of arrays, NO header row)
+ * @param headerMap - Map of field name → column index
+ * @param existingSkus - Optional set of SKUs already in DB (for duplicate warning)
+ */
+export function validateInitializeRows(
+  dataRows: string[][],
+  headerMap: Record<string, number>,
+  existingSkus?: Set<string>,
+): { validatedRows: InitializeValidatedRow[]; stats: ValidationStats } {
+  const validatedRows: InitializeValidatedRow[] = [];
+  const seenSKUs = new Map<string, number>(); // SKU → index in validatedRows
+
+  let validCount = 0;
+  let warningCount = 0;
+  let errorCount = 0;
+  let skippedCount = 0;
+
+  for (let i = 0; i < dataRows.length; i++) {
+    const row = dataRows[i];
+    if (!row) continue;
+    const rowNumber = i + 2; // 1-indexed, +1 for header
+
+    // Extract raw values
+    const rawSku =
+      headerMap.sku !== undefined ? String(row[headerMap.sku] ?? "") : "";
+    const rawBrand =
+      headerMap.marca !== undefined ? String(row[headerMap.marca] ?? "") : "";
+    const rawProduct =
+      headerMap.producto !== undefined
+        ? String(row[headerMap.producto] ?? "")
+        : "";
+    const rawBultos =
+      headerMap.bultos !== undefined ? String(row[headerMap.bultos] ?? "") : "";
+    const rawCajas =
+      headerMap.cajasPerBulk !== undefined
+        ? String(row[headerMap.cajasPerBulk] ?? "")
+        : "";
+    const rawUnidPerCaja =
+      headerMap.unidPerCaja !== undefined
+        ? String(row[headerMap.unidPerCaja] ?? "")
+        : "";
+    const rawPresentacion =
+      headerMap.presentacion !== undefined
+        ? String(row[headerMap.presentacion] ?? "")
+        : "";
+
+    // Normalize
+    const sku = normalizeSku(rawSku);
+    const brand = normalizeBrandName(rawBrand);
+    const productName = normalizeProductName(rawProduct);
+    const bultosResult = normalizeBultos(rawBultos);
+    const cajasResult = normalizeCajasPerBulk(rawCajas);
+    const unidResult = normalizeUnidPerCaja(rawUnidPerCaja);
+    const presentacionResult = normalizePresentacion(rawPresentacion);
+
+    // Skip completely empty rows
+    if (!sku && !brand && !productName && !rawBultos.trim()) {
+      skippedCount++;
+      continue;
+    }
+
+    const errorPrefix = `Fila ${rowNumber} — ${sku || "(sin SKU)"}`;
+    let status: "valid" | "warning" | "error" = "valid";
+    let message: string | undefined;
+
+    // 1. Brand required
+    if (!brand) {
+      status = "error";
+      message = `${errorPrefix}: Marca vacía`;
+    }
+    // 2. SKU required
+    else if (!sku) {
+      status = "error";
+      message = `${errorPrefix}: SKU vacío`;
+    }
+    // 3. Product name required
+    else if (!productName) {
+      status = "error";
+      message = `${errorPrefix}: Nombre de producto vacío`;
+    }
+    // 4. Invalid bultos
+    else if (!bultosResult.isValid) {
+      status = "error";
+      message = `${errorPrefix}: Los bultos deben ser un número entero ≥ 0`;
+    }
+    // 5. Invalid presentación
+    else if (!presentacionResult.isValid) {
+      status = "error";
+      message = `${errorPrefix}: Presentación debe ser 1, 3, 6, 12 o 24`;
+    }
+    // 6. Valid row — calculate total units
+    else {
+      const cajasVal = cajasResult.value > 0 ? cajasResult.value : null;
+      const unidVal = unidResult.value > 0 ? unidResult.value : null;
+      const effectiveUnitsPer = unidVal ?? 1;
+
+      const totalUnits = calculateTotalUnits(
+        bultosResult.value,
+        cajasVal ?? 0,
+        effectiveUnitsPer,
+      );
+
+      // Existing SKU warning
+      if (existingSkus?.has(sku)) {
+        status = "warning";
+        message = `${errorPrefix}: SKU ya existe en catálogo — se actualizará stock`;
+      }
+
+      // Truncation warnings
+      if (status === "valid" && bultosResult.warning) {
+        status = "warning";
+        message = `${errorPrefix}: ${bultosResult.warning}`;
+      }
+
+      // Duplicate SKU within file
+      if (seenSKUs.has(sku)) {
+        const prevIndex = seenSKUs.get(sku);
+        if (prevIndex !== undefined) {
+          const prevRow = validatedRows[prevIndex];
+          if (prevRow && prevRow.status !== "error") {
+            if (prevRow.status === "valid") validCount--;
+            prevRow.status = "warning";
+            prevRow.message = `${errorPrefix}: Duplicado — se usa la última fila`;
+            warningCount++;
+          }
+        }
+      }
+      seenSKUs.set(sku, validatedRows.length);
+
+      if (status === "valid") validCount++;
+      else warningCount++;
+
+      validatedRows.push({
+        rowNumber,
+        brand,
+        sku,
+        productName,
+        bultos: bultosResult.value,
+        cajasPerBulk: cajasVal,
+        unidPerCaja: unidVal,
+        presentacion: presentacionResult.value,
+        totalUnits,
+        status,
+        message,
+      });
+      continue;
+    }
+
+    // Error row fallback
+    if (sku && seenSKUs.has(sku)) {
+      const prevIndex = seenSKUs.get(sku);
+      if (prevIndex !== undefined) {
+        const prevRow = validatedRows[prevIndex];
+        if (prevRow && prevRow.status !== "error") {
+          if (prevRow.status === "valid") validCount--;
+          prevRow.status = "warning";
+          prevRow.message = `${errorPrefix}: Duplicado — se usa la última fila`;
+          warningCount++;
+        }
+      }
+    }
+    if (sku) {
+      seenSKUs.set(sku, validatedRows.length);
+    }
+
+    errorCount++;
+
+    validatedRows.push({
+      rowNumber,
+      brand,
+      sku,
+      productName,
+      bultos: bultosResult.value || 0,
+      cajasPerBulk: null,
+      unidPerCaja: null,
+      presentacion: presentacionResult.value || 1,
+      totalUnits: 0,
+      status,
+      message,
+    });
+  }
+
+  return {
+    validatedRows,
+    stats: {
+      total: validatedRows.length,
+      valid: validCount,
+      warnings: warningCount,
+      errors: errorCount,
+      skipped: skippedCount,
+    },
+  };
 }
