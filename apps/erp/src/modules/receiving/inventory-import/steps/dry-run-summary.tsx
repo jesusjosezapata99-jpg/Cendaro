@@ -1,17 +1,22 @@
 "use client";
 
 /**
- * Step 5 — Dry-Run Summary
+ * Step 6 — Dry-Run Summary
  *
  * Aggregate summary before commit with confirmation dialog.
+ * Supports Replace/Adjust (validatedRows) and Initialize (initializeRows).
  * PRD: FEATURE_PRD_INVENTORY_IMPORT.md §15, §20 (DryRunReady → ConfirmImport)
  */
 import { useMemo, useState } from "react";
 
 import type { ImportMode, ValidatedRow } from "@cendaro/api";
 
+import type { InitializeValidatedRow } from "../lib/inventory-validators";
+
 interface DryRunSummaryProps {
   validatedRows: ValidatedRow[];
+  /** Initialize mode validated rows (takes precedence when provided) */
+  initializeRows?: InitializeValidatedRow[];
   mode: ImportMode;
   warehouseName: string;
   forceLocked: boolean;
@@ -23,8 +28,15 @@ interface DryRunSummaryProps {
   canForceLock: boolean;
 }
 
+const MODE_LABELS: Record<ImportMode, string> = {
+  replace: "Reemplazar",
+  adjust: "Ajustar",
+  initialize: "Inicializar",
+};
+
 export function DryRunSummary({
   validatedRows,
+  initializeRows,
   mode,
   warehouseName,
   forceLocked,
@@ -36,7 +48,35 @@ export function DryRunSummary({
 }: DryRunSummaryProps) {
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
 
+  const isInitialize = mode === "initialize" && initializeRows;
+
   const summary = useMemo(() => {
+    if (isInitialize) {
+      // Initialize mode: count valid + warning rows, sum totalUnits
+      const committable = initializeRows.filter(
+        (r) => r.status === "valid" || r.status === "warning",
+      );
+      const errors = initializeRows.filter((r) => r.status === "error");
+
+      let totalUnits = 0;
+      const brandSet = new Set<string>();
+      for (const row of committable) {
+        totalUnits += row.totalUnits;
+        brandSet.add(row.brand);
+      }
+
+      return {
+        toCommit: committable.length,
+        locked: 0,
+        errors: errors.length,
+        totalPositiveDelta: totalUnits,
+        totalNegativeDelta: 0,
+        netDelta: totalUnits,
+        brandsCount: brandSet.size,
+      };
+    }
+
+    // Replace / Adjust mode
     const committable = validatedRows.filter(
       (r) =>
         r.status === "valid" ||
@@ -64,8 +104,9 @@ export function DryRunSummary({
       totalPositiveDelta,
       totalNegativeDelta,
       netDelta: totalPositiveDelta + totalNegativeDelta,
+      brandsCount: 0,
     };
-  }, [validatedRows, mode, forceLocked]);
+  }, [validatedRows, initializeRows, mode, forceLocked, isInitialize]);
 
   const handleConfirmClick = () => {
     if (isProcessing) return; // Double-click guard (AC-22)
@@ -88,51 +129,85 @@ export function DryRunSummary({
           <span className="text-foreground font-semibold">{warehouseName}</span>{" "}
           — Modo:{" "}
           <span className="text-foreground font-semibold">
-            {mode === "replace" ? "Reemplazar" : "Ajustar"}
+            {MODE_LABELS[mode]}
           </span>
         </p>
       </div>
 
       {/* Summary cards */}
-      <div className="grid gap-4 sm:grid-cols-3">
-        <div className="border-border bg-card rounded-xl border p-4 text-center">
-          <span className="material-symbols-outlined text-2xl text-emerald-600">
-            check_circle
-          </span>
-          <p className="text-foreground mt-1 text-2xl font-black">
-            {summary.toCommit}
-          </p>
-          <p className="text-muted-foreground text-xs">
-            Productos a actualizar
-          </p>
+      {isInitialize ? (
+        // Initialize mode cards
+        <div className="grid gap-4 sm:grid-cols-3">
+          <div className="border-border bg-card rounded-xl border p-4 text-center">
+            <span className="material-symbols-outlined text-2xl text-emerald-600">
+              inventory_2
+            </span>
+            <p className="text-foreground mt-1 text-2xl font-black">
+              {summary.toCommit}
+            </p>
+            <p className="text-muted-foreground text-xs">Productos a crear</p>
+          </div>
+          <div className="border-border bg-card rounded-xl border p-4 text-center">
+            <span className="material-symbols-outlined text-2xl text-blue-600">
+              category
+            </span>
+            <p className="text-foreground mt-1 text-2xl font-black">
+              {summary.brandsCount}
+            </p>
+            <p className="text-muted-foreground text-xs">Marcas a crear</p>
+          </div>
+          <div className="border-border bg-card rounded-xl border p-4 text-center">
+            <span className="material-symbols-outlined text-2xl text-sky-600">
+              package_2
+            </span>
+            <p className="text-foreground mt-1 text-2xl font-black">
+              {summary.totalPositiveDelta}
+            </p>
+            <p className="text-muted-foreground text-xs">Unidades totales</p>
+          </div>
         </div>
-        <div className="border-border bg-card rounded-xl border p-4 text-center">
-          <span className="material-symbols-outlined text-2xl text-blue-600">
-            trending_up
-          </span>
-          <p className="text-foreground mt-1 text-2xl font-black">
-            {summary.totalPositiveDelta > 0
-              ? `+${summary.totalPositiveDelta}`
-              : "0"}
-          </p>
-          <p className="text-muted-foreground text-xs">Delta positivo</p>
+      ) : (
+        // Replace / Adjust mode cards
+        <div className="grid gap-4 sm:grid-cols-3">
+          <div className="border-border bg-card rounded-xl border p-4 text-center">
+            <span className="material-symbols-outlined text-2xl text-emerald-600">
+              check_circle
+            </span>
+            <p className="text-foreground mt-1 text-2xl font-black">
+              {summary.toCommit}
+            </p>
+            <p className="text-muted-foreground text-xs">
+              Productos a actualizar
+            </p>
+          </div>
+          <div className="border-border bg-card rounded-xl border p-4 text-center">
+            <span className="material-symbols-outlined text-2xl text-blue-600">
+              trending_up
+            </span>
+            <p className="text-foreground mt-1 text-2xl font-black">
+              {summary.totalPositiveDelta > 0
+                ? `+${summary.totalPositiveDelta}`
+                : "0"}
+            </p>
+            <p className="text-muted-foreground text-xs">Delta positivo</p>
+          </div>
+          <div className="border-border bg-card rounded-xl border p-4 text-center">
+            <span className="material-symbols-outlined text-2xl text-red-600">
+              trending_down
+            </span>
+            <p className="text-foreground mt-1 text-2xl font-black">
+              {summary.totalNegativeDelta}
+            </p>
+            <p className="text-muted-foreground text-xs">Delta negativo</p>
+          </div>
         </div>
-        <div className="border-border bg-card rounded-xl border p-4 text-center">
-          <span className="material-symbols-outlined text-2xl text-red-600">
-            trending_down
-          </span>
-          <p className="text-foreground mt-1 text-2xl font-black">
-            {summary.totalNegativeDelta}
-          </p>
-          <p className="text-muted-foreground text-xs">Delta negativo</p>
-        </div>
-      </div>
+      )}
 
       {/* Net change */}
       <div className="border-border bg-card rounded-xl border p-4">
         <div className="flex items-center justify-between">
           <span className="text-muted-foreground text-sm font-medium">
-            Cambio neto total
+            {isInitialize ? "Stock inicial total" : "Cambio neto total"}
           </span>
           <span
             className={`text-xl font-black ${
@@ -149,8 +224,8 @@ export function DryRunSummary({
         </div>
       </div>
 
-      {/* Locked products option (owner/admin only) */}
-      {summary.locked > 0 && canForceLock && (
+      {/* Locked products option (owner/admin only) — not shown in Initialize */}
+      {!isInitialize && summary.locked > 0 && canForceLock && (
         <div className="border-border bg-card rounded-xl border p-4">
           <label className="flex cursor-pointer items-start gap-3">
             <input
@@ -200,12 +275,14 @@ export function DryRunSummary({
           {isProcessing ? (
             <>
               <div className="size-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-              Importando...
+              {isInitialize ? "Inicializando..." : "Importando..."}
             </>
           ) : (
             <>
               <span className="material-symbols-outlined text-lg">upload</span>
-              Importar {summary.toCommit} productos
+              {isInitialize
+                ? `Inicializar ${summary.toCommit} productos`
+                : `Importar ${summary.toCommit} productos`}
             </>
           )}
         </button>
@@ -221,12 +298,27 @@ export function DryRunSummary({
               </span>
               <div>
                 <h3 className="text-foreground text-lg font-bold">
-                  Confirmar Importación
+                  {isInitialize
+                    ? "Confirmar Inicialización"
+                    : "Confirmar Importación"}
                 </h3>
                 <p className="text-muted-foreground mt-1 text-sm">
-                  Se actualizarán {summary.toCommit} productos en{" "}
-                  <span className="font-semibold">{warehouseName}</span>. Esta
-                  acción no se puede deshacer fácilmente.
+                  {isInitialize ? (
+                    <>
+                      Se crearán {summary.brandsCount} marca
+                      {summary.brandsCount !== 1 ? "s" : ""}, {summary.toCommit}{" "}
+                      producto
+                      {summary.toCommit !== 1 ? "s" : ""} y{" "}
+                      {summary.totalPositiveDelta} unidades de stock en{" "}
+                      <span className="font-semibold">{warehouseName}</span>.
+                    </>
+                  ) : (
+                    <>
+                      Se actualizarán {summary.toCommit} productos en{" "}
+                      <span className="font-semibold">{warehouseName}</span>.
+                      Esta acción no se puede deshacer fácilmente.
+                    </>
+                  )}
                 </p>
               </div>
             </div>

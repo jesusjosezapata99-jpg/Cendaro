@@ -7,8 +7,51 @@
 
 ## Session Registry
 
-- **Total agent sessions**: 21
-- **Last Modified By**: Antigravity Agent — 2026-03-16T18:30:00+01:00
+- **Total agent sessions**: 25
+- **Last Modified By**: Antigravity Agent — 2026-03-17T03:15:00+01:00
+
+---
+
+### 2026-03-17T03:15:00+01:00 — README.md Professional Audit (Root)
+
+**What**: Executed 12-step sequential audit of root `README.md` against all source files. Applied 37 data-accuracy corrections: badge versions (Next.js 16.0), router count 11→17, route count 19→22, table count 30+→55, enum count 20+→27, phase count 8→10 (+Phase 5b quotes/documents, +Phase 9 approvals/signatures), form count 13→14 (+CreateUser), hook count 2→4, validator count 7→14, ESLint 9.27→9.39.4. Added all missing tables per phase. Added 3 feature PRDs to documentation table. Expanded ER diagram. Corrected env vars.
+
+**Files changed**: `README.md` (root)
+
+**Verification**: All counts cross-referenced against source files: `root.ts`, `schema.ts`, `app/(app)/`, `forms/`, `hooks/`, `validators/src/index.ts`, `pnpm-workspace.yaml`.
+
+---
+
+### 2026-03-17T02:30:00+01:00 — PRD v2.0 Update (Inventory Import)
+
+**What**: Updated `FEATURE_PRD_INVENTORY_IMPORT.md` from v1.0 → v2.0 with 20 targeted edits across 12 sections. Added Initialize mode (brand→product→stock creation), catalog preview step, dynamic step indicator, interactive stat cards, filter tabs with count badges, full-width message column, `initializeCommit` tRPC procedure, mode-aware Zod schemas, expanded header alias map, new error codes, mode-aware templates, and Appendix D changelog.
+
+**Verification**: Document only — no code changes.
+
+---
+
+### 2026-03-17T02:20:00+01:00 — Validation Preview UX Polish
+
+**What**: 3 UX improvements to `validation-preview.tsx`: (1) stat counter cards are now interactive `<button>` elements that filter the table with active ring/scale effects, (2) filter tabs show color dots + count badges for instant recognition, (3) message column no longer truncates — shows full text with status-colored icon.
+
+**Verification**: `pnpm typecheck` ✅, `pnpm lint` ✅, `pnpm build` ✅.
+
+---
+
+### 2026-03-17T02:05:00+01:00 — Inventory Import: UX Fixes (8 Bugs, 4 Phases)
+
+**What**: Fixed 8 bugs in the inventory import wizard UX: empty validation table in Initialize mode, wrong mode labels, broken back navigation (resetting to step 1 instead of previous step), read-only catalog preview, DryRunSummary showing "0 productos", non-dynamic step indicator.
+
+**Files changed**:
+
+- `validation-preview.tsx` — rewritten: dual mode columns (Initialize: Marca/Producto/Bultos/Presentación/Total; Replace/Adjust: Actual/Delta/Nuevo), mode label lookup map
+- `dry-run-summary.tsx` — rewritten: Initialize mode calculates products/brands/units from `initializeRows`, mode-aware confirmation dialog
+- `catalog-preview.tsx` — rewritten: `EditableCell` component for inline editing of brand/product names, propagates changes via `onUpdateRows`
+- `inventory-import-wizard.tsx` — dynamic `StepIndicator` (hides Catálogo for Replace/Adjust), back nav `goToStep(prev)`, `ImportMode` import, `initializeRows` props passed to ValidationPreview/DryRunSummary
+- `use-inventory-import.ts` — new `UPDATE_INITIALIZE_ROWS` action + `updateInitializeRows` callback
+- `mode-select.tsx` — lint fix: `bg-primary/[0.03]` → `bg-primary/3`
+
+**Verification**: `pnpm typecheck` ✅, `pnpm lint` ✅, `pnpm build` ✅ (all exit code 0).
 
 ---
 

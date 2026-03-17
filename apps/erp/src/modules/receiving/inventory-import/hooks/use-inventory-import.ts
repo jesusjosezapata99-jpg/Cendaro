@@ -87,6 +87,11 @@ type ImportAction =
   | { type: "INITIALIZE_COMPLETE"; result: InitializeResult }
   | { type: "SET_ERROR"; error: string }
   | { type: "CLEAR_ERROR" }
+  | {
+      type: "UPDATE_INITIALIZE_ROWS";
+      initializeRows: InitializeValidatedRow[];
+      catalogPreview: NonNullable<ImportState["catalogPreview"]>;
+    }
   | { type: "GO_TO_STEP"; step: ImportState["step"] }
   | { type: "RESET" };
 
@@ -190,6 +195,13 @@ function importReducer(state: ImportState, action: ImportAction): ImportState {
     case "CLEAR_ERROR":
       return { ...state, error: null };
 
+    case "UPDATE_INITIALIZE_ROWS":
+      return {
+        ...state,
+        initializeRows: action.initializeRows,
+        catalogPreview: action.catalogPreview,
+      };
+
     case "GO_TO_STEP":
       return { ...state, step: action.step, error: null };
 
@@ -290,6 +302,20 @@ export function useInventoryImport(warehouseId: string, warehouseName: string) {
     dispatch({ type: "RESET" });
   }, []);
 
+  const updateInitializeRows = useCallback(
+    (
+      initializeRows: InitializeValidatedRow[],
+      catalogPreview: NonNullable<ImportState["catalogPreview"]>,
+    ) => {
+      dispatch({
+        type: "UPDATE_INITIALIZE_ROWS",
+        initializeRows,
+        catalogPreview,
+      });
+    },
+    [],
+  );
+
   return {
     state,
     selectMode,
@@ -306,5 +332,6 @@ export function useInventoryImport(warehouseId: string, warehouseName: string) {
     clearError,
     goToStep,
     reset,
+    updateInitializeRows,
   };
 }

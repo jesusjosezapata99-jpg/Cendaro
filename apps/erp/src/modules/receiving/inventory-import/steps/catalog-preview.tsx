@@ -4,27 +4,26 @@
  * Cendaro — Catalog Preview Step
  *
  * Step 5 (Initialize mode only): shows brands and products
- * that will be created. Allows the user to review before importing.
+ * that will be created. Allows inline editing of brand/product
+ * names before proceeding to the dry-run summary.
  *
  * PRD: FEATURE_PRD_INVENTORY_IMPORT.md §23
  */
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
+import type { ImportState } from "../hooks/use-inventory-import";
 import type { InitializeValidatedRow } from "../lib/inventory-validators";
 
 // ── Props ────────────────────────────────────────
 
 interface CatalogPreviewProps {
   initializeRows: InitializeValidatedRow[];
-  catalogPreview: {
-    brands: { name: string; isNew: boolean }[];
-    products: {
-      sku: string;
-      name: string;
-      brand: string;
-      isNew: boolean;
-    }[];
-  };
+  catalogPreview: NonNullable<ImportState["catalogPreview"]>;
+  /** Callback to propagate edited rows + catalog back to state machine */
+  onUpdateRows: (
+    rows: InitializeValidatedRow[],
+    catalog: NonNullable<ImportState["catalogPreview"]>,
+  ) => void;
   onProceed: () => void;
   onBack: () => void;
 }
@@ -32,7 +31,9 @@ interface CatalogPreviewProps {
 // ── Component ────────────────────────────────────
 
 export function CatalogPreview({
+  initializeRows,
   catalogPreview,
+  onUpdateRows,
   onProceed,
   onBack,
 }: CatalogPreviewProps) {
@@ -54,8 +55,86 @@ export function CatalogPreview({
     [products],
   );
 
+  // ── Inline editing helpers ──────────────────
+
+  const handleBrandRename = useCallback(
+    (oldName: string, newName: string) => {
+      if (!newName.trim() || oldName === newName) return;
+
+      // Update all initializeRows with this brand
+      const updatedRows = initializeRows.map((r) =>
+        r.brand === oldName ? { ...r, brand: newName } : r,
+      );
+
+      // Rebuild catalog preview
+      const updatedBrands = brands.map((b) =>
+        b.name === oldName ? { ...b, name: newName } : b,
+      );
+      const updatedProducts = products.map((p) =>
+        p.brand === oldName ? { ...p, brand: newName } : p,
+      );
+
+      onUpdateRows(updatedRows, {
+        brands: updatedBrands,
+        products: updatedProducts,
+      });
+    },
+    [initializeRows, brands, products, onUpdateRows],
+  );
+
+  const handleProductRename = useCallback(
+    (sku: string, field: "name" | "brand", newValue: string) => {
+      if (!newValue.trim()) return;
+
+      const updatedRows = initializeRows.map((r) => {
+        if (r.sku !== sku) return r;
+        return field === "name"
+          ? { ...r, productName: newValue }
+          : { ...r, brand: newValue };
+      });
+
+      const updatedProducts = products.map((p) => {
+        if (p.sku !== sku) return p;
+        return field === "name"
+          ? { ...p, name: newValue }
+          : { ...p, brand: newValue };
+      });
+
+      // Rebuild brand list from updated products
+      const brandSet = new Map<string, boolean>();
+      for (const p of updatedProducts) {
+        if (!brandSet.has(p.brand)) {
+          brandSet.set(p.brand, p.isNew);
+        }
+      }
+      const updatedBrands = Array.from(brandSet.entries()).map(
+        ([name, isNew]) => ({
+          name,
+          isNew,
+        }),
+      );
+
+      onUpdateRows(updatedRows, {
+        brands: updatedBrands,
+        products: updatedProducts,
+      });
+    },
+    [initializeRows, products, onUpdateRows],
+  );
+
   return (
     <div className="space-y-6">
+      {/* Header */}
+      <div>
+        <h2 className="text-foreground text-xl font-bold">
+          Vista Previa del Catálogo
+        </h2>
+        <p className="text-muted-foreground mt-1 text-sm">
+          Revise y edite las marcas y productos antes de importar. Haga doble
+          clic en cualquier nombre para editarlo.
+        </p>
+      </div>
+
       {/* Summary Cards */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <StatCard
@@ -126,8 +205,11 @@ export function CatalogPreview({
               <tbody className="divide-border divide-y">
                 {brands.map((b, i) => (
                   <tr key={i} className="hover:bg-muted/30 transition-colors">
-                    <td className="text-foreground px-4 py-2 font-medium">
-                      {b.name}
+                    <td className="text-foreground px-4 py-2">
+                      <EditableCell
+                        value={b.name}
+                        onSave={(v) => handleBrandRename(b.name, v)}
+                      />
                     </td>
                     <td className="px-4 py-2 text-center">
                       <StatusBadge isNew={b.isNew} />
@@ -160,9 +242,17 @@ export function CatalogPreview({
                     <td className="text-muted-foreground px-4 py-2 font-mono text-xs">
                       {p.sku}
                     </td>
-                    <td className="text-foreground px-4 py-2">{p.name}</td>
-                    <td className="text-muted-foreground px-4 py-2">
-                      {p.brand}
+                    <td className="px-4 py-2">
+                      <EditableCell
+                        value={p.name}
+                        onSave={(v) => handleProductRename(p.sku, "name", v)}
+                      />
+                    </td>
+                    <td className="px-4 py-2">
+                      <EditableCell
+                        value={p.brand}
+                        onSave={(v) => handleProductRename(p.sku, "brand", v)}
+                      />
                     </td>
                     <td className="px-4 py-2 text-center">
                       <StatusBadge isNew={p.isNew} />
@@ -182,7 +272,7 @@ export function CatalogPreview({
           className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-sm transition-colors"
         >
           <span className="material-symbols-outlined text-lg">arrow_back</span>
-          Volver al inicio
+          Volver
         </button>
         <button
           onClick={onProceed}
@@ -199,6 +289,65 @@ export function CatalogPreview({
 }
 
 // ── Sub Components ───────────────────────────────
+
+/**
+ * Inline editable cell — click to edit, blur/enter to save.
+ */
+function EditableCell({
+  value,
+  onSave,
+}: {
+  value: string;
+  onSave: (newValue: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+
+  const commit = () => {
+    setEditing(false);
+    if (draft.trim() && draft !== value) {
+      onSave(draft.trim());
+    } else {
+      setDraft(value);
+    }
+  };
+
+  if (editing) {
+    return (
+      <input
+        autoFocus
+        type="text"
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") commit();
+          if (e.key === "Escape") {
+            setDraft(value);
+            setEditing(false);
+          }
+        }}
+        className="bg-background border-border text-foreground -mx-1.5 w-full rounded-md border px-1.5 py-0.5 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+      />
+    );
+  }
+
+  return (
+    <button
+      onClick={() => {
+        setDraft(value);
+        setEditing(true);
+      }}
+      className="text-foreground group inline-flex w-full items-center gap-1.5 text-left font-medium"
+      title="Haz clic para editar"
+    >
+      <span className="min-w-0 truncate">{value}</span>
+      <span className="material-symbols-outlined text-muted-foreground shrink-0 text-xs opacity-0 transition-opacity group-hover:opacity-100">
+        edit
+      </span>
+    </button>
+  );
+}
 
 function StatCard({
   label,
