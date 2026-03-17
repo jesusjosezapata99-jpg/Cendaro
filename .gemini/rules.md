@@ -199,20 +199,21 @@ You are part of a living memory system. Every error you encounter makes the proj
 
 Before making changes, scan this matrix. If your task matches a pattern, follow the prevention rule.
 
-| Error Pattern                            | Root Cause                                       | Prevention Rule                                                                           |
-| ---------------------------------------- | ------------------------------------------------ | ----------------------------------------------------------------------------------------- |
-| ESLint fails in lint-staged from root    | No root `eslint.config.ts`                       | Root config must exist with `defineConfig(baseConfig)` from `@cendaro/eslint-config/base` |
-| `pnpm exec <cmd>` not found on Windows   | Tool missing from root `devDependencies`         | Add tool to root `package.json` devDependencies before using `pnpm exec`                  |
-| TypeScript ↔ ESLint `?.` conflict        | Types pessimistic, ESLint optimistic             | Use `?.` + `eslint-disable @typescript-eslint/no-unnecessary-condition`                   |
-| Import from `@cendaro/ui` breaks         | `exports` path mismatch (`.ts` vs `.tsx`)        | Verify `exports` field in `package.json` matches actual file extensions                   |
-| Pre-push fails on typecheck              | Types broken in committed code                   | Run `pnpm typecheck` before committing type-affecting changes                             |
-| `FUNCTION_PAYLOAD_TOO_LARGE`             | Raw file sent to Vercel serverless (4.5MB limit) | Client-side parsing + chunked JSON upload via 3-Tier Pipeline                             |
-| Stale KI references deprecated packages  | Memory not pruned after upgrades                 | Run `/memory-audit` after dependency changes                                              |
-| Wrong Supabase project targeted          | Multiple projects in account                     | Verify `project_id = ljwoptpaxazqmnhdczsb` before any MCP DB operation                    |
-| Bare `eslint`/`prettier` fail on Windows | `node_modules/.bin` not in system PATH           | Always prefix: `pnpm exec eslint`, `pnpm exec prettier`                                   |
-| Agent rules invisible to other AI        | Only one config file existed                     | Maintain `.gemini/rules.md` and `.agents/skills/` as shared references                    |
-| `npx skills add` cross-contamination     | CLI not monorepo-aware, creates dual directories | NEVER use `npx skills add` — git clone + manual copy only                                 |
-| Uncommitted changes before user handoff  | Working tree dirty when user interacts with git  | Always `git add . && git commit && git push` BEFORE handing off to user                   |
+| Error Pattern                             | Root Cause                                       | Prevention Rule                                                                           |
+| ----------------------------------------- | ------------------------------------------------ | ----------------------------------------------------------------------------------------- |
+| ESLint fails in lint-staged from root     | No root `eslint.config.ts`                       | Root config must exist with `defineConfig(baseConfig)` from `@cendaro/eslint-config/base` |
+| `pnpm exec <cmd>` not found on Windows    | Tool missing from root `devDependencies`         | Add tool to root `package.json` devDependencies before using `pnpm exec`                  |
+| TypeScript ↔ ESLint `?.` conflict         | Types pessimistic, ESLint optimistic             | Use `?.` + `eslint-disable @typescript-eslint/no-unnecessary-condition`                   |
+| Import from `@cendaro/ui` breaks          | `exports` path mismatch (`.ts` vs `.tsx`)        | Verify `exports` field in `package.json` matches actual file extensions                   |
+| Pre-push fails on typecheck               | Types broken in committed code                   | Run `pnpm typecheck` before committing type-affecting changes                             |
+| `FUNCTION_PAYLOAD_TOO_LARGE`              | Raw file sent to Vercel serverless (4.5MB limit) | Client-side parsing + chunked JSON upload via 3-Tier Pipeline                             |
+| Stale KI references deprecated packages   | Memory not pruned after upgrades                 | Run `/memory-audit` after dependency changes                                              |
+| Wrong Supabase project targeted           | Multiple projects in account                     | Verify `project_id = ljwoptpaxazqmnhdczsb` before any MCP DB operation                    |
+| Bare `eslint`/`prettier` fail on Windows  | `node_modules/.bin` not in system PATH           | Always prefix: `pnpm exec eslint`, `pnpm exec prettier`                                   |
+| Agent rules invisible to other AI         | Only one config file existed                     | Maintain `.gemini/rules.md` and `.agents/skills/` as shared references                    |
+| `npx skills add` cross-contamination      | CLI not monorepo-aware, creates dual directories | NEVER use `npx skills add` — git clone + manual copy only                                 |
+| Uncommitted changes before user handoff   | Working tree dirty when user interacts with git  | Always `git add . && git commit && git push` BEFORE handing off to user                   |
+| Turbo remote cache `413 Entity Too Large` | `.next/**` glob includes `.next/dev/` (875 MB)   | Use specific `.next/{build,server,static,types,cache}/**` globs — never `.next/**`        |
 
 ---
 

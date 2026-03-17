@@ -6,7 +6,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Next.js-16.1-000?style=flat-square&logo=next.js" alt="Next.js" />
+  <img src="https://img.shields.io/badge/Next.js-16.0-000?style=flat-square&logo=next.js" alt="Next.js" />
   <img src="https://img.shields.io/badge/React-19.1-087ea4?style=flat-square&logo=react" alt="React" />
   <img src="https://img.shields.io/badge/TypeScript-5.9-3178C6?style=flat-square&logo=typescript&logoColor=white" alt="TypeScript" />
   <img src="https://img.shields.io/badge/tRPC-11.12-398CCB?style=flat-square&logo=trpc&logoColor=white" alt="tRPC" />
@@ -50,13 +50,13 @@ graph TB
 
   subgraph APPS["▣  APPLICATIONS"]
     direction TB
-    ERP["◆ apps/erp\nNext.js 16 · App Router · PWA\n19 modules · 13 forms · 2 hooks"]:::app
+    ERP["◆ apps/erp\nNext.js 16 · App Router · PWA\n22 modules · 14 forms · 4 hooks"]:::app
   end
 
   subgraph PACKAGES["◫  SHARED PACKAGES"]
     direction TB
-    API["▸ @cendaro/api\ntRPC v11 · 11 domain routers\nRBAC middleware · Audit logger"]:::pkg
-    DB["▸ @cendaro/db\nDrizzle ORM · 30+ tables\n8 schema phases · 20+ enums"]:::pkg
+    API["▸ @cendaro/api\ntRPC v11 · 17 domain routers\nRBAC middleware · Audit logger"]:::pkg
+    DB["▸ @cendaro/db\nDrizzle ORM · 55 tables\n10 schema phases · 27 enums"]:::pkg
     AUTH["▸ @cendaro/auth\nSupabase SSR\nServer · Client · Middleware"]:::pkg
     UI["▸ @cendaro/ui\nshadcn/ui · Radix\nButton · Dialog · Sidebar · Forms"]:::pkg
     VAL["▸ @cendaro/validators\nZod v4 · Domain schemas\nRIF · Cédula · Money · RBAC"]:::pkg
@@ -139,18 +139,19 @@ cendaro/
 ├── apps/
 │   └── erp/                              ← Next.js 16 (App Router + PWA)
 │       └── src/
-│           ├── app/(app)/                 ← 19 authenticated route groups
+│           ├── app/(app)/                 ← 22 authenticated route groups
 │           ├── app/api/                   ← tRPC + AI + Auth endpoints
-│           ├── components/                ← Sidebar, TopBar, Dialog, 13 forms
-│           ├── hooks/                     ← useCurrentUser, useDebounce
+│           ├── components/                ← Sidebar, TopBar, Dialog, 14 forms
+│           ├── hooks/                     ← useBcvRate, useCnyRate, useCurrentUser, useDebounce
+│           ├── modules/                   ← 12 client-side domain modules
 │           ├── trpc/                      ← Client, server, query-client setup
 │           └── proxy.ts                   ← Edge auth guard
 │
 ├── packages/
 │   ├── api/                              ← tRPC v11 business logic
-│   │   └── src/modules/                  ← 11 domain routers
+│   │   └── src/modules/                  ← 17 domain routers
 │   ├── auth/                             ← Supabase SSR (3 clients)
-│   ├── db/                               ← Drizzle schema (30+ tables)
+│   ├── db/                               ← Drizzle schema (55 tables)
 │   ├── ui/                               ← shadcn/ui components
 │   └── validators/                       ← Zod v4 domain schemas
 │
@@ -160,7 +161,7 @@ cendaro/
 │   ├── typescript/                       ← Strict ES2024 base configs
 │   └── tailwind/                         ← oklch theme + design tokens
 │
-├── turbo.json                            ← Turborepo pipeline (11 tasks)
+├── turbo.json                            ← Turborepo pipeline (12 tasks)
 ├── vercel.json                           ← Deployment config
 ├── pnpm-workspace.yaml                   ← Workspace + dependency catalog
 └── .husky/                               ← Git hooks (lint-staged)
@@ -176,14 +177,14 @@ cendaro/
 
 ### 🖥 Frontend & Framework
 
-|     | Technology               | Version  |
-| --- | ------------------------ | -------- |
-| ⚡  | **Next.js** (App Router) | `16.1.6` |
-| ⚛️  | **React**                | `19.1.4` |
-| 🟦  | **TypeScript** (strict)  | `5.9.3`  |
-| 🎨  | **Tailwind CSS** v4      | `4.2.1`  |
-| 🧩  | **shadcn/ui** + Radix    | new-york |
-| 📊  | **TanStack Query**       | `5.90.x` |
+|     | Technology               | Version   |
+| --- | ------------------------ | --------- |
+| ⚡  | **Next.js** (App Router) | `16.0.10` |
+| ⚛️  | **React**                | `19.1.4`  |
+| 🟦  | **TypeScript** (strict)  | `5.9.3`   |
+| 🎨  | **Tailwind CSS** v4      | `4.2.1`   |
+| 🧩  | **shadcn/ui** + Radix    | new-york  |
+| 📊  | **TanStack Query**       | `5.90.21` |
 
 </td>
 <td width="50%">
@@ -195,7 +196,7 @@ cendaro/
 | 🔌  | **tRPC** v11            | `11.12.0` |
 | 💎  | **Drizzle** ORM         | `0.45.1`  |
 | 🐘  | **Supabase** PostgreSQL | Managed   |
-| 🔐  | **Supabase Auth** SSR   | `0.6.x`   |
+| 🔐  | **Supabase Auth** SSR   | `0.6.1`   |
 | ✅  | **Zod** v4              | `4.3.6`   |
 | 🤖  | **Groq** LPU (AI)       | API       |
 
@@ -211,7 +212,7 @@ cendaro/
 | 🚀  | **Turborepo**           | `2.8.14`   |
 | 📦  | **pnpm**                | `10.30.3`  |
 | 🟢  | **Node.js**             | `≥ 20 LTS` |
-| 🔍  | **ESLint** 9 (flat)     | `9.27.0`   |
+| 🔍  | **ESLint** 9 (flat)     | `9.39.4`   |
 | ✨  | **Prettier**            | `3.8.1`    |
 | 🐶  | **Husky** + lint-staged | Latest     |
 
@@ -251,37 +252,49 @@ graph LR
   ROOT["🔌 appRouter"]:::core
 
   ROOT --- A["📋 audit"]:::router
-  ROOT --- B["📦 catalog"]:::router
-  ROOT --- C["🚢 containers"]:::router
-  ROOT --- D["📊 dashboard"]:::router
-  ROOT --- E["🔗 integrations"]:::router
-  ROOT --- F["📦 inventory"]:::router
-  ROOT --- G["💰 pricing"]:::router
-  ROOT --- H["🛒 sales"]:::router
-  ROOT --- I["👤 users"]:::router
-  ROOT --- J["🤝 vendors"]:::router
-  ROOT --- K["💚 health"]:::router
+  ROOT --- B["✅ approvals"]:::router
+  ROOT --- C["📦 catalog"]:::router
+  ROOT --- D["🚢 container"]:::router
+  ROOT --- E["📊 dashboard"]:::router
+  ROOT --- F["💚 health"]:::router
+  ROOT --- G["🔗 integrations"]:::router
+  ROOT --- H["📦 inventory"]:::router
+  ROOT --- I["📥 inventoryImport"]:::router
+  ROOT --- J["💳 payments"]:::router
+  ROOT --- K["💰 pricing"]:::router
+  ROOT --- L["📝 quotes"]:::router
+  ROOT --- M["📊 receivables"]:::router
+  ROOT --- N["📈 reporting"]:::router
+  ROOT --- O["🛒 sales"]:::router
+  ROOT --- P["👤 users"]:::router
+  ROOT --- Q["🤝 vendor"]:::router
 ```
 
-| Router         | Domain                                  | Key Operations                         | Access                  |
-| -------------- | --------------------------------------- | -------------------------------------- | ----------------------- |
-| `audit`        | Event trail                             | Query immutable logs                   | 👑 Admin+               |
-| `catalog`      | Products, brands, categories, suppliers | Full CRUD, attribute management        | 📋 Role-based           |
-| `containers`   | Import tracking, AI packing lists       | Create, receive, close, AI parse       | 👑 Admin, 🔧 Supervisor |
-| `dashboard`    | Executive KPIs                          | Sales analytics, margin reports        | 👑 Admin+               |
-| `integrations` | Mercado Libre, WhatsApp                 | Order sync, listing management         | 👑 Admin                |
-| `inventory`    | Warehouses, stock, movements            | Transfers, cycle counts, adjustments   | 📋 Role-based           |
-| `pricing`      | Rates, repricing events                 | Auto-repricing on BCV ≥ 5% change      | 👑 Admin, 🔧 Supervisor |
-| `sales`        | Customers, orders, payments             | Order lifecycle, multi-method payment  | 📋 Role-based           |
-| `users`        | Profiles, RBAC                          | Create, update roles/status            | 👑 Admin, Owner         |
-| `vendors`      | Portal, commissions, AR                 | Self-service orders, client management | 🤝 Vendor (self)        |
-| `health`       | System status                           | Readiness check                        | 🌐 Public               |
+| Router            | Domain                                  | Key Operations                             | Access                  |
+| ----------------- | --------------------------------------- | ------------------------------------------ | ----------------------- |
+| `users`           | Profiles, RBAC                          | Create, update roles/status                | 👑 Admin, Owner         |
+| `audit`           | Event trail                             | Query immutable logs                       | 👑 Admin+               |
+| `approvals`       | Workflow approvals                      | Request, approve, reject, expire           | 👑 Admin, 🔧 Supervisor |
+| `catalog`         | Products, brands, categories, suppliers | Full CRUD, attribute management            | 📋 Role-based           |
+| `inventory`       | Warehouses, stock, movements            | Transfers, cycle counts, adjustments       | 📋 Role-based           |
+| `inventoryImport` | Spreadsheet imports                     | Initialize, replace, adjust stock via xlsx | 📋 Role-based           |
+| `container`       | Import tracking, AI packing lists       | Create, receive, close, AI parse           | 👑 Admin, 🔧 Supervisor |
+| `pricing`         | Rates, repricing events                 | Auto-repricing on BCV ≥ 5% change          | 👑 Admin, 🔧 Supervisor |
+| `quotes`          | Customer quotes                         | Create, send, convert to order             | 📋 Role-based           |
+| `sales`           | Customers, orders, payments             | Order lifecycle, multi-method payment      | 📋 Role-based           |
+| `payments`        | Payment processing                      | Record, validate, allocate payments        | 📋 Role-based           |
+| `receivables`     | Accounts receivable                     | AR tracking, installments, aging           | 👑 Admin, 🔧 Supervisor |
+| `reporting`       | Reports & analytics                     | Sales, inventory, financial reports        | 👑 Admin+               |
+| `vendor`          | Portal, commissions, AR                 | Self-service orders, client management     | 🤝 Vendor (self)        |
+| `integrations`    | Mercado Libre, WhatsApp                 | Order sync, listing management             | 👑 Admin                |
+| `dashboard`       | Executive KPIs                          | Sales analytics, margin reports            | 👑 Admin+               |
+| `health`          | System status                           | Readiness check                            | 🌐 Public               |
 
 ---
 
 ### `@cendaro/db` — Database & Schema
 
-> 30+ tables, 20+ enums, 8 implementation phases — the entire data domain in one schema file.
+> 55 tables, 27 enums, 10 implementation phases — the entire data domain in one schema file.
 
 <details>
 <summary><strong>📊 Click to expand full schema map</strong></summary>
@@ -295,9 +308,11 @@ graph TB
   classDef phase3 fill:#059669,stroke:#047857,color:#fff,stroke-width:2px
   classDef phase4 fill:#d97706,stroke:#b45309,color:#fff,stroke-width:2px
   classDef phase5 fill:#dc2626,stroke:#b91c1c,color:#fff,stroke-width:2px
+  classDef phase5b fill:#f59e0b,stroke:#d97706,color:#000,stroke-width:2px
   classDef phase6 fill:#0891b2,stroke:#0e7490,color:#fff,stroke-width:2px
   classDef phase7 fill:#c026d3,stroke:#a21caf,color:#fff,stroke-width:2px
   classDef phase8 fill:#e11d48,stroke:#be123c,color:#fff,stroke-width:2px
+  classDef phase9 fill:#6366f1,stroke:#4f46e5,color:#fff,stroke-width:2px
 
   subgraph P1["◆ PHASE 1 — Identity & RBAC"]
     O[Organization]:::phase1
@@ -313,48 +328,75 @@ graph TB
     SP[Supplier]:::phase2
     PR[Product]:::phase2
     PA[ProductAttribute]:::phase2
+    PUE[ProductUomEquivalence]:::phase2
+    PS[ProductSupplier]:::phase2
     PP[ProductPrice]:::phase2
   end
 
   subgraph P3["◆ PHASE 3 — Inventory & Containers"]
     WH[Warehouse]:::phase3
+    WL[WarehouseLocation]:::phase3
     SL[StockLedger]:::phase3
     CA[ChannelAllocation]:::phase3
     SM[StockMovement]:::phase3
     IC[InventoryCount]:::phase3
+    ICI[InventoryCountItem]:::phase3
+    ID[InventoryDiscrepancy]:::phase3
     CN[Container]:::phase3
     CI[ContainerItem]:::phase3
+    CD[ContainerDocument]:::phase3
     APC[AiPromptConfig]:::phase3
   end
 
   subgraph P4["◆ PHASE 4 — Pricing Engine"]
     ER[ExchangeRate]:::phase4
     PH[PriceHistory]:::phase4
+    PRL[PricingRule]:::phase4
     RE[RepricingEvent]:::phase4
   end
 
   subgraph P5["◆ PHASE 5 — Sales & Payments"]
     CU[Customer]:::phase5
-    OR[Order]:::phase5
+    CAD[CustomerAddress]:::phase5
+    OR[SalesOrder]:::phase5
     OI[OrderItem]:::phase5
     PY[Payment]:::phase5
+    PE[PaymentEvidence]:::phase5
+    PAL[PaymentAllocation]:::phase5
     CC[CashClosure]:::phase5
   end
 
-  subgraph P6["◆ PHASE 6 — Vendor Portal"]
+  subgraph P5B["◆ PHASE 5b — Quotes & Documents"]
+    QT[Quote]:::phase5b
+    QI[QuoteItem]:::phase5b
+    DN[DeliveryNote]:::phase5b
+    DNI[DeliveryNoteItem]:::phase5b
+    II[InternalInvoice]:::phase5b
+    III[InternalInvoiceItem]:::phase5b
+  end
+
+  subgraph P6["◆ PHASE 6 — Vendor Portal & AR"]
     VC[VendorCommission]:::phase6
-    AR[AccountsReceivable]:::phase6
-    AP[ARPayment]:::phase6
+    AR[AccountReceivable]:::phase6
+    ARI[ArInstallment]:::phase6
   end
 
   subgraph P7["◆ PHASE 7 — Integrations"]
     ML[MlListing]:::phase7
     MO[MlOrder]:::phase7
     IL[IntegrationLog]:::phase7
+    MA[MercadolibreAccount]:::phase7
+    MOE[MercadolibreOrderEvent]:::phase7
+    IF[IntegrationFailure]:::phase7
   end
 
   subgraph P8["◆ PHASE 8 — Alerts"]
     SA[SystemAlert]:::phase8
+  end
+
+  subgraph P9["◆ PHASE 9 — Approvals & Signatures"]
+    APR[Approval]:::phase9
+    SIG[Signature]:::phase9
   end
 
   O --> UP
@@ -365,33 +407,46 @@ graph TB
   PR --> PA
   PR --> PP
   WH --> SL
+  WH --> WL
   PR --> SL
   PR --> CA
   PR --> SM
   SP --> CN
   CN --> CI
+  CN --> CD
   PR --> CI
+  IC --> ICI
   PR --> PH
   ER --> RE
   CU --> OR
+  CU --> CAD
   OR --> OI
   OR --> PY
+  PY --> PE
+  OR --> DN
+  QT --> QI
+  II --> III
   UP --> VC
   CU --> AR
+  AR --> ARI
+  ML --> MO
+  APR --> SIG
 ```
 
 </details>
 
-| Phase | Color | Domain                 | Tables                                                                                                                                           |
-| :---: | :---: | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **1** |  🔵   | Identity & RBAC        | `organization` · `user_profile` · `permission` · `role_permission` · `audit_log`                                                                 |
-| **2** |  🟣   | Catalog                | `brand` · `category` · `supplier` · `product` · `product_attribute` · `product_price`                                                            |
-| **3** |  🟢   | Inventory & Containers | `warehouse` · `stock_ledger` · `channel_allocation` · `stock_movement` · `inventory_count` · `container` · `container_item` · `ai_prompt_config` |
-| **4** |  🟠   | Pricing Engine         | `exchange_rate` · `price_history` · `repricing_event`                                                                                            |
-| **5** |  🔴   | Sales & Payments       | `customer` · `order` · `order_item` · `payment` · `cash_closure`                                                                                 |
-| **6** |  🔷   | Vendor Portal & AR     | `vendor_commission` · `accounts_receivable` · `ar_payment`                                                                                       |
-| **7** |  🟪   | Integrations           | `ml_listing` · `ml_order` · `integration_log`                                                                                                    |
-| **8** |  💗   | Alerts                 | `system_alert` · `dashboard_kpi`                                                                                                                 |
+| Phase  | Color | Domain                 | Tables                                                                                                                                                                                                                                            |
+| :----: | :---: | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **1**  |  🔵   | Identity & RBAC        | `organization` · `user_profile` · `permission` · `role_permission` · `audit_log`                                                                                                                                                                  |
+| **2**  |  🟣   | Catalog                | `brand` · `category` · `supplier` · `product` · `product_attribute` · `product_uom_equivalence` · `product_supplier` · `product_price`                                                                                                            |
+| **3**  |  🟢   | Inventory & Containers | `warehouse` · `warehouse_location` · `stock_ledger` · `channel_allocation` · `stock_movement` · `inventory_count` · `inventory_count_item` · `inventory_discrepancy` · `container` · `container_item` · `container_document` · `ai_prompt_config` |
+| **4**  |  🟠   | Pricing Engine         | `exchange_rate` · `price_history` · `pricing_rule` · `repricing_event`                                                                                                                                                                            |
+| **5**  |  🔴   | Sales & Payments       | `customer` · `customer_address` · `sales_order` · `order_item` · `payment` · `payment_evidence` · `payment_allocation` · `cash_closure`                                                                                                           |
+| **5b** |  🟡   | Quotes & Documents     | `quote` · `quote_item` · `delivery_note` · `delivery_note_item` · `internal_invoice` · `internal_invoice_item`                                                                                                                                    |
+| **6**  |  🔷   | Vendor Portal & AR     | `vendor_commission` · `account_receivable` · `ar_installment`                                                                                                                                                                                     |
+| **7**  |  🟪   | Integrations           | `ml_listing` · `ml_order` · `integration_log` · `mercadolibre_account` · `mercadolibre_order_event` · `integration_failure`                                                                                                                       |
+| **8**  |  💗   | Alerts                 | `system_alert`                                                                                                                                                                                                                                    |
+| **9**  |  🔮   | Approvals & Signatures | `approval` · `signature`                                                                                                                                                                                                                          |
 
 ---
 
@@ -422,13 +477,13 @@ graph LR
 
 > Design system built on shadcn/ui (new-york) + Radix — accessible, composable, themed.
 
-| Category       | Components                                                                                                                                                                                                                         |
-| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Layout**     | `Sidebar` · `TopBar` · `Dialog`                                                                                                                                                                                                    |
-| **Controls**   | `Button` (7 variants × 4 sizes) · `ThemeToggle`                                                                                                                                                                                    |
-| **Auth**       | `RoleGuard` — RBAC-based conditional rendering                                                                                                                                                                                     |
-| **Forms (13)** | `CreateProduct` · `EditProduct` · `CreateOrder` · `UpdateOrderStatus` · `CreateCustomer` · `CreateContainer` · `CreateBrand` · `CreateCategory` · `CreateSupplier` · `CreateClosure` · `CycleCount` · `TransferStock` · `EditUser` |
-| **Utilities**  | `cn()` — Tailwind Merge + clsx                                                                                                                                                                                                     |
+| Category       | Components                                                                                                                                                                                                                                        |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Layout**     | `Sidebar` · `TopBar` · `Dialog`                                                                                                                                                                                                                   |
+| **Controls**   | `Button` (7 variants × 4 sizes) · `ThemeToggle`                                                                                                                                                                                                   |
+| **Auth**       | `RoleGuard` — RBAC-based conditional rendering                                                                                                                                                                                                    |
+| **Forms (14)** | `CreateProduct` · `EditProduct` · `CreateOrder` · `UpdateOrderStatus` · `CreateCustomer` · `CreateContainer` · `CreateBrand` · `CreateCategory` · `CreateSupplier` · `CreateClosure` · `CycleCount` · `TransferStock` · `CreateUser` · `EditUser` |
+| **Utilities**  | `cn()` — Tailwind Merge + clsx                                                                                                                                                                                                                    |
 
 ---
 
@@ -436,15 +491,22 @@ graph LR
 
 > Venezuelan business domain schemas shared across frontend and backend via Zod v4.
 
-| Schema               | Pattern               | Example                                                      |
-| -------------------- | --------------------- | ------------------------------------------------------------ |
-| `rifSchema`          | `^[JVGEP]-\d{8}-\d$`  | `J-12345678-9`                                               |
-| `cedulaSchema`       | `^[VE]-\d{6,8}$`      | `V-1234567`                                                  |
-| `moneySchema`        | `≥ 0, max 2 decimals` | `100.50`                                                     |
-| `exchangeRateSchema` | `> 0, max 4 decimals` | `36.5812`                                                    |
-| `percentageSchema`   | `0 – 100`             | `15`                                                         |
-| `skuCodeSchema`      | `1–64 chars`          | `SKU-001`                                                    |
-| `userRoleSchema`     | 6 enum values         | `owner` `admin` `supervisor` `employee` `vendor` `marketing` |
+| Schema                  | Pattern                | Example                                                      |
+| ----------------------- | ---------------------- | ------------------------------------------------------------ |
+| `rifSchema`             | `^[JVGEP]-\d{8}-\d$`   | `J-12345678-9`                                               |
+| `cedulaSchema`          | `^[VE]-\d{6,8}$`       | `V-1234567`                                                  |
+| `moneySchema`           | `≥ 0, max 2 decimals`  | `100.50`                                                     |
+| `exchangeRateSchema`    | `> 0, max 4 decimals`  | `36.5812`                                                    |
+| `percentageSchema`      | `0 – 100`              | `15`                                                         |
+| `skuCodeSchema`         | `1–64 chars`           | `SKU-001`                                                    |
+| `barcodeSchema`         | `max 128 chars`        | `7591234567890`                                              |
+| `phoneSchema`           | VE format              | `0414-1234567`                                               |
+| `orderNumberSchema`     | `^ORD-[A-Z0-9]{4,16}$` | `ORD-A1B2C3D4`                                               |
+| `containerNumberSchema` | `4–64 chars`           | `CONT-2024-001`                                              |
+| `userRoleSchema`        | 6 enum values          | `owner` `admin` `supervisor` `employee` `vendor` `marketing` |
+| `createOrderSchema`     | Composite form         | Order with items, channel, notes                             |
+| `createQuoteSchema`     | Composite form         | Quote with items, expiry, notes                              |
+| `createPaymentSchema`   | Composite form         | Payment with method, amount, reference                       |
 
 ---
 
@@ -473,11 +535,14 @@ graph TB
   subgraph COMMERCE["▣ COMMERCE"]
     direction LR
     ORD["/orders\n📋 Order Mgmt"]:::commerce
+    QUO["/quotes\n📝 Quotations"]:::commerce
     CUS["/customers\n👥 Registry"]:::commerce
     PAY["/payments\n💳 Processing"]:::commerce
     CSH["/cash-closure\n🏦 Daily Close"]:::commerce
     VEN["/vendors\n🤝 Vendor Portal"]:::commerce
     ACC["/accounts-receivable\n📊 AR Tracking"]:::commerce
+    DEL["/delivery-notes\n📄 Dispatch"]:::commerce
+    INV2["/invoices\n🧾 Billing"]:::commerce
   end
 
   subgraph INTEGRATIONS["▣ INTEGRATIONS & MANAGEMENT"]
@@ -501,17 +566,20 @@ graph TB
 |  6  | `/rates`               | Exchange Rates — BCV, parallel, RMB rates dashboard            |   ✅   |
 |  7  | `/pricing`             | Pricing Engine — repricing events, price history               |   ✅   |
 |  8  | `/orders`              | Order Management — create, status workflow, dispatch           |   ✅   |
-|  9  | `/customers`           | Customer Registry — types, credit limits, history              |   ✅   |
-| 10  | `/payments`            | Payment Processing — multi-method, evidence upload             |   ✅   |
-| 11  | `/cash-closure`        | Daily Cash Closure — reconciliation, approval                  |   ✅   |
-| 12  | `/vendors`             | Vendor Portal — self-service orders, commissions               |   ✅   |
-| 13  | `/accounts-receivable` | Accounts Receivable — AR tracking, aging, payments             |   ✅   |
-| 14  | `/marketplace`         | Mercado Libre — listing sync, order import                     |   ✅   |
-| 15  | `/whatsapp`            | WhatsApp Sales — assisted sales channel                        |   ✅   |
-| 16  | `/users`               | User Management — RBAC, profiles, status                       |   ✅   |
-| 17  | `/audit`               | Audit Log — immutable event trail                              |   ✅   |
-| 18  | `/alerts`              | System Alerts — low stock, rate changes, overdue AR            |   ✅   |
-| 19  | `/settings`            | Configuration — organization, preferences                      |   ✅   |
+|  9  | `/quotes`              | Quotations — create, send, convert to sales order              |   ✅   |
+| 10  | `/customers`           | Customer Registry — types, credit limits, history              |   ✅   |
+| 11  | `/payments`            | Payment Processing — multi-method, evidence upload             |   ✅   |
+| 12  | `/cash-closure`        | Daily Cash Closure — reconciliation, approval                  |   ✅   |
+| 13  | `/delivery-notes`      | Delivery Notes — dispatch tracking, recipient confirmation     |   ✅   |
+| 14  | `/invoices`            | Internal Invoices — billing, document management               |   ✅   |
+| 15  | `/vendors`             | Vendor Portal — self-service orders, commissions               |   ✅   |
+| 16  | `/accounts-receivable` | Accounts Receivable — AR tracking, aging, payments             |   ✅   |
+| 17  | `/marketplace`         | Mercado Libre — listing sync, order import                     |   ✅   |
+| 18  | `/whatsapp`            | WhatsApp Sales — assisted sales channel                        |   ✅   |
+| 19  | `/users`               | User Management — RBAC, profiles, status                       |   ✅   |
+| 20  | `/audit`               | Audit Log — immutable event trail                              |   ✅   |
+| 21  | `/alerts`              | System Alerts — low stock, rate changes, overdue AR            |   ✅   |
+| 22  | `/settings`            | Configuration — organization, preferences                      |   ✅   |
 
 ---
 
@@ -530,23 +598,39 @@ erDiagram
   Supplier ||--o{ Product : "supplies"
   Product ||--o{ ProductAttribute : "describes"
   Product ||--o{ ProductPrice : "priced as"
+  Product ||--o{ ProductUomEquivalence : "converts"
+  Product ||--o{ ProductSupplier : "sourced from"
 
   Warehouse ||--o{ StockLedger : "stores"
+  Warehouse ||--o{ WarehouseLocation : "contains"
   Product ||--o{ StockLedger : "stocked in"
   Product ||--o{ ChannelAllocation : "allocated to"
   Product ||--o{ StockMovement : "tracked by"
 
   Supplier ||--o{ Container : "ships"
   Container ||--o{ ContainerItem : "contains"
+  Container ||--o{ ContainerDocument : "attached"
   Product ||--o{ ContainerItem : "referenced"
 
   ExchangeRate }o--|| RepricingEvent : "triggers"
   Product ||--o{ PriceHistory : "price logged"
 
-  Customer ||--o{ Order : "places"
-  Order ||--o{ OrderItem : "includes"
-  Order ||--o{ Payment : "paid via"
-  Customer ||--o{ AccountsReceivable : "owes"
+  Customer ||--o{ CustomerAddress : "addressed at"
+  Customer ||--o{ SalesOrder : "places"
+  SalesOrder ||--o{ OrderItem : "includes"
+  SalesOrder ||--o{ Payment : "paid via"
+  Payment ||--o{ PaymentEvidence : "evidenced by"
+  Customer ||--o{ AccountReceivable : "owes"
+  AccountReceivable ||--o{ ArInstallment : "split into"
+
+  Customer ||--o{ Quote : "quoted for"
+  Quote ||--o{ QuoteItem : "includes"
+  SalesOrder ||--o{ DeliveryNote : "dispatched via"
+  DeliveryNote ||--o{ DeliveryNoteItem : "contains"
+  SalesOrder ||--o{ InternalInvoice : "invoiced as"
+  InternalInvoice ||--o{ InternalInvoiceItem : "includes"
+
+  Approval ||--o{ Signature : "signed by"
 ```
 
 ---
@@ -677,7 +761,7 @@ graph TB
 
 | Requirement  | Version                 |
 | ------------ | ----------------------- |
-| **Node.js**  | ≥ 20.0.0 (see `.nvmrc`) |
+| **Node.js**  | ≥ 20.0.0                |
 | **pnpm**     | 10.30.3                 |
 | **Supabase** | Project with PostgreSQL |
 
@@ -711,7 +795,7 @@ pnpm dev:erp      # ERP app only
 | `SENTRY_DSN`                    |    —     | Error tracking (production)  |
 | `MERCADOLIBRE_APP_ID`           |    —     | Mercado Libre OAuth          |
 | `MERCADOLIBRE_SECRET`           |    —     | Mercado Libre OAuth          |
-| `MERCADOLIBRE_REDIRECT_URI`     |    —     | Mercado Libre callback URL   |
+| `PORT`                          |    —     | Custom server port           |
 
 ---
 
@@ -784,6 +868,7 @@ pnpm dev:erp      # ERP app only
 | **6** | Executive dashboard, vendor portal, commissions |   ✅   |
 | **7** | Testing, hardening, CI/CD, Git lifecycle        |   ✅   |
 | **8** | Dashboard KPIs, system alerts, AI inference     |   ✅   |
+| **9** | Approvals, signatures, quotes, documents        |   ✅   |
 
 ---
 
@@ -791,16 +876,20 @@ pnpm dev:erp      # ERP app only
 
 > **Source of truth**: The [`docs/`](docs/README.md) folder contains the canonical ERP v1.0 specification package. See [ADR-001](docs/adr/001-erp-v1-source-of-truth.md) for the migration decision.
 
-| Document                   | Path                                                                                           |   Status    |
-| -------------------------- | ---------------------------------------------------------------------------------------------- | :---------: |
-| **PRD v1.0**               | [`docs/product/PRD_v1.0.md`](docs/product/PRD_v1.0.md)                                         |  ✅ Active  |
-| **ERD & Schema Blueprint** | [`docs/architecture/erd_schema_blueprint_v1.md`](docs/architecture/erd_schema_blueprint_v1.md) |  ✅ Active  |
-| **Module & API Blueprint** | [`docs/architecture/module_api_blueprint_v1.md`](docs/architecture/module_api_blueprint_v1.md) |  ✅ Active  |
-| **DBML Schema**            | [`docs/data/erp_schema_v1.dbml`](docs/data/erp_schema_v1.dbml)                                 |  ✅ Active  |
-| **Schema Alignment**       | [`docs/data/SCHEMA_ALIGNMENT.md`](docs/data/SCHEMA_ALIGNMENT.md)                               |  ✅ Active  |
-| **Legacy PRD v0.7**        | [`docs/product/LEGACY_PRD_v0.7.md`](docs/product/LEGACY_PRD_v0.7.md)                           | 🗄️ Archived |
-| **README**                 | this file                                                                                      |  ✅ Active  |
-| **Workflows**              | `.agents/workflows/`                                                                           |  ✅ Active  |
+| Document                   | Path                                                                                                                         |   Status    |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | :---------: |
+| **PRD v1.0**               | [`docs/product/PRD_v1.0.md`](docs/product/PRD_v1.0.md)                                                                       |  ✅ Active  |
+| **ERD & Schema Blueprint** | [`docs/architecture/erd_schema_blueprint_v1.md`](docs/architecture/erd_schema_blueprint_v1.md)                               |  ✅ Active  |
+| **Module & API Blueprint** | [`docs/architecture/module_api_blueprint_v1.md`](docs/architecture/module_api_blueprint_v1.md)                               |  ✅ Active  |
+| **DBML Schema**            | [`docs/data/erp_schema_v1.dbml`](docs/data/erp_schema_v1.dbml)                                                               |  ✅ Active  |
+| **Schema Alignment**       | [`docs/data/SCHEMA_ALIGNMENT.md`](docs/data/SCHEMA_ALIGNMENT.md)                                                             |  ✅ Active  |
+| **Spreadsheet Import PRD** | [`docs/product/features_prd/FEATURE_PRD_SPREADSHEET_IMPORT.md`](docs/product/features_prd/FEATURE_PRD_SPREADSHEET_IMPORT.md) |  ✅ Active  |
+| **Inventory Import PRD**   | [`docs/product/features_prd/FEATURE_PRD_INVENTORY_IMPORT.md`](docs/product/features_prd/FEATURE_PRD_INVENTORY_IMPORT.md)     |  ✅ Active  |
+| **Catalog Import PRD**     | [`docs/product/features_prd/FEATURE_PRD_CATALOG_IMPORT.md`](docs/product/features_prd/FEATURE_PRD_CATALOG_IMPORT.md)         |  ✅ Active  |
+| **ADR-001**                | [`docs/adr/001-erp-v1-source-of-truth.md`](docs/adr/001-erp-v1-source-of-truth.md)                                           |  ✅ Active  |
+| **Legacy PRD v0.7**        | [`docs/product/LEGACY_PRD_v0.7.md`](docs/product/LEGACY_PRD_v0.7.md)                                                         | 🗄️ Archived |
+| **README**                 | this file                                                                                                                    |  ✅ Active  |
+| **Workflows**              | `.agents/workflows/`                                                                                                         |  ✅ Active  |
 
 > **Sync policy:** Critical changes must be verified against the PRD v1.0 and reflected here. See `.agents/workflows/prd-sync.md`.
 

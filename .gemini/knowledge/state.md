@@ -7,16 +7,116 @@
 
 ## Session Registry
 
-- **Total agent sessions**: 13
-- **Last Modified By**: Antigravity Agent — 2026-03-12T20:03:00+01:00
+- **Total agent sessions**: 25
+- **Last Modified By**: Antigravity Agent — 2026-03-17T03:15:00+01:00
+
+---
+
+### 2026-03-17T03:15:00+01:00 — README.md Professional Audit (Root)
+
+**What**: Executed 12-step sequential audit of root `README.md` against all source files. Applied 37 data-accuracy corrections: badge versions (Next.js 16.0), router count 11→17, route count 19→22, table count 30+→55, enum count 20+→27, phase count 8→10 (+Phase 5b quotes/documents, +Phase 9 approvals/signatures), form count 13→14 (+CreateUser), hook count 2→4, validator count 7→14, ESLint 9.27→9.39.4. Added all missing tables per phase. Added 3 feature PRDs to documentation table. Expanded ER diagram. Corrected env vars.
+
+**Files changed**: `README.md` (root)
+
+**Verification**: All counts cross-referenced against source files: `root.ts`, `schema.ts`, `app/(app)/`, `forms/`, `hooks/`, `validators/src/index.ts`, `pnpm-workspace.yaml`.
+
+---
+
+### 2026-03-17T02:30:00+01:00 — PRD v2.0 Update (Inventory Import)
+
+**What**: Updated `FEATURE_PRD_INVENTORY_IMPORT.md` from v1.0 → v2.0 with 20 targeted edits across 12 sections. Added Initialize mode (brand→product→stock creation), catalog preview step, dynamic step indicator, interactive stat cards, filter tabs with count badges, full-width message column, `initializeCommit` tRPC procedure, mode-aware Zod schemas, expanded header alias map, new error codes, mode-aware templates, and Appendix D changelog.
+
+**Verification**: Document only — no code changes.
+
+---
+
+### 2026-03-17T02:20:00+01:00 — Validation Preview UX Polish
+
+**What**: 3 UX improvements to `validation-preview.tsx`: (1) stat counter cards are now interactive `<button>` elements that filter the table with active ring/scale effects, (2) filter tabs show color dots + count badges for instant recognition, (3) message column no longer truncates — shows full text with status-colored icon.
+
+**Verification**: `pnpm typecheck` ✅, `pnpm lint` ✅, `pnpm build` ✅.
+
+---
+
+### 2026-03-17T02:05:00+01:00 — Inventory Import: UX Fixes (8 Bugs, 4 Phases)
+
+**What**: Fixed 8 bugs in the inventory import wizard UX: empty validation table in Initialize mode, wrong mode labels, broken back navigation (resetting to step 1 instead of previous step), read-only catalog preview, DryRunSummary showing "0 productos", non-dynamic step indicator.
+
+**Files changed**:
+
+- `validation-preview.tsx` — rewritten: dual mode columns (Initialize: Marca/Producto/Bultos/Presentación/Total; Replace/Adjust: Actual/Delta/Nuevo), mode label lookup map
+- `dry-run-summary.tsx` — rewritten: Initialize mode calculates products/brands/units from `initializeRows`, mode-aware confirmation dialog
+- `catalog-preview.tsx` — rewritten: `EditableCell` component for inline editing of brand/product names, propagates changes via `onUpdateRows`
+- `inventory-import-wizard.tsx` — dynamic `StepIndicator` (hides Catálogo for Replace/Adjust), back nav `goToStep(prev)`, `ImportMode` import, `initializeRows` props passed to ValidationPreview/DryRunSummary
+- `use-inventory-import.ts` — new `UPDATE_INITIALIZE_ROWS` action + `updateInitializeRows` callback
+- `mode-select.tsx` — lint fix: `bg-primary/[0.03]` → `bg-primary/3`
+
+**Verification**: `pnpm typecheck` ✅, `pnpm lint` ✅, `pnpm build` ✅ (all exit code 0).
+
+---
+
+### 2026-03-16T18:30:00+01:00 — Inventory Import: Initialize Mode (PRD §23)
+
+**What**: Full implementation of the "Initialize" import mode that creates brands, products, and stock from scratch in a single operation. Resolves the blocker where first-time imports failed due to non-existent entities.
+
+**Files changed**:
+
+- **Backend**: `packages/api/src/modules/inventory-import.ts` (extended `importModeSchema`, added `initializeRowSchema`, `initializeCommitSchema`, `initializeResultSchema`, `slugify()` helper, `initializeCommit` tRPC procedure with transactional brand→product→stock creation), `packages/api/src/index.ts` (new type exports)
+- **Libs**: `inventory-header-aliases.ts` (`getRequiredFieldsForMode()`), `inventory-normalizers.ts` (`normalizeBrandName`, `normalizeProductName`, `normalizeUnidPerCaja`), `inventory-validators.ts` (`InitializeValidatedRow`, `validateInitializeRows()`, 3 new error codes), `inventory-template-builder.ts` (`INITIALIZE_HEADERS`, wider types for download/build/getCellValue)
+- **Hooks**: `use-inventory-import.ts` (7-step state machine, `initializeRows`/`catalogPreview`/`initializeResult` state, `INITIALIZE_VALIDATION_COMPLETE`/`INITIALIZE_COMPLETE` actions)
+- **UI**: `catalog-preview.tsx` (**NEW** — 240 LOC), `mode-select.tsx` (3-col grid + Initialize card), `header-mapping.tsx` (mode-aware required fields), `inventory-import-wizard.tsx` (7-step STEPS, `initializeCommit` mutation, `handleConfirmInitialize`, catalog preview routing)
+
+**Verification**: `tsc --noEmit` pass, full `pnpm build` pass (exit code 0, 27s).
+
+---
+
+### 2026-03-14T05:05:00+01:00 — Turborepo Remote Cache 413 Fix
+
+**Root cause**: `turbo.json` build outputs glob `.next/**` was capturing the massive `.next/dev/` directory (875 MB of Turbopack dev cache), making the cache artifact exceed Vercel's 500 MB remote cache upload limit → `413 Request Entity Too Large`.
+
+**Fix**: Replaced `.next/**` with specific subdirectory globs: `.next/build/**`, `.next/server/**`, `.next/static/**`, `.next/types/**`, `.next/cache/**`, `.next/*.json`, `.next/*.js`, `.next/BUILD_ID`, `.next/package.json`. Cleaned stale `.next/dev` (875 MB) and `.next/diagnostics` directories. Post-cleanup cache payload: ~35 MB.
+
+**Files changed**: `turbo.json`, `.gemini/rules.md` (Error Prevention Matrix)
+
+**Verification**: `pnpm build` exit code 0, zero `413` warnings, remote cache upload successful.
+
+---
+
+### 2026-03-14T04:25:00+01:00 — Inventory Import Template Redesign
+
+**Changes:**
+
+- **DB**: Added `presentation_qty` column to `product` table (migration `add_presentation_qty_to_product`)
+- **Schema**: Added `presentationQty` to Drizzle `Product` table
+- **tRPC**: `getWarehouseProducts` now JOINs `brand`, returns `brandName`, `unitsPerBox`, `boxesPerBulk`, `presentationQty`
+- **Template Builder** (`inventory-template-builder.ts`): Full rewrite — 3 sheets (Plantilla, Instrucciones, Reglas), legend block, color-coded cells, frozen panes, mode-specific columns
+- **Header Aliases** (`inventory-header-aliases.ts`): Removed barcode/notes/quantity, added bultos/cajasPerBulk/presentacion
+- **Normalizers** (`inventory-normalizers.ts`): Removed normalizeQuantity/Notes, added normalizeBultos/CajasPerBulk/Presentacion
+- **Validators** (`inventory-validators.ts`): Packaging calculation (Scenario A/B), enhanced error messages with product name + row
+- **Wizard**: Wired template download with products data, removed notes from commit payload
+- **Header Mapping UI**: Updated dropdown options for new packaging fields
+
+**Files changed:**
+
+- `packages/db/src/schema.ts`
+- `packages/api/src/modules/inventory-import.ts`
+- `apps/erp/src/modules/receiving/inventory-import/lib/inventory-template-builder.ts`
+- `apps/erp/src/modules/receiving/inventory-import/lib/inventory-header-aliases.ts`
+- `apps/erp/src/modules/receiving/inventory-import/lib/inventory-normalizers.ts`
+- `apps/erp/src/modules/receiving/inventory-import/lib/inventory-validators.ts`
+- `apps/erp/src/modules/receiving/inventory-import/inventory-import-wizard.tsx`
+- `apps/erp/src/modules/receiving/inventory-import/steps/header-mapping.tsx`
+
+---
 
 ---
 
 ## Current Status
 
-- **Project health**: ✅ Operational — DolarAPI.com migration complete, pending full typecheck verification
-- **Last agent interaction**: 2026-03-12T20:03:00+01:00
+- **Project health**: ✅ Operational — Inventory Import feature fully implemented
+- **Last agent interaction**: 2026-03-14T03:40:00+01:00
 - **Known issues**: None critical
+- **Latest work**: Implemented Inventory Import feature (21+ files across 5 phases). API: 6 Zod schemas, 2 tRPC procedures (getWarehouseProducts, commit) with batched upserts, idempotency, RBAC. Client: SheetJS utilities, 43 header aliases, row validation (13 error codes), 3 normalizers, 3 hooks (parse, validate, state machine). UI: 6-step wizard (mode → upload → mapping → preview → dry-run → results) + orchestrator + route page. Integration: "Importar Inventario" button on warehouse detail page. Types re-exported from `@cendaro/api` barrel. Verified: `pnpm typecheck` zero errors, 39 tests passing.
 
 ---
 
@@ -46,6 +146,21 @@
 ## Progress Log
 
 <!-- Entries should be prepended (newest first) -->
+
+### [2026-03-14] ESLint — Skill Source File Ignore
+
+- **Root cause**: `lint-staged` feeds ALL staged `*.ts(x)` files to ESLint, including `.agents/skills/sheetjs-nextjs/source/` template files. These are not in any `tsconfig.json`, causing 11 `projectService` parsing errors that block commits.
+- **Fix**: Added global ESLint ignores in `eslint.config.ts` for `.agents/**`, `_agents/**`, `.agent/**`, `_agent/**`.
+- **Verification**: `pnpm exec eslint --cache --no-warn-ignored` on all 11 files → exit 0, zero errors.
+- **Health**: ✅ Operational
+
+### [2026-03-14] SheetJS–Next.js Skill Integration
+
+- **Objective**: Analyze downloaded `sheetjs-nextjs-utils` skill and integrate professionally into `.agents/skills/sheetjs-nextjs/`.
+- **New files**: `SKILL.md` (7 sections, YAML frontmatter), `REFERENCE.md` (15 functions + 4 components API reference), `PATTERNS.md` (5 Cendaro-specific integration patterns), `source/` (10 reference files).
+- **Gap analysis**: Project already had `xlsx ^0.18.5` + `parse-file-browser.ts` (3-Tier pipeline for packing lists). Skill adds complementary capabilities: typed `T[]` parsing, browser download triggers, server-side Excel responses, and 3 reusable React components.
+- **Key decisions**: Skill is agent documentation only — zero production code modified. Import paths use `~/lib/xlsx` (Cendaro convention). Server module isolated from barrel to prevent client-side `fs` errors.
+- **Health**: ✅ Operational
 
 ### [2026-03-12] DolarAPI.com Migration — BCV Replacement + Parallel/USDT Rate
 
