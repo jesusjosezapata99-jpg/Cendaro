@@ -466,6 +466,7 @@ export const Product = pgTable(
     baseUom: t.varchar({ length: 32 }).notNull().default("unit"),
     unitsPerBox: t.integer(),
     boxesPerBulk: t.integer(),
+    presentationQty: t.integer().notNull().default(1),
     sellingUnit: t.varchar({ length: 32 }).notNull().default("unit"),
     costAvg: t.numeric({ precision: 12, scale: 4 }).default("0"),
     status: productStatusEnum().notNull().default("draft"),

@@ -36,6 +36,10 @@ describe("appRouter", () => {
     expect(procedures).toHaveProperty("inventory.finalizeCount");
     expect(procedures).toHaveProperty("container.list");
 
+    // Inventory Import
+    expect(procedures).toHaveProperty("inventoryImport.getWarehouseProducts");
+    expect(procedures).toHaveProperty("inventoryImport.commit");
+
     // Phase 4
     expect(procedures).toHaveProperty("pricing.latestRates");
 
@@ -77,12 +81,12 @@ describe("appRouter", () => {
   });
 
   it("has the correct number of top-level routers", () => {
-    // 16 routers: users, audit, approvals, catalog, inventory, container, pricing, quotes, sales, payments, receivables, reporting, vendor, integrations, dashboard, health
+    // 17 routers: users, audit, approvals, catalog, inventory, inventoryImport, container, pricing, quotes, sales, payments, receivables, reporting, vendor, integrations, dashboard, health
     const topLevel = new Set<string>();
     for (const key of Object.keys(appRouter._def.procedures)) {
       const router = key.split(".")[0];
       if (router) topLevel.add(router);
     }
-    expect(topLevel.size).toBe(16);
+    expect(topLevel.size).toBe(17);
   });
 });
