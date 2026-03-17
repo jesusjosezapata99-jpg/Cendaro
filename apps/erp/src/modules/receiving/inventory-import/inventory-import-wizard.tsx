@@ -11,6 +11,8 @@ import Link from "next/link";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 
+import type { ImportMode } from "@cendaro/api";
+
 import type { WarehouseProduct } from "./lib/inventory-template-builder";
 import { useTRPC } from "~/trpc/client";
 import { useInventoryImport } from "./hooks/use-inventory-import";
@@ -28,7 +30,7 @@ import { ValidationPreview } from "./steps/validation-preview";
 
 // ── Step indicator ───────────────────────────────
 
-const STEPS = [
+const ALL_STEPS = [
   { num: 1, label: "Modo" },
   { num: 2, label: "Archivo" },
   { num: 3, label: "Columnas" },
@@ -38,10 +40,23 @@ const STEPS = [
   { num: 7, label: "Resultado" },
 ] as const;
 
-function StepIndicator({ current }: { current: number }) {
+/**
+ * Dynamic step indicator — hides "Catálogo" (step 5) for Replace/Adjust modes.
+ */
+function StepIndicator({
+  current,
+  mode,
+}: {
+  current: number;
+  mode: ImportMode | null;
+}) {
+  // Filter out "Catálogo" (step 5) unless mode is "initialize"
+  const steps =
+    mode === "initialize" ? ALL_STEPS : ALL_STEPS.filter((s) => s.num !== 5);
+
   return (
     <div className="flex items-center justify-center gap-1" role="tablist">
-      {STEPS.map((s, i) => {
+      {steps.map((s, i) => {
         const isDone = current > s.num;
         const isActive = current === s.num;
         return (
@@ -60,11 +75,11 @@ function StepIndicator({ current }: { current: number }) {
               {isDone ? (
                 <span className="material-symbols-outlined text-xs">check</span>
               ) : (
-                s.num
+                i + 1
               )}
               <span className="hidden sm:inline">{s.label}</span>
             </div>
-            {i < STEPS.length - 1 && (
+            {i < steps.length - 1 && (
               <div
                 className={`h-px w-4 transition-colors sm:w-8 ${
                   current > s.num ? "bg-emerald-400" : "bg-border"
@@ -105,6 +120,7 @@ export function InventoryImportWizard({
     validationComplete,
     initializeValidationComplete,
     initializeComplete,
+    updateInitializeRows,
     setForceLocked,
     setProcessing,
     commitComplete,
@@ -385,7 +401,7 @@ export function InventoryImportWizard({
       </div>
 
       {/* Step indicator */}
-      <StepIndicator current={state.step} />
+      <StepIndicator current={state.step} mode={state.mode} />
 
       {/* Global error */}
       {state.error && (
@@ -427,6 +443,9 @@ export function InventoryImportWizard({
         {state.step === 4 && state.mode && state.validationStats && (
           <ValidationPreview
             validatedRows={state.validatedRows}
+            initializeRows={
+              state.mode === "initialize" ? state.initializeRows : undefined
+            }
             stats={state.validationStats}
             mode={state.mode}
             onProceed={() => {
@@ -438,7 +457,7 @@ export function InventoryImportWizard({
                 goToStep(6);
               }
             }}
-            onBack={() => handleReset()}
+            onBack={() => goToStep(3)}
           />
         )}
 
@@ -448,8 +467,9 @@ export function InventoryImportWizard({
             <CatalogPreview
               initializeRows={state.initializeRows}
               catalogPreview={state.catalogPreview}
+              onUpdateRows={updateInitializeRows}
               onProceed={() => goToStep(6)}
-              onBack={() => handleReset()}
+              onBack={() => goToStep(4)}
             />
           )}
 
@@ -459,6 +479,7 @@ export function InventoryImportWizard({
             // Initialize mode: dry-run using initializeRows
             <DryRunSummary
               validatedRows={state.validatedRows}
+              initializeRows={state.initializeRows}
               mode={state.mode}
               warehouseName={warehouseName}
               forceLocked={false}
@@ -466,7 +487,7 @@ export function InventoryImportWizard({
                 /* noop — initialize mode has no lock toggle */
               }}
               onConfirm={handleConfirmInitialize}
-              onBack={() => handleReset()}
+              onBack={() => goToStep(5)}
               isProcessing={state.isProcessing}
               canForceLock={false}
             />
@@ -478,7 +499,7 @@ export function InventoryImportWizard({
               forceLocked={state.forceLocked}
               onSetForceLocked={setForceLocked}
               onConfirm={handleConfirmImport}
-              onBack={() => handleReset()}
+              onBack={() => goToStep(4)}
               isProcessing={state.isProcessing}
               canForceLock={true}
             />

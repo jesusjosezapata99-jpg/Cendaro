@@ -2,13 +2,13 @@
 
 > **Parent PRD**: [FEATURE_PRD_SPREADSHEET_IMPORT.md](./FEATURE_PRD_SPREADSHEET_IMPORT.md)  
 > **Sibling PRD**: [FEATURE_PRD_CATALOG_IMPORT.md](./FEATURE_PRD_CATALOG_IMPORT.md)  
-> **Version:** 1.0  
+> **Version:** 2.0  
 > **Status:** Implementation-Ready  
 > **Module:** M3 — Inventario & Almacenes  
 > **Stack:** Next.js 16 (App Router) · TypeScript · Zod v4 · Drizzle ORM · Supabase PostgreSQL · `xlsx` (SheetJS) ^0.18.5  
 > **Audience:** Product, Frontend, Backend, QA  
 > **Language:** English (technical), Spanish (UI copy where applicable)  
-> **Last Updated:** 2026-03-14  
+> **Last Updated:** 2026-03-17  
 > **Author:** Cendaro Product & Engineering
 
 ---
@@ -48,12 +48,15 @@
 
 This feature enables **bulk import of inventory stock quantities from an `.xlsx` file into any warehouse** in the Cendaro ERP. Users select a warehouse, upload a spreadsheet listing products and their quantities, preview the parsed data with row-level validation, review a dry-run summary, and commit stock updates in a single audited transaction.
 
-The feature supports two modes:
+The feature supports three modes:
 
-| Mode        | Behavior                                                  | When to Use                                     |
-| ----------- | --------------------------------------------------------- | ----------------------------------------------- |
-| **Replace** | Sets `StockLedger.quantity` to the imported value         | Full physical recount / initial warehouse setup |
-| **Adjust**  | Adds or subtracts from the current `StockLedger.quantity` | Partial adjustments from a recount or receiving |
+| Mode           | Behavior                                                                                | When to Use                                              |
+| -------------- | --------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| **Replace**    | Sets `StockLedger.quantity` to the imported value                                       | Full physical recount                                    |
+| **Adjust**     | Adds or subtracts from the current `StockLedger.quantity`                               | Partial adjustments from a recount or receiving          |
+| **Initialize** | Creates brands, products, and stock ledger entries from scratch in a single transaction | First-time warehouse setup or periodic full-catalog load |
+
+> **Initialize mode** is designed for scenarios where the database has no products or brands yet. It creates all necessary entities (brands → products → stock) in a single atomic operation, allowing users to go from a blank database to a fully stocked warehouse via one spreadsheet upload.
 
 All processing (file read, parsing, normalization) happens **client-side** using the existing `xlsx ^0.18.5` dependency. Only the validated, typed rows are sent to the backend via tRPC.
 
@@ -101,23 +104,24 @@ All processing (file read, parsing, normalization) happens **client-side** using
 
 ### Goals (MVP)
 
-| ID  | Goal                                                                                        |
-| --- | ------------------------------------------------------------------------------------------- |
-| G-1 | Accept `.xlsx` / `.xls` / `.csv` files with up to **10,000 rows**                           |
-| G-2 | Parse client-side → validate → preview → dry-run → commit                                   |
-| G-3 | Support **Replace** and **Adjust** import modes                                             |
-| G-4 | Match products by `sku` (the product `Referencia`), with case-insensitive matching          |
-| G-5 | Generate `StockMovement` records for every updated row (`adjustment_in` / `adjustment_out`) |
-| G-6 | Respect product lock status (`StockLedger.isLocked`) — warn on locked products              |
-| G-7 | Record full audit trail in `AuditLog`                                                       |
-| G-8 | Show dry-run summary before commit: products updated, quantities changed, warnings          |
-| G-9 | Allow download of failed/skipped rows as `.xlsx` for correction                             |
+| ID   | Goal                                                                                        |
+| ---- | ------------------------------------------------------------------------------------------- |
+| G-1  | Accept `.xlsx` / `.xls` / `.csv` files with up to **10,000 rows**                           |
+| G-2  | Parse client-side → validate → preview → dry-run → commit                                   |
+| G-3  | Support **Replace**, **Adjust**, and **Initialize** import modes                            |
+| G-4  | Match products by `sku` (the product `Referencia`), with case-insensitive matching          |
+| G-5  | Generate `StockMovement` records for every updated row (`adjustment_in` / `adjustment_out`) |
+| G-6  | Respect product lock status (`StockLedger.isLocked`) — warn on locked products              |
+| G-7  | Record full audit trail in `AuditLog`                                                       |
+| G-8  | Show dry-run summary before commit: products updated, quantities changed, warnings          |
+| G-10 | Initialize mode: create brands and products from spreadsheet data before stock insertion    |
+| G-9  | Allow download of failed/skipped rows as `.xlsx` for correction                             |
 
 ### Non-Goals
 
 | ID   | Non-Goal                                                                                          |
 | ---- | ------------------------------------------------------------------------------------------------- |
-| NG-1 | Creating new products — only updating stock for **existing** products                             |
+| NG-1 | ~~Creating new products~~ → **Supported via Initialize mode** (brands + products + stock created) |
 | NG-2 | Updating product metadata (name, price, category) — see Catalog Import PRD                        |
 | NG-3 | AI-assisted matching or parsing — AI pipeline is currently disabled                               |
 | NG-4 | Image or multi-sheet processing — single data sheet only                                          |
@@ -178,7 +182,7 @@ All processing (file read, parsing, normalization) happens **client-side** using
 ```mermaid
 stateDiagram-v2
     [*] --> Idle
-    Idle --> ModeSelected: User selects Replace or Adjust
+    Idle --> ModeSelected: User selects Replace, Adjust, or Initialize
     ModeSelected --> FileSelected: User selects .xlsx file
     ModeSelected --> Idle: User cancels
 
@@ -196,12 +200,16 @@ stateDiagram-v2
     ValidationInProgress --> ValidationReady: Validation completes
 
     ValidationReady --> ErrorReview: Has blocking errors
-    ValidationReady --> DryRunReady: No blocking errors
+    ValidationReady --> DryRunReady: No blocking errors (Replace/Adjust)
+    ValidationReady --> CatalogPreview: No errors (Initialize only)
+
+    CatalogPreview --> DryRunReady: User confirms catalog
+    CatalogPreview --> ValidationReady: User goes back
 
     ErrorReview --> Idle: User replaces file
     ErrorReview --> DryRunReady: User proceeds with valid rows only
 
-    DryRunReady --> ConfirmImport: User clicks Importar
+    DryRunReady --> ConfirmImport: User clicks Importar / Inicializar
     DryRunReady --> Idle: User cancels
 
     ConfirmImport --> ImportProcessing: Confirm triggers DB write
@@ -217,16 +225,19 @@ stateDiagram-v2
 
 ### Step Descriptions
 
-| Step                    | User Action                            | System Action                                                    |
-| ----------------------- | -------------------------------------- | ---------------------------------------------------------------- |
-| 1. Select Warehouse     | Pick warehouse from dropdown           | Load warehouse detail (name, type, current product count)        |
-| 2. Select Import Mode   | Choose **Replace** or **Adjust**       | Display mode explanation                                         |
-| 3. Upload File          | Drag & drop or click to upload `.xlsx` | Client-side: `XLSX.read()` → extract `string[][]`                |
-| 4. Header Detection     | Review auto-mapped columns             | Map headers → `{ sku, quantity }` using alias map                |
-| 5. Validation & Preview | Review row-level results               | Validate SKU exists, quantity is integer ≥ 0, product not locked |
-| 6. Dry-Run Summary      | Review aggregate changes               | Show: X products updated, Y skipped, Z warnings                  |
-| 7. Confirm / Cancel     | Click "Importar" or "Cancelar"         | Commit to DB or discard session                                  |
-| 8. Result               | View final summary + download errors   | Show committed count + failed rows download link                 |
+| Step                    | User Action                                       | System Action                                                           |
+| ----------------------- | ------------------------------------------------- | ----------------------------------------------------------------------- |
+| 1. Select Warehouse     | Pick warehouse from dropdown                      | Load warehouse detail (name, type, current product count)               |
+| 2. Select Import Mode   | Choose **Replace**, **Adjust**, or **Initialize** | Display mode explanation with visual cards                              |
+| 3. Upload File          | Drag & drop or click to upload `.xlsx`            | Client-side: `XLSX.read()` → extract `string[][]`                       |
+| 4. Header Detection     | Review auto-mapped columns                        | Map headers using alias map (mode-aware required fields)                |
+| 5. Validation & Preview | Review row-level results with interactive filters | Validate per mode; clickable stat cards filter table                    |
+| 5b. Catalog Preview     | _(Initialize only)_ Review/edit brands & products | Inline editing of brand and product names before commit                 |
+| 6. Dry-Run Summary      | Review aggregate changes                          | Mode-aware summary: products, brands, units (Initialize) or delta (R/A) |
+| 7. Confirm / Cancel     | Click "Importar" / "Inicializar" or "Cancelar"    | Commit to DB or discard session                                         |
+| 8. Result               | View final summary + download errors              | Show committed count + failed rows download link                        |
+
+> **Dynamic Step Indicator**: The wizard step bar adapts to the selected mode. The "Catálogo" step (5b) is only shown for Initialize mode. Step numbers are re-indexed automatically so Replace/Adjust shows 6 steps and Initialize shows 7 steps.
 
 ---
 
@@ -244,13 +255,14 @@ stateDiagram-v2
 
 ### Header Detection
 
-| ID    | Requirement                                                                                    |
-| ----- | ---------------------------------------------------------------------------------------------- |
-| FR-6  | **Required columns**: `sku` (or alias), `quantity` (or alias)                                  |
-| FR-7  | **Optional columns**: `barcode` (for cross-validation only — not used for SKU lookup), `notes` |
-| FR-8  | Auto-detect headers using alias map (see Appendix A) — case-insensitive, accent-insensitive    |
-| FR-9  | If required headers missing, show error with available column names                            |
-| FR-10 | User can manually remap columns if auto-detection fails                                        |
+| ID    | Requirement                                                                                                                              |
+| ----- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| FR-6  | **Required columns (Replace/Adjust)**: `sku` (or alias), `bultos` (or alias)                                                             |
+| FR-6b | **Required columns (Initialize)**: `sku`, `marca`, `producto`, `bultos`, `presentacion` (or aliases)                                     |
+| FR-7  | **Optional columns**: `barcode` (for cross-validation only — not used for SKU lookup), `notes`                                           |
+| FR-8  | Auto-detect headers using alias map (see Appendix A) — case-insensitive, accent-insensitive                                              |
+| FR-9  | If required headers missing, show error with available column names. Required fields are **mode-aware** via `getRequiredFieldsForMode()` |
+| FR-10 | User can manually remap columns if auto-detection fails                                                                                  |
 
 ### Validation
 
@@ -264,22 +276,37 @@ stateDiagram-v2
 
 ### Preview
 
-| ID    | Requirement                                                                                              |
-| ----- | -------------------------------------------------------------------------------------------------------- | ----------- | --------- | --------- |
-| FR-16 | Show table with columns: Row #, SKU, Product Name (resolved), Quantity, Status, Notes                    |
-| FR-17 | Color-code rows: ✅ green (valid), ⚠️ yellow (warning — locked), ❌ red (error — not found, invalid qty) |
-| FR-18 | Show aggregate counters: `Valid: X                                                                       | Warnings: Y | Errors: Z | Total: N` |
-| FR-19 | Allow filtering table by status (all / valid / warnings / errors)                                        |
-| FR-20 | Show current stock alongside imported quantity in Replace mode: `Current: 50 → New: 120`                 |
+| ID     | Requirement                                                                                                                        |
+| ------ | ---------------------------------------------------------------------------------------------------------------------------------- |
+| FR-16  | **Replace/Adjust**: Show table with columns: Fila, SKU, Producto, Actual, Delta/Nuevo, Estado, Mensaje                             |
+| FR-16b | **Initialize**: Show table with columns: Fila, SKU, Marca, Producto, Bultos, Presentación, Total Uds, Estado, Mensaje              |
+| FR-17  | Color-code rows: ✅ green (valid), ⚠️ yellow (warning — locked/duplicate), ❌ red (error — not found, invalid qty)                 |
+| FR-18  | **Interactive stat counter cards**: clickable `<button>` elements that filter the table by status. Active state: ring + scale + bg |
+| FR-18b | **Filter tabs with count badges**: each tab shows a color dot (🟢🟡🔴🔵) + label + numeric badge for instant visual recognition    |
+| FR-19  | Allow filtering table by status (all / valid / warnings / errors) — via both stat cards and tabs                                   |
+| FR-20  | **Message column**: full-width, no truncation. Each message renders with a status-colored icon + wrapped text (`leading-relaxed`)  |
+| FR-20b | Show current stock alongside imported quantity in Replace mode: `Current: 50 → New: 120`                                           |
+
+### Catalog Preview (Initialize Mode Only)
+
+| ID     | Requirement                                                                                          |
+| ------ | ---------------------------------------------------------------------------------------------------- |
+| FR-20c | **Catalog preview step** shown only in Initialize mode — lists all brands and products to be created |
+| FR-20d | **Inline editing**: users can click any brand or product name to edit it before commit               |
+| FR-20e | Edits propagate back to the state machine via `UPDATE_INITIALIZE_ROWS` action                        |
+| FR-20f | Brand renames cascade to all products under that brand                                               |
+| FR-20g | Step indicator dynamically hides this step for Replace/Adjust modes                                  |
 
 ### Dry-Run
 
-| ID    | Requirement                                                                                                |
-| ----- | ---------------------------------------------------------------------------------------------------------- |
-| FR-21 | Generate summary: total products to update, total quantity delta (sum of changes), locked products skipped |
-| FR-22 | In Replace mode: show `current → new` for each product                                                     |
-| FR-23 | In Adjust mode: show `current + delta = new` for each product                                              |
-| FR-24 | Show warehouse name and type prominently in summary header                                                 |
+| ID     | Requirement                                                                                                |
+| ------ | ---------------------------------------------------------------------------------------------------------- |
+| FR-21  | Generate summary: total products to update, total quantity delta (sum of changes), locked products skipped |
+| FR-21b | **Initialize mode**: summary shows unique brands, unique products, total units to create                   |
+| FR-22  | In Replace mode: show `current → new` for each product                                                     |
+| FR-23  | In Adjust mode: show `current + delta = new` for each product                                              |
+| FR-23b | In Initialize mode: confirmation dialog says "Inicializar X productos" with brand/product/unit counts      |
+| FR-24  | Show warehouse name and type prominently in summary header                                                 |
 
 ### Commit
 
@@ -361,7 +388,7 @@ This feature operates entirely on existing tables. The import session state is m
 import { z } from "zod/v4";
 
 // ── Import Mode ───────────────────────────────────
-export const importModeSchema = z.enum(["replace", "adjust"]);
+export const importModeSchema = z.enum(["replace", "adjust", "initialize"]);
 export type ImportMode = z.infer<typeof importModeSchema>;
 
 // ── Single Row (client → server) ──────────────────
@@ -435,6 +462,49 @@ export const importResultSchema = z.object({
   auditLogId: z.string().uuid().optional(),
 });
 export type ImportResult = z.infer<typeof importResultSchema>;
+
+// ── Initialize Mode Schemas ──────────────────────
+
+/** Row sent to the server for Initialize mode */
+export const initializeRowSchema = z.object({
+  rowNumber: z.int().min(1),
+  sku: z.string().min(1).max(64),
+  brand: z.string().min(1).max(128),
+  productName: z.string().min(1).max(256),
+  bultos: z.int().min(0),
+  presentacion: z.string().min(1).max(128),
+  totalUnits: z.int().min(0),
+  status: rowValidationStatus,
+  message: z.string().optional(),
+});
+export type InitializeRow = z.infer<typeof initializeRowSchema>;
+
+/** Commit request for Initialize mode */
+export const initializeCommitSchema = z.object({
+  warehouseId: z.string().uuid(),
+  rows: z.array(initializeRowSchema).min(1).max(10000),
+  filename: z.string().max(256),
+  idempotencyKey: z.string().uuid(),
+});
+export type InitializeCommit = z.infer<typeof initializeCommitSchema>;
+
+/** Result from Initialize commit */
+export const initializeResultSchema = z.object({
+  brandsCreated: z.int().min(0),
+  productsCreated: z.int().min(0),
+  stockEntriesCreated: z.int().min(0),
+  totalUnits: z.int().min(0),
+  errors: z.array(
+    z.object({
+      rowNumber: z.int(),
+      sku: z.string(),
+      code: z.string(),
+      message: z.string(),
+    }),
+  ),
+  auditLogId: z.string().uuid().optional(),
+});
+export type InitializeResult = z.infer<typeof initializeResultSchema>;
 ```
 
 ---
@@ -486,11 +556,12 @@ The server re-validates critical invariants before writing:
 
 ### Quantity Rules by Mode
 
-| Mode        | Accepted Values                                   | Behavior                                                |
-| ----------- | ------------------------------------------------- | ------------------------------------------------------- |
-| **Replace** | `quantity ≥ 0`                                    | Direct assignment: `StockLedger.quantity = quantity`    |
-| **Adjust**  | Any integer (positive = add, negative = subtract) | Delta update: `StockLedger.quantity = quantity + delta` |
-| **Adjust**  | Result must be `≥ 0`                              | If `current + delta < 0` → error: `NEGATIVE_RESULT`     |
+| Mode           | Accepted Values                                   | Behavior                                                      |
+| -------------- | ------------------------------------------------- | ------------------------------------------------------------- |
+| **Replace**    | `bultos ≥ 0`                                      | Direct assignment: `StockLedger.quantity = totalUnits`        |
+| **Adjust**     | Any integer (positive = add, negative = subtract) | Delta update: `StockLedger.quantity = quantity + delta`       |
+| **Adjust**     | Result must be `≥ 0`                              | If `current + delta < 0` → error: `NEGATIVE_RESULT`           |
+| **Initialize** | `bultos ≥ 0`, `presentacion` (string)             | Creates Brand → Product → StockLedger in a single transaction |
 
 ---
 
@@ -578,6 +649,22 @@ inventoryImport: createTRPCRouter({
       // 5. Return ImportResult
     }),
 
+  // Initialize mode: create brands + products + stock from scratch
+  initializeCommit: roleRestrictedProcedure(["owner", "admin"])
+    .input(initializeCommitSchema)
+    .mutation(async ({ ctx, input }) => {
+      // 1. Validate warehouse exists and is active
+      // 2. Check idempotency key
+      // 3. Extract unique brands → findOrCreate each brand
+      // 4. For each row:
+      //    a. slugify(sku) → Product.sku
+      //    b. Create Product with resolved brandId
+      //    c. Create StockLedger entry (quantity = totalUnits)
+      //    d. Create StockMovement (adjustment_in)
+      // 5. Log to AuditLog
+      // 6. Return InitializeResult
+    }),
+
   // Pre-fetch data for client-side validation
   getWarehouseProducts: protectedProcedure
     .input(z.object({ warehouseId: z.string().uuid() }))
@@ -590,10 +677,11 @@ inventoryImport: createTRPCRouter({
 
 ### Procedure Summary
 
-| Procedure                              | Role              | Input                   | Output                                    | Purpose                              |
-| -------------------------------------- | ----------------- | ----------------------- | ----------------------------------------- | ------------------------------------ |
-| `inventoryImport.commit`               | owner, admin      | `InventoryImportCommit` | `ImportResult`                            | Execute the stock updates            |
-| `inventoryImport.getWarehouseProducts` | any authenticated | `{ warehouseId }`       | `{ id, sku, name, quantity, isLocked }[]` | Pre-fetch for client-side validation |
+| Procedure                              | Role              | Input                   | Output                                    | Purpose                                               |
+| -------------------------------------- | ----------------- | ----------------------- | ----------------------------------------- | ----------------------------------------------------- |
+| `inventoryImport.commit`               | owner, admin      | `InventoryImportCommit` | `ImportResult`                            | Execute stock updates (Replace/Adjust)                |
+| `inventoryImport.initializeCommit`     | owner, admin      | `InitializeCommit`      | `InitializeResult`                        | Create brands + products + stock from scratch         |
+| `inventoryImport.getWarehouseProducts` | any authenticated | `{ warehouseId }`       | `{ id, sku, name, quantity, isLocked }[]` | Pre-fetch for client-side validation (Replace/Adjust) |
 
 ---
 
@@ -609,72 +697,114 @@ inventoryImport: createTRPCRouter({
 
 ```
 /inventory/warehouse/[id]/import/page.tsx
-├── InventoryImportWizard.tsx          ← Main orchestrator (state machine)
-│   ├── Step1_ModeSelect.tsx           ← Replace vs Adjust selector
+├── InventoryImportWizard.tsx          ← Main orchestrator (7-step state machine)
+│   ├── StepIndicator                  ← Dynamic — hides Catálogo for Replace/Adjust
+│   ├── Step1_ModeSelect.tsx           ← Replace / Adjust / Initialize selector (3-col grid)
 │   ├── Step2_FileUpload.tsx           ← Drag-and-drop upload zone
-│   ├── Step3_HeaderMapping.tsx        ← Auto-detected + manual override
-│   ├── Step4_ValidationPreview.tsx    ← Table with status indicators
-│   ├── Step5_DryRunSummary.tsx        ← Aggregate summary before commit
-│   └── Step6_ResultSummary.tsx        ← Final result + error download
+│   ├── Step3_HeaderMapping.tsx        ← Auto-detected + manual override (mode-aware required fields)
+│   ├── Step4_ValidationPreview.tsx    ← Interactive stat cards + filter tabs + full-width messages
+│   ├── Step5_CatalogPreview.tsx       ← (Initialize only) Inline editing of brands & products
+│   ├── Step6_DryRunSummary.tsx        ← Mode-aware aggregate summary before commit
+│   └── Step7_ResultSummary.tsx        ← Final result + error download
 ├── hooks/
-│   ├── use-inventory-import.ts        ← Core state management hook
+│   ├── use-inventory-import.ts        ← Core state management (useReducer with 7-step state machine)
 │   ├── use-parse-inventory-file.ts    ← XLSX parsing + header detection
 │   └── use-validate-inventory.ts      ← Client-side validation logic
 └── lib/
-    ├── inventory-header-aliases.ts    ← Header alias map
-    ├── inventory-validators.ts        ← Zod schemas + validation functions
-    └── inventory-normalizers.ts       ← Value transformation functions
+    ├── inventory-header-aliases.ts    ← Header alias map + getRequiredFieldsForMode()
+    ├── inventory-validators.ts        ← Zod schemas + validation functions + InitializeValidatedRow
+    ├── inventory-normalizers.ts       ← Value transformation (normalizeBrandName, normalizeProductName)
+    └── inventory-template-builder.ts  ← INITIALIZE_HEADERS + template download
 ```
 
 ### State Management
 
 ```typescript
 interface ImportState {
-  step: 1 | 2 | 3 | 4 | 5 | 6;
+  step: 1 | 2 | 3 | 4 | 5 | 6 | 7;
   warehouseId: string;
   warehouseName: string;
-  mode: "replace" | "adjust";
+  mode: "replace" | "adjust" | "initialize";
   rawRows: string[][];
   headerMap: Record<string, string>;
   validatedRows: ValidatedRow[];
+  /** Initialize mode: validated rows with brand/product/bultos/presentacion */
+  initializeRows: InitializeValidatedRow[];
+  /** Initialize mode: catalog preview data (brands → products) */
+  catalogPreview: CatalogPreviewData | null;
   commitResult: ImportResult | null;
+  /** Initialize mode: result with brands/products created */
+  initializeResult: InitializeResult | null;
   idempotencyKey: string; // UUID generated at session start
 }
+
+// State machine actions include:
+// MODE_SELECT, FILE_SELECTED, HEADER_MAP_COMPLETE, VALIDATION_COMPLETE,
+// INITIALIZE_VALIDATION_COMPLETE, UPDATE_INITIALIZE_ROWS, COMMIT_COMPLETE,
+// INITIALIZE_COMPLETE, GO_TO_STEP, RESET
 ```
 
 ### UX Details
 
-**Step 1 — Mode Selection**:
+**Step 1 — Mode Selection** (3-column grid):
 
 ```
-┌──────────────────────────────────────────────────────────┐
-│  Importar Inventario — Almacén Principal                 │
-│                                                          │
-│  ┌─────────────────┐    ┌─────────────────┐              │
-│  │  📋 Reemplazar   │    │  📊 Ajustar      │              │
-│  │                 │    │                 │              │
-│  │  Establece la   │    │  Suma o resta   │              │
-│  │  cantidad exacta│    │  cantidades a   │              │
-│  │  del conteo     │    │  lo existente   │              │
-│  │  físico.        │    │                 │              │
-│  └─────────────────┘    └─────────────────┘              │
-│                                                          │
-│  ⚠️ Reemplazar sobreescribe el stock actual              │
-└──────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────────┐
+│  Importar Inventario — Almacén Principal                                  │
+│                                                                          │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌──────────────────┐          │
+│  │  📋 Reemplazar   │  │  📊 Ajustar      │  │  🚀 Inicializar   │          │
+│  │                 │  │                 │  │                  │          │
+│  │  Establece la   │  │  Suma o resta   │  │  Crea marcas,    │          │
+│  │  cantidad exacta│  │  cantidades a   │  │  productos y     │          │
+│  │  del conteo     │  │  lo existente   │  │  stock desde 0   │          │
+│  │  físico.        │  │                 │  │                  │          │
+│  └─────────────────┘  └─────────────────┘  └──────────────────┘          │
+│                                                                          │
+│  ⚠️ Reemplazar sobreescribe el stock actual                              │
+│  🚀 Inicializar crea todo desde cero — ideal para primera importación    │
+└────────────────────────────────────────────────────────────────────────────┘
 ```
 
-**Step 4 — Validation Preview**:
+**Step 4 — Validation Preview** (interactive stat cards + full messages):
+
+```
+┌───────────────────────────────────────────────────────────────────────────┐
+│  ┌──────────────────┐  ┌──────────────────┐  ┌────────────┐  ┌────────┐ │
+│  │ ✅ Válidos       │  │ ⚠️ Advertencias  │  │ ❌ Errores  │  │ Total  │ │
+│  │    276 ← click!  │  │    15 ← click!   │  │    3        │  │  294   │ │
+│  └──────────────────┘  └──────────────────┘  └────────────┘  └────────┘ │
+│  [ring-2 + scale effect on active card]                                  │
+├───────────────────────────────────────────────────────────────────────────┤
+│  [🟢 Válidos (276)]  [🟡 Advertencias (15)]  [🔴 Errores (3)]  [🔵 Todos]│
+├───────────────────────────────────────────────────────────────────────────┤
+│  # │ SKU     │ Marca  │ Producto │ Bultos │ Pres. │ Total │ Status │ Msg │
+│ ──┼─────────┼────────┼──────────┼────────┼───────┼───────┼────────┼─────│
+│ 22│81366-03 │ Bailey │ COLORES  │   1    │  6    │  200  │  ⚠️   │ ⚠️   │
+│   │         │        │          │        │       │       │        │ Fila │
+│   │         │        │          │        │       │       │        │ 27 — │
+│   │         │        │          │        │       │       │        │ Dupl │
+└───────────────────────────────────────────────────────────────────────────┘
+  ↑ Messages wrap fully — no truncation. Each shows status icon + full text.
+```
+
+**Step 5b — Catalog Preview** (Initialize only):
 
 ```
 ┌───────────────────────────────────────────────────────────────────┐
-│  ✅ 342 válidos  │  ⚠️ 8 advertencias  │  ❌ 5 errores  │ Total: 355 │
-├───────────────────────────────────────────────────────────────────┤
-│  # │ SKU       │ Producto           │ Actual │ Nuevo │ Estado     │
-│ ───┼───────────┼────────────────────┼────────┼───────┼────────────│
-│  1 │ REF-001   │ Cable HDMI 2m      │   50   │  120  │ ✅ Válido  │
-│  2 │ REF-002   │ Adaptador USB-C    │   30   │   45  │ ✅ Válido  │
-│  3 │ REF-003   │ Audífonos BT       │   15   │   20  │ ⚠️ Bloqueado│
-│  4 │ ZZZ-999   │ —                  │   —    │   10  │ ❌ No existe│
+│  Catálogo a Crear                                                │
+│                                                                  │
+│  ┌─ Brand: Bailey ─────────────────────────── [✏️ click to edit] │
+│  │  • BL-01 — ARTÍCULOS DE OFICINA          [✏️ click to edit]  │
+│  │  • BL-02 — ARTÍCULOS DE OFICINA          [✏️ click to edit]  │
+│  │  • 81366-03 — COLORES                    [✏️ click to edit]  │
+│  └───────────────────────────────────────────────────────────────│
+│  ┌─ Brand: Pilot ──────────────────────────── [✏️ click to edit] │
+│  │  • PL-01 — BOLÍGRAFOS                    [✏️ click to edit]  │
+│  └───────────────────────────────────────────────────────────────│
+│                                                                  │
+│  Inline editing: click any name → text input → Enter/Escape     │
+│  Brand renames cascade to all products under that brand          │
 └───────────────────────────────────────────────────────────────────┘
 ```
 
@@ -866,26 +996,28 @@ apps/erp/src/
 │   └── import/
 │       └── page.tsx                      ← NEW — Import wizard page
 ├── modules/receiving/inventory-import/
-│   ├── inventory-import-wizard.tsx        ← Main component
+│   ├── inventory-import-wizard.tsx        ← Main component (7-step, dynamic StepIndicator)
 │   ├── steps/
-│   │   ├── mode-select.tsx
+│   │   ├── mode-select.tsx               ← 3-col grid: Replace / Adjust / Initialize
 │   │   ├── file-upload.tsx
-│   │   ├── header-mapping.tsx
-│   │   ├── validation-preview.tsx
-│   │   ├── dry-run-summary.tsx
+│   │   ├── header-mapping.tsx            ← Mode-aware required fields
+│   │   ├── validation-preview.tsx        ← Interactive stat cards + full-width messages
+│   │   ├── catalog-preview.tsx           ← (Initialize only) Inline brand/product editing
+│   │   ├── dry-run-summary.tsx           ← Mode-aware summary (brands/products for Initialize)
 │   │   └── result-summary.tsx
 │   ├── hooks/
-│   │   ├── use-inventory-import.ts
+│   │   ├── use-inventory-import.ts       ← 7-step state machine + UPDATE_INITIALIZE_ROWS action
 │   │   ├── use-parse-inventory-file.ts
 │   │   └── use-validate-inventory.ts
 │   └── lib/
-│       ├── inventory-header-aliases.ts
-│       ├── inventory-validators.ts
-│       └── inventory-normalizers.ts
+│       ├── inventory-header-aliases.ts   ← + getRequiredFieldsForMode()
+│       ├── inventory-validators.ts       ← + InitializeValidatedRow, validateInitializeRows()
+│       ├── inventory-normalizers.ts      ← + normalizeBrandName(), normalizeProductName()
+│       └── inventory-template-builder.ts ← + INITIALIZE_HEADERS
 
 packages/api/src/modules/
 ├── inventory.ts                           ← EXISTING (unchanged)
-└── inventory-import.ts                    ← NEW — Import router
+└── inventory-import.ts                    ← Import router (commit + initializeCommit + slugify)
 ```
 
 ---
@@ -903,11 +1035,12 @@ packages/api/src/modules/
 
 ### Mode Selection
 
-| ID   | Criteria                                                    |
-| ---- | ----------------------------------------------------------- |
-| AC-5 | User must select Replace or Adjust before upload is enabled |
-| AC-6 | Mode explanation is clearly visible                         |
-| AC-7 | Mode cannot be changed after upload (must restart)          |
+| ID    | Criteria                                                                  |
+| ----- | ------------------------------------------------------------------------- |
+| AC-5  | User must select Replace, Adjust, or Initialize before upload is enabled  |
+| AC-6  | Mode explanation is clearly visible (3-column card grid)                  |
+| AC-7  | Mode cannot be changed after upload (must restart)                        |
+| AC-5b | Initialize mode card explains that it creates brands + products from zero |
 
 ### Validation
 
@@ -921,25 +1054,40 @@ packages/api/src/modules/
 
 ### Preview & Dry-Run
 
-| ID    | Criteria                                                      |
-| ----- | ------------------------------------------------------------- |
-| AC-13 | Preview table shows all rows with status color-coding         |
-| AC-14 | Counters show Valid / Warning / Error counts                  |
-| AC-15 | Replace mode shows "Current → New" columns                    |
-| AC-16 | Adjust mode shows "Current + Delta = New" columns             |
-| AC-17 | Dry-run summary shows total affected products and total delta |
+| ID     | Criteria                                                                             |
+| ------ | ------------------------------------------------------------------------------------ |
+| AC-13  | Preview table shows all rows with status color-coding and hover highlight            |
+| AC-14  | **Stat counter cards are clickable buttons** that filter the table by status         |
+| AC-14b | **Filter tabs show color dot + label + count badge** for instant visual recognition  |
+| AC-14c | Active stat card shows `ring-2` + `scale-[1.02]` + colored background                |
+| AC-15  | Replace mode shows "Actual → Nuevo" columns                                          |
+| AC-16  | Adjust mode shows "Actual + Delta = Nuevo" columns                                   |
+| AC-16b | Initialize mode shows "Marca, Producto, Bultos, Presentación, Total Uds" columns     |
+| AC-17  | Dry-run summary shows total affected products and total delta (Replace/Adjust)       |
+| AC-17b | Dry-run summary shows unique brands, products, and total units (Initialize)          |
+| AC-17c | **Message column shows full text** — no truncation, with status-colored icon per row |
+
+### Catalog Preview (Initialize Only)
+
+| ID     | Criteria                                                                             |
+| ------ | ------------------------------------------------------------------------------------ |
+| AC-17d | Catalog preview step is only visible in Initialize mode                              |
+| AC-17e | Users can click any brand or product name to edit inline (Enter/Escape/blur to save) |
+| AC-17f | Brand renames propagate to all products under that brand                             |
+| AC-17g | Step indicator hides "Catálogo" step for Replace/Adjust modes                        |
 
 ### Commit
 
-| ID    | Criteria                                                        |
-| ----- | --------------------------------------------------------------- |
-| AC-18 | Only `valid` status rows are committed (not warning/error)      |
-| AC-19 | Owner/admin can opt-in to include `warning` (locked) rows       |
-| AC-20 | `StockMovement` records are created for each updated row        |
-| AC-21 | `AuditLog` entry includes warehouse, filename, counts, and mode |
-| AC-22 | Double-clicking "Importar" does not create duplicate entries    |
-| AC-23 | Result summary shows committed/skipped/failed counts            |
-| AC-24 | Failed rows can be downloaded as `.xlsx`                        |
+| ID     | Criteria                                                                                              |
+| ------ | ----------------------------------------------------------------------------------------------------- |
+| AC-18  | Only `valid` status rows are committed (not warning/error)                                            |
+| AC-19  | Owner/admin can opt-in to include `warning` (locked) rows                                             |
+| AC-20  | `StockMovement` records are created for each updated row                                              |
+| AC-21  | `AuditLog` entry includes warehouse, filename, counts, and mode                                       |
+| AC-22  | Double-clicking "Importar" / "Inicializar" does not create duplicate entries                          |
+| AC-23  | Result summary shows committed/skipped/failed counts (Replace/Adjust) or brands/products (Initialize) |
+| AC-24  | Failed rows can be downloaded as `.xlsx`                                                              |
+| AC-24b | Initialize commit creates brands → products → stock ledger entries in a single transaction            |
 
 ### Integration
 
@@ -1263,9 +1411,10 @@ export const INVENTORY_HEADER_ALIASES: Record<string, string> = {
   条码: "barcode",
   条形码: "barcode",
 
-  // Quantity
+  // Quantity / Bultos
   quantity: "quantity",
   cantidad: "quantity",
+  bultos: "quantity",
   qty: "quantity",
   stock: "quantity",
   existencia: "quantity",
@@ -1281,6 +1430,30 @@ export const INVENTORY_HEADER_ALIASES: Record<string, string> = {
   pieces: "quantity",
   数量: "quantity",
   "qty.": "quantity",
+
+  // Brand (Initialize mode)
+  marca: "brand",
+  brand: "brand",
+  fabricante: "brand",
+  manufacturer: "brand",
+  品牌: "brand",
+
+  // Product Name (Initialize mode)
+  producto: "productName",
+  product: "productName",
+  nombre: "productName",
+  "product name": "productName",
+  "nombre del producto": "productName",
+  descripcion: "productName",
+  description: "productName",
+  产品: "productName",
+
+  // Presentación / Units per case (Initialize mode)
+  presentacion: "presentacion",
+  presentación: "presentacion",
+  "unid x caja": "presentacion",
+  "units per case": "presentacion",
+  "unidades por caja": "presentacion",
 
   // Notes
   notes: "notes",
@@ -1314,26 +1487,51 @@ export const INVENTORY_HEADER_ALIASES: Record<string, string> = {
 | `UNKNOWN_COLUMN`       | warning  | `Columna "{header}" no reconocida — será ignorada`           | —                                      |
 | `VALUE_TRUNCATED`      | warning  | `Valor truncado de {original} a entero: {result}`            | Use números enteros                    |
 | `IDEMPOTENCY_CONFLICT` | error    | `Esta importación ya fue ejecutada`                          | Inicie una nueva sesión de importación |
+| `MISSING_BRAND`        | error    | `Columna "Marca" vacía en fila {row}`                        | Add brand name to the row              |
+| `MISSING_PRODUCT_NAME` | error    | `Columna "Producto" vacía en fila {row}`                     | Add product name to the row            |
+| `INVALID_PRESENTACION` | error    | `Presentación inválida en fila {row}`                        | Use a valid presentation format        |
+| `INITIALIZE_SKU_DUP`   | warning  | `SKU "{sku}" duplicado — se usa la última fila`              | Remove duplicate rows                  |
 
 ---
 
 ## Appendix C — Excel Template Specification
 
-The recommended template for inventory import (downloadable from the UI):
+### Template for Replace / Adjust Modes
 
 | Column             | Required | Format                                                            | Example                      |
 | ------------------ | -------- | ----------------------------------------------------------------- | ---------------------------- |
 | `Referencia`       | ✅       | Text, max 64 chars                                                | `REF-001`                    |
-| `Cantidad`         | ✅       | Integer ≥ 0 (Replace) or any integer (Adjust)                     | `150` or `-5`                |
+| `Bultos`           | ✅       | Integer ≥ 0 (Replace) or any integer (Adjust)                     | `150` or `-5`                |
 | `Código de Barras` | ❌       | Text, max 128 chars (for cross-validation only — not used as SKU) | `7501234567890`              |
 | `Notas`            | ❌       | Text, max 512 chars                                               | `Reconteo físico marzo 2026` |
 
-> **Important**: The `Código de Barras` column is optional and used for cross-validation only. The product is always matched by `Referencia` (SKU), never by barcode. If a barcode column is present, its value is logged but does not affect the SKU resolution process.
+> **Important**: The `Código de Barras` column is optional and used for cross-validation only. The product is always matched by `Referencia` (SKU), never by barcode.
 
-**Template download**: Available from the import wizard (Step 2) via `downloadAsXlsx()` from the sheetjs-nextjs skill.
+### Template for Initialize Mode
+
+| Column         | Required | Format                           | Example             |
+| -------------- | -------- | -------------------------------- | ------------------- |
+| `Referencia`   | ✅       | Text, max 64 chars (becomes SKU) | `BL-01`             |
+| `Marca`        | ✅       | Text, max 128 chars              | `Bailey`            |
+| `Producto`     | ✅       | Text, max 256 chars              | `ARTÍCULOS OFICINA` |
+| `Bultos`       | ✅       | Integer ≥ 0                      | `1`                 |
+| `Presentación` | ✅       | Text (e.g., "6" = 6 units/case)  | `6`                 |
+
+> **Note**: In Initialize mode, `Total Uds` is computed as `Bultos × Presentación` and is not a column in the template. Brands and products are created automatically if they don't exist.
+
+**Template download**: Available from the import wizard (Step 2) via `downloadAsXlsx()` — mode-aware templates with correct headers per mode.
 
 ---
 
-> **Document end. This PRD is version 1.0 and is implementation-ready.**  
+## Appendix D — Changelog
+
+| Version | Date       | Changes                                                                                                                                                                                                                                                                                                        |
+| ------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1.0     | 2026-03-14 | Initial implementation-ready PRD with Replace and Adjust modes                                                                                                                                                                                                                                                 |
+| 2.0     | 2026-03-17 | Added Initialize mode (brand → product → stock creation), catalog preview step, dynamic step indicator, interactive stat cards, filter tabs with count badges, full-width message column, mode-aware Zod schemas, `initializeCommit` tRPC procedure, updated header alias map, and revised acceptance criteria |
+
+---
+
+> **Document end. This PRD is version 2.0 and is implementation-ready.**  
 > **Maintainer:** Engineering Lead  
-> **Last updated:** 2026-03-14
+> **Last updated:** 2026-03-17

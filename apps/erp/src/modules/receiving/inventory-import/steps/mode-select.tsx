@@ -96,7 +96,7 @@ export function ModeSelect({ selectedMode, onSelect }: ModeSelectProps) {
               onClick={() => onSelect(m.value)}
               className={`group relative flex cursor-pointer flex-col rounded-2xl border-2 p-0 text-left transition-all duration-200 ${
                 isSelected
-                  ? "border-primary bg-primary/[0.03] shadow-primary/10 ring-primary/20 shadow-lg ring-1"
+                  ? "border-primary bg-primary/3 shadow-primary/10 ring-primary/20 shadow-lg ring-1"
                   : "border-border bg-card hover:border-primary/30 hover:bg-card/80 hover:shadow-md"
               }`}
             >
