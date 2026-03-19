@@ -100,30 +100,6 @@ docs/                → Architecture docs, ADRs, data schemas, product docs
 
 ---
 
-### Pre-Flight Protocol (every code change)
-
-1. Read the `omni-epistemic-memory` skill at `.agents/skills/omni-epistemic-memory/SKILL.md`.
-2. Read the Error Log at `.agents/skills/omni-epistemic-memory/error-log.md` — check the Quick Reference table for matching patterns.
-3. Read `.gemini/knowledge/architecture.md` before touching architecture.
-4. Cross-reference your current task against all known error patterns before writing any code.
-
-### Validation Protocol
-
-5. Always verify changes with `pnpm lint`, `pnpm typecheck`, `pnpm build`. Exit Code 0 = Empirical Truth.
-6. Never use bare `eslint` or `prettier` — always `pnpm exec` prefix.
-
-### Post-Task Protocol (MANDATORY)
-
-After completing any significant task, you MUST execute the **Post-Task Synchronization Protocol** defined in `.agents/skills/omni-epistemic-memory/SKILL.md` Section 7. This is not optional. Failure to update the living memory after a task means the next agent session loses your learnings.
-
-Specifically, you must:
-
-- **Always**: Update `.gemini/knowledge/state.md` with a Progress Log entry
-- **On bug fixes**: Update `.agents/skills/omni-epistemic-memory/error-log.md`
-- **On dependency changes**: Update `.gemini/knowledge/stack.md`
-- **On structural changes**: Update `.gemini/knowledge/architecture.md`
-- **On new error patterns**: Update the Error Prevention Matrix in this file
-
 ### Safety Protocol
 
 7. Supabase project ID = `ljwoptpaxazqmnhdczsb` (Cendaro). Block `xlgyogcaflsmmwpcuiwk` (Svartx production). Follow `/supabase-safety` workflow.
@@ -136,6 +112,10 @@ Specifically, you must:
 ### Environment
 
 10. Windows PowerShell only — no bash/Unix syntax. Use `Get-Content` not `cat`, `Remove-Item` not `rm`, `Get-ChildItem` not `ls`.
+
+### Validation Standard
+
+11. Always verify changes with `pnpm lint`, `pnpm typecheck`, `pnpm build`. Exit Code 0 = Empirical Truth.
 
 ---
 
@@ -160,38 +140,6 @@ Specifically, you must:
 
 - Config: `@cendaro/prettier-config`
 - Plugins: `@ianvs/prettier-plugin-sort-imports`, `prettier-plugin-tailwindcss`
-
----
-
-### Evolutionary Learning Protocol
-
-You are part of a living memory system. Every error you encounter makes the project stronger — but ONLY if you document it.
-
-#### After every bug fix:
-
-1. Analyze the root cause — classify as:
-   - **Local**: Workspace-specific (e.g., `@cendaro/ui` exports mismatch)
-   - **Global**: Monorepo-wide (e.g., missing root devDependency)
-   - **Platform**: Windows-specific (e.g., PATH resolution, command syntax)
-2. Validate the fix: `pnpm lint && pnpm typecheck && pnpm build` must all pass
-3. Append to `.agents/skills/omni-epistemic-memory/error-log.md`:
-   ```
-   ### [YYYY-MM-DD] Brief Title
-   - **Error**: What failed
-   - **Root Cause**: Why it failed
-   - **Fix**: What was done
-   - **Prevention**: Rule to avoid recurrence
-   - **Workspace**: Which package(s) were affected
-   ```
-4. Update the Quick Reference table if the error represents a new pattern
-5. If the fix uncovered an architectural insight, update the relevant KI
-
-#### Before every code change:
-
-- Read the error-log.md Quick Reference table
-- If your task matches a known pattern, follow the prevention rule FIRST
-- If unsure, ask the user rather than guessing
-- Every undocumented fix is lost knowledge — never skip Step 3
 
 ---
 
