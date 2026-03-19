@@ -88,6 +88,34 @@ export const supplierStatusEnum = pgEnum("supplier_status", [
   "inactive",
 ]);
 
+// --- Catalog Import enums ---
+
+export const importSessionStatusEnum = pgEnum("import_session_status", [
+  "pending",
+  "validating",
+  "category_mapping",
+  "dry_run",
+  "committed",
+  "failed",
+  "expired",
+]);
+
+export const importSessionRowStatusEnum = pgEnum("import_session_row_status", [
+  "pending",
+  "valid",
+  "warning",
+  "error",
+  "committed",
+  "skipped",
+  "failed",
+]);
+
+export const importSessionRowActionEnum = pgEnum("import_session_row_action", [
+  "insert",
+  "update",
+  "skip",
+]);
+
 // --- Phase 3 enums ---
 
 export const salesChannelEnum = pgEnum("sales_channel", [
@@ -576,6 +604,102 @@ export const ProductPrice = pgTable(
     index("idx_product_price_type").on(table.priceType),
   ],
 );
+
+// ╔══════════════════════════════════════════════╗
+// ║ CATALOG IMPORT — Category Aliases & Sessions ║
+// ╚══════════════════════════════════════════════╝
+
+export const CategoryAlias = pgTable(
+  "category_alias",
+  (t) => ({
+    id: t.uuid().notNull().primaryKey().defaultRandom(),
+    alias: t.varchar({ length: 256 }).notNull(),
+    categoryId: t
+      .uuid()
+      .notNull()
+      .references(() => Category.id),
+    createdBy: t.uuid(),
+    createdAt: t
+      .timestamp({ mode: "date", withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  }),
+  (table) => [
+    unique("uq_category_alias_alias").on(table.alias),
+    index("idx_category_alias_alias").on(table.alias),
+  ],
+);
+
+export const ImportSession = pgTable(
+  "import_session",
+  (t) => ({
+    id: t.uuid().notNull().primaryKey().defaultRandom(),
+    userId: t.uuid().notNull(),
+    type: t.varchar({ length: 32 }).notNull().default("catalog"),
+    status: importSessionStatusEnum().notNull().default("pending"),
+    filename: t.varchar({ length: 256 }),
+    fileHash: t.varchar({ length: 64 }),
+    totalRows: t.integer().notNull().default(0),
+    validRows: t.integer().notNull().default(0),
+    errorRows: t.integer().notNull().default(0),
+    inserted: t.integer().notNull().default(0),
+    updated: t.integer().notNull().default(0),
+    skipped: t.integer().notNull().default(0),
+    failed: t.integer().notNull().default(0),
+    idempotencyKey: t.uuid(),
+    metadata: t.jsonb(),
+    createdAt: t
+      .timestamp({ mode: "date", withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    committedAt: t.timestamp({ mode: "date", withTimezone: true }),
+    expiresAt: t
+      .timestamp({ mode: "date", withTimezone: true })
+      .notNull()
+      .default(sql`NOW() + INTERVAL '24 hours'`),
+  }),
+  (table) => [
+    unique("uq_import_session_idempotency").on(table.idempotencyKey),
+    index("idx_import_session_user").on(table.userId),
+    index("idx_import_session_status").on(table.status),
+  ],
+);
+
+export const ImportSessionRow = pgTable(
+  "import_session_row",
+  (t) => ({
+    id: t.uuid().notNull().primaryKey().defaultRandom(),
+    importSessionId: t
+      .uuid()
+      .notNull()
+      .references(() => ImportSession.id, { onDelete: "cascade" }),
+    rowIndex: t.integer().notNull(),
+    status: importSessionRowStatusEnum().notNull().default("pending"),
+    action: importSessionRowActionEnum(),
+    rawData: t.jsonb().notNull(),
+    normalizedData: t.jsonb(),
+    resolvedCategoryId: t.uuid().references(() => Category.id),
+    resolvedBrandId: t.uuid().references(() => Brand.id),
+    resolvedProductId: t.uuid().references(() => Product.id),
+    errors: t.jsonb(),
+    createdAt: t
+      .timestamp({ mode: "date", withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  }),
+  (table) => [
+    index("idx_isr_session").on(table.importSessionId),
+    index("idx_isr_status").on(table.status),
+  ],
+);
+
+// --- Catalog Import inferred types ---
+export type CategoryAlias = typeof CategoryAlias.$inferSelect;
+export type NewCategoryAlias = typeof CategoryAlias.$inferInsert;
+export type ImportSession = typeof ImportSession.$inferSelect;
+export type NewImportSession = typeof ImportSession.$inferInsert;
+export type ImportSessionRow = typeof ImportSessionRow.$inferSelect;
+export type NewImportSessionRow = typeof ImportSessionRow.$inferInsert;
 
 // ╔══════════════════════════════════════════════╗
 // ║ PHASE 3 — Inventory + Containers             ║
@@ -1750,6 +1874,41 @@ export const productPriceRelations = relations(ProductPrice, ({ one }) => ({
     references: [Product.id],
   }),
 }));
+
+// --- Catalog Import relations ---
+
+export const categoryAliasRelations = relations(CategoryAlias, ({ one }) => ({
+  category: one(Category, {
+    fields: [CategoryAlias.categoryId],
+    references: [Category.id],
+  }),
+}));
+
+export const importSessionRelations = relations(ImportSession, ({ many }) => ({
+  rows: many(ImportSessionRow),
+}));
+
+export const importSessionRowRelations = relations(
+  ImportSessionRow,
+  ({ one }) => ({
+    session: one(ImportSession, {
+      fields: [ImportSessionRow.importSessionId],
+      references: [ImportSession.id],
+    }),
+    resolvedCategory: one(Category, {
+      fields: [ImportSessionRow.resolvedCategoryId],
+      references: [Category.id],
+    }),
+    resolvedBrand: one(Brand, {
+      fields: [ImportSessionRow.resolvedBrandId],
+      references: [Brand.id],
+    }),
+    resolvedProduct: one(Product, {
+      fields: [ImportSessionRow.resolvedProductId],
+      references: [Product.id],
+    }),
+  }),
+);
 
 // --- Phase 3 relations ---
 
