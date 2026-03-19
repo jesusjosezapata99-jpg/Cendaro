@@ -50,7 +50,7 @@ const MODE_LABELS: Record<ImportMode, string> = {
 
 // ── Stat card styling per type ───────────────────
 
-const STAT_CONFIGS = [
+const BASE_STAT_CONFIGS = [
   {
     label: "Válidos",
     filterKey: "valid" as FilterTab,
@@ -78,16 +78,20 @@ const STAT_CONFIGS = [
     borderColor: "border-red-500/30",
     bgActive: "bg-red-500/10 dark:bg-red-500/15",
   },
-  {
-    label: "Total",
+];
+
+function getTotalStatConfig(mode: ImportMode) {
+  const isInit = mode === "initialize";
+  return {
+    label: isInit ? "Total Bultos" : "Total Filas",
     filterKey: "all" as FilterTab,
-    icon: "inventory_2",
+    icon: isInit ? "package_2" : "inventory_2",
     iconColor: "text-blue-500 dark:text-blue-400",
     ringColor: "ring-blue-500/50",
     borderColor: "border-blue-500/30",
     bgActive: "bg-blue-500/10 dark:bg-blue-500/15",
-  },
-];
+  };
+}
 
 // ── Filter tab dot colors ────────────────────────
 
@@ -151,8 +155,24 @@ export function ValidationPreview({
   const hasValidRows = stats.valid > 0 || stats.warnings > 0;
   const allErrors = stats.valid === 0 && stats.warnings === 0;
 
+  // Mode-aware total: sum of bultos for Initialize, row count for Replace/Adjust
+  const totalDisplay = useMemo(() => {
+    if (mode === "initialize" && initializeRows) {
+      return initializeRows
+        .filter((r) => r.status !== "error")
+        .reduce((sum, r) => sum + r.bultos, 0);
+    }
+    return stats.total;
+  }, [mode, initializeRows, stats.total]);
+
+  // Build stat configs with mode-aware 4th card
+  const statConfigs = useMemo(
+    () => [...BASE_STAT_CONFIGS, getTotalStatConfig(mode)],
+    [mode],
+  );
+
   // Stat counts mapped to card order
-  const statCounts = [stats.valid, stats.warnings, stats.errors, stats.total];
+  const statCounts = [stats.valid, stats.warnings, stats.errors, totalDisplay];
 
   // Tab counts for badges
   const tabCounts: Record<FilterTab, number> = {
@@ -177,7 +197,7 @@ export function ValidationPreview({
 
       {/* ── Interactive stat cards ── */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {STAT_CONFIGS.map((cfg, idx) => {
+        {statConfigs.map((cfg, idx) => {
           const count = statCounts[idx] ?? 0;
           const isActive = filter === cfg.filterKey;
 

@@ -30,6 +30,13 @@ interface CatalogPreviewProps {
 
 // ── Component ────────────────────────────────────
 
+type CatalogFilter =
+  | "all"
+  | "newBrands"
+  | "existingBrands"
+  | "newProducts"
+  | "existingProducts";
+
 export function CatalogPreview({
   initializeRows,
   catalogPreview,
@@ -38,6 +45,7 @@ export function CatalogPreview({
   onBack,
 }: CatalogPreviewProps) {
   const [tab, setTab] = useState<"brands" | "products">("brands");
+  const [catalogFilter, setCatalogFilter] = useState<CatalogFilter>("all");
 
   const { brands, products } = catalogPreview;
 
@@ -53,6 +61,32 @@ export function CatalogPreview({
   const existingProducts = useMemo(
     () => products.filter((p) => !p.isNew),
     [products],
+  );
+
+  // Filtered data based on active stat card
+  const displayedBrands = useMemo(() => {
+    if (catalogFilter === "newBrands") return newBrands;
+    if (catalogFilter === "existingBrands") return existingBrands;
+    return brands;
+  }, [catalogFilter, brands, newBrands, existingBrands]);
+
+  const displayedProducts = useMemo(() => {
+    if (catalogFilter === "newProducts") return newProducts;
+    if (catalogFilter === "existingProducts") return existingProducts;
+    return products;
+  }, [catalogFilter, products, newProducts, existingProducts]);
+
+  // Handle stat card click — toggle + auto-switch tab
+  const handleFilterClick = useCallback(
+    (filter: CatalogFilter) => {
+      const newFilter = catalogFilter === filter ? "all" : filter;
+      setCatalogFilter(newFilter);
+
+      // Auto-switch tab based on filter type
+      if (newFilter.includes("Brand")) setTab("brands");
+      else if (newFilter.includes("Product")) setTab("products");
+    },
+    [catalogFilter],
   );
 
   // ── Inline editing helpers ──────────────────
@@ -130,60 +164,74 @@ export function CatalogPreview({
           Vista Previa del Catálogo
         </h2>
         <p className="text-muted-foreground mt-1 text-sm">
-          Revise y edite las marcas y productos antes de importar. Haga doble
-          clic en cualquier nombre para editarlo.
+          Revise y edite las marcas y productos antes de importar. Haga clic en
+          las tarjetas para filtrar. Doble clic en un nombre para editarlo.
         </p>
       </div>
 
-      {/* Summary Cards */}
+      {/* Interactive Summary Cards */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <StatCard
           label="Marcas nuevas"
           value={newBrands.length}
           icon="add_circle"
           color="emerald"
+          isActive={catalogFilter === "newBrands"}
+          onClick={() => handleFilterClick("newBrands")}
         />
         <StatCard
           label="Marcas existentes"
           value={existingBrands.length}
           icon="check_circle"
           color="sky"
+          isActive={catalogFilter === "existingBrands"}
+          onClick={() => handleFilterClick("existingBrands")}
         />
         <StatCard
           label="Productos nuevos"
           value={newProducts.length}
           icon="inventory_2"
           color="emerald"
+          isActive={catalogFilter === "newProducts"}
+          onClick={() => handleFilterClick("newProducts")}
         />
         <StatCard
           label="Productos existentes"
           value={existingProducts.length}
           icon="inventory"
           color="sky"
+          isActive={catalogFilter === "existingProducts"}
+          onClick={() => handleFilterClick("existingProducts")}
         />
       </div>
 
       {/* Tabs */}
       <div className="border-border flex items-center gap-1 border-b">
         <button
-          onClick={() => setTab("brands")}
+          onClick={() => {
+            setTab("brands");
+            if (catalogFilter.includes("Product")) setCatalogFilter("all");
+          }}
           className={`rounded-t-lg px-4 py-2 text-sm font-medium transition-colors ${
             tab === "brands"
               ? "text-foreground -mb-px border-b-2 border-emerald-500"
               : "text-muted-foreground hover:text-foreground"
           }`}
         >
-          Marcas ({brands.length})
+          Marcas ({displayedBrands.length})
         </button>
         <button
-          onClick={() => setTab("products")}
+          onClick={() => {
+            setTab("products");
+            if (catalogFilter.includes("Brand")) setCatalogFilter("all");
+          }}
           className={`rounded-t-lg px-4 py-2 text-sm font-medium transition-colors ${
             tab === "products"
               ? "text-foreground -mb-px border-b-2 border-emerald-500"
               : "text-muted-foreground hover:text-foreground"
           }`}
         >
-          Productos ({products.length})
+          Productos ({displayedProducts.length})
         </button>
       </div>
 
@@ -203,19 +251,30 @@ export function CatalogPreview({
                 </tr>
               </thead>
               <tbody className="divide-border divide-y">
-                {brands.map((b, i) => (
-                  <tr key={i} className="hover:bg-muted/30 transition-colors">
-                    <td className="text-foreground px-4 py-2">
-                      <EditableCell
-                        value={b.name}
-                        onSave={(v) => handleBrandRename(b.name, v)}
-                      />
-                    </td>
-                    <td className="px-4 py-2 text-center">
-                      <StatusBadge isNew={b.isNew} />
+                {displayedBrands.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={2}
+                      className="text-muted-foreground px-4 py-8 text-center text-sm"
+                    >
+                      No hay marcas en esta categoría
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  displayedBrands.map((b, i) => (
+                    <tr key={i} className="hover:bg-muted/30 transition-colors">
+                      <td className="text-foreground px-4 py-2">
+                        <EditableCell
+                          value={b.name}
+                          onSave={(v) => handleBrandRename(b.name, v)}
+                        />
+                      </td>
+                      <td className="px-4 py-2 text-center">
+                        <StatusBadge isNew={b.isNew} />
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           ) : (
@@ -237,28 +296,39 @@ export function CatalogPreview({
                 </tr>
               </thead>
               <tbody className="divide-border divide-y">
-                {products.map((p, i) => (
-                  <tr key={i} className="hover:bg-muted/30 transition-colors">
-                    <td className="text-muted-foreground px-4 py-2 font-mono text-xs">
-                      {p.sku}
-                    </td>
-                    <td className="px-4 py-2">
-                      <EditableCell
-                        value={p.name}
-                        onSave={(v) => handleProductRename(p.sku, "name", v)}
-                      />
-                    </td>
-                    <td className="px-4 py-2">
-                      <EditableCell
-                        value={p.brand}
-                        onSave={(v) => handleProductRename(p.sku, "brand", v)}
-                      />
-                    </td>
-                    <td className="px-4 py-2 text-center">
-                      <StatusBadge isNew={p.isNew} />
+                {displayedProducts.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={4}
+                      className="text-muted-foreground px-4 py-8 text-center text-sm"
+                    >
+                      No hay productos en esta categoría
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  displayedProducts.map((p, i) => (
+                    <tr key={i} className="hover:bg-muted/30 transition-colors">
+                      <td className="text-muted-foreground px-4 py-2 font-mono text-xs">
+                        {p.sku}
+                      </td>
+                      <td className="px-4 py-2">
+                        <EditableCell
+                          value={p.name}
+                          onSave={(v) => handleProductRename(p.sku, "name", v)}
+                        />
+                      </td>
+                      <td className="px-4 py-2">
+                        <EditableCell
+                          value={p.brand}
+                          onSave={(v) => handleProductRename(p.sku, "brand", v)}
+                        />
+                      </td>
+                      <td className="px-4 py-2 text-center">
+                        <StatusBadge isNew={p.isNew} />
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           )}
@@ -354,25 +424,44 @@ function StatCard({
   value,
   icon,
   color,
+  isActive,
+  onClick,
 }: {
   label: string;
   value: number;
   icon: string;
   color: "emerald" | "sky";
+  isActive?: boolean;
+  onClick?: () => void;
 }) {
   const colorClasses =
     color === "emerald"
       ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-400"
       : "border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-800 dark:bg-sky-900/20 dark:text-sky-400";
 
+  const activeClasses = isActive
+    ? color === "emerald"
+      ? "ring-2 ring-emerald-500/60 scale-[1.02] shadow-sm"
+      : "ring-2 ring-sky-500/60 scale-[1.02] shadow-sm"
+    : "";
+
+  const hoverClasses = onClick
+    ? "cursor-pointer hover:shadow-sm hover:scale-[1.01] active:scale-[0.98] transition-all"
+    : "";
+
+  const Tag = onClick ? "button" : "div";
+
   return (
-    <div className={`rounded-lg border p-3 ${colorClasses}`}>
+    <Tag
+      onClick={onClick}
+      className={`rounded-lg border p-3 text-left ${colorClasses} ${activeClasses} ${hoverClasses}`}
+    >
       <div className="flex items-center gap-2">
         <span className="material-symbols-outlined text-xl">{icon}</span>
         <span className="text-2xl font-bold">{value}</span>
       </div>
       <p className="mt-1 text-xs font-medium opacity-80">{label}</p>
-    </div>
+    </Tag>
   );
 }
 
