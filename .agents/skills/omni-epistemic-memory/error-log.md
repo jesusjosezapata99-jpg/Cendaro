@@ -1,30 +1,33 @@
 ---
-version: "3.0"
-last-audit: "2026-03-11"
-entries: 7
-shared-by: ["Gemini/Antigravity", "Claude Code"]
+version: "3.1"
+last-audit: "2026-03-14"
+entries: 8
+shared-by: ["Gemini/Antigravity"]
 ---
 
 # Error Log — Living Memory
 
-This file is the **single source of truth** for error history, shared by ALL agents (Gemini and Claude Code). Every entry makes the system stronger.
+This file is the **single source of truth** for error history. Every entry makes the system stronger.  
+**Maintained by**: Claude Opus 4.6 Adaptive Thinking (Antigravity)  
+**Project**: Cendaro ERP — `ljwoptpaxazqmnhdczsb`
 
 ## Quick Reference — Active Prevention Rules
 
-| #   | Rule                                                     | Context         |
-| --- | -------------------------------------------------------- | --------------- |
-| 1   | Tools via `pnpm exec` need root devDependency            | Windows PATH    |
-| 2   | Root `eslint.config.ts` required for lint-staged         | ESLint v9       |
-| 3   | `?.` + `eslint-disable` for third-party type mismatches  | TS ↔ ESLint     |
-| 4   | Always `pnpm exec` prefix in lint-staged                 | Windows bins    |
-| 5   | Verify `exports` field matches file extensions           | Shared packages |
-| 6   | NEVER use `npx skills add` — git clone + manual copy     | Skills install  |
-| 7   | Always commit + push BEFORE handing off to user          | Git discipline  |
-| 8   | Run `pnpm typecheck` before committing type changes      | Pre-push guard  |
-| 9   | Client-side parsing + chunked JSON for file uploads      | Vercel 4.5MB    |
-| 10  | Verify `project_id = ljwoptpaxazqmnhdczsb` before DB ops | Supabase safety |
-| 11  | Run `/memory-audit` after dependency changes             | KI freshness    |
-| 12  | Maintain `.gemini/rules.md` + `.agents/skills/` as refs  | Multi-agent     |
+| #   | Rule                                                            | Context            |
+| --- | --------------------------------------------------------------- | ------------------ |
+| 1   | Tools via `pnpm exec` need root devDependency                   | Windows PATH       |
+| 2   | Root `eslint.config.ts` required for lint-staged                | ESLint v9          |
+| 3   | `?.` + `eslint-disable` for third-party type mismatches         | TS ↔ ESLint        |
+| 4   | Always `pnpm exec` prefix in lint-staged                        | Windows bins       |
+| 5   | Verify `exports` field matches file extensions                  | Shared packages    |
+| 6   | NEVER use `npx skills add` — git clone + manual copy            | Skills install     |
+| 7   | Always commit + push BEFORE handing off to user                 | Git discipline     |
+| 8   | Run `pnpm typecheck` before committing type changes             | Pre-push guard     |
+| 9   | Client-side parsing + chunked JSON for file uploads             | Vercel 4.5MB       |
+| 10  | Verify `project_id = ljwoptpaxazqmnhdczsb` before DB ops        | Supabase safety    |
+| 11  | Run `/memory-audit` after dependency changes                    | KI freshness       |
+| 12  | Maintain `.gemini/rules.md` + `.agents/skills/` as refs         | Multi-agent        |
+| 13  | Use specific `.next/{build,server,static,types,cache}/**` globs | Turbo remote cache |
 
 ## Entry Template
 
@@ -43,6 +46,16 @@ This file is the **single source of truth** for error history, shared by ALL age
 ---
 
 ## Entries
+
+### [2026-03-14] Turborepo Remote Cache 413 Entity Too Large
+
+- **Error**: `turbo run build` emitted `413 Request Entity Too Large` when uploading remote cache artifact to Vercel. Build succeeded locally but remote cache upload failed on every run.
+- **Root Cause**: `turbo.json` used `.next/**` as a build output glob, which captured `.next/dev/` — Turbopack's dev cache directory at 875 MB. This caused the remote cache artifact to exceed Vercel's 500 MB upload limit.
+- **Fix**: Replaced `.next/**` with specific subdirectory globs in `turbo.json`: `.next/build/**`, `.next/server/**`, `.next/static/**`, `.next/types/**`, `.next/cache/**`, `.next/*.json`, `.next/*.js`, `.next/BUILD_ID`, `.next/package.json`. Cleaned stale `.next/dev` (875 MB) and `.next/diagnostics` directories. Post-cleanup remote cache payload: ~35 MB.
+- **Prevention**: Never use `.next/**` in `turbo.json` outputs — always enumerate specific subdirectory globs that exclude `.next/dev/` and `.next/diagnostics/`.
+- **Workspace**: Root monorepo (`turbo.json`)
+- **Severity**: Major
+- **Recurrence**: 1st
 
 ### [2026-03-11] `npx skills add` creates cross-directory contamination
 
@@ -120,10 +133,10 @@ This file is the **single source of truth** for error history, shared by ALL age
 
 | Metric                    | Value                       |
 | ------------------------- | --------------------------- |
-| **Total entries**         | 7                           |
+| **Total entries**         | 8                           |
 | **Critical**              | 3                           |
-| **Major**                 | 3                           |
+| **Major**                 | 4                           |
 | **Minor**                 | 1                           |
-| **Most common workspace** | Root monorepo (5/7 entries) |
-| **Date of last entry**    | 2026-03-11                  |
-| **Quick Reference rules** | 12                          |
+| **Most common workspace** | Root monorepo (6/8 entries) |
+| **Date of last entry**    | 2026-03-14                  |
+| **Quick Reference rules** | 13                          |

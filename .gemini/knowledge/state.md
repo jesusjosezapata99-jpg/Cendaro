@@ -7,8 +7,52 @@
 
 ## Session Registry
 
-- **Total agent sessions**: 25
-- **Last Modified By**: Antigravity Agent — 2026-03-17T03:15:00+01:00
+- **Total agent sessions**: 28
+- **Last Modified By**: Antigravity Agent — 2026-03-19T22:04:00+01:00
+
+---
+
+### 2026-03-19T22:04:00+01:00 — Skill-Creator Integration (10/10)
+
+**What**: Integrated `skill-creator` skill into `.agents/skills/` from external download. Applied 10 edits to `SKILL.md` + 1 to `eval-protocol.md` + 1 new file. Changes: Spanish triggers (crear/mejorar/validar/empaquetar), `.agents/` paths (not `.agent/`), allowed-tools marked as Claude Code CLI legacy, Opus 4.6 constraint tension note, workspace-first execution paths, bilingual communication note, schemas.md referenced, boundary statement. Created `assets/skill-template.md`.
+
+**Files changed**:
+
+- `.agents/skills/skill-creator/SKILL.md` — 10 edits (246→254 lines)
+- `.agents/skills/skill-creator/references/eval-protocol.md` — 1 edit (Native Antigravity Protocol)
+- `.agents/skills/skill-creator/assets/skill-template.md` — **[NEW]** starter template
+
+**Verification**: `quick_validate` ✅, 0 Claude Code CLI residuals, 9 Opus 4.6 references preserved.
+
+---
+
+### 2026-03-19T21:01:00+01:00 — Rules Cleanup + Prompt-Rule Enhancement
+
+**What**: Deleted 2 duplicate rule files (`prompt-enhancer.md`, `epistemic-memory.md`) that were not UI-registered. Enhanced `prompt-rule.md` from 41 → 60 lines: added Opus 4.6 Adaptive Thinking core insight (anti-pattern table + constraint tension explanation) and Skill Bridge directive pointing to the full `prompt-enhancer-antigravity` skill for detailed templates.
+
+**Files changed**:
+
+- `.agents/rules/prompt-enhancer.md` — **[DELETED]** (duplicate, not UI-registered)
+- `.agents/rules/epistemic-memory.md` — **[DELETED]** (duplicate, not UI-registered)
+- `.agents/rules/prompt-rule.md` — Enhanced with Opus 4.6 core + Skill Bridge
+
+**Verification**: Directory clean — only `prompt-rule.md` and `epistemic-memory-rule.md` remain in `.agents/rules/`.
+
+---
+
+### 2026-03-19T18:05:00+01:00 — Rules Architecture Cleanup + Always-On Rules
+
+**What**: Professional audit of the entire rules/skill ecosystem revealed 7 of 12 content blocks were tripled across `GEMINI.md` global, `.gemini/rules.md`, and `omni-epistemic-memory` skill. Created 2 new always-on rule files in `.agent/rules/` and cleaned `rules.md` to eliminate redundancy.
+
+**Files changed**:
+
+- `.agent/rules/prompt-enhancer.md` — **[NEW]** Task Intake + Adaptive Thinking engagement (28 lines)
+- `.agent/rules/epistemic-memory.md` — **[NEW]** Knowledge File Map + Pattern Interruption Protocol + Error Log Write Failure (25 lines)
+- `.gemini/rules.md` — Removed 6 redundant protocol sections (~52 lines): Pre-Flight Protocol, Validation Protocol, Post-Task Protocol, Evolutionary Learning Protocol. Validation Standard preserved as single-line section.
+
+**Decisions**: Rules architecture redesigned into clean layers: Kernel (GEMINI.md global) → Project (rules.md, project-specific only) → Always-On Rules (.agent/rules/) → Skills (on-match reference). Context budget reduced from 377 → 319 lines always-on.
+
+**Verification**: All 3 files verified post-edit. rules.md preserved all project-specific content (conventions, commands, forbidden actions, code quality, error prevention matrix, safety, MCP, CI/CD).
 
 ---
 
