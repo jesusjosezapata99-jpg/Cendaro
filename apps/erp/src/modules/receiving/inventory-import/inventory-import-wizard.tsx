@@ -7,6 +7,7 @@
  *
  * PRD: FEATURE_PRD_INVENTORY_IMPORT.md §15, §20, §22, §23
  */
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -42,13 +43,16 @@ const ALL_STEPS = [
 
 /**
  * Dynamic step indicator — hides "Catálogo" (step 5) for Replace/Adjust modes.
+ * Completed steps are clickable to navigate back.
  */
 function StepIndicator({
   current,
   mode,
+  onStepClick,
 }: {
   current: number;
   mode: ImportMode | null;
+  onStepClick: (step: number) => void;
 }) {
   // Filter out "Catálogo" (step 5) unless mode is "initialize"
   const steps =
@@ -59,26 +63,36 @@ function StepIndicator({
       {steps.map((s, i) => {
         const isDone = current > s.num;
         const isActive = current === s.num;
+
+        const sharedClasses = `flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-all`;
+
+        const colorClasses = isActive
+          ? "bg-primary text-white"
+          : isDone
+            ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+            : "bg-muted text-muted-foreground";
+
         return (
           <div key={s.num} className="flex items-center gap-1">
-            <div
-              role="tab"
-              aria-selected={isActive}
-              className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
-                isActive
-                  ? "bg-primary text-white"
-                  : isDone
-                    ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
-                    : "bg-muted text-muted-foreground"
-              }`}
-            >
-              {isDone ? (
+            {isDone ? (
+              <button
+                onClick={() => onStepClick(s.num)}
+                className={`${sharedClasses} ${colorClasses} cursor-pointer hover:scale-105 hover:shadow-sm active:scale-95`}
+                title={`Volver a ${s.label}`}
+              >
                 <span className="material-symbols-outlined text-xs">check</span>
-              ) : (
-                i + 1
-              )}
-              <span className="hidden sm:inline">{s.label}</span>
-            </div>
+                <span className="hidden sm:inline">{s.label}</span>
+              </button>
+            ) : (
+              <div
+                role="tab"
+                aria-selected={isActive}
+                className={`${sharedClasses} ${colorClasses} ${!isActive ? "cursor-not-allowed opacity-70" : ""}`}
+              >
+                {i + 1}
+                <span className="hidden sm:inline">{s.label}</span>
+              </div>
+            )}
             {i < steps.length - 1 && (
               <div
                 className={`h-px w-4 transition-colors sm:w-8 ${
@@ -127,7 +141,50 @@ export function InventoryImportWizard({
     setError,
     goToStep,
     reset,
+    restoreState,
   } = useInventoryImport(warehouseId, warehouseName);
+
+  // ── Session persistence ─────────────────────────
+
+  const STORAGE_KEY = `cendaro-import-wizard-${warehouseId}`;
+  const hasRestored = useRef(false);
+  const [wasRestored, setWasRestored] = useState(false);
+
+  // Restore state from sessionStorage on mount
+  useEffect(() => {
+    if (hasRestored.current) return;
+    hasRestored.current = true;
+
+    try {
+      const saved = sessionStorage.getItem(STORAGE_KEY);
+      if (!saved) return;
+      const parsed = JSON.parse(saved) as Partial<typeof state>;
+      if (parsed.step && parsed.step > 1) {
+        restoreState(parsed);
+        setWasRestored(true);
+      }
+    } catch {
+      sessionStorage.removeItem(STORAGE_KEY);
+    }
+  }, [STORAGE_KEY, restoreState]);
+
+  // Persist state to sessionStorage on every change
+  useEffect(() => {
+    if (state.step <= 1) return;
+    try {
+      const {
+        file: _f,
+        isProcessing: _p,
+        error: _e,
+        commitResult: _cr,
+        initializeResult: _ir,
+        ...persistable
+      } = state;
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(persistable));
+    } catch {
+      // Storage full or unavailable — silently ignore
+    }
+  }, [state, STORAGE_KEY]);
 
   // Parse hook
   const {
@@ -352,6 +409,8 @@ export function InventoryImportWizard({
   const handleReset = () => {
     reset();
     resetParser();
+    sessionStorage.removeItem(STORAGE_KEY);
+    setWasRestored(false);
   };
 
   // ── Render ───────────────────────────────────
@@ -401,13 +460,37 @@ export function InventoryImportWizard({
       </div>
 
       {/* Step indicator */}
-      <StepIndicator current={state.step} mode={state.mode} />
+      <StepIndicator
+        current={state.step}
+        mode={state.mode}
+        onStepClick={(step) => {
+          if (step < state.step) {
+            goToStep(step as 1 | 2 | 3 | 4 | 5 | 6 | 7);
+          }
+        }}
+      />
 
       {/* Global error */}
       {state.error && (
         <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-900/20 dark:text-red-400">
           <span className="material-symbols-outlined text-lg">error</span>
           {state.error}
+        </div>
+      )}
+
+      {/* Restored session banner */}
+      {wasRestored && state.step > 1 && state.step < 7 && (
+        <div className="flex items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-400">
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-lg">restore</span>
+            Sesión restaurada — los datos de tu archivo ya están cargados.
+          </div>
+          <button
+            onClick={() => setWasRestored(false)}
+            className="text-amber-500 transition-colors hover:text-amber-700 dark:hover:text-amber-300"
+          >
+            <span className="material-symbols-outlined text-lg">close</span>
+          </button>
         </div>
       )}
 

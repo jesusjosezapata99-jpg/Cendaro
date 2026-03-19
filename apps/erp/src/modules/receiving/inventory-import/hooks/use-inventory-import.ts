@@ -93,6 +93,7 @@ type ImportAction =
       catalogPreview: NonNullable<ImportState["catalogPreview"]>;
     }
   | { type: "GO_TO_STEP"; step: ImportState["step"] }
+  | { type: "RESTORE_STATE"; payload: Partial<ImportState> }
   | { type: "RESET" };
 
 // ── Reducer ──────────────────────────────────────
@@ -205,6 +206,17 @@ function importReducer(state: ImportState, action: ImportAction): ImportState {
     case "GO_TO_STEP":
       return { ...state, step: action.step, error: null };
 
+    case "RESTORE_STATE":
+      return {
+        ...state,
+        ...action.payload,
+        file: null,
+        isProcessing: false,
+        error: null,
+        commitResult: null,
+        initializeResult: null,
+      };
+
     case "RESET":
       return createInitialState(state.warehouseId, state.warehouseName);
 
@@ -316,6 +328,10 @@ export function useInventoryImport(warehouseId: string, warehouseName: string) {
     [],
   );
 
+  const restoreState = useCallback((payload: Partial<ImportState>) => {
+    dispatch({ type: "RESTORE_STATE", payload });
+  }, []);
+
   return {
     state,
     selectMode,
@@ -333,5 +349,6 @@ export function useInventoryImport(warehouseId: string, warehouseName: string) {
     goToStep,
     reset,
     updateInitializeRows,
+    restoreState,
   };
 }

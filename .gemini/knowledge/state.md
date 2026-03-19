@@ -7,10 +7,24 @@
 
 ## Session Registry
 
-- **Total agent sessions**: 28
-- **Last Modified By**: Antigravity Agent — 2026-03-19T22:04:00+01:00
+- **Total agent sessions**: 29
+- **Last Modified By**: Antigravity Agent — 2026-03-19T23:06:00+01:00
 
 ---
+
+### 2026-03-19T23:17:00+01:00 — Inventory Import Wizard UX Improvements (3 phases + error blocking)
+
+**What**: Implemented 3 UX improvements to the inventory import wizard (Initialize mode): (1) Renamed "Total" stat card → "Total Bultos" with mode-aware sum calculation, (2) Made StepIndicator completed steps clickable + added sessionStorage persistence with restore banner, (3) Made catalog preview stat cards interactive filters with toggle/auto-tab-switching. **(4)** Added professional error blocking panel in dry-run summary: first 3 errors shown with row badge + context + wrapped reason, expandable dropdown for the rest, commit button fully disabled with "Corregir errores para continuar" label.
+
+**Files changed**:
+
+- `apps/erp/src/modules/receiving/inventory-import/steps/validation-preview.tsx` — Mode-aware 4th stat card ("Total Bultos"/"Total Filas")
+- `apps/erp/src/modules/receiving/inventory-import/inventory-import-wizard.tsx` — Clickable `StepIndicator`, `sessionStorage` persistence, restore banner
+- `apps/erp/src/modules/receiving/inventory-import/hooks/use-inventory-import.ts` — New `RESTORE_STATE` action + `restoreState` callback
+- `apps/erp/src/modules/receiving/inventory-import/steps/catalog-preview.tsx` — Interactive stat cards with `CatalogFilter` type, toggle, auto-tab switching
+- `apps/erp/src/modules/receiving/inventory-import/steps/dry-run-summary.tsx` — `ErrorBlockingPanel` + `ErrorRow` components, `hasErrors` blocking, `errorRows` extraction
+
+**Verification**: `tsc --noEmit` → 0 errors in all 5 modified files.
 
 ### 2026-03-19T22:04:00+01:00 — Skill-Creator Integration (10/10)
 
