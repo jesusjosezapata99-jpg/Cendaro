@@ -7,8 +7,79 @@
 
 ## Session Registry
 
-- **Total agent sessions**: 29
-- **Last Modified By**: Antigravity Agent — 2026-03-19T23:06:00+01:00
+- **Total agent sessions**: 32
+- **Last Modified By**: Antigravity Agent — 2026-03-20T01:30:00+01:00
+
+---
+
+### 2026-03-20T01:30:00+01:00 — Catalog Import: Full Audit & Supabase Sync (Complete)
+
+**What**: Comprehensive audit of the Catalog Import feature — local code quality and Supabase database synchronization.
+
+**Supabase migration applied** (`create_catalog_import_tables`):
+
+- 3 enums: `import_session_status`, `import_session_row_status`, `import_session_row_action`
+- 3 tables: `category_alias` (5 cols), `import_session` (18 cols), `import_session_row` (12 cols)
+- 10 indexes, RLS enabled, `pg_trgm` already installed
+
+**20 lint fixes across 5 files:**
+
+- `packages/api/src/modules/catalog-import.ts` — Added `RawRowData` typed interface for JSONB access (dot-notation + no-base-to-string), removed unused `AuditLog` import, simplified tautological condition, applied optional chain
+- `apps/erp/src/modules/catalog-import/hooks/use-catalog-import.ts` — Prefixed unused `_headerMap` param
+- `apps/erp/src/modules/catalog-import/hooks/use-parse-catalog-file.ts` — Separated inline type import
+- `apps/erp/src/modules/catalog-import/steps/header-mapping.tsx` — Separated inline type import
+- `apps/erp/src/modules/catalog-import/steps/validation-preview.tsx` — `||` → `??` (2 instances)
+
+**Verification**: `pnpm lint` ✅, `pnpm typecheck` ✅, `pnpm test` ✅ (39 tests)
+
+---
+
+### 2026-03-20T00:02:00+01:00 — Catalog Import Phase 2: Frontend UI (Complete)
+
+**What**: Implemented the full frontend for the Catalog Import feature: 3 lib files, 2 hooks, 6 step components, 1 wizard orchestrator, 1 route page, and 1 existing page modification.
+
+**Files created (13)**:
+
+- `apps/erp/src/modules/catalog-import/lib/catalog-header-aliases.ts` — 100+ bilingual header aliases + `autoMapCatalogHeaders`
+- `apps/erp/src/modules/catalog-import/lib/catalog-normalizers.ts` — `parseDecimal`, `normalizeSku`, `normalizeName`, etc.
+- `apps/erp/src/modules/catalog-import/lib/catalog-validators.ts` — File + row validation with error codes + severity
+- `apps/erp/src/modules/catalog-import/hooks/use-parse-catalog-file.ts` — SheetJS client-side parsing with security options
+- `apps/erp/src/modules/catalog-import/hooks/use-catalog-import.ts` — `useReducer` state machine (6 steps)
+- `apps/erp/src/modules/catalog-import/steps/file-upload.tsx` — Drag & drop upload
+- `apps/erp/src/modules/catalog-import/steps/header-mapping.tsx` — Editable column mapping
+- `apps/erp/src/modules/catalog-import/steps/validation-preview.tsx` — Status filter cards + data table
+- `apps/erp/src/modules/catalog-import/steps/category-mapping.tsx` — Fuzzy suggestion chips + manual select
+- `apps/erp/src/modules/catalog-import/steps/dry-run-summary.tsx` — Insert/update/skip/error stat cards
+- `apps/erp/src/modules/catalog-import/steps/result-summary.tsx` — Final outcome + error details
+- `apps/erp/src/modules/catalog-import/catalog-import-wizard.tsx` — Main wizard orchestrator
+- `apps/erp/src/app/(app)/catalog/import/page.tsx` — Route page for `/catalog/import`
+
+**Files modified (1)**:
+
+- `apps/erp/src/app/(app)/catalog/client.tsx` — Added "Importar Catálogo" button
+
+**Verification**: `pnpm typecheck` ✅ (exit 0, 6 tasks), `pnpm test` ✅ (39 tests, 2 files).
+
+---
+
+---
+
+### 2026-03-19T23:45:00+01:00 — Catalog Import Phase 1: Schema + Infrastructure
+
+**What**: Implemented Phase 1 of the Catalog Import feature (PRD: `FEATURE_PRD_CATALOG_IMPORT.md`). Added 3 new pgEnums, 3 new tables, 6 inferred type exports, 3 Drizzle relations, a full 6-procedure tRPC router, router registration, and test updates. Enabled `pg_trgm` extension on Supabase.
+
+**Files changed**:
+
+- `packages/db/src/schema.ts` — Added `importSessionStatusEnum` (7 values), `importSessionRowStatusEnum` (7 values), `importSessionRowActionEnum` (3 values), `CategoryAlias` table (UNIQUE alias + FK→category), `ImportSession` table (15 columns, 3 indexes, 24h expiry), `ImportSessionRow` table (11 columns, 2 indexes, CASCADE delete), 6 type exports, 3 relation definitions
+- `packages/api/src/modules/catalog-import.ts` — **[NEW]** 6-procedure tRPC router: `create` (session + row storage), `validate` (SKU lookup + category/brand resolution + pg_trgm fuzzy match), `resolveCategories` (apply mappings + save aliases), `dryRun` (insert/update/skip counts), `commit` (batched 100-row transactions), `getSession` (status + lazy expiry)
+- `packages/api/src/root.ts` — Registered `catalogImportRouter` as 18th top-level router
+- `packages/api/src/__tests__/router.test.ts` — 6 new procedure assertions, router count 17→18
+
+**Supabase**: Applied migration `enable_pg_trgm_extension` on project `ljwoptpaxazqmnhdczsb`.
+
+**Verification**: `pnpm typecheck` ✅ (exit 0, 6 tasks), `pnpm test` ✅ (39 tests, 2 files).
+
+**Next**: User runs `pnpm db:generate` + `pnpm db:push` to sync tables. Then Phase 2 (frontend lib + hooks).
 
 ---
 
