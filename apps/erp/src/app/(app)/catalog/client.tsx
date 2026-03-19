@@ -65,13 +65,24 @@ export default function CatalogClient() {
             Gestiona tu catálogo de {total.toLocaleString()} referencias
           </p>
         </div>
-        <Link
-          href="/catalog/new"
-          className="bg-primary text-primary-foreground hover:bg-primary/90 flex min-h-[44px] w-full items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors sm:w-auto"
-        >
-          <span className="material-symbols-outlined text-lg">add</span>
-          Nuevo Producto
-        </Link>
+        <div className="flex w-full gap-2 sm:w-auto">
+          <Link
+            href="/catalog/import"
+            className="border-border hover:bg-muted/50 flex min-h-[44px] flex-1 items-center justify-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition-colors sm:flex-initial"
+          >
+            <span className="material-symbols-outlined text-lg">
+              upload_file
+            </span>
+            Importar Catálogo
+          </Link>
+          <Link
+            href="/catalog/new"
+            className="bg-primary text-primary-foreground hover:bg-primary/90 flex min-h-[44px] flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors sm:flex-initial"
+          >
+            <span className="material-symbols-outlined text-lg">add</span>
+            Nuevo Producto
+          </Link>
+        </div>
       </div>
 
       {/* Stats */}
