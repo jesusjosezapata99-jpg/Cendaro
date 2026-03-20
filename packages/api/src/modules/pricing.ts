@@ -4,6 +4,7 @@
  * Exchange rates, price history, and repricing engine.
  * PRD §12: admin-only rates panel, 5% auto-repricing trigger, 24h approval window.
  */
+import { TRPCError } from "@trpc/server";
 import { desc, eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
@@ -74,7 +75,12 @@ export const pricingRouter = createTRPCRouter({
       return query.orderBy(desc(ExchangeRate.createdAt)).limit(input.limit);
     }),
 
-  /** Update a rate (admin/supervisor only — PRD §12.6) */
+  /**
+   * Update a rate (automated sources only — PRD §12.6)
+   *
+   * Rates can ONLY be set by automated sync processes (DolarAPI, Frankfurter).
+   * Human-entered rates are explicitly blocked to prevent price manipulation.
+   */
   setRate: roleRestrictedProcedure(["owner", "admin", "supervisor"])
     .input(
       z.object({
@@ -85,6 +91,23 @@ export const pricingRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      // ── Source validation: only automated sources allowed ──
+      const ALLOWED_SOURCE_PREFIXES = [
+        "dolarapi-",
+        "frankfurter",
+        "system-sync",
+      ];
+      const source = input.source ?? "";
+      const isAllowed = ALLOWED_SOURCE_PREFIXES.some((prefix) =>
+        source.startsWith(prefix),
+      );
+      if (!isAllowed) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message:
+            "Las tasas de cambio solo pueden ser actualizadas por fuentes automatizadas (DolarAPI, Frankfurter)",
+        });
+      }
       const [newRate] = await ctx.db
         .insert(ExchangeRate)
         .values({

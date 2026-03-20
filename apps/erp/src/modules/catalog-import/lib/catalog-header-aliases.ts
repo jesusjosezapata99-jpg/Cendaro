@@ -167,7 +167,10 @@ export function normalizeHeader(header: string): string {
     .trim()
     .toLowerCase()
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
+    .replace(/[\u0300-\u036f]/g, "") // strip diacritics
+    .replace(/[*]+/g, "") // strip * markers
+    .replace(/\s+/g, " ") // collapse whitespace
+    .trim(); // trim trailing spaces from * removal
 }
 
 /**
