@@ -7,6 +7,7 @@
  *
  * PRD: FEATURE_PRD_CATALOG_IMPORT.md §11, §21
  */
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -21,6 +22,13 @@ import { FileUpload } from "./steps/file-upload";
 import { HeaderMapping } from "./steps/header-mapping";
 import { ResultSummary } from "./steps/result-summary";
 import { ValidationPreview } from "./steps/validation-preview";
+
+// ── Module-level constants (stable refs for hooks) ──
+
+const STORAGE_KEY = "cendaro-catalog-import-wizard";
+
+/** Steps that can safely be restored (don't depend on server sessionId) */
+const CLIENT_SAFE_STEPS = new Set(["upload", "header-mapping", "validation"]);
 
 // ── Step indicator ───────────────────────────────
 
@@ -118,8 +126,74 @@ export function CatalogImportWizard() {
     setLoading,
     setError,
     goToStep,
+    restoreState,
     reset,
   } = useCatalogImport();
+
+  // ── Session persistence ─────────────────────────
+  // Only persists CLIENT-SIDE state (up to validation).
+  // Server-dependent steps (category-mapping, dry-run, result) are NOT
+  // persisted because they require a live server session.
+
+  const hasRestored = useRef(false);
+  const [wasRestored, setWasRestored] = useState(false);
+
+  // Restore state from sessionStorage on mount
+  useEffect(() => {
+    if (hasRestored.current) return;
+    hasRestored.current = true;
+
+    try {
+      const saved = sessionStorage.getItem(STORAGE_KEY);
+      if (!saved) return;
+      const parsed = JSON.parse(saved) as Partial<typeof state>;
+      if (parsed.step && parsed.step !== "upload") {
+        // If saved step is server-dependent, clamp to validation
+        const safeStep = CLIENT_SAFE_STEPS.has(parsed.step)
+          ? parsed.step
+          : "validation";
+
+        restoreState({
+          ...parsed,
+          step: safeStep,
+          // Always regenerate idempotencyKey to prevent duplicates
+          idempotencyKey: crypto.randomUUID(),
+          // Clear server-side state — it's stale
+          sessionId: null,
+          unresolvedCategories: [],
+          importResult: null,
+        });
+        setWasRestored(true);
+      }
+    } catch {
+      sessionStorage.removeItem(STORAGE_KEY);
+    }
+  }, [restoreState]);
+
+  // Persist state to sessionStorage (only client-safe steps)
+  useEffect(() => {
+    if (state.step === "upload") return;
+
+    // Don't persist server-dependent steps
+    if (!CLIENT_SAFE_STEPS.has(state.step)) {
+      sessionStorage.removeItem(STORAGE_KEY);
+      return;
+    }
+
+    try {
+      const {
+        isLoading: _l,
+        serverError: _e,
+        importResult: _r,
+        sessionId: _s,
+        unresolvedCategories: _u,
+        ...persistable
+      } = state;
+      sessionStorage.setItem(STORAGE_KEY, JSON.stringify(persistable));
+    } catch {
+      // Storage full or unavailable — silently ignore
+    }
+  }, [state]);
 
   // Parse hook
   const {
@@ -129,9 +203,13 @@ export function CatalogImportWizard() {
     reset: resetParser,
   } = useParseCatalogFile();
 
-  // Fetch existing categories for mapping step
+  // Fetch existing data for mapping step + template
   const { data: categories } = useQuery(
     trpc.catalog.listCategories.queryOptions(),
+  );
+  const { data: brands } = useQuery(trpc.catalog.listBrands.queryOptions());
+  const { data: suppliers } = useQuery(
+    trpc.catalog.listSuppliers.queryOptions(),
   );
 
   // ── Server mutations ─────────────────────────
@@ -147,6 +225,8 @@ export function CatalogImportWizard() {
       onError: (err) => {
         setError(err.message);
         setLoading(false);
+        // Clear stale session storage on auth/conflict errors
+        sessionStorage.removeItem(STORAGE_KEY);
         toast.error("Error al crear sesión: " + err.message);
       },
     }),
@@ -161,6 +241,7 @@ export function CatalogImportWizard() {
             rawCategory: cat.rawCategory,
             resolvedCategoryId: null,
             resolvedCategoryName: null,
+            suggestedNewName: cat.suggestedNewName ?? null,
             matchType: "fuzzy" as const,
             suggestions: cat.suggestions,
           })),
@@ -291,6 +372,7 @@ export function CatalogImportWizard() {
     const mappings = state.unresolvedCategories.map((c) => ({
       rawCategory: c.rawCategory,
       resolvedCategoryId: c.resolvedCategoryId,
+      newCategoryName: c.newCategoryName,
       matchType: c.matchType,
       confidence: c.confidence,
     }));
@@ -312,6 +394,8 @@ export function CatalogImportWizard() {
   const handleReset = () => {
     reset();
     resetParser();
+    sessionStorage.removeItem(STORAGE_KEY);
+    setWasRestored(false);
   };
 
   const stepNum = getStepNum(state.step);
@@ -371,6 +455,22 @@ export function CatalogImportWizard() {
         </div>
       )}
 
+      {/* Restored session banner */}
+      {wasRestored && state.step !== "upload" && state.step !== "result" && (
+        <div className="flex items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-400">
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-lg">restore</span>
+            Sesión restaurada — los datos de tu archivo ya están cargados.
+          </div>
+          <button
+            onClick={() => setWasRestored(false)}
+            className="text-amber-500 transition-colors hover:text-amber-700 dark:hover:text-amber-300"
+          >
+            <span className="material-symbols-outlined text-lg">close</span>
+          </button>
+        </div>
+      )}
+
       {/* Step content */}
       <div className="min-h-[300px]">
         {state.step === "upload" && (
@@ -378,6 +478,13 @@ export function CatalogImportWizard() {
             onFileSelect={handleFileSelect}
             isParsing={isParsing}
             error={parseError?.message ?? null}
+            brands={brands?.map((b) => ({ id: b.id, name: b.name })) ?? []}
+            categories={
+              categories?.map((c) => ({ id: c.id, name: c.name })) ?? []
+            }
+            suppliers={
+              suppliers?.map((s) => ({ id: s.id, name: s.name })) ?? []
+            }
           />
         )}
 

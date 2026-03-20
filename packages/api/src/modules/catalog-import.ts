@@ -64,6 +64,7 @@ export type CatalogValidatedRow = z.infer<typeof catalogValidatedRowSchema>;
 export const categoryMappingSchema = z.object({
   rawCategory: z.string(),
   resolvedCategoryId: z.string().uuid().nullable(),
+  newCategoryName: z.string().min(1).max(256).optional(),
   matchType: z.enum(["exact", "fuzzy", "alias", "user_selected", "skipped"]),
   confidence: z.number().min(0).max(1).optional(),
 });
@@ -134,8 +135,10 @@ export const catalogImportRouter = createTRPCRouter({
   create: roleRestrictedProcedure(["owner", "admin", "supervisor"])
     .input(catalogImportCreateSchema)
     .mutation(async ({ ctx, input }) => {
-      // Check for existing active session for this user
-      const [existingSession] = await ctx.db
+      // Auto-cancel any existing active sessions for this user.
+      // This prevents stale sessions (from browser refresh / abandoned wizard)
+      // from permanently blocking new imports.
+      const staleSessions = await ctx.db
         .select({ id: ImportSession.id })
         .from(ImportSession)
         .where(
@@ -148,15 +151,18 @@ export const catalogImportRouter = createTRPCRouter({
               "dry_run",
             ]),
           ),
-        )
-        .limit(1);
+        );
 
-      if (existingSession) {
-        throw new TRPCError({
-          code: "CONFLICT",
-          message:
-            "Ya existe una sesión de importación activa. Complétela o cancélela antes de iniciar otra.",
-        });
+      if (staleSessions.length > 0) {
+        await ctx.db
+          .update(ImportSession)
+          .set({ status: "expired" })
+          .where(
+            inArray(
+              ImportSession.id,
+              staleSessions.map((s) => s.id),
+            ),
+          );
       }
 
       // Idempotency check
@@ -327,10 +333,12 @@ export const catalogImportRouter = createTRPCRouter({
       // Collect distinct unresolved categories for fuzzy matching
       const unresolvedCategories: {
         rawCategory: string;
+        suggestedNewName: string | null;
         suggestions: {
           id: string;
           name: string;
           score: number;
+          reason?: string;
         }[];
       }[] = [];
       const unresolvedSet = new Set<string>();
@@ -424,6 +432,7 @@ export const catalogImportRouter = createTRPCRouter({
                 // Will be populated after batch fuzzy query
                 unresolvedCategories.push({
                   rawCategory: categoryRaw,
+                  suggestedNewName: null,
                   suggestions: [],
                 });
               }
@@ -455,10 +464,39 @@ export const catalogImportRouter = createTRPCRouter({
           .where(eq(ImportSessionRow.id, row.id));
       }
 
-      // Fuzzy match unresolved categories via pg_trgm
+      // Build a map of product names per unresolved raw category (from this import batch)
+      const productNamesByRawCategory = new Map<string, string[]>();
+      for (const row of sessionRows) {
+        const rawData = row.rawData as RawRowData;
+        const categoryRaw = rawData.categoryRaw
+          ? String(rawData.categoryRaw).trim()
+          : undefined;
+        const productName = String(rawData.name ?? "").trim();
+
+        if (
+          categoryRaw &&
+          productName &&
+          unresolvedSet.has(categoryRaw.toLowerCase())
+        ) {
+          const key = categoryRaw.toLowerCase();
+          const existing = productNamesByRawCategory.get(key) ?? [];
+          existing.push(productName);
+          productNamesByRawCategory.set(key, existing);
+        }
+      }
+
+      // Enhanced fuzzy match: category name similarity + product-name similarity
       for (const unresolved of unresolvedCategories) {
         try {
-          const fuzzyResults = await ctx.db.execute<{
+          // Get up to 3 representative product names for this unresolved category
+          const sampleProducts = (
+            productNamesByRawCategory.get(
+              unresolved.rawCategory.toLowerCase(),
+            ) ?? []
+          ).slice(0, 3);
+
+          // Query 1: Standard category-name fuzzy match (always runs)
+          const categoryNameResults = await ctx.db.execute<{
             id: string;
             name: string;
             score: number;
@@ -468,19 +506,219 @@ export const catalogImportRouter = createTRPCRouter({
               c.name,
               similarity(LOWER(c.name), LOWER(${unresolved.rawCategory})) AS score
             FROM category c
-            WHERE similarity(LOWER(c.name), LOWER(${unresolved.rawCategory})) >= 0.3
+            WHERE similarity(LOWER(c.name), LOWER(${unresolved.rawCategory})) >= 0.2
             ORDER BY score DESC
             LIMIT 5
           `);
-          unresolved.suggestions = fuzzyResults.map((r) => ({
-            id: r.id,
-            name: r.name,
-            score: Number(r.score),
-          }));
+
+          // Query 2: Product-name-based scoring (only if we have product names)
+          let productMatchResults: {
+            id: string;
+            name: string;
+            avg_score: number;
+            match_count: number;
+          }[] = [];
+
+          if (sampleProducts.length > 0) {
+            // For each existing category, check how similar its already-cataloged
+            // product names are to the products being imported in this batch.
+            // This gives semantic relevance: "Cable USB-C" → "Cables y Conectores"
+            const sampleName = sampleProducts[0] ?? "";
+            productMatchResults = await ctx.db.execute<{
+              id: string;
+              name: string;
+              avg_score: number;
+              match_count: number;
+            }>(sql`
+              SELECT
+                c.id,
+                c.name,
+                AVG(similarity(LOWER(p.name), LOWER(${sampleName}))) AS avg_score,
+                COUNT(p.id)::int AS match_count
+              FROM category c
+              INNER JOIN product p ON p."categoryId" = c.id
+              WHERE similarity(LOWER(p.name), LOWER(${sampleName})) >= 0.15
+              GROUP BY c.id, c.name
+              HAVING AVG(similarity(LOWER(p.name), LOWER(${sampleName}))) >= 0.2
+              ORDER BY avg_score DESC
+              LIMIT 5
+            `);
+          }
+
+          // Merge results: combine category-name and product-name scores
+          const mergedMap = new Map<
+            string,
+            {
+              id: string;
+              name: string;
+              catNameScore: number;
+              productScore: number;
+              matchCount: number;
+            }
+          >();
+
+          for (const r of categoryNameResults) {
+            mergedMap.set(r.id, {
+              id: r.id,
+              name: r.name,
+              catNameScore: Number(r.score),
+              productScore: 0,
+              matchCount: 0,
+            });
+          }
+
+          for (const r of productMatchResults) {
+            const existing = mergedMap.get(r.id);
+            if (existing) {
+              existing.productScore = Number(r.avg_score);
+              existing.matchCount = Number(r.match_count);
+            } else {
+              mergedMap.set(r.id, {
+                id: r.id,
+                name: r.name,
+                catNameScore: 0,
+                productScore: Number(r.avg_score),
+                matchCount: Number(r.match_count),
+              });
+            }
+          }
+
+          // Compute final score: 40% category name + 60% product similarity
+          const suggestions = Array.from(mergedMap.values())
+            .map((m) => {
+              const finalScore =
+                m.productScore > 0
+                  ? 0.4 * m.catNameScore + 0.6 * m.productScore
+                  : m.catNameScore;
+
+              let reason: string;
+              if (m.productScore > 0 && m.catNameScore > 0) {
+                reason = `Nombre similar + ${m.matchCount} producto(s) similares en esta categoría`;
+              } else if (m.productScore > 0) {
+                reason = `${m.matchCount} producto(s) similares ya catalogados aquí`;
+              } else {
+                reason = "Nombre de categoría similar";
+              }
+
+              return {
+                id: m.id,
+                name: m.name,
+                score: Math.round(finalScore * 100) / 100,
+                reason,
+              };
+            })
+            .filter((s) => s.score >= 0.2)
+            .sort((a, b) => b.score - a.score)
+            .slice(0, 5);
+
+          unresolved.suggestions = suggestions;
         } catch {
           // pg_trgm not available — graceful fallback (PRD §22 edge case #14)
           unresolved.suggestions = [];
         }
+      }
+
+      // ── Smart name suggestion for new categories ───────────────
+      // When no good match exists, suggest a clean category name
+      // based on the raw category string + product name tokens.
+
+      const STOPWORDS = new Set([
+        "de",
+        "del",
+        "la",
+        "las",
+        "el",
+        "los",
+        "un",
+        "una",
+        "unos",
+        "unas",
+        "y",
+        "o",
+        "e",
+        "en",
+        "con",
+        "para",
+        "por",
+        "sin",
+        "a",
+        "al",
+        "que",
+        "es",
+        "se",
+        "no",
+        "si",
+        "su",
+        "sus",
+        "este",
+        "esta",
+        "como",
+        "mas",
+        "pero",
+        "muy",
+        "ya",
+        "todo",
+        "cada",
+        "x",
+        "mm",
+        "cm",
+        "kg",
+        "ml",
+        "lt",
+        "gr",
+        "oz",
+        "pcs",
+        "und",
+      ]);
+
+      function capitalizeWords(str: string): string {
+        return str
+          .split(" ")
+          .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+          .join(" ");
+      }
+
+      for (const unresolved of unresolvedCategories) {
+        const bestScore = unresolved.suggestions[0]?.score ?? 0;
+
+        if (bestScore >= 0.5) {
+          // Good match exists — no need to suggest a new name
+          unresolved.suggestedNewName = null;
+          continue;
+        }
+
+        // Primary: clean up the rawCategory itself
+        const cleanedRaw = capitalizeWords(
+          unresolved.rawCategory.trim().replace(/\s+/g, " "),
+        );
+
+        // Secondary: extract dominant token from product names in this batch
+        const productNames =
+          productNamesByRawCategory.get(unresolved.rawCategory.toLowerCase()) ??
+          [];
+
+        if (productNames.length === 0) {
+          unresolved.suggestedNewName = cleanedRaw;
+          continue;
+        }
+
+        // Tokenize product names, count frequency
+        const tokenFreq = new Map<string, number>();
+        for (const pName of productNames) {
+          const tokens = pName
+            .toLowerCase()
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .split(/[\s,.-]+/)
+            .filter((t) => t.length >= 3 && !STOPWORDS.has(t));
+
+          for (const token of tokens) {
+            tokenFreq.set(token, (tokenFreq.get(token) ?? 0) + 1);
+          }
+        }
+
+        // Use rawCategory as primary suggestion (it's what the user intended)
+        unresolved.suggestedNewName = cleanedRaw;
       }
 
       // Update session with status
@@ -542,9 +780,40 @@ export const catalogImportRouter = createTRPCRouter({
 
       // Apply each mapping
       for (const mapping of input.mappings) {
-        if (mapping.matchType === "skipped" || !mapping.resolvedCategoryId) {
+        if (mapping.matchType === "skipped") {
           continue;
         }
+
+        let categoryId = mapping.resolvedCategoryId;
+
+        // Create new category if requested
+        if (!categoryId && mapping.newCategoryName) {
+          const newSlug = slugify(mapping.newCategoryName);
+          const [newCat] = await ctx.db
+            .insert(Category)
+            .values({
+              name: mapping.newCategoryName,
+              slug: newSlug,
+              depth: 0,
+              sortOrder: 0,
+            })
+            .returning({ id: Category.id });
+
+          if (newCat) {
+            categoryId = newCat.id;
+            await logAudit(ctx.db, ctx.user, {
+              action: "category.create",
+              entity: "category",
+              entityId: newCat.id,
+              newValue: {
+                name: mapping.newCategoryName,
+                source: "catalog_import",
+              },
+            });
+          }
+        }
+
+        if (!categoryId) continue;
 
         // Update all session rows with this raw category
         const rows = await ctx.db
@@ -567,8 +836,8 @@ export const catalogImportRouter = createTRPCRouter({
             await ctx.db
               .update(ImportSessionRow)
               .set({
-                resolvedCategoryId: mapping.resolvedCategoryId,
-                errors: null, // Clear category-related errors
+                resolvedCategoryId: categoryId,
+                errors: null,
               })
               .where(eq(ImportSessionRow.id, row.id));
           }
@@ -580,7 +849,7 @@ export const catalogImportRouter = createTRPCRouter({
             .insert(CategoryAlias)
             .values({
               alias: mapping.rawCategory,
-              categoryId: mapping.resolvedCategoryId,
+              categoryId: categoryId,
               createdBy: ctx.user.id,
             })
             .onConflictDoNothing();

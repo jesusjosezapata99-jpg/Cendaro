@@ -3,12 +3,14 @@
 /**
  * Cendaro — Catalog Import: Step 1 — File Upload
  *
- * Drag & drop file upload with format validation.
+ * Drag & drop file upload with format validation + professional template download.
  *
  * PRD: FEATURE_PRD_CATALOG_IMPORT.md §11
  */
 import { useCallback, useRef, useState } from "react";
+import { toast } from "sonner";
 
+import { downloadProductTemplate } from "../lib/catalog-template-builder";
 import { ACCEPTED_EXTENSIONS } from "../lib/catalog-validators";
 
 // ── Component ────────────────────────────────────
@@ -17,15 +19,25 @@ interface FileUploadProps {
   onFileSelect: (file: File) => void;
   isParsing: boolean;
   error: string | null;
+  /** Existing brands for template reference sheet */
+  brands?: { id: string; name: string }[];
+  /** Existing categories for template reference sheet */
+  categories?: { id: string; name: string }[];
+  /** Existing suppliers for template reference sheet */
+  suppliers?: { id: string; name: string }[];
 }
 
 export function FileUpload({
   onFileSelect,
   isParsing,
   error,
+  brands = [],
+  categories = [],
+  suppliers = [],
 }: FileUploadProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
@@ -45,8 +57,59 @@ export function FileUpload({
     [onFileSelect],
   );
 
+  const handleDownloadTemplate = useCallback(() => {
+    setIsDownloading(true);
+    try {
+      downloadProductTemplate(brands, categories, suppliers);
+      toast.success("Plantilla descargada correctamente");
+    } catch {
+      toast.error("Error al generar la plantilla");
+    } finally {
+      setIsDownloading(false);
+    }
+  }, [brands, categories, suppliers]);
+
   return (
     <div className="mx-auto max-w-2xl space-y-6">
+      {/* Template download — prominent CTA */}
+      <div className="from-primary/10 via-primary/5 to-primary/10 border-primary/20 flex items-center justify-between gap-4 rounded-2xl border bg-linear-to-r p-5">
+        <div className="flex items-center gap-3">
+          <div className="bg-primary/15 text-primary flex h-12 w-12 shrink-0 items-center justify-center rounded-xl">
+            <span className="material-symbols-outlined text-2xl">
+              description
+            </span>
+          </div>
+          <div>
+            <p className="text-foreground text-sm font-semibold">
+              ¿Primera vez importando?
+            </p>
+            <p className="text-muted-foreground text-xs">
+              Descarga la plantilla oficial con instrucciones, reglas y valores
+              válidos
+            </p>
+          </div>
+        </div>
+        <button
+          onClick={handleDownloadTemplate}
+          disabled={isDownloading}
+          className="bg-primary text-primary-foreground hover:bg-primary/90 flex shrink-0 items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold shadow-sm transition-all hover:shadow-md active:scale-[0.97] disabled:opacity-60"
+        >
+          {isDownloading ? (
+            <>
+              <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+              Generando…
+            </>
+          ) : (
+            <>
+              <span className="material-symbols-outlined text-lg">
+                download
+              </span>
+              Descargar Plantilla
+            </>
+          )}
+        </button>
+      </div>
+
       {/* Drop zone */}
       <div
         onDragOver={(e) => {
