@@ -30,12 +30,17 @@ export interface CategoryMapping {
   rawCategory: string;
   resolvedCategoryId: string | null;
   resolvedCategoryName: string | null;
+  /** Server-suggested name for creating a new category */
+  suggestedNewName: string | null;
+  /** User-confirmed name for creating a new category */
+  newCategoryName?: string;
   matchType: "exact" | "fuzzy" | "alias" | "user_selected" | "skipped";
   confidence?: number;
   suggestions: {
     id: string;
     name: string;
     score: number;
+    reason?: string;
   }[];
 }
 
@@ -108,6 +113,7 @@ type CatalogImportAction =
         rawCategory: string;
         resolvedCategoryId: string | null;
         resolvedCategoryName: string | null;
+        newCategoryName?: string;
         matchType: "user_selected" | "skipped";
       };
     }
@@ -117,6 +123,7 @@ type CatalogImportAction =
   | { type: "SET_LOADING"; payload: boolean }
   | { type: "SET_ERROR"; payload: string | null }
   | { type: "GO_TO_STEP"; payload: CatalogImportStep }
+  | { type: "RESTORE_STATE"; payload: Partial<CatalogImportState> }
   | { type: "RESET" };
 
 // ── Initial State ────────────────────────────────
@@ -194,6 +201,7 @@ function catalogImportReducer(
             ...cat,
             resolvedCategoryId: action.payload.resolvedCategoryId,
             resolvedCategoryName: action.payload.resolvedCategoryName,
+            newCategoryName: action.payload.newCategoryName,
             matchType: action.payload.matchType,
           };
         }
@@ -224,6 +232,14 @@ function catalogImportReducer(
 
     case "GO_TO_STEP":
       return { ...state, step: action.payload };
+
+    case "RESTORE_STATE":
+      return {
+        ...state,
+        ...action.payload,
+        isLoading: false,
+        serverError: null,
+      };
 
     case "RESET":
       return createInitialState();
@@ -317,6 +333,10 @@ export function useCatalogImport() {
     dispatch({ type: "GO_TO_STEP", payload: step });
   }, []);
 
+  const restoreState = useCallback((partial: Partial<CatalogImportState>) => {
+    dispatch({ type: "RESTORE_STATE", payload: partial });
+  }, []);
+
   const reset = useCallback(() => {
     dispatch({ type: "RESET" });
   }, []);
@@ -335,6 +355,7 @@ export function useCatalogImport() {
     setLoading,
     setError,
     goToStep,
+    restoreState,
     reset,
   };
 }

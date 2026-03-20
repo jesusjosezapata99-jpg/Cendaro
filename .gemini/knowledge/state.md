@@ -7,8 +7,77 @@
 
 ## Session Registry
 
-- **Total agent sessions**: 32
-- **Last Modified By**: Antigravity Agent — 2026-03-20T01:30:00+01:00
+- **Total agent sessions**: 38
+- **Last Modified By**: Antigravity Agent — 2026-03-20T17:05:00+01:00
+
+---
+
+### 2026-03-20T17:05:00+01:00 — Smart Category Engine: Inline Creation + Name Suggestions
+
+- Server: `validate` generates `suggestedNewName` via tokenization algorithm (Spanish stopwords, product name frequency)
+- Server: `resolveCategories` creates categories inline when `newCategoryName` provided (auto-slug + audit log)
+- Server: auto-cancel stale import sessions instead of blocking with CONFLICT
+- Client: `category-mapping.tsx` rebuilt with "Crear categoría" button + inline input pre-filled with suggested name
+- Client: Session persistence fixed — only persists client-safe steps, regenerates `idempotencyKey` on restore
+- Files: `catalog-import.ts`, `use-catalog-import.ts`, `category-mapping.tsx`, `catalog-import-wizard.tsx`
+
+### 2026-03-20T16:30:00+01:00 — Catalog Import: Template Fix + Smart Categories + UI Polish
+
+- Fixed template XLSX: removed `cell.c` comments (giant floating boxes), required fields now use visual `*` suffix
+- Updated `normalizeHeader()` to strip `*` markers and collapse whitespace
+- Enhanced server-side category matching: dual scoring (40% category name + 60% product name similarity)
+- Category suggestions now include `reason` text + `RECOMENDADO` badge for top suggestions ≥70%
+- Redesigned `header-mapping.tsx` to match inventory wizard table layout (# / header / dropdown / badges)
+- Added `sessionStorage` persistence + restored session banner to catalog wizard
+- `pnpm typecheck` exit 0
+
+---
+
+### 2026-03-20T16:10:00+01:00 — Catalog Import Consolidation
+
+- Integrated template download button into existing `file-upload.tsx` (gradient CTA, loading state, toast)
+- Removed `/catalog/import-products` route + `bulk-product-import-wizard.tsx`
+- Removed `bulkCreateProducts` mutation (~190 lines) from `catalog.ts`
+- Catalog page now has exactly 2 buttons: "Importar Catálogo" + "Nuevo Producto"
+- All import pipeline logic exclusively via `catalogImport.commit` (6-step wizard)
+- `pnpm typecheck` exit 0
+
+### 2026-03-20T15:30:00+01:00 — Catalog Import + Permissions + BCV Enforcement
+
+**Feature 1 — Bulk Product XLSX Import**:
+
+- `catalog-template-builder.ts` — 4-sheet XLSX template (Productos, Instrucciones, Reglas, Valores Válidos)
+- Template download integrated into existing catalog import wizard Step 1
+- "Importar Productos" button removed — consolidated into "Importar Catálogo"
+
+**Feature 2 — Product Creation Global Scope**:
+
+- Removed ~150 lines of warehouse stock section from `create-product-page.tsx`
+- Removed `initialStock` from `catalog.ts` `createProduct` API
+- Added `RoleGuard allow={["owner", "admin", "supervisor"]}` — admin keeps full access
+- Removed unused `StockMovement` import
+
+**Feature 3 — BCV Rate Immutability**:
+
+- Removed `manualRate` state and Oficial/Paralelo selector from product creation
+- BCV rate now shown as read-only badge (non-editable)
+- Added source validation to `pricing.setRate` — only `dolarapi-*`, `frankfurter*`, `system-sync*` sources allowed
+
+**Verification**: `@cendaro/api` typecheck ✅, `@cendaro/erp` typecheck ✅
+
+---
+
+### 2026-03-20T00:56:00+01:00 — Production 500 Fix: Missing RLS Policies
+
+**Root cause**: 3 new catalog import tables had RLS enabled but **no policies**, causing all queries to fail in production. All other 55 tables use `auth.role() = 'service_role'` policies.
+
+**Migration applied** (`add_rls_policies_catalog_import`):
+
+- `svc_category_alias` on `category_alias`
+- `svc_import_session` on `import_session`
+- `svc_import_session_row` on `import_session_row`
+
+**Dashboard warnings** (`payments`, `accounts_receivable`): Non-critical — `safeQuery()` handles these with fallback values. Caused by intermittent Supabase cold starts.
 
 ---
 
