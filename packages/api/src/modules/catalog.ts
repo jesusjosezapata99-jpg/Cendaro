@@ -17,7 +17,6 @@ import {
   ProductPrice,
   productStatusEnum,
   StockLedger,
-  StockMovement,
   Supplier,
 } from "@cendaro/db/schema";
 
@@ -134,7 +133,7 @@ export const catalogRouter = createTRPCRouter({
       };
     }),
 
-  /** Create product (admin, owner, supervisor) */
+  /** Create product — catalog-level only (owner, admin, supervisor) */
   createProduct: roleRestrictedProcedure(["owner", "admin", "supervisor"])
     .input(
       z.object({
@@ -156,62 +155,10 @@ export const catalogRouter = createTRPCRouter({
           .enum(["unit", "box", "dozen", "half_dozen", "bulk"])
           .default("unit"),
         status: z.enum(productStatusEnum.enumValues).default("draft"),
-        initialStock: z
-          .array(
-            z.object({
-              warehouseId: z.string().uuid(),
-              quantity: z.number().int().positive(),
-              incomingUnit: z.enum(["unit", "box", "bulk"]).default("unit"),
-            }),
-          )
-          .optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const { initialStock, ...productData } = input;
-
-      const [product] = await ctx.db
-        .insert(Product)
-        .values(productData)
-        .returning();
-
-      // ── Create initial stock entries with unit conversion ──
-      if (product && initialStock && initialStock.length > 0) {
-        const unitsPerBox = input.unitsPerBox ?? 1;
-        const boxesPerBulk = input.boxesPerBulk ?? 1;
-
-        const resolvedEntries = initialStock.map((entry) => {
-          let totalUnits = entry.quantity;
-
-          if (entry.incomingUnit === "box") {
-            totalUnits = entry.quantity * unitsPerBox;
-          } else if (entry.incomingUnit === "bulk") {
-            totalUnits = entry.quantity * boxesPerBulk * unitsPerBox;
-          }
-
-          return { warehouseId: entry.warehouseId, totalUnits };
-        });
-
-        await ctx.db.insert(StockLedger).values(
-          resolvedEntries.map((e) => ({
-            productId: product.id,
-            warehouseId: e.warehouseId,
-            quantity: e.totalUnits,
-          })),
-        );
-
-        await ctx.db.insert(StockMovement).values(
-          resolvedEntries.map((e) => ({
-            productId: product.id,
-            movementType: "initial_stock" as const,
-            quantity: e.totalUnits,
-            warehouseId: e.warehouseId,
-            createdBy: ctx.user.id,
-            referenceId: product.id,
-            referenceType: "product_creation",
-          })),
-        );
-      }
+      const [product] = await ctx.db.insert(Product).values(input).returning();
 
       await logAudit(ctx.db, ctx.user, {
         action: "product.create",
@@ -222,14 +169,12 @@ export const catalogRouter = createTRPCRouter({
           name: input.name,
           baseUom: input.baseUom,
           sellingUnit: input.sellingUnit,
-          stockEntries: initialStock?.length ?? 0,
         },
       });
 
       return product;
     }),
 
-  /** Update product (admin, owner, supervisor) */
   updateProduct: roleRestrictedProcedure(["owner", "admin", "supervisor"])
     .input(
       z.object({
