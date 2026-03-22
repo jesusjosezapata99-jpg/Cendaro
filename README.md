@@ -50,13 +50,13 @@ graph TB
 
   subgraph APPS["▣  APPLICATIONS"]
     direction TB
-    ERP["◆ apps/erp\nNext.js 16 · App Router · PWA\n22 modules · 14 forms · 4 hooks"]:::app
+    ERP["◆ apps/erp\nNext.js 16 · App Router · PWA\n22 routes · 14 forms · 4 hooks"]:::app
   end
 
   subgraph PACKAGES["◫  SHARED PACKAGES"]
     direction TB
-    API["▸ @cendaro/api\ntRPC v11 · 17 domain routers\nRBAC middleware · Audit logger"]:::pkg
-    DB["▸ @cendaro/db\nDrizzle ORM · 55 tables\n10 schema phases · 27 enums"]:::pkg
+    API["▸ @cendaro/api\ntRPC v11 · 18 domain routers\nRBAC middleware · Audit logger"]:::pkg
+    DB["▸ @cendaro/db\nDrizzle ORM · 58 tables\n11 schema phases · 30 enums"]:::pkg
     AUTH["▸ @cendaro/auth\nSupabase SSR\nServer · Client · Middleware"]:::pkg
     UI["▸ @cendaro/ui\nshadcn/ui · Radix\nButton · Dialog · Sidebar · Forms"]:::pkg
     VAL["▸ @cendaro/validators\nZod v4 · Domain schemas\nRIF · Cédula · Money · RBAC"]:::pkg
@@ -143,15 +143,15 @@ cendaro/
 │           ├── app/api/                   ← tRPC + AI + Auth endpoints
 │           ├── components/                ← Sidebar, TopBar, Dialog, 14 forms
 │           ├── hooks/                     ← useBcvRate, useCnyRate, useCurrentUser, useDebounce
-│           ├── modules/                   ← 12 client-side domain modules
+│           ├── modules/                   ← 13 client-side domain modules
 │           ├── trpc/                      ← Client, server, query-client setup
 │           └── proxy.ts                   ← Edge auth guard
 │
 ├── packages/
 │   ├── api/                              ← tRPC v11 business logic
-│   │   └── src/modules/                  ← 17 domain routers
+│   │   └── src/modules/                  ← 18 domain routers
 │   ├── auth/                             ← Supabase SSR (3 clients)
-│   ├── db/                               ← Drizzle schema (55 tables)
+│   ├── db/                               ← Drizzle schema (58 tables)
 │   ├── ui/                               ← shadcn/ui components
 │   └── validators/                       ← Zod v4 domain schemas
 │
@@ -161,7 +161,7 @@ cendaro/
 │   ├── typescript/                       ← Strict ES2024 base configs
 │   └── tailwind/                         ← oklch theme + design tokens
 │
-├── turbo.json                            ← Turborepo pipeline (12 tasks)
+├── turbo.json                            ← Turborepo pipeline (15 tasks)
 ├── vercel.json                           ← Deployment config
 ├── pnpm-workspace.yaml                   ← Workspace + dependency catalog
 └── .husky/                               ← Git hooks (lint-staged)
@@ -254,6 +254,7 @@ graph LR
   ROOT --- A["📋 audit"]:::router
   ROOT --- B["✅ approvals"]:::router
   ROOT --- C["📦 catalog"]:::router
+  ROOT --- CA2["📂 catalogImport"]:::router
   ROOT --- D["🚢 container"]:::router
   ROOT --- E["📊 dashboard"]:::router
   ROOT --- F["💚 health"]:::router
@@ -276,6 +277,7 @@ graph LR
 | `audit`           | Event trail                             | Query immutable logs                       | 👑 Admin+               |
 | `approvals`       | Workflow approvals                      | Request, approve, reject, expire           | 👑 Admin, 🔧 Supervisor |
 | `catalog`         | Products, brands, categories, suppliers | Full CRUD, attribute management            | 📋 Role-based           |
+| `catalogImport`   | Catalog spreadsheet imports             | Create sessions, validate, map, commit     | 📋 Role-based           |
 | `inventory`       | Warehouses, stock, movements            | Transfers, cycle counts, adjustments       | 📋 Role-based           |
 | `inventoryImport` | Spreadsheet imports                     | Initialize, replace, adjust stock via xlsx | 📋 Role-based           |
 | `container`       | Import tracking, AI packing lists       | Create, receive, close, AI parse           | 👑 Admin, 🔧 Supervisor |
@@ -294,7 +296,7 @@ graph LR
 
 ### `@cendaro/db` — Database & Schema
 
-> 55 tables, 27 enums, 10 implementation phases — the entire data domain in one schema file.
+> 58 tables, 30 enums, 11 implementation phases — the entire data domain in one schema file.
 
 <details>
 <summary><strong>📊 Click to expand full schema map</strong></summary>
@@ -331,6 +333,9 @@ graph TB
     PUE[ProductUomEquivalence]:::phase2
     PS[ProductSupplier]:::phase2
     PP[ProductPrice]:::phase2
+    CAL[CategoryAlias]:::phase2
+    ISS[ImportSession]:::phase2
+    ISR[ImportSessionRow]:::phase2
   end
 
   subgraph P3["◆ PHASE 3 — Inventory & Containers"]
@@ -403,9 +408,11 @@ graph TB
   UP --> AL
   BR --> PR
   CT --> PR
+  CT --> CAL
   SP --> PR
   PR --> PA
   PR --> PP
+  ISS --> ISR
   WH --> SL
   WH --> WL
   PR --> SL
@@ -438,7 +445,7 @@ graph TB
 | Phase  | Color | Domain                 | Tables                                                                                                                                                                                                                                            |
 | :----: | :---: | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **1**  |  🔵   | Identity & RBAC        | `organization` · `user_profile` · `permission` · `role_permission` · `audit_log`                                                                                                                                                                  |
-| **2**  |  🟣   | Catalog                | `brand` · `category` · `supplier` · `product` · `product_attribute` · `product_uom_equivalence` · `product_supplier` · `product_price`                                                                                                            |
+| **2**  |  🟣   | Catalog                | `brand` · `category` · `supplier` · `product` · `product_attribute` · `product_uom_equivalence` · `product_supplier` · `product_price` · `category_alias` · `import_session` · `import_session_row`                                               |
 | **3**  |  🟢   | Inventory & Containers | `warehouse` · `warehouse_location` · `stock_ledger` · `channel_allocation` · `stock_movement` · `inventory_count` · `inventory_count_item` · `inventory_discrepancy` · `container` · `container_item` · `container_document` · `ai_prompt_config` |
 | **4**  |  🟠   | Pricing Engine         | `exchange_rate` · `price_history` · `pricing_rule` · `repricing_event`                                                                                                                                                                            |
 | **5**  |  🔴   | Sales & Payments       | `customer` · `customer_address` · `sales_order` · `order_item` · `payment` · `payment_evidence` · `payment_allocation` · `cash_closure`                                                                                                           |
@@ -600,6 +607,9 @@ erDiagram
   Product ||--o{ ProductPrice : "priced as"
   Product ||--o{ ProductUomEquivalence : "converts"
   Product ||--o{ ProductSupplier : "sourced from"
+
+  Category ||--o{ CategoryAlias : "alias of"
+  ImportSession ||--o{ ImportSessionRow : "contains"
 
   Warehouse ||--o{ StockLedger : "stores"
   Warehouse ||--o{ WarehouseLocation : "contains"
@@ -793,6 +803,8 @@ pnpm dev:erp      # ERP app only
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` |    ✅    | Supabase anonymous key       |
 | `SUPABASE_SERVICE_ROLE_KEY`     |    ✅    | Service role key (backend)   |
 | `SENTRY_DSN`                    |    —     | Error tracking (production)  |
+| `GROQ_API_KEY`                  |    —     | AI/LLM inference (Groq)      |
+| `EXCHANGE_RATE_API_KEY`         |    —     | Fallback CNY rate source     |
 | `MERCADOLIBRE_APP_ID`           |    —     | Mercado Libre OAuth          |
 | `MERCADOLIBRE_SECRET`           |    —     | Mercado Libre OAuth          |
 | `PORT`                          |    —     | Custom server port           |
