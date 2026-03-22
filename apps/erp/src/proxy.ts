@@ -3,13 +3,17 @@ import { NextResponse } from "next/server";
 
 import { createSupabaseMiddlewareClient } from "@cendaro/auth/middleware";
 
-const PUBLIC_ROUTES = ["/login", "/api/auth"];
+const PUBLIC_ROUTES_EXACT = ["/"];
+const PUBLIC_ROUTES_PREFIX = ["/login", "/api/auth"];
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Allow public routes
-  if (PUBLIC_ROUTES.some((route) => pathname.startsWith(route))) {
+  // Allow public routes (exact match for landing, prefix for login/api)
+  if (
+    PUBLIC_ROUTES_EXACT.includes(pathname) ||
+    PUBLIC_ROUTES_PREFIX.some((route) => pathname.startsWith(route))
+  ) {
     return NextResponse.next();
   }
 

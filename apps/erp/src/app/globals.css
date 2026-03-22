@@ -2,6 +2,42 @@
 @import "tw-animate-css";
 @import "@cendaro/tailwind-config/theme";
 
+/* ================================================================
+   Landing Page — Design Tokens & Animations
+   ================================================================ */
+
+:root {
+  --radius-card: 0.75rem;
+  --duration-entrance: 600ms;
+  --duration-micro: 250ms;
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes marquee {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+@keyframes marquee-reverse {
+  0% {
+    transform: translateX(-50%);
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-marquee,
+  .animate-marquee-reverse {
+    animation: none !important;
+  }
+}
+
 @custom-variant dark (&:is(.dark, .dark *));
 
 @utility container {

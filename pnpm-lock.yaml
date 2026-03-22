@@ -144,9 +144,15 @@ importers:
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
+      framer-motion:
+        specifier: ^12.38.0
+        version: 12.38.0(react-dom@19.1.4(react@19.1.4))(react@19.1.4)
       jszip:
         specifier: ^3.10.1
         version: 3.10.1
+      lucide-react:
+        specifier: ^0.577.0
+        version: 0.577.0(react@19.1.4)
       next:
         specifier: ^16.0.10
         version: 16.1.6(react-dom@19.1.4(react@19.1.4))(react@19.1.4)
@@ -4824,6 +4830,23 @@ packages:
       }
     engines: { node: ">=0.8" }
 
+  framer-motion@12.38.0:
+    resolution:
+      {
+        integrity: sha512-rFYkY/pigbcswl1XQSb7q424kSTQ8q6eAC+YUsSKooHQYuLdzdHjrt6uxUC+PRAO++q5IS7+TamgIw1AphxR+g==,
+      }
+    peerDependencies:
+      "@emotion/is-prop-valid": "*"
+      react: ^18.0.0 || ^19.0.0
+      react-dom: ^18.0.0 || ^19.0.0
+    peerDependenciesMeta:
+      "@emotion/is-prop-valid":
+        optional: true
+      react:
+        optional: true
+      react-dom:
+        optional: true
+
   fs.realpath@1.0.0:
     resolution:
       {
@@ -5626,6 +5649,14 @@ packages:
         integrity: sha512-2Fgx1Ycm599x+WGpIYwJOvsjmXFzTSc34IwDWALRA/8AopUKAVPwfJ+h5+f85BCp0PWmmJcWzEpxOpoXycMpdA==,
       }
 
+  lucide-react@0.577.0:
+    resolution:
+      {
+        integrity: sha512-4LjoFv2eEPwYDPg/CUdBJQSDfPyzXCRrVW1X7jrx/trgxnxkHFjnVZINbzvzxjN70dxychOfg+FTYwBiS3pQ5A==,
+      }
+    peerDependencies:
+      react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
+
   magic-string@0.30.21:
     resolution:
       {
@@ -5692,6 +5723,18 @@ packages:
         integrity: sha512-FP+p8RB8OWpF3YZBCrP5gtADmtXApB5AMLn+vdyA+PyxCjrCs00mjyUozssO33cwDeT3wNGdLxJ5M//YqtHAJw==,
       }
     hasBin: true
+
+  motion-dom@12.38.0:
+    resolution:
+      {
+        integrity: sha512-pdkHLD8QYRp8VfiNLb8xIBJis1byQ9gPT3Jnh2jqfFtAsWUA3dEepDlsWe/xMpO8McV+VdpKVcp+E+TGJEtOoA==,
+      }
+
+  motion-utils@12.36.0:
+    resolution:
+      {
+        integrity: sha512-eHWisygbiwVvf6PZ1vhaHCLamvkSbPIeAYxWUuL3a2PD/TROgE7FvfHWTIH4vMl798QLfMw15nRqIaRDXTlYRg==,
+      }
 
   ms@2.1.3:
     resolution:
@@ -9948,6 +9991,15 @@ snapshots:
 
   frac@1.1.2: {}
 
+  framer-motion@12.38.0(react-dom@19.1.4(react@19.1.4))(react@19.1.4):
+    dependencies:
+      motion-dom: 12.38.0
+      motion-utils: 12.36.0
+      tslib: 2.8.1
+    optionalDependencies:
+      react: 19.1.4
+      react-dom: 19.1.4(react@19.1.4)
+
   fs.realpath@1.0.0: {}
 
   fsevents@2.3.3:
@@ -10414,6 +10466,10 @@ snapshots:
 
   lower-case@1.1.4: {}
 
+  lucide-react@0.577.0(react@19.1.4):
+    dependencies:
+      react: 19.1.4
+
   magic-string@0.30.21:
     dependencies:
       "@jridgewell/sourcemap-codec": 1.5.5
@@ -10444,6 +10500,12 @@ snapshots:
   mkdirp@0.5.6:
     dependencies:
       minimist: 1.2.8
+
+  motion-dom@12.38.0:
+    dependencies:
+      motion-utils: 12.36.0
+
+  motion-utils@12.36.0: {}
 
   ms@2.1.3: {}
 
