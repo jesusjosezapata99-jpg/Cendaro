@@ -7,10 +7,21 @@
 
 ## Session Registry
 
-- **Total agent sessions**: 38
-- **Last Modified By**: Antigravity Agent — 2026-03-20T17:05:00+01:00
+- **Total agent sessions**: 39
+- **Last Modified By**: Antigravity Agent — 2026-03-22T16:49:00+01:00
 
 ---
+
+### 2026-03-22T16:49:00+01:00 — README.md Audit v2: Catalog Import Sync
+
+- Audited root `README.md` against all source files — 15 data-accuracy corrections applied
+- Router count 17→18 (+`catalogImport`), table count 55→58 (+`CategoryAlias`, `ImportSession`, `ImportSessionRow`), enum count 27→30 (+3 import session enums)
+- Client modules 12→13 (+`catalog-import`), Turbo tasks 12→15, schema phases 10→11
+- Added `catalogImport` to Mermaid router diagram + router table
+- Added 3 catalog import tables to schema Mermaid diagram, phase table, and ER diagram
+- Added `GROQ_API_KEY` + `EXCHANGE_RATE_API_KEY` to env vars table
+- Verification: grep confirmed 0 stale values, all 11 new patterns present ≥1 match
+- Files changed: `README.md`
 
 ### 2026-03-20T17:05:00+01:00 — Smart Category Engine: Inline Creation + Name Suggestions
 
