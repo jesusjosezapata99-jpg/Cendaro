@@ -7,10 +7,22 @@
 
 ## Session Registry
 
-- **Total agent sessions**: 39
-- **Last Modified By**: Antigravity Agent — 2026-03-22T16:49:00+01:00
+- **Total agent sessions**: 40
+- **Last Modified By**: Antigravity Agent — 2026-03-22T17:21:00+01:00
 
 ---
+
+### 2026-03-22T17:21:00+01:00 — UI/UX Pro Max Skill Integration (v2.0)
+
+- **Integrated** `ui-ux-pro-max` skill from [nextlevelbuilder/ui-ux-pro-max-skill](https://github.com/nextlevelbuilder/ui-ux-pro-max-skill) (MIT)
+- **Location**: `.agents/skills/ui-ux-pro-max/` (SKILL.md + data/ + scripts/)
+- **SKILL.md rewritten** for Antigravity: YAML frontmatter, all paths `.agents/skills/`, `python` (not `python3`), Example Workflow for Next.js, Cendaro integration section, scope notices adapted for web
+- **Data**: 13 CSV files (67 styles, 161 colors, 57 typography, 161 products, 161 reasoning rules, 24 landing, 99 UX, 25 charts + Google Fonts + React perf + app interface + icons + design), 1 stack CSV
+- **Scripts**: 3 Python files (search.py, core.py, design_system.py) — zero modifications, path resolution verified
+- **Verification**: 8 automated tests passed — design system generation, 5 domain searches, zero `.claude` references, zero `python3` references
+- **.gitignore**: Added `design-system/` entry for `--persist` output
+- **Coexistence**: Complements `frontend-design` (aesthetic philosophy) and `web-design-guidelines` (audit) skills
+- Files changed: `.agents/skills/ui-ux-pro-max/SKILL.md` (NEW), `.agents/skills/ui-ux-pro-max/data/*` (NEW), `.agents/skills/ui-ux-pro-max/scripts/*` (NEW), `.gitignore`
 
 ### 2026-03-22T16:49:00+01:00 — README.md Audit v2: Catalog Import Sync
 
