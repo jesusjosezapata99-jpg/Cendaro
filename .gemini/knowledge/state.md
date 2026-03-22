@@ -7,10 +7,30 @@
 
 ## Session Registry
 
-- **Total agent sessions**: 40
-- **Last Modified By**: Antigravity Agent — 2026-03-22T17:21:00+01:00
+- **Total agent sessions**: 42
+- **Last Modified By**: Antigravity Agent — 2026-03-22T20:10:00+01:00
 
 ---
+
+### 2026-03-22T20:10:00+01:00 — Landing Page Polish (4-phase)
+
+- **New files**: `testimonials.tsx`, `faq-section.tsx`, `opengraph-image.tsx`
+- **Modified files**: `page.tsx` (JSON-LD, OG meta, canonical, new section imports), `hero.tsx` (trust badge, secondary CTA), `bento-grid.tsx` (8 mini-visuals, hover lift), `integrations-marquee.tsx` (real SVG logos for 8 brands), `stats-section.tsx` (sub-description, accent lines), `pricing-cards.tsx` (Enterprise tier, 3-column grid), `scroll-entrance.tsx` (`useReducedMotion()` a11y), `navbar.tsx` (smooth-scroll), `footer.tsx` (social icons, "Hecho en España")
+- **Verification**: typecheck 0 errors, build 5/5 tasks, visual browser scroll-through passed
+- **Key decisions**: Skipped section divider (visual flow clean without). Deferred auth redirect for logged-in users (requires careful middleware handling).
+
+---
+
+---
+
+### 2026-03-22T19:36:00+01:00 — Landing Page Implementation (midday.ai-inspired)
+
+- **Created 13 new files** in `apps/erp/src/app/_components/landing/`: `scroll-entrance.tsx`, `use-scroll-y.ts`, `navbar.tsx`, `hero.tsx`, `sticky-features.tsx`, `bento-grid.tsx`, `stats-section.tsx`, `integrations-marquee.tsx`, `pricing-cards.tsx`, `final-cta.tsx`, `footer.tsx`
+- **Modified** `page.tsx` (replaced redirect with landing), `layout.tsx` (Playfair Display serif font), `globals.css` (landing tokens + marquee keyframes), `proxy.ts` (made `/` public with exact match), `tooling/tailwind/theme.css` (added `--font-serif`)
+- **Dependencies added**: `framer-motion`, `lucide-react`
+- **Key patterns**: Scroll-synced sticky features (IntersectionObserver), blur+fade entrance animations, CountUp on scroll, CSS marquee with gradient mask, navbar transparent→blur on scroll
+- **Middleware change**: `/` is now a public route (exact match) — authenticated users should be redirected to `/dashboard` via client-side logic. All `/app/*` routes remain protected.
+- **Verified**: `typecheck` ✅ 0 errors, `build` ✅ 5/5 tasks exit 0, visual browser ✅ all 9 sections render in dark mode
 
 ### 2026-03-22T17:21:00+01:00 — UI/UX Pro Max Skill Integration (v2.0)
 

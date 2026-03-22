@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
+import { Inter, Playfair_Display } from "next/font/google";
 import Script from "next/script";
 import { Toaster } from "sonner";
 
@@ -11,6 +11,13 @@ const inter = Inter({
   subsets: ["latin"],
   display: "swap",
   variable: "--font-sans",
+});
+
+const playfair = Playfair_Display({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-serif",
+  weight: ["400", "500", "600"],
 });
 
 export const metadata: Metadata = {
@@ -59,7 +66,7 @@ export default function RootLayout({
         />
       </head>
       <body
-        className={`${inter.variable} bg-background text-foreground font-sans antialiased`}
+        className={`${inter.variable} ${playfair.variable} bg-background text-foreground font-sans antialiased`}
       >
         <ThemeProvider>{children}</ThemeProvider>
         <Toaster richColors position="top-right" />
