@@ -34,3 +34,6 @@ workbox-*.js
 
 # Turborepo
 .turbo
+
+# UI/UX Pro Max generated design systems
+design-system/
