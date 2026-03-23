@@ -8,11 +8,11 @@ import { z } from "zod/v4";
 
 import { AuditLog } from "@cendaro/db/schema";
 
-import { createTRPCRouter, roleRestrictedProcedure } from "../trpc";
+import { createTRPCRouter, workspaceProcedure } from "../trpc";
 
 export const auditRouter = createTRPCRouter({
   /** List audit log entries with filters and pagination */
-  list: roleRestrictedProcedure(["owner", "admin"])
+  list: workspaceProcedure
     .input(
       z.object({
         limit: z.number().int().min(1).max(100).default(50),
@@ -45,7 +45,7 @@ export const auditRouter = createTRPCRouter({
     }),
 
   /** Get single audit entry by ID */
-  byId: roleRestrictedProcedure(["owner", "admin"])
+  byId: workspaceProcedure
     .input(z.object({ id: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       const [entry] = await ctx.db

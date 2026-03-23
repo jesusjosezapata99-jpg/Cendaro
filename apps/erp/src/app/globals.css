@@ -2,7 +2,104 @@
 @import "tw-animate-css";
 @import "@cendaro/tailwind-config/theme";
 
+/* ================================================================
+   Landing Page — Design Tokens & Animations
+   ================================================================ */
+
+:root {
+  --radius-card: 0.75rem;
+  --duration-entrance: 600ms;
+  --duration-micro: 250ms;
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --duration-counter: 2000ms;
+  --delay-mockup-entrance: 350ms;
+
+  /* ── Landing Page — Theme-Adaptive Tokens ────── */
+  --landing-card-border: oklch(0 0 0 / 0.08);
+  --landing-card-bg: oklch(0 0 0 / 0.025);
+  --landing-card-border-hover: oklch(0 0 0 / 0.14);
+  --landing-line: oklch(0 0 0 / 0.08);
+  --landing-dot-active: oklch(0.145 0.015 250);
+  --landing-dot-inactive: oklch(0.145 0.015 250 / 0.2);
+  --landing-glow-opacity: 0.06;
+}
+
+@keyframes count-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
+
+@keyframes row-highlight {
+  0%,
+  100% {
+    background: transparent;
+  }
+  50% {
+    background: oklch(0.75 0.1 145 / 0.08);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes float-y {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes marquee {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+@keyframes marquee-reverse {
+  0% {
+    transform: translateX(-50%);
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-marquee,
+  .animate-marquee-reverse {
+    animation: none !important;
+  }
+}
+
 @custom-variant dark (&:is(.dark, .dark *));
+
+/* ── Landing Page — Dark Mode Token Overrides ── */
+.dark {
+  --landing-card-border: oklch(1 0 0 / 0.06);
+  --landing-card-bg: oklch(1 0 0 / 0.02);
+  --landing-card-border-hover: oklch(1 0 0 / 0.12);
+  --landing-line: oklch(1 0 0 / 0.08);
+  --landing-dot-active: oklch(0.97 0.003 250 / 0.9);
+  --landing-dot-inactive: oklch(0.97 0.003 250 / 0.2);
+  --landing-glow-opacity: 0.12;
+}
 
 @utility container {
   margin-inline: auto;

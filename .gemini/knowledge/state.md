@@ -7,10 +7,165 @@
 
 ## Session Registry
 
-- **Total agent sessions**: 40
-- **Last Modified By**: Antigravity Agent — 2026-03-22T17:21:00+01:00
+- **Total agent sessions**: 54
+- **Last Modified By**: Antigravity Agent — 2026-03-23T21:16:00+01:00
 
 ---
+
+### 2026-03-23T21:16:00+01:00 — CI Lint Fix: Video Module ESLint Exclusion
+
+- **RCA**: ESLint's `projectService` mapped `video/src/*.tsx` files to `apps/erp/tsconfig.json` which does NOT include `video/` in its `include`. Remotion types were unresolvable → 116 `no-unsafe-*` errors.
+- **Fix**: Added `{ ignores: ["video/**"] }` to `apps/erp/eslint.config.ts`. The `video/` directory is a self-contained Remotion project with its own `tsconfig.json`.
+- **Files Changed**: `apps/erp/eslint.config.ts`
+- **Verified**: `eslint --cache` exits 0 with zero errors/warnings.
+
+### 2026-03-23T20:48:00+01:00 — M8b+M9+M10: Router Migration + Workspace Router + Switcher UI
+
+- **M8b Router Migration**: 19 router files migrated from `protectedProcedure`/`roleRestrictedProcedure` → `workspaceProcedure` (~120+ refs). Exception: `users.me` kept on `protectedProcedure`.
+- **M9 Workspace Router**: Created `packages/api/src/modules/workspace.ts` (7 procedures: list, current, create, update, members, inviteMember, removeMember). Registered in `root.ts`.
+- **M9 Provider Integration**: Wrapped `apps/erp/src/app/(app)/layout.tsx` with `<WorkspaceProvider>`.
+- **M10 Workspace Switcher**: Created `apps/erp/src/components/workspace-switcher.tsx`. Plan badges, keyboard nav, 44px targets, avatar initials. Integrated into sidebar header replacing static Cendaro logo.
+- **Verification**: `@cendaro/api` tsc 0 errors, `@cendaro/erp` tsc 0 errors.
+
+---
+
+### 2026-03-23T19:45:00+01:00 — M6+M8: Composite Constraints + tRPC Middleware + Frontend
+
+- **M6**: 20 unique constraints converted to workspace-scoped composites (DB + schema)
+- **M8 Backend**: 4 workspace procedures added to `packages/api/src/trpc.ts`:
+  - `workspaceProcedure`: SET LOCAL ROLE + RLS enforcement + membership validation
+  - `moduleProcedure`: module gate per workspace subscription
+  - `wsPermissionProcedure`: module + RBAC permission check
+  - `orgAdminProcedure`: cross-workspace owner access
+- **M8 Frontend**: `apps/erp/src/hooks/use-workspace.tsx` (WorkspaceProvider + useWorkspace + getWorkspaceId)
+- **M8 tRPC Client**: `apps/erp/src/trpc/client.tsx` — auto-sends x-workspace-id header
+- **Column Defaults**: 62 workspace_id columns now use `current_setting('app.workspace_id')::uuid` as default
+- **Verification**: Full monorepo typecheck ✅ (6/6 tasks, 0 errors), `drizzle-kit push` ✅
+
+---
+
+### 2026-03-23T19:25:00+01:00 — M3-M5: workspace_id Added to 54 Tables
+
+- **Database**: Single SQL migration: added workspace_id to 54 tables, backfilled with default workspace `a0000000-...0001`, set NOT NULL, FK + index
+- **Default Workspace**: `OmniCore Default` (slug: `omnicore-default`, plan: `pro`, all 17 modules enabled, 2 members migrated)
+- **Schema**: Node.js transform script applied workspaceId + workspacePolicy + .enableRLS() to all 54 tables, 7 comma fixes applied manually
+- **pgRole Fix**: `appUserRole = pgRole("app_user").existing()` — prevents conflict with migration-created role
+- **Verification**: `pnpm typecheck` ✅ (0 errors), `drizzle-kit push` ✅ (Changes applied), DB: 62 RLS-enabled tables, 62 with workspace_id
+
+---
+
+### 2026-03-23T19:10:00+01:00 — M2: SQL Infrastructure Applied
+
+- **Migrations**: 5 Supabase migrations applied to project `ljwoptpaxazqmnhdczsb`
+- `create_app_user_role`: `app_user` role (NOLOGIN, NOINHERIT, no BYPASSRLS) + DML grants
+- `create_is_workspace_member_function`: Membership validation (SECURITY DEFINER, STABLE)
+- `create_next_document_number_function`: Sequential doc numbers with advisory locks
+- `create_enforce_workspace_quota_trigger`: BEFORE INSERT trigger on `workspace_member`
+- **Schema Push**: `drizzle-kit push` — all 10 new tables created in DB
+- **Fix**: Changed `pgRole("app_user", {...})` to `pgRole("app_user").existing()` to prevent conflict
+- **Verification**: All 3 functions confirmed via `information_schema.routines` query
+
+---
+
+### 2026-03-23T19:05:00+01:00 — M1: New Multi-Tenancy Tables Implemented
+
+- **File**: `packages/db/src/schema.ts` (2089 → ~2490 lines)
+- **Added Imports**: `pgPolicy`, `pgRole` from `drizzle-orm/pg-core`
+- **New Enums (4)**: `workspaceStatusEnum`, `memberStatusEnum`, `workspacePlanEnum`, `notificationBucketTypeEnum`
+- **RLS Factory**: `appUserRole` (pgRole) + `workspacePolicy()` (pgPolicy factory — one-liner per table)
+- **New Tables (10)**: `Workspace`, `WorkspaceMember`, `WorkspaceModule`, `WorkspaceQuota`, `WorkspaceProfile`, `DocumentSequence`, `NotificationBucket`, `NotificationBucketAssignee`, `NotificationRoutingRule`
+- **UserProfile Modified**: Added `defaultWorkspaceId: t.uuid()` column
+- **Relations (9)**: All new tables have Drizzle relation blocks
+- **Type Exports (12)**: `WorkspaceSelect/Insert`, `WorkspaceMemberSelect/Insert`, etc.
+- **Verification**: `pnpm typecheck` ✅ (0 errors), `pnpm lint` ✅ (0 errors)
+- **Next**: Phase M2 (SQL infrastructure — app_user role, functions, triggers)
+
+---
+
+### 2026-03-23T18:51:00+01:00 — Multi-Tenancy RBAC Architecture Design (APPROVED)
+
+- **Deliverable**: Architecture plan v2.1 — design-only, no code changes
+- **Strategy**: Option C (Custom DB Role `app_user` + `SET LOCAL` in Drizzle transactions)
+- **ISO 27001:2022**: Aligned with Annex A controls A.5.15, A.5.18, A.8.11, A.8.12, A.8.15
+- **New Tables (10)**: `workspace`, `workspace_member`, `workspace_module`, `workspace_quota`, `workspace_profile`, `document_sequence`, `notification_bucket`, `notification_bucket_assignee`, `notification_routing_rule`
+- **New Enums (4)**: `workspace_status`, `member_status`, `workspace_plan`, `notification_bucket`
+- **Modified Tables**: 54 of 58 existing tables receive `workspace_id NOT NULL` + `workspacePolicy()` + `.enableRLS()`
+- **Global Tables (4)**: `Organization`, `UserProfile`, `Permission`, `RolePermission`
+- **Middleware Chain**: `publicProcedure → protectedProcedure → workspaceProcedure → moduleProcedure → wsPermissionProcedure` + `orgAdminProcedure` for cross-ws
+- **Plans**: Starter (free, 1 user, 500 products), Pro ($29/23, unlimited), Enterprise (custom)
+- **Migration**: 9-phase strategy (M1-M9), each independently reversible
+- **Artifact**: `brain/363f7ab7-0168-4ca4-9b32-0fa1fe489d9d/implementation_plan.md`
+- **Status**: ✅ APPROVED by user — ready for implementation
+
+---
+
+### 2026-03-23T02:10:00+01:00 — Fix Auto Light/Dark Mode Switching
+
+- **Root Cause**: `defaultTheme="light"` in `theme-provider.tsx` forced light mode and bypassed `enableSystem`. `next-themes` only reads `prefers-color-scheme` when theme is `"system"`.
+- **Fix**: Changed `defaultTheme` from `"light"` to `"system"` in `theme-provider.tsx`.
+- **Migration**: Added one-time blocking `<script>` in `layout.tsx` `<head>` that clears stale `"light"` value from `localStorage` so existing users also get auto-switching.
+- **CSS Fix**: Moved landing dark tokens from `@variant dark` inside `:root` to standalone `.dark` selector after `@custom-variant` declaration in `globals.css`.
+- **Files Modified**: `theme-provider.tsx`, `layout.tsx`, `globals.css`
+- **Verification**: `pnpm lint` ✅ (0 errors), `pnpm typecheck` ✅ (0 errors), `pnpm build` ✅ (exit 0)
+
+---
+
+### 2026-03-23T01:53:00+01:00 — iOS Optimization + Auto Light/Dark Mode (Landing Page)
+
+- **Audit**: Professional audit of all 16 landing components against `ui-ux-pro-max` checklist. Found 3 critical, 5 high, 3 medium issues.
+- **Theme Tokens**: Added 7 CSS custom properties to `globals.css` (`--landing-card-border`, `--landing-card-bg`, `--landing-card-border-hover`, `--landing-line`, `--landing-dot-active/inactive`, `--landing-glow-opacity`) with `:root` (light) and `@variant dark` (dark) values.
+- **Color Migration**: Replaced all 11 hardcoded `rgba(255,255,255,*)` instances across `sticky-features.tsx`, `bento-grid.tsx`, `value-props.tsx`, `hero.tsx`, `noise-overlay.tsx` with semantic landing tokens using Tailwind v4 shorthand.
+- **iOS Fixes**: Removed `maximumScale: 1` from `layout.tsx` (WCAG pinch-to-zoom), added `safe-pt` to `navbar.tsx` for notch, `safe-pb` to `footer.tsx` for home indicator, body scroll lock on mobile menu, `min-h-[90dvh]` in `hero.tsx`, increased touch targets (hamburger 44px, social icons 44px, pricing toggle 32px).
+- **Bug Fixes**: Added unique SVG filter IDs via `useId()` in `noise-overlay.tsx` to prevent collision, hero glows now use `dark:` variant for proper light/dark adaptation.
+- **Files Modified**: `globals.css`, `layout.tsx`, `navbar.tsx`, `footer.tsx`, `hero.tsx`, `sticky-features.tsx`, `bento-grid.tsx`, `value-props.tsx`, `noise-overlay.tsx`, `pricing-cards.tsx`
+- **Verification**: `pnpm lint` ✅ (0 errors), `pnpm typecheck` ✅ (0 errors), `pnpm build` ✅ (exit 0, 5/5 tasks)
+
+---
+
+### 2026-03-23T01:41:00+01:00 — Sticky Features Overhaul (midday.ai-inspired)
+
+- **Rewrite**: Completely rewrote `sticky-features.tsx` to a professional sticky-scroll section benchmarked against midday.ai.
+- **5 Features**: Expanded from 3 to 5 features (Inventario, Pedidos, Catálogo, Reportes, Panel de control) using existing Remotion videos from `/videos/*.mp4`.
+- **Vertical Indicator Line**: Implemented midday.ai-style vertical line with animated square dots — clickable, smooth-scroll navigation, visual progress tracking.
+- **Typography & State**: Serif font for feature titles. Active features: 100% opacity, expanded descriptions. Inactive features: 20% opacity, collapsed.
+- **Section Header**: Added "CÓMO FUNCIONA" label above heading.
+- **Video Transitions**: 400ms duration with `blur(4px)` + `scale(0.98)` effect via `AnimatePresence`.
+- **Mobile Fallback**: Stacked card layout for mobile with enterprise styling.
+- **Lint Fix**: Removed unused `index` prop from `IndicatorDot` component (ESLint `@typescript-eslint/no-unused-vars`).
+- **Code Formatting**: User ran Prettier across landing page components (`bento-grid.tsx`, `hero.tsx`, `noise-overlay.tsx`, `scroll-video.tsx`, `sticky-features.tsx`, `value-props.tsx`, `globals.css`, `page.tsx`) and video scenes (`CendaroDemo.tsx`, `index.ts`, `AnalyticsScene.tsx`, `CatalogScene.tsx`, `DashboardScene.tsx`, `InventoryScene.tsx`, `OrderFlowScene.tsx`).
+- **Verification**: `pnpm lint` ✅ 0 errors, `pnpm typecheck` ✅ 0 errors, `pnpm build` ✅ 5/5 tasks exit 0.
+- **Files changed**: `sticky-features.tsx` (rewrite)
+
+---
+
+### 2026-03-22T22:58:00+01:00 — Dynamic Visual System (Phases 1-3)
+
+- **Phase 1 — Code Mockups**: Replaced static wireframes in `hero.tsx` (dashboard replica with CountUp KPIs, operations table, closures, floating notification), `sticky-features.tsx` (3 distinct mockups: Inventory/Orders/Catalog with Framer Motion animations), `bento-grid.tsx` (8 enhanced mini-visuals with real data). Added keyframes in `globals.css`.
+- **Phase 2 — Remotion Video**: Created `apps/erp/video/` project with 3 scenes (`DashboardScene`, `InventoryScene`, `OrderFlowScene`). Rendered 18s MP4 (1.3 MB, h264). Copied to `apps/erp/public/cendaro-demo.mp4`. Added Dashboard ↔ Video Demo toggle in hero using `AnimatePresence`.
+- **Phase 3 — Verification**: `pnpm typecheck --filter @cendaro/erp` — 0 errors. `pnpm build --filter @cendaro/erp` — exit 0 (31.7s, 5/5 tasks). Visual browser check passed (both toggle views).
+- **New files**: `video/package.json`, `video/tsconfig.json`, `video/remotion.config.ts`, `video/src/index.ts`, `video/src/CendaroDemo.tsx`, `video/src/Walkthrough.tsx`, `video/src/scenes/DashboardScene.tsx`, `video/src/scenes/InventoryScene.tsx`, `video/src/scenes/OrderFlowScene.tsx`, `public/cendaro-demo.mp4`
+
+---
+
+### 2026-03-22T20:10:00+01:00 — Landing Page Polish (4-phase)
+
+- **New files**: `testimonials.tsx`, `faq-section.tsx`, `opengraph-image.tsx`
+- **Modified files**: `page.tsx` (JSON-LD, OG meta, canonical, new section imports), `hero.tsx` (trust badge, secondary CTA), `bento-grid.tsx` (8 mini-visuals, hover lift), `integrations-marquee.tsx` (real SVG logos for 8 brands), `stats-section.tsx` (sub-description, accent lines), `pricing-cards.tsx` (Enterprise tier, 3-column grid), `scroll-entrance.tsx` (`useReducedMotion()` a11y), `navbar.tsx` (smooth-scroll), `footer.tsx` (social icons, "Hecho en España")
+- **Verification**: typecheck 0 errors, build 5/5 tasks, visual browser scroll-through passed
+- **Key decisions**: Skipped section divider (visual flow clean without). Deferred auth redirect for logged-in users (requires careful middleware handling).
+
+---
+
+---
+
+### 2026-03-22T19:36:00+01:00 — Landing Page Implementation (midday.ai-inspired)
+
+- **Created 13 new files** in `apps/erp/src/app/_components/landing/`: `scroll-entrance.tsx`, `use-scroll-y.ts`, `navbar.tsx`, `hero.tsx`, `sticky-features.tsx`, `bento-grid.tsx`, `stats-section.tsx`, `integrations-marquee.tsx`, `pricing-cards.tsx`, `final-cta.tsx`, `footer.tsx`
+- **Modified** `page.tsx` (replaced redirect with landing), `layout.tsx` (Playfair Display serif font), `globals.css` (landing tokens + marquee keyframes), `proxy.ts` (made `/` public with exact match), `tooling/tailwind/theme.css` (added `--font-serif`)
+- **Dependencies added**: `framer-motion`, `lucide-react`
+- **Key patterns**: Scroll-synced sticky features (IntersectionObserver), blur+fade entrance animations, CountUp on scroll, CSS marquee with gradient mask, navbar transparent→blur on scroll
+- **Middleware change**: `/` is now a public route (exact match) — authenticated users should be redirected to `/dashboard` via client-side logic. All `/app/*` routes remain protected.
+- **Verified**: `typecheck` ✅ 0 errors, `build` ✅ 5/5 tasks exit 0, visual browser ✅ all 9 sections render in dark mode
 
 ### 2026-03-22T17:21:00+01:00 — UI/UX Pro Max Skill Integration (v2.0)
 

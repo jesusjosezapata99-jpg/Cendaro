@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
+import { Inter, Playfair_Display } from "next/font/google";
 import Script from "next/script";
 import { Toaster } from "sonner";
 
@@ -11,6 +11,13 @@ const inter = Inter({
   subsets: ["latin"],
   display: "swap",
   variable: "--font-sans",
+});
+
+const playfair = Playfair_Display({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-serif",
+  weight: ["400", "500", "600"],
 });
 
 export const metadata: Metadata = {
@@ -26,7 +33,6 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
   viewportFit: "cover",
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#ffffff" },
@@ -57,9 +63,16 @@ export default function RootLayout({
           href="https://fonts.gstatic.com"
           crossOrigin="anonymous"
         />
+        {/* One-time migration: clear stale "light" default so next-themes re-detects system preference.
+             Safe to remove after all existing users have revisited (e.g. 2026-Q2). */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{var k="cendaro-theme",v=localStorage.getItem(k);if(v==='"light"'||v==="light")localStorage.removeItem(k)}catch(e){}`,
+          }}
+        />
       </head>
       <body
-        className={`${inter.variable} bg-background text-foreground font-sans antialiased`}
+        className={`${inter.variable} ${playfair.variable} bg-background text-foreground font-sans antialiased`}
       >
         <ThemeProvider>{children}</ThemeProvider>
         <Toaster richColors position="top-right" />

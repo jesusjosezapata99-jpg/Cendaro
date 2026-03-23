@@ -7,6 +7,7 @@ import type { UserRole } from "@cendaro/validators";
 import { cn } from "@cendaro/ui";
 
 import { hasRole } from "~/components/role-guard";
+import { WorkspaceSwitcher } from "~/components/workspace-switcher";
 import { useCurrentUser } from "~/hooks/use-current-user";
 
 interface NavItem {
@@ -196,27 +197,16 @@ export function Sidebar({ open, onClose }: SidebarProps) {
           open ? "translate-x-0" : "-translate-x-full",
         )}
       >
-        {/* Logo */}
-        <div className="border-sidebar-border safe-pt flex h-14 items-center justify-between border-b px-5">
-          <div className="flex items-center gap-3">
-            <div className="bg-primary text-primary-foreground flex size-8 items-center justify-center rounded-lg">
-              <span className="material-symbols-outlined text-lg">
-                rocket_launch
-              </span>
-            </div>
-            <div>
-              <h1 className="text-sidebar-primary text-sm font-bold tracking-tight">
-                Cendaro
-              </h1>
-              <p className="text-muted-foreground text-[10px] font-semibold tracking-widest uppercase">
-                ERP Omnicanal
-              </p>
-            </div>
+        {/* Workspace Switcher */}
+        <div className="border-sidebar-border safe-pt flex items-center justify-between border-b px-3 py-2">
+          <div className="min-w-0 flex-1">
+            <WorkspaceSwitcher />
           </div>
-          {/* Close — 44px touch target */}
+          {/* Close — 44px touch target (mobile only) */}
           <button
             onClick={onClose}
-            className="text-muted-foreground hover:bg-sidebar-accent flex size-11 items-center justify-center rounded-lg lg:hidden"
+            className="text-muted-foreground hover:bg-sidebar-accent flex size-11 shrink-0 items-center justify-center rounded-lg lg:hidden"
+            aria-label="Cerrar menú lateral"
           >
             <span className="material-symbols-outlined text-xl">close</span>
           </button>

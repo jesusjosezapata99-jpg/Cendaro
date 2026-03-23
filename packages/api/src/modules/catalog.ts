@@ -20,18 +20,14 @@ import {
   Supplier,
 } from "@cendaro/db/schema";
 
-import {
-  createTRPCRouter,
-  protectedProcedure,
-  roleRestrictedProcedure,
-} from "../trpc";
+import { createTRPCRouter, workspaceProcedure } from "../trpc";
 import { logAudit } from "./audit";
 
 export const catalogRouter = createTRPCRouter({
   // ─── Products ────────────────────────────────
 
   /** List products with search, filters, and pagination */
-  listProducts: protectedProcedure
+  listProducts: workspaceProcedure
     .input(
       z.object({
         limit: z.number().int().min(1).max(100).default(25),
@@ -93,7 +89,7 @@ export const catalogRouter = createTRPCRouter({
     }),
 
   /** Get product by ID with relations */
-  productById: protectedProcedure
+  productById: workspaceProcedure
     .input(z.object({ id: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       const [product] = await ctx.db
@@ -134,7 +130,7 @@ export const catalogRouter = createTRPCRouter({
     }),
 
   /** Create product — catalog-level only (owner, admin, supervisor) */
-  createProduct: roleRestrictedProcedure(["owner", "admin", "supervisor"])
+  createProduct: workspaceProcedure
     .input(
       z.object({
         sku: z.string().min(1).max(64),
@@ -175,7 +171,7 @@ export const catalogRouter = createTRPCRouter({
       return product;
     }),
 
-  updateProduct: roleRestrictedProcedure(["owner", "admin", "supervisor"])
+  updateProduct: workspaceProcedure
     .input(
       z.object({
         id: z.string().uuid(),
@@ -213,11 +209,11 @@ export const catalogRouter = createTRPCRouter({
 
   // ─── Brands ──────────────────────────────────
 
-  listBrands: protectedProcedure.query(async ({ ctx }) => {
+  listBrands: workspaceProcedure.query(async ({ ctx }) => {
     return ctx.db.select().from(Brand).orderBy(Brand.name).limit(200);
   }),
 
-  createBrand: roleRestrictedProcedure(["owner", "admin", "supervisor"])
+  createBrand: workspaceProcedure
     .input(
       z.object({
         name: z.string().min(1).max(256),
@@ -239,7 +235,7 @@ export const catalogRouter = createTRPCRouter({
 
   // ─── Categories ──────────────────────────────
 
-  listCategories: protectedProcedure.query(async ({ ctx }) => {
+  listCategories: workspaceProcedure.query(async ({ ctx }) => {
     return ctx.db
       .select()
       .from(Category)
@@ -247,7 +243,7 @@ export const catalogRouter = createTRPCRouter({
       .limit(500);
   }),
 
-  createCategory: roleRestrictedProcedure(["owner", "admin", "supervisor"])
+  createCategory: workspaceProcedure
     .input(
       z.object({
         name: z.string().min(1).max(256),
@@ -277,11 +273,11 @@ export const catalogRouter = createTRPCRouter({
 
   // ─── Suppliers ───────────────────────────────
 
-  listSuppliers: protectedProcedure.query(async ({ ctx }) => {
+  listSuppliers: workspaceProcedure.query(async ({ ctx }) => {
     return ctx.db.select().from(Supplier).orderBy(Supplier.name).limit(200);
   }),
 
-  createSupplier: roleRestrictedProcedure(["owner", "admin", "supervisor"])
+  createSupplier: workspaceProcedure
     .input(
       z.object({
         name: z.string().min(1).max(256),
@@ -309,7 +305,7 @@ export const catalogRouter = createTRPCRouter({
 
   // ─── Product Prices ──────────────────────────
 
-  setPrice: roleRestrictedProcedure(["owner", "admin", "supervisor"])
+  setPrice: workspaceProcedure
     .input(
       z.object({
         productId: z.string().uuid(),
@@ -346,7 +342,7 @@ export const catalogRouter = createTRPCRouter({
 
   // ─── Product Attributes ──────────────────────
 
-  setAttributes: roleRestrictedProcedure(["owner", "admin", "supervisor"])
+  setAttributes: workspaceProcedure
     .input(
       z.object({
         productId: z.string().uuid(),

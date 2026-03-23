@@ -19,7 +19,7 @@ import {
   Warehouse,
 } from "@cendaro/db/schema";
 
-import { createTRPCRouter, roleRestrictedProcedure } from "../trpc";
+import { createTRPCRouter, workspaceProcedure } from "../trpc";
 import { logAudit } from "./audit";
 
 // ── Import Mode ───────────────────────────────────
@@ -184,11 +184,7 @@ export const inventoryImportRouter = createTRPCRouter({
    *
    * RBAC: owner, admin, supervisor (PRD §4)
    */
-  getWarehouseProducts: roleRestrictedProcedure([
-    "owner",
-    "admin",
-    "supervisor",
-  ])
+  getWarehouseProducts: workspaceProcedure
     .input(z.object({ warehouseId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       const rows = await ctx.db.execute<{
@@ -236,7 +232,7 @@ export const inventoryImportRouter = createTRPCRouter({
    *
    * RBAC: owner, admin only (PRD §4)
    */
-  commit: roleRestrictedProcedure(["owner", "admin"])
+  commit: workspaceProcedure
     .input(inventoryImportCommitSchema)
     .mutation(async ({ ctx, input }) => {
       // 1. Validate warehouse exists and is active
@@ -457,7 +453,7 @@ export const inventoryImportRouter = createTRPCRouter({
    *
    * RBAC: owner, admin only
    */
-  initializeCommit: roleRestrictedProcedure(["owner", "admin"])
+  initializeCommit: workspaceProcedure
     .input(initializeCommitSchema)
     .mutation(async ({ ctx, input }) => {
       // 1. Validate warehouse exists and is active

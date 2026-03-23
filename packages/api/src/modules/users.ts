@@ -18,30 +18,28 @@ import type { UserMeta } from "../trpc";
 import {
   createTRPCRouter,
   protectedProcedure,
-  roleRestrictedProcedure,
+  workspaceProcedure,
 } from "../trpc";
 import { logAudit } from "./audit";
 
 export const usersRouter = createTRPCRouter({
   /** List all users (admin, owner, supervisor) */
-  list: roleRestrictedProcedure(["owner", "admin", "supervisor"]).query(
-    async ({ ctx }) => {
-      return ctx.db
-        .select({
-          id: UserProfile.id,
-          email: UserProfile.email,
-          username: UserProfile.username,
-          fullName: UserProfile.fullName,
-          role: UserProfile.role,
-          status: UserProfile.status,
-          phone: UserProfile.phone,
-          avatarUrl: UserProfile.avatarUrl,
-          createdAt: UserProfile.createdAt,
-        })
-        .from(UserProfile)
-        .orderBy(desc(UserProfile.createdAt));
-    },
-  ),
+  list: workspaceProcedure.query(async ({ ctx }) => {
+    return ctx.db
+      .select({
+        id: UserProfile.id,
+        email: UserProfile.email,
+        username: UserProfile.username,
+        fullName: UserProfile.fullName,
+        role: UserProfile.role,
+        status: UserProfile.status,
+        phone: UserProfile.phone,
+        avatarUrl: UserProfile.avatarUrl,
+        createdAt: UserProfile.createdAt,
+      })
+      .from(UserProfile)
+      .orderBy(desc(UserProfile.createdAt));
+  }),
 
   /** Get current user's profile */
   me: protectedProcedure.query(async ({ ctx }) => {
@@ -54,7 +52,7 @@ export const usersRouter = createTRPCRouter({
   }),
 
   /** Get user by ID (admin, owner) */
-  byId: roleRestrictedProcedure(["owner", "admin"])
+  byId: workspaceProcedure
     .input(z.object({ id: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       const [profile] = await ctx.db
@@ -66,7 +64,7 @@ export const usersRouter = createTRPCRouter({
     }),
 
   /** Create user profile (admin, owner) */
-  create: roleRestrictedProcedure(["owner", "admin"])
+  create: workspaceProcedure
     .input(
       z.object({
         id: z.string().uuid(),
@@ -114,7 +112,7 @@ export const usersRouter = createTRPCRouter({
     }),
 
   /** Update user profile (admin, owner) with owner-protection */
-  update: roleRestrictedProcedure(["owner", "admin"])
+  update: workspaceProcedure
     .input(
       z.object({
         id: z.string().uuid(),

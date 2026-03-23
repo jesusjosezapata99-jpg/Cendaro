@@ -16,6 +16,7 @@ import { reportingRouter } from "./modules/reporting";
 import { salesRouter } from "./modules/sales";
 import { usersRouter } from "./modules/users";
 import { vendorRouter } from "./modules/vendors";
+import { workspaceRouter } from "./modules/workspace";
 import { createTRPCRouter } from "./trpc";
 
 export const appRouter = createTRPCRouter({
@@ -37,6 +38,7 @@ export const appRouter = createTRPCRouter({
   integrations: integrationsRouter,
   dashboard: dashboardRouter,
   health: healthRouter,
+  workspace: workspaceRouter,
 });
 
 export type AppRouter = typeof appRouter;

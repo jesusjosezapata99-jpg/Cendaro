@@ -13,6 +13,7 @@ import { createTRPCContext } from "@trpc/tanstack-react-query";
 
 import type { AppRouter } from "@cendaro/api";
 
+import { getWorkspaceId } from "~/hooks/use-workspace";
 import { getQueryClient } from "./query-client";
 import { getUrl, transformer } from "./shared";
 
@@ -30,6 +31,10 @@ function makeTRPCClient() {
         headers: () => {
           const headers = new Headers();
           headers.set("x-trpc-source", "nextjs-react");
+          const wsId = getWorkspaceId();
+          if (wsId) {
+            headers.set("x-workspace-id", wsId);
+          }
           return headers;
         },
       }),
