@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -52,11 +53,13 @@ export function Navbar() {
             className="text-foreground flex items-center gap-2"
             aria-label="Cendaro — Ir al inicio"
           >
-            <div className="bg-primary flex h-8 w-8 items-center justify-center rounded-lg">
-              <span className="text-primary-foreground text-sm font-bold">
-                C
-              </span>
-            </div>
+            <Image
+              src="/cendaro-logo.png"
+              alt="Cendaro"
+              width={32}
+              height={32}
+              className="h-8 w-8"
+            />
             <span className="text-lg font-semibold tracking-tight">
               Cendaro
             </span>

@@ -7,10 +7,19 @@
 
 ## Session Registry
 
-- **Total agent sessions**: 56
-- **Last Modified By**: Antigravity Agent — 2026-03-23T22:53:00+01:00
+- **Total agent sessions**: 57
+- **Last Modified By**: Antigravity Agent — 2026-03-23T23:31:00+01:00
 
 ---
+
+### 2026-03-23T23:31:00+01:00 — Logo Audit & Replacement (Transparent PNG)
+
+- **Scope**: Professional audit of all logo references across the monorepo. Created transparent PNG from user-provided logo (rembg + numpy flood-fill). Replaced 4 instances of generic "C-in-blue-box" placeholder with real `cendaro-logo.png`.
+- **Logo Processing**: Cropped Gemini watermark, flood-fill background removal (scipy `ndimage.label` for border-connected dark pixels only), auto-trimmed to content (1150×1122 RGBA).
+- **Files Changed**: `navbar.tsx` (added `next/image` import + `<Image>` 32×32), `footer.tsx` (added `next/image` import + `<Image>` 24×24), `login/page.tsx` (added `next/image` import + `<Image>` 64×64, removed gradient box), `opengraph-image.tsx` (replaced blue rect with `<img>` URL reference).
+- **New File**: `apps/erp/public/cendaro-logo.png` (transparent RGBA PNG)
+- **Not Changed**: `final-cta.tsx` (text watermark, intentional), `workspace-switcher.tsx` (uses dynamic workspace initials)
+- **Verification**: `pnpm typecheck` ✅ 0 errors, `pnpm build` ✅ exit 0
 
 ### 2026-03-23T22:53:00+01:00 — Multi-Tenant Implementation Completion
 

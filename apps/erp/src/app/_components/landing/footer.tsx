@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 
 const footerLinks = {
@@ -80,11 +81,13 @@ export function Footer() {
         <div className="border-border safe-pb mt-16 flex flex-col items-center justify-between gap-6 border-t pt-8 md:flex-row">
           {/* Logo + copyright */}
           <div className="flex items-center gap-2">
-            <div className="bg-primary flex h-6 w-6 items-center justify-center rounded">
-              <span className="text-primary-foreground text-[9px] font-bold">
-                C
-              </span>
-            </div>
+            <Image
+              src="/cendaro-logo.png"
+              alt="Cendaro"
+              width={24}
+              height={24}
+              className="h-6 w-6"
+            />
             <span className="text-muted-foreground text-sm">
               © {new Date().getFullYear()} Cendaro. Todos los derechos
               reservados.
