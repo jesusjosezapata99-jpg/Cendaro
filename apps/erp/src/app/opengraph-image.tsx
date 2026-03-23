@@ -36,22 +36,13 @@ export default function OGImage() {
       />
 
       {/* Logo */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          width: "64px",
-          height: "64px",
-          borderRadius: "16px",
-          backgroundColor: "rgb(59, 130, 246)",
-          marginBottom: "24px",
-        }}
-      >
-        <span style={{ fontSize: "32px", fontWeight: 800, color: "#fff" }}>
-          C
-        </span>
-      </div>
+      <img
+        src={new URL("/cendaro-logo.png", "https://cendaro.com").toString()}
+        alt="Cendaro"
+        width={64}
+        height={64}
+        style={{ marginBottom: "24px" }}
+      />
 
       {/* Headline */}
       <h1

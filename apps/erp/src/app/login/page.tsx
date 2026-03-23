@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
@@ -60,8 +61,15 @@ export default function LoginPage() {
       <div className="relative z-10 w-full max-w-[420px]">
         {/* Logo & Brand */}
         <div className="mb-10 text-center">
-          <div className="group from-primary to-primary/80 text-primary-foreground shadow-primary/20 mx-auto mb-5 flex size-16 items-center justify-center rounded-2xl bg-linear-to-br shadow-xl transition-transform duration-300 hover:scale-105">
-            <span className="text-2xl font-black tracking-tighter">C</span>
+          <div className="shadow-primary/20 mx-auto mb-5 flex size-16 items-center justify-center transition-transform duration-300 hover:scale-105">
+            <Image
+              src="/cendaro-logo.png"
+              alt="Cendaro"
+              width={64}
+              height={64}
+              className="size-16"
+              priority
+            />
           </div>
           <h1 className="text-foreground text-[1.75rem] font-black tracking-tight">
             Cendaro
