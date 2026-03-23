@@ -10,7 +10,9 @@ import {
   Users,
 } from "lucide-react";
 
+import { NoiseOverlay } from "./noise-overlay";
 import { ScrollEntrance, StaggerGroup, StaggerItem } from "./scroll-entrance";
+import { ScrollVideo } from "./scroll-video";
 
 interface Feature {
   icon: LucideIcon;
@@ -87,78 +89,96 @@ const features: Feature[] = [
   },
 ];
 
-/* Mini-visual illustrations for each card */
+/* Mini-visual illustrations for each card — enhanced */
 function MiniVisual({ type }: { type: Feature["visual"] }) {
-  const base = "mt-4 flex items-end gap-1";
-
   switch (type) {
     case "chart":
       return (
-        <div className={base} aria-hidden="true">
-          {[35, 55, 40, 70, 50, 85, 65, 80, 55, 90, 70, 75].map((h, i) => (
-            <div
-              key={i}
-              className="bg-primary/15 group-hover:bg-primary/25 flex-1 rounded-t transition-colors duration-300"
-              style={{ height: `${h * 0.5}px` }}
-            />
-          ))}
+        <div className="mt-4 overflow-hidden rounded-lg" aria-hidden="true">
+          <ScrollVideo
+            src="/videos/analytics-flow.mp4"
+            className="w-full rounded-lg"
+          />
         </div>
       );
     case "stock":
       return (
         <div className="mt-4 space-y-1.5" aria-hidden="true">
-          {[85, 42, 67].map((w, i) => (
-            <div key={i} className="flex items-center gap-2">
-              <div
-                className={`h-2 rounded-full transition-colors duration-300 ${
-                  w > 60
-                    ? "bg-emerald-500/30 group-hover:bg-emerald-500/50"
-                    : "bg-amber-500/30 group-hover:bg-amber-500/50"
-                }`}
-                style={{ width: `${w}%` }}
-              />
-              <span className="text-muted-foreground/50 text-[9px] tabular-nums">
-                {w}%
-              </span>
+          {[
+            { name: "Detergente 1L", pct: 85, color: "emerald" },
+            { name: "Jabón Antibact.", pct: 42, color: "amber" },
+            { name: "Cloro 2L", pct: 12, color: "red" },
+          ].map((item) => (
+            <div key={item.name}>
+              <div className="text-muted-foreground/40 flex justify-between text-[10px]">
+                <span>{item.name}</span>
+                <span className="tabular-nums">{item.pct}%</span>
+              </div>
+              <div className="bg-muted-foreground/5 mt-0.5 h-1.5 overflow-hidden rounded-full">
+                <div
+                  className={`h-full rounded-full transition-all duration-300 ${
+                    item.color === "emerald"
+                      ? "bg-emerald-500/40 group-hover:bg-emerald-500/60"
+                      : item.color === "amber"
+                        ? "bg-amber-500/40 group-hover:bg-amber-500/60"
+                        : "bg-red-500/40 group-hover:bg-red-500/60"
+                  }`}
+                  style={{ width: `${item.pct}%` }}
+                />
+              </div>
             </div>
           ))}
         </div>
       );
     case "steps":
       return (
-        <div className="mt-4 flex items-center gap-1.5" aria-hidden="true">
-          {["Creado", "Prep.", "Envío", "✓"].map((s, i) => (
+        <div className="mt-4 flex items-center gap-1" aria-hidden="true">
+          {[
+            { label: "Nuevo", active: true, color: "bg-blue-500" },
+            { label: "Prep.", active: true, color: "bg-amber-500" },
+            { label: "Envío", active: true, color: "bg-violet-500" },
+            { label: "✓", active: false, color: "bg-emerald-500" },
+          ].map((s, i) => (
             <div key={i} className="flex flex-1 flex-col items-center gap-1">
               <div
-                className={`h-1.5 w-full rounded-full transition-colors duration-300 ${
-                  i < 3
-                    ? "bg-primary/30 group-hover:bg-primary/50"
+                className={`h-1.5 w-full rounded-full transition-all duration-300 ${
+                  s.active
+                    ? `${s.color}/30 group-hover:${s.color}/50`
                     : "bg-muted-foreground/10"
                 }`}
               />
-              <span className="text-muted-foreground/50 text-[8px]">{s}</span>
+              <span className="text-muted-foreground/50 text-[9px]">
+                {s.label}
+              </span>
             </div>
           ))}
         </div>
       );
     case "users":
       return (
-        <div className="mt-4 flex -space-x-2" aria-hidden="true">
-          {[
-            "bg-blue-500/30",
-            "bg-emerald-500/30",
-            "bg-amber-500/30",
-            "bg-purple-500/30",
-          ].map((c, i) => (
-            <div
-              key={i}
-              className={`border-card text-muted-foreground/60 flex h-7 w-7 items-center justify-center rounded-full border-2 text-[8px] font-bold ${c}`}
-            >
-              {String.fromCharCode(65 + i)}
+        <div className="mt-4" aria-hidden="true">
+          <div className="flex -space-x-2">
+            {[
+              { initial: "A", color: "bg-blue-500/30", role: "Admin" },
+              { initial: "M", color: "bg-emerald-500/30", role: "Vendedor" },
+              { initial: "C", color: "bg-amber-500/30", role: "Almacén" },
+              { initial: "R", color: "bg-purple-500/30", role: "Cobros" },
+            ].map((u) => (
+              <div
+                key={u.initial}
+                className={`border-card text-muted-foreground/60 flex h-8 w-8 items-center justify-center rounded-full border-2 text-[10px] font-bold ${u.color}`}
+              >
+                {u.initial}
+              </div>
+            ))}
+            <div className="border-card bg-muted text-muted-foreground/60 flex h-8 w-8 items-center justify-center rounded-full border-2 text-[10px]">
+              +3
             </div>
-          ))}
-          <div className="border-card bg-muted text-muted-foreground/60 flex h-7 w-7 items-center justify-center rounded-full border-2 text-[8px]">
-            +3
+          </div>
+          <div className="text-muted-foreground/30 mt-1 flex gap-3 text-[9px]">
+            <span>4 roles</span>
+            <span>·</span>
+            <span>7 usuarios</span>
           </div>
         </div>
       );
@@ -166,56 +186,97 @@ function MiniVisual({ type }: { type: Feature["visual"] }) {
       return (
         <div className="mt-4 space-y-1" aria-hidden="true">
           {[
-            { label: "#001", status: "Pagada" },
-            { label: "#002", status: "Pendiente" },
-            { label: "#003", status: "Pagada" },
+            {
+              num: "#001",
+              date: "22/03",
+              amount: "$1,240",
+              status: "Pagada",
+              paid: true,
+            },
+            {
+              num: "#002",
+              date: "21/03",
+              amount: "$980",
+              status: "Pendiente",
+              paid: false,
+            },
+            {
+              num: "#003",
+              date: "20/03",
+              amount: "$540",
+              status: "Pagada",
+              paid: true,
+            },
           ].map((inv) => (
             <div
-              key={inv.label}
-              className="bg-muted-foreground/5 flex items-center justify-between rounded px-2 py-1"
+              key={inv.num}
+              className="bg-muted-foreground/5 flex items-center justify-between rounded px-2 py-1.5"
             >
-              <span className="text-muted-foreground/50 text-[9px] tabular-nums">
-                {inv.label}
-              </span>
-              <span
-                className={`text-[8px] font-medium ${
-                  inv.status === "Pagada"
-                    ? "text-emerald-400/60"
-                    : "text-amber-400/60"
-                }`}
-              >
-                {inv.status}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground/60 text-[11px] font-bold tabular-nums">
+                  {inv.num}
+                </span>
+                <span className="text-muted-foreground/30 text-[10px] tabular-nums">
+                  {inv.date}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-foreground/50 text-[11px] font-medium tabular-nums">
+                  {inv.amount}
+                </span>
+                <span
+                  className={`rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${
+                    inv.paid
+                      ? "bg-emerald-500/10 text-emerald-600/70"
+                      : "bg-amber-500/10 text-amber-600/70"
+                  }`}
+                >
+                  {inv.status}
+                </span>
+              </div>
             </div>
           ))}
         </div>
       );
     case "analytics":
       return (
-        <div className="mt-4 flex items-end gap-2" aria-hidden="true">
-          <div className="flex flex-1 flex-col gap-0.5">
-            {[80, 55, 95, 70].map((w, i) => (
-              <div key={i} className="flex items-center gap-1.5">
-                <div
-                  className="bg-primary/20 group-hover:bg-primary/35 h-1.5 rounded-full transition-colors duration-300"
-                  style={{ width: `${w}%` }}
-                />
+        <div className="mt-4 flex items-end gap-3" aria-hidden="true">
+          <div className="flex flex-1 flex-col gap-1">
+            {[
+              { label: "Ventas", pct: 80 },
+              { label: "Cobros", pct: 55 },
+              { label: "Margen", pct: 95 },
+              { label: "Rotación", pct: 70 },
+            ].map((m) => (
+              <div key={m.label} className="flex items-center gap-1.5">
+                <span className="text-muted-foreground/30 w-10 text-right text-[9px]">
+                  {m.label}
+                </span>
+                <div className="flex-1">
+                  <div
+                    className="bg-primary/20 group-hover:bg-primary/35 h-1.5 rounded-full transition-colors duration-300"
+                    style={{ width: `${m.pct}%` }}
+                  />
+                </div>
+                <span className="text-muted-foreground/30 w-6 text-[9px] tabular-nums">
+                  {m.pct}%
+                </span>
               </div>
             ))}
           </div>
           <div className="text-right">
-            <div className="text-primary/60 text-[10px] font-bold">+24%</div>
-            <div className="text-muted-foreground/40 text-[8px]">MoM</div>
+            <div className="text-primary/60 text-[12px] font-bold">+24%</div>
+            <div className="text-muted-foreground/40 text-[10px]">MoM</div>
           </div>
         </div>
       );
     case "ai":
       return (
-        <div className="mt-4 flex flex-wrap gap-1" aria-hidden="true">
-          {["Limpieza", "Hogar", "Textil", "Tech"].map((tag) => (
+        <div className="mt-4 flex flex-wrap gap-1.5" aria-hidden="true">
+          {["✨ Limpieza", "✨ Hogar", "✨ Textil", "✨ Tech"].map((tag) => (
             <span
               key={tag}
-              className="bg-primary/10 text-primary/60 group-hover:bg-primary/20 rounded-full px-2 py-0.5 text-[8px] font-medium transition-colors duration-300"
+              className="bg-primary/10 text-primary/60 group-hover:bg-primary/20 rounded-full px-2.5 py-0.5 text-[10px] font-medium transition-colors duration-300"
             >
               {tag}
             </span>
@@ -224,12 +285,23 @@ function MiniVisual({ type }: { type: Feature["visual"] }) {
       );
     case "catalog":
       return (
-        <div className="mt-4 grid grid-cols-3 gap-1" aria-hidden="true">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div
-              key={i}
-              className="bg-muted-foreground/5 group-hover:bg-muted-foreground/10 aspect-square rounded transition-colors duration-300"
-            />
+        <div className="mt-4 grid grid-cols-3 gap-1.5" aria-hidden="true">
+          {[
+            { color: "bg-blue-500/15", price: "$4.50" },
+            { color: "bg-emerald-500/15", price: "$2.80" },
+            { color: "bg-violet-500/15", price: "$5.20" },
+            { color: "bg-amber-500/15", price: "$3.10" },
+            { color: "bg-cyan-500/15", price: "$1.90" },
+            { color: "bg-rose-500/15", price: "$3.75" },
+          ].map((item, i) => (
+            <div key={i} className="flex flex-col items-center gap-0.5">
+              <div
+                className={`${item.color} aspect-square w-full rounded transition-opacity duration-300 group-hover:opacity-80`}
+              />
+              <span className="text-muted-foreground/30 text-[9px] tabular-nums">
+                {item.price}
+              </span>
+            </div>
           ))}
         </div>
       );
@@ -238,10 +310,11 @@ function MiniVisual({ type }: { type: Feature["visual"] }) {
 
 export function BentoGrid() {
   return (
-    <section className="py-24">
+    <section className="relative py-32">
+      <NoiseOverlay opacity={0.025} />
       <div className="mx-auto max-w-7xl px-6">
         <ScrollEntrance>
-          <h2 className="mx-auto max-w-2xl text-center font-serif text-[clamp(2rem,3.5vw,3rem)] leading-[1.15] tracking-[-0.01em]">
+          <h2 className="mx-auto max-w-2xl text-center font-serif text-[clamp(2rem,3.5vw,3rem)] leading-[1.12] tracking-[-0.02em]">
             Todo lo que necesitas
           </h2>
           <p className="text-muted-foreground mx-auto mt-4 max-w-xl text-center">
@@ -258,7 +331,7 @@ export function BentoGrid() {
               key={feature.title}
               className={`${feature.span === 2 ? "lg:col-span-2" : ""}`}
             >
-              <div className="group border-border bg-card hover:border-muted-foreground/30 hover:shadow-primary/5 flex h-full flex-col rounded-(--radius-card) border p-6 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg">
+              <div className="group hover:shadow-primary/5 flex h-full flex-col rounded-xl border border-[rgba(255,255,255,0.06)] bg-[rgba(255,255,255,0.02)] p-6 transition-all duration-300 hover:-translate-y-0.5 hover:border-[rgba(255,255,255,0.12)] hover:shadow-lg">
                 <feature.icon
                   className="text-primary h-6 w-6"
                   strokeWidth={1.5}
