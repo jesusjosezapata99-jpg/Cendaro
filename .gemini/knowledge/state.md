@@ -7,8 +7,19 @@
 
 ## Session Registry
 
-- **Total agent sessions**: 46
-- **Last Modified By**: Antigravity Agent — 2026-03-23T01:53:00+01:00
+- **Total agent sessions**: 47
+- **Last Modified By**: Antigravity Agent — 2026-03-23T02:10:00+01:00
+
+---
+
+### 2026-03-23T02:10:00+01:00 — Fix Auto Light/Dark Mode Switching
+
+- **Root Cause**: `defaultTheme="light"` in `theme-provider.tsx` forced light mode and bypassed `enableSystem`. `next-themes` only reads `prefers-color-scheme` when theme is `"system"`.
+- **Fix**: Changed `defaultTheme` from `"light"` to `"system"` in `theme-provider.tsx`.
+- **Migration**: Added one-time blocking `<script>` in `layout.tsx` `<head>` that clears stale `"light"` value from `localStorage` so existing users also get auto-switching.
+- **CSS Fix**: Moved landing dark tokens from `@variant dark` inside `:root` to standalone `.dark` selector after `@custom-variant` declaration in `globals.css`.
+- **Files Modified**: `theme-provider.tsx`, `layout.tsx`, `globals.css`
+- **Verification**: `pnpm lint` ✅ (0 errors), `pnpm typecheck` ✅ (0 errors), `pnpm build` ✅ (exit 0)
 
 ---
 
