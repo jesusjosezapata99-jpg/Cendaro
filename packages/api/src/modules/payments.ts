@@ -15,17 +15,13 @@ import {
   SalesOrder,
 } from "@cendaro/db/schema";
 
-import {
-  createTRPCRouter,
-  protectedProcedure,
-  roleRestrictedProcedure,
-} from "../trpc";
+import { createTRPCRouter, workspaceProcedure } from "../trpc";
 import { logAudit } from "./audit";
 
 export const paymentsRouter = createTRPCRouter({
   // ─── Payments ──────────────────────────────────
 
-  list: protectedProcedure
+  list: workspaceProcedure
     .input(
       z.object({
         limit: z.number().int().min(1).max(100).default(50),
@@ -55,7 +51,7 @@ export const paymentsRouter = createTRPCRouter({
         .limit(input.limit);
     }),
 
-  add: protectedProcedure
+  add: workspaceProcedure
     .input(
       z.object({
         orderId: z.string().uuid(),
@@ -88,12 +84,7 @@ export const paymentsRouter = createTRPCRouter({
       return payment;
     }),
 
-  validate: roleRestrictedProcedure([
-    "owner",
-    "admin",
-    "supervisor",
-    "employee",
-  ])
+  validate: workspaceProcedure
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       const [updated] = await ctx.db
@@ -113,7 +104,7 @@ export const paymentsRouter = createTRPCRouter({
 
   // ─── Cash Closure ────────────────────────────────
 
-  listClosures: protectedProcedure.query(async ({ ctx }) => {
+  listClosures: workspaceProcedure.query(async ({ ctx }) => {
     return ctx.db
       .select({
         id: CashClosure.id,
@@ -131,7 +122,7 @@ export const paymentsRouter = createTRPCRouter({
       .limit(100);
   }),
 
-  createClosure: roleRestrictedProcedure(["owner", "admin", "supervisor"])
+  createClosure: workspaceProcedure
     .input(
       z.object({
         closureDate: z.string().datetime(),
@@ -174,7 +165,7 @@ export const paymentsRouter = createTRPCRouter({
       return closure;
     }),
 
-  reviewClosure: roleRestrictedProcedure(["owner", "admin"])
+  reviewClosure: workspaceProcedure
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       const [updated] = await ctx.db

@@ -16,17 +16,13 @@ import {
   SystemAlert,
 } from "@cendaro/db/schema";
 
-import {
-  createTRPCRouter,
-  protectedProcedure,
-  roleRestrictedProcedure,
-} from "../trpc";
+import { createTRPCRouter, workspaceProcedure } from "../trpc";
 import { logAudit } from "./audit";
 
 export const dashboardRouter = createTRPCRouter({
   // ─── KPI Summary (PRD §22) ──────────────────
 
-  salesSummary: protectedProcedure.query(async ({ ctx }) => {
+  salesSummary: workspaceProcedure.query(async ({ ctx }) => {
     // Each sub-query is wrapped individually so a single table failure
     // doesn't crash the entire dashboard endpoint (cascade prevention).
     // Single retry with 1s delay handles Supabase cold-start connection drops.
@@ -115,7 +111,7 @@ export const dashboardRouter = createTRPCRouter({
     };
   }),
 
-  latestClosures: protectedProcedure
+  latestClosures: workspaceProcedure
     .input(z.object({ limit: z.number().int().min(1).max(7).default(5) }))
     .query(async ({ ctx, input }) => {
       return ctx.db
@@ -136,7 +132,7 @@ export const dashboardRouter = createTRPCRouter({
 
   // ─── System Alerts (PRD §23) ─────────────────
 
-  listAlerts: protectedProcedure
+  listAlerts: workspaceProcedure
     .input(
       z.object({
         alertType: z.enum(alertTypeEnum.enumValues).optional(),
@@ -173,7 +169,7 @@ export const dashboardRouter = createTRPCRouter({
       return query.orderBy(desc(SystemAlert.createdAt)).limit(input.limit);
     }),
 
-  activeAlertCount: protectedProcedure.query(async ({ ctx }) => {
+  activeAlertCount: workspaceProcedure.query(async ({ ctx }) => {
     const [result] = await ctx.db
       .select({ count: count(SystemAlert.id) })
       .from(SystemAlert)
@@ -181,7 +177,7 @@ export const dashboardRouter = createTRPCRouter({
     return result?.count ?? 0;
   }),
 
-  dismissAlert: roleRestrictedProcedure(["owner", "admin", "supervisor"])
+  dismissAlert: workspaceProcedure
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       const [updated] = await ctx.db
@@ -203,7 +199,7 @@ export const dashboardRouter = createTRPCRouter({
       return updated;
     }),
 
-  dismissAllByType: roleRestrictedProcedure(["owner", "admin"])
+  dismissAllByType: workspaceProcedure
     .input(z.object({ alertType: z.enum(alertTypeEnum.enumValues) }))
     .mutation(async ({ ctx, input }) => {
       const result = await ctx.db

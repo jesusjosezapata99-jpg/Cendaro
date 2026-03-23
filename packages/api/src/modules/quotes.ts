@@ -16,15 +16,11 @@ import {
   SalesOrder,
 } from "@cendaro/db/schema";
 
-import {
-  createTRPCRouter,
-  protectedProcedure,
-  roleRestrictedProcedure,
-} from "../trpc";
+import { createTRPCRouter, workspaceProcedure } from "../trpc";
 import { logAudit } from "./audit";
 
 export const quotesRouter = createTRPCRouter({
-  list: protectedProcedure
+  list: workspaceProcedure
     .input(
       z.object({
         limit: z.number().int().min(1).max(100).default(25),
@@ -33,7 +29,11 @@ export const quotesRouter = createTRPCRouter({
       }),
     )
     .query(async ({ ctx, input }) => {
-      let query = ctx.db
+      const whereClause = input.status
+        ? eq(Quote.status, input.status)
+        : undefined;
+
+      return ctx.db
         .select({
           id: Quote.id,
           quoteNumber: Quote.quoteNumber,
@@ -45,19 +45,13 @@ export const quotesRouter = createTRPCRouter({
           createdAt: Quote.createdAt,
         })
         .from(Quote)
-        .$dynamic();
-
-      if (input.status) {
-        query = query.where(eq(Quote.status, input.status));
-      }
-
-      return query
+        .where(whereClause)
         .orderBy(desc(Quote.createdAt))
         .limit(input.limit)
         .offset(input.offset);
     }),
 
-  byId: protectedProcedure
+  byId: workspaceProcedure
     .input(z.object({ id: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       const [quote] = await ctx.db
@@ -76,7 +70,7 @@ export const quotesRouter = createTRPCRouter({
       return { ...quote, items };
     }),
 
-  create: roleRestrictedProcedure(["owner", "admin", "supervisor", "employee"])
+  create: workspaceProcedure
     .input(
       z.object({
         customerId: z.string().uuid().optional(),
@@ -144,7 +138,7 @@ export const quotesRouter = createTRPCRouter({
       return quote;
     }),
 
-  updateStatus: roleRestrictedProcedure(["owner", "admin", "supervisor"])
+  updateStatus: workspaceProcedure
     .input(
       z.object({
         id: z.string().uuid(),
@@ -168,12 +162,7 @@ export const quotesRouter = createTRPCRouter({
       return updated;
     }),
 
-  convertToOrder: roleRestrictedProcedure([
-    "owner",
-    "admin",
-    "supervisor",
-    "employee",
-  ])
+  convertToOrder: workspaceProcedure
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       const [quote] = await ctx.db

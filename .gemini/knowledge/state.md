@@ -7,8 +7,88 @@
 
 ## Session Registry
 
-- **Total agent sessions**: 47
-- **Last Modified By**: Antigravity Agent — 2026-03-23T02:10:00+01:00
+- **Total agent sessions**: 53
+- **Last Modified By**: Antigravity Agent — 2026-03-23T20:48:00+01:00
+
+---
+
+### 2026-03-23T20:48:00+01:00 — M8b+M9+M10: Router Migration + Workspace Router + Switcher UI
+
+- **M8b Router Migration**: 19 router files migrated from `protectedProcedure`/`roleRestrictedProcedure` → `workspaceProcedure` (~120+ refs). Exception: `users.me` kept on `protectedProcedure`.
+- **M9 Workspace Router**: Created `packages/api/src/modules/workspace.ts` (7 procedures: list, current, create, update, members, inviteMember, removeMember). Registered in `root.ts`.
+- **M9 Provider Integration**: Wrapped `apps/erp/src/app/(app)/layout.tsx` with `<WorkspaceProvider>`.
+- **M10 Workspace Switcher**: Created `apps/erp/src/components/workspace-switcher.tsx`. Plan badges, keyboard nav, 44px targets, avatar initials. Integrated into sidebar header replacing static Cendaro logo.
+- **Verification**: `@cendaro/api` tsc 0 errors, `@cendaro/erp` tsc 0 errors.
+
+---
+
+### 2026-03-23T19:45:00+01:00 — M6+M8: Composite Constraints + tRPC Middleware + Frontend
+
+- **M6**: 20 unique constraints converted to workspace-scoped composites (DB + schema)
+- **M8 Backend**: 4 workspace procedures added to `packages/api/src/trpc.ts`:
+  - `workspaceProcedure`: SET LOCAL ROLE + RLS enforcement + membership validation
+  - `moduleProcedure`: module gate per workspace subscription
+  - `wsPermissionProcedure`: module + RBAC permission check
+  - `orgAdminProcedure`: cross-workspace owner access
+- **M8 Frontend**: `apps/erp/src/hooks/use-workspace.tsx` (WorkspaceProvider + useWorkspace + getWorkspaceId)
+- **M8 tRPC Client**: `apps/erp/src/trpc/client.tsx` — auto-sends x-workspace-id header
+- **Column Defaults**: 62 workspace_id columns now use `current_setting('app.workspace_id')::uuid` as default
+- **Verification**: Full monorepo typecheck ✅ (6/6 tasks, 0 errors), `drizzle-kit push` ✅
+
+---
+
+### 2026-03-23T19:25:00+01:00 — M3-M5: workspace_id Added to 54 Tables
+
+- **Database**: Single SQL migration: added workspace_id to 54 tables, backfilled with default workspace `a0000000-...0001`, set NOT NULL, FK + index
+- **Default Workspace**: `OmniCore Default` (slug: `omnicore-default`, plan: `pro`, all 17 modules enabled, 2 members migrated)
+- **Schema**: Node.js transform script applied workspaceId + workspacePolicy + .enableRLS() to all 54 tables, 7 comma fixes applied manually
+- **pgRole Fix**: `appUserRole = pgRole("app_user").existing()` — prevents conflict with migration-created role
+- **Verification**: `pnpm typecheck` ✅ (0 errors), `drizzle-kit push` ✅ (Changes applied), DB: 62 RLS-enabled tables, 62 with workspace_id
+
+---
+
+### 2026-03-23T19:10:00+01:00 — M2: SQL Infrastructure Applied
+
+- **Migrations**: 5 Supabase migrations applied to project `ljwoptpaxazqmnhdczsb`
+- `create_app_user_role`: `app_user` role (NOLOGIN, NOINHERIT, no BYPASSRLS) + DML grants
+- `create_is_workspace_member_function`: Membership validation (SECURITY DEFINER, STABLE)
+- `create_next_document_number_function`: Sequential doc numbers with advisory locks
+- `create_enforce_workspace_quota_trigger`: BEFORE INSERT trigger on `workspace_member`
+- **Schema Push**: `drizzle-kit push` — all 10 new tables created in DB
+- **Fix**: Changed `pgRole("app_user", {...})` to `pgRole("app_user").existing()` to prevent conflict
+- **Verification**: All 3 functions confirmed via `information_schema.routines` query
+
+---
+
+### 2026-03-23T19:05:00+01:00 — M1: New Multi-Tenancy Tables Implemented
+
+- **File**: `packages/db/src/schema.ts` (2089 → ~2490 lines)
+- **Added Imports**: `pgPolicy`, `pgRole` from `drizzle-orm/pg-core`
+- **New Enums (4)**: `workspaceStatusEnum`, `memberStatusEnum`, `workspacePlanEnum`, `notificationBucketTypeEnum`
+- **RLS Factory**: `appUserRole` (pgRole) + `workspacePolicy()` (pgPolicy factory — one-liner per table)
+- **New Tables (10)**: `Workspace`, `WorkspaceMember`, `WorkspaceModule`, `WorkspaceQuota`, `WorkspaceProfile`, `DocumentSequence`, `NotificationBucket`, `NotificationBucketAssignee`, `NotificationRoutingRule`
+- **UserProfile Modified**: Added `defaultWorkspaceId: t.uuid()` column
+- **Relations (9)**: All new tables have Drizzle relation blocks
+- **Type Exports (12)**: `WorkspaceSelect/Insert`, `WorkspaceMemberSelect/Insert`, etc.
+- **Verification**: `pnpm typecheck` ✅ (0 errors), `pnpm lint` ✅ (0 errors)
+- **Next**: Phase M2 (SQL infrastructure — app_user role, functions, triggers)
+
+---
+
+### 2026-03-23T18:51:00+01:00 — Multi-Tenancy RBAC Architecture Design (APPROVED)
+
+- **Deliverable**: Architecture plan v2.1 — design-only, no code changes
+- **Strategy**: Option C (Custom DB Role `app_user` + `SET LOCAL` in Drizzle transactions)
+- **ISO 27001:2022**: Aligned with Annex A controls A.5.15, A.5.18, A.8.11, A.8.12, A.8.15
+- **New Tables (10)**: `workspace`, `workspace_member`, `workspace_module`, `workspace_quota`, `workspace_profile`, `document_sequence`, `notification_bucket`, `notification_bucket_assignee`, `notification_routing_rule`
+- **New Enums (4)**: `workspace_status`, `member_status`, `workspace_plan`, `notification_bucket`
+- **Modified Tables**: 54 of 58 existing tables receive `workspace_id NOT NULL` + `workspacePolicy()` + `.enableRLS()`
+- **Global Tables (4)**: `Organization`, `UserProfile`, `Permission`, `RolePermission`
+- **Middleware Chain**: `publicProcedure → protectedProcedure → workspaceProcedure → moduleProcedure → wsPermissionProcedure` + `orgAdminProcedure` for cross-ws
+- **Plans**: Starter (free, 1 user, 500 products), Pro ($29/23, unlimited), Enterprise (custom)
+- **Migration**: 9-phase strategy (M1-M9), each independently reversible
+- **Artifact**: `brain/363f7ab7-0168-4ca4-9b32-0fa1fe489d9d/implementation_plan.md`
+- **Status**: ✅ APPROVED by user — ready for implementation
 
 ---
 

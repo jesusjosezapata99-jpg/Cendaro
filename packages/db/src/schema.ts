@@ -15,7 +15,14 @@
  * All IDs are UUIDv4. All timestamps are `timestamptz`.
  */
 import { relations, sql } from "drizzle-orm";
-import { index, pgEnum, pgTable, unique } from "drizzle-orm/pg-core";
+import {
+  index,
+  pgEnum,
+  pgPolicy,
+  pgRole,
+  pgTable,
+  unique,
+} from "drizzle-orm/pg-core";
 
 // ╔══════════════════════════════════════════════╗
 // ║ ENUMS                                       ║
@@ -274,6 +281,36 @@ export const approvalStatusEnum = pgEnum("approval_status", [
   "expired", // expirado
 ]);
 
+// --- Multi-tenancy enums ---
+
+export const workspaceStatusEnum = pgEnum("workspace_status", [
+  "active",
+  "suspended",
+  "archived",
+]);
+
+export const memberStatusEnum = pgEnum("member_status", [
+  "active",
+  "invited",
+  "suspended",
+  "removed",
+]);
+
+export const workspacePlanEnum = pgEnum("workspace_plan", [
+  "starter",
+  "pro",
+  "enterprise",
+]);
+
+export const notificationBucketTypeEnum = pgEnum("notification_bucket_type", [
+  "finance",
+  "operations",
+  "inventory",
+  "sales",
+  "integrations",
+  "general",
+]);
+
 // --- Sprint 2 enums (Commercial Flow) ---
 
 export const quoteStatusEnum = pgEnum("quote_status", [
@@ -297,6 +334,23 @@ export const installmentStatusEnum = pgEnum("installment_status", [
   "overdue", // vencido
   "partially_paid", // parcialmente pagado
 ]);
+
+// ╔══════════════════════════════════════════════╗
+// ║ RLS INFRASTRUCTURE                           ║
+// ╚══════════════════════════════════════════════╝
+
+/** DB role without BYPASSRLS — created via migration, referenced here for policies. */
+export const appUserRole = pgRole("app_user").existing();
+
+/** One-liner factory: adds workspace isolation RLS to any table with workspace_id. */
+export const workspacePolicy = (tableName: string) =>
+  pgPolicy(`${tableName}_workspace_isolation`, {
+    as: "restrictive",
+    for: "all",
+    to: appUserRole,
+    using: sql`workspace_id = current_setting('app.workspace_id', true)::uuid`,
+    withCheck: sql`workspace_id = current_setting('app.workspace_id', true)::uuid`,
+  });
 
 // ╔══════════════════════════════════════════════╗
 // ║ PHASE 1 — Organization, Identity, RBAC      ║
@@ -330,6 +384,7 @@ export const UserProfile = pgTable(
     username: t.varchar({ length: 128 }).notNull(),
     avatarUrl: t.text(),
     organizationId: t.uuid().references(() => Organization.id),
+    defaultWorkspaceId: t.uuid(), // FK added after Workspace table is defined
     createdAt: t
       .timestamp({ mode: "date", withTimezone: true })
       .defaultNow()
@@ -384,6 +439,11 @@ export const AuditLog = pgTable(
   "audit_log",
   (t) => ({
     id: t.uuid().notNull().primaryKey().defaultRandom(),
+    workspaceId: t
+      .uuid()
+      .notNull()
+      .references(() => Workspace.id)
+      .default(sql`current_setting('app.workspace_id')::uuid`),
     actorId: t.uuid(),
     actorRole: userRoleEnum(),
     actorName: t.varchar({ length: 256 }),
@@ -406,8 +466,230 @@ export const AuditLog = pgTable(
     index("idx_audit_log_entity").on(table.entity, table.entityId),
     index("idx_audit_log_created").on(table.createdAt),
     index("idx_audit_log_action").on(table.action),
+
+    workspacePolicy("audit_log"),
+  ],
+).enableRLS();
+
+// ╔══════════════════════════════════════════════╗
+// ║ MULTI-TENANCY — Workspace Infrastructure    ║
+// ╚══════════════════════════════════════════════╝
+
+export const Workspace = pgTable(
+  "workspace",
+  (t) => ({
+    id: t.uuid().notNull().primaryKey().defaultRandom(),
+    organizationId: t.uuid().references(() => Organization.id),
+    name: t.varchar({ length: 256 }).notNull(),
+    slug: t.varchar({ length: 128 }).notNull(),
+    plan: workspacePlanEnum().notNull().default("starter"),
+    status: workspaceStatusEnum().notNull().default("active"),
+    createdBy: t.uuid().references(() => UserProfile.id),
+    createdAt: t
+      .timestamp({ mode: "date", withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: t
+      .timestamp({ mode: "date", withTimezone: true })
+      .$onUpdateFn(() => sql`now()`),
+  }),
+  (table) => [
+    unique("uq_workspace_slug").on(table.slug),
+    index("idx_workspace_org").on(table.organizationId),
+    index("idx_workspace_status").on(table.status),
+    index("idx_workspace_plan").on(table.plan),
   ],
 );
+
+export const WorkspaceMember = pgTable(
+  "workspace_member",
+  (t) => ({
+    id: t.uuid().notNull().primaryKey().defaultRandom(),
+    workspaceId: t
+      .uuid()
+      .notNull()
+      .references(() => Workspace.id, { onDelete: "cascade" })
+      .default(sql`current_setting('app.workspace_id')::uuid`),
+    userId: t
+      .uuid()
+      .notNull()
+      .references(() => UserProfile.id, { onDelete: "cascade" }),
+    role: userRoleEnum().notNull().default("employee"),
+    status: memberStatusEnum().notNull().default("active"),
+    invitedBy: t.uuid().references(() => UserProfile.id),
+    joinedAt: t
+      .timestamp({ mode: "date", withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  }),
+  (table) => [
+    unique("uq_workspace_member").on(table.workspaceId, table.userId),
+    index("idx_wm_workspace").on(table.workspaceId),
+    index("idx_wm_user").on(table.userId),
+    workspacePolicy("workspace_member"),
+  ],
+).enableRLS();
+
+export const WorkspaceModule = pgTable(
+  "workspace_module",
+  (t) => ({
+    id: t.uuid().notNull().primaryKey().defaultRandom(),
+    workspaceId: t
+      .uuid()
+      .notNull()
+      .references(() => Workspace.id, { onDelete: "cascade" })
+      .default(sql`current_setting('app.workspace_id')::uuid`),
+    module: erpModuleEnum().notNull(),
+    enabledAt: t
+      .timestamp({ mode: "date", withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    enabledBy: t.uuid().references(() => UserProfile.id),
+  }),
+  (table) => [
+    unique("uq_workspace_module").on(table.workspaceId, table.module),
+    index("idx_wsm_workspace").on(table.workspaceId),
+    workspacePolicy("workspace_module"),
+  ],
+).enableRLS();
+
+export const WorkspaceQuota = pgTable(
+  "workspace_quota",
+  (t) => ({
+    id: t.uuid().notNull().primaryKey().defaultRandom(),
+    workspaceId: t
+      .uuid()
+      .notNull()
+      .references(() => Workspace.id, { onDelete: "cascade" })
+      .default(sql`current_setting('app.workspace_id')::uuid`),
+    maxUsers: t.integer().notNull().default(1),
+    maxProducts: t.integer().notNull().default(500),
+    maxCustomers: t.integer().notNull().default(50),
+    maxWarehouses: t.integer().notNull().default(1),
+    maxStorageMb: t.integer().notNull().default(500),
+    maxUsersPerRole: t.jsonb().notNull().default({}),
+  }),
+  (table) => [
+    unique("uq_workspace_quota_ws").on(table.workspaceId),
+    workspacePolicy("workspace_quota"),
+  ],
+).enableRLS();
+
+export const WorkspaceProfile = pgTable(
+  "workspace_profile",
+  (t) => ({
+    id: t.uuid().notNull().primaryKey().defaultRandom(),
+    workspaceId: t
+      .uuid()
+      .notNull()
+      .references(() => Workspace.id, { onDelete: "cascade" })
+      .default(sql`current_setting('app.workspace_id')::uuid`),
+    displayName: t.varchar({ length: 256 }),
+    legalName: t.varchar({ length: 512 }),
+    taxId: t.varchar({ length: 64 }),
+    logoUrl: t.text(),
+    addressLine: t.text(),
+    city: t.varchar({ length: 128 }),
+    state: t.varchar({ length: 128 }),
+    country: t.varchar({ length: 64 }).default("VE"),
+    phone: t.varchar({ length: 32 }),
+    supportEmail: t.varchar({ length: 256 }),
+    baseCurrency: t.varchar({ length: 3 }).notNull().default("USD"),
+    updatedAt: t
+      .timestamp({ mode: "date", withTimezone: true })
+      .$onUpdateFn(() => sql`now()`),
+  }),
+  (table) => [
+    unique("uq_workspace_profile_ws").on(table.workspaceId),
+    workspacePolicy("workspace_profile"),
+  ],
+).enableRLS();
+
+export const DocumentSequence = pgTable(
+  "document_sequence",
+  (t) => ({
+    id: t.uuid().notNull().primaryKey().defaultRandom(),
+    workspaceId: t
+      .uuid()
+      .notNull()
+      .references(() => Workspace.id, { onDelete: "cascade" })
+      .default(sql`current_setting('app.workspace_id')::uuid`),
+    documentType: t.varchar({ length: 32 }).notNull(),
+    lastNumber: t.integer().notNull().default(0),
+  }),
+  (table) => [
+    unique("uq_doc_seq_ws_type").on(table.workspaceId, table.documentType),
+    workspacePolicy("document_sequence"),
+  ],
+).enableRLS();
+
+export const NotificationBucket = pgTable(
+  "notification_bucket",
+  (t) => ({
+    id: t.uuid().notNull().primaryKey().defaultRandom(),
+    workspaceId: t
+      .uuid()
+      .notNull()
+      .references(() => Workspace.id, { onDelete: "cascade" })
+      .default(sql`current_setting('app.workspace_id')::uuid`),
+    bucket: notificationBucketTypeEnum().notNull(),
+    label: t.varchar({ length: 128 }),
+    createdAt: t
+      .timestamp({ mode: "date", withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  }),
+  (table) => [
+    unique("uq_notification_bucket").on(table.workspaceId, table.bucket),
+    workspacePolicy("notification_bucket"),
+  ],
+).enableRLS();
+
+export const NotificationBucketAssignee = pgTable(
+  "notification_bucket_assignee",
+  (t) => ({
+    id: t.uuid().notNull().primaryKey().defaultRandom(),
+    workspaceId: t
+      .uuid()
+      .notNull()
+      .references(() => Workspace.id, { onDelete: "cascade" })
+      .default(sql`current_setting('app.workspace_id')::uuid`),
+    bucketId: t
+      .uuid()
+      .notNull()
+      .references(() => NotificationBucket.id, { onDelete: "cascade" }),
+    memberId: t
+      .uuid()
+      .notNull()
+      .references(() => WorkspaceMember.id, { onDelete: "cascade" }),
+  }),
+  (table) => [
+    unique("uq_nba_bucket_member").on(table.bucketId, table.memberId),
+    workspacePolicy("notification_bucket_assignee"),
+  ],
+).enableRLS();
+
+export const NotificationRoutingRule = pgTable(
+  "notification_routing_rule",
+  (t) => ({
+    id: t.uuid().notNull().primaryKey().defaultRandom(),
+    workspaceId: t
+      .uuid()
+      .notNull()
+      .references(() => Workspace.id, { onDelete: "cascade" })
+      .default(sql`current_setting('app.workspace_id')::uuid`),
+    alertType: alertTypeEnum().notNull(),
+    bucketId: t
+      .uuid()
+      .notNull()
+      .references(() => NotificationBucket.id, { onDelete: "cascade" }),
+    isActive: t.boolean().notNull().default(true),
+  }),
+  (table) => [
+    unique("uq_nrr_workspace_alert").on(table.workspaceId, table.alertType),
+    workspacePolicy("notification_routing_rule"),
+  ],
+).enableRLS();
 
 // ╔══════════════════════════════════════════════╗
 // ║ PHASE 2 — Catalog Domain                    ║
@@ -417,6 +699,11 @@ export const Brand = pgTable(
   "brand",
   (t) => ({
     id: t.uuid().notNull().primaryKey().defaultRandom(),
+    workspaceId: t
+      .uuid()
+      .notNull()
+      .references(() => Workspace.id)
+      .default(sql`current_setting('app.workspace_id')::uuid`),
     name: t.varchar({ length: 256 }).notNull(),
     slug: t.varchar({ length: 256 }).notNull(),
     logoUrl: t.text(),
@@ -427,15 +714,22 @@ export const Brand = pgTable(
       .notNull(),
   }),
   (table) => [
-    unique("uq_brand_slug").on(table.slug),
+    unique("uq_brand_slug").on(table.workspaceId, table.slug),
     index("idx_brand_name").on(table.name),
+
+    workspacePolicy("brand"),
   ],
-);
+).enableRLS();
 
 export const Category = pgTable(
   "category",
   (t) => ({
     id: t.uuid().notNull().primaryKey().defaultRandom(),
+    workspaceId: t
+      .uuid()
+      .notNull()
+      .references(() => Workspace.id)
+      .default(sql`current_setting('app.workspace_id')::uuid`),
     name: t.varchar({ length: 256 }).notNull(),
     slug: t.varchar({ length: 256 }).notNull(),
     parentId: t.uuid(),
@@ -448,15 +742,22 @@ export const Category = pgTable(
       .notNull(),
   }),
   (table) => [
-    unique("uq_category_slug").on(table.slug),
+    unique("uq_category_slug").on(table.workspaceId, table.slug),
     index("idx_category_parent").on(table.parentId),
+
+    workspacePolicy("category"),
   ],
-);
+).enableRLS();
 
 export const Supplier = pgTable(
   "supplier",
   (t) => ({
     id: t.uuid().notNull().primaryKey().defaultRandom(),
+    workspaceId: t
+      .uuid()
+      .notNull()
+      .references(() => Workspace.id)
+      .default(sql`current_setting('app.workspace_id')::uuid`),
     name: t.varchar({ length: 256 }).notNull(),
     rif: t.varchar({ length: 32 }),
     country: t.varchar({ length: 3 }).notNull().default("CN"),
@@ -473,13 +774,20 @@ export const Supplier = pgTable(
   (table) => [
     index("idx_supplier_name").on(table.name),
     index("idx_supplier_status").on(table.status),
+
+    workspacePolicy("supplier"),
   ],
-);
+).enableRLS();
 
 export const Product = pgTable(
   "product",
   (t) => ({
     id: t.uuid().notNull().primaryKey().defaultRandom(),
+    workspaceId: t
+      .uuid()
+      .notNull()
+      .references(() => Workspace.id)
+      .default(sql`current_setting('app.workspace_id')::uuid`),
     sku: t.varchar({ length: 64 }).notNull(),
     barcode: t.varchar({ length: 128 }),
     name: t.varchar({ length: 512 }).notNull(),
@@ -507,20 +815,27 @@ export const Product = pgTable(
       .$onUpdateFn(() => sql`now()`),
   }),
   (table) => [
-    unique("uq_product_sku").on(table.sku),
+    unique("uq_product_sku").on(table.workspaceId, table.sku),
     index("idx_product_barcode").on(table.barcode),
     index("idx_product_brand").on(table.brandId),
     index("idx_product_category").on(table.categoryId),
     index("idx_product_supplier").on(table.supplierId),
     index("idx_product_status").on(table.status),
     index("idx_product_name").on(table.name),
+
+    workspacePolicy("product"),
   ],
-);
+).enableRLS();
 
 export const ProductAttribute = pgTable(
   "product_attribute",
   (t) => ({
     id: t.uuid().notNull().primaryKey().defaultRandom(),
+    workspaceId: t
+      .uuid()
+      .notNull()
+      .references(() => Workspace.id)
+      .default(sql`current_setting('app.workspace_id')::uuid`),
     productId: t
       .uuid()
       .notNull()
@@ -529,15 +844,26 @@ export const ProductAttribute = pgTable(
     value: t.varchar({ length: 512 }).notNull(),
   }),
   (table) => [
-    unique("uq_product_attr_key").on(table.productId, table.key),
+    unique("uq_product_attr_key").on(
+      table.workspaceId,
+      table.productId,
+      table.key,
+    ),
     index("idx_product_attr_product").on(table.productId),
+
+    workspacePolicy("product_attribute"),
   ],
-);
+).enableRLS();
 
 export const ProductUomEquivalence = pgTable(
   "product_uom_equivalence",
   (t) => ({
     id: t.uuid().notNull().primaryKey().defaultRandom(),
+    workspaceId: t
+      .uuid()
+      .notNull()
+      .references(() => Workspace.id)
+      .default(sql`current_setting('app.workspace_id')::uuid`),
     productId: t
       .uuid()
       .notNull()
@@ -550,13 +876,21 @@ export const ProductUomEquivalence = pgTable(
       .defaultNow()
       .notNull(),
   }),
-  (table) => [index("idx_puom_product").on(table.productId)],
-);
+  (table) => [
+    index("idx_puom_product").on(table.productId),
+    workspacePolicy("product_uom_equivalence"),
+  ],
+).enableRLS();
 
 export const ProductSupplier = pgTable(
   "product_supplier",
   (t) => ({
     id: t.uuid().notNull().primaryKey().defaultRandom(),
+    workspaceId: t
+      .uuid()
+      .notNull()
+      .references(() => Workspace.id)
+      .default(sql`current_setting('app.workspace_id')::uuid`),
     productId: t
       .uuid()
       .notNull()
@@ -575,16 +909,27 @@ export const ProductSupplier = pgTable(
       .notNull(),
   }),
   (table) => [
-    unique("uq_product_supplier").on(table.productId, table.supplierId),
+    unique("uq_product_supplier").on(
+      table.workspaceId,
+      table.productId,
+      table.supplierId,
+    ),
     index("idx_ps_product").on(table.productId),
     index("idx_ps_supplier").on(table.supplierId),
+
+    workspacePolicy("product_supplier"),
   ],
-);
+).enableRLS();
 
 export const ProductPrice = pgTable(
   "product_price",
   (t) => ({
     id: t.uuid().notNull().primaryKey().defaultRandom(),
+    workspaceId: t
+      .uuid()
+      .notNull()
+      .references(() => Workspace.id)
+      .default(sql`current_setting('app.workspace_id')::uuid`),
     productId: t
       .uuid()
       .notNull()
@@ -599,11 +944,17 @@ export const ProductPrice = pgTable(
       .notNull(),
   }),
   (table) => [
-    unique("uq_product_price_type").on(table.productId, table.priceType),
+    unique("uq_product_price_type").on(
+      table.workspaceId,
+      table.productId,
+      table.priceType,
+    ),
     index("idx_product_price_product").on(table.productId),
     index("idx_product_price_type").on(table.priceType),
+
+    workspacePolicy("product_price"),
   ],
-);
+).enableRLS();
 
 // ╔══════════════════════════════════════════════╗
 // ║ CATALOG IMPORT — Category Aliases & Sessions ║
@@ -613,6 +964,11 @@ export const CategoryAlias = pgTable(
   "category_alias",
   (t) => ({
     id: t.uuid().notNull().primaryKey().defaultRandom(),
+    workspaceId: t
+      .uuid()
+      .notNull()
+      .references(() => Workspace.id)
+      .default(sql`current_setting('app.workspace_id')::uuid`),
     alias: t.varchar({ length: 256 }).notNull(),
     categoryId: t
       .uuid()
@@ -625,15 +981,22 @@ export const CategoryAlias = pgTable(
       .notNull(),
   }),
   (table) => [
-    unique("uq_category_alias_alias").on(table.alias),
+    unique("uq_category_alias_alias").on(table.workspaceId, table.alias),
     index("idx_category_alias_alias").on(table.alias),
+
+    workspacePolicy("category_alias"),
   ],
-);
+).enableRLS();
 
 export const ImportSession = pgTable(
   "import_session",
   (t) => ({
     id: t.uuid().notNull().primaryKey().defaultRandom(),
+    workspaceId: t
+      .uuid()
+      .notNull()
+      .references(() => Workspace.id)
+      .default(sql`current_setting('app.workspace_id')::uuid`),
     userId: t.uuid().notNull(),
     type: t.varchar({ length: 32 }).notNull().default("catalog"),
     status: importSessionStatusEnum().notNull().default("pending"),
@@ -659,16 +1022,26 @@ export const ImportSession = pgTable(
       .default(sql`NOW() + INTERVAL '24 hours'`),
   }),
   (table) => [
-    unique("uq_import_session_idempotency").on(table.idempotencyKey),
+    unique("uq_import_session_idempotency").on(
+      table.workspaceId,
+      table.idempotencyKey,
+    ),
     index("idx_import_session_user").on(table.userId),
     index("idx_import_session_status").on(table.status),
+
+    workspacePolicy("import_session"),
   ],
-);
+).enableRLS();
 
 export const ImportSessionRow = pgTable(
   "import_session_row",
   (t) => ({
     id: t.uuid().notNull().primaryKey().defaultRandom(),
+    workspaceId: t
+      .uuid()
+      .notNull()
+      .references(() => Workspace.id)
+      .default(sql`current_setting('app.workspace_id')::uuid`),
     importSessionId: t
       .uuid()
       .notNull()
@@ -690,8 +1063,10 @@ export const ImportSessionRow = pgTable(
   (table) => [
     index("idx_isr_session").on(table.importSessionId),
     index("idx_isr_status").on(table.status),
+
+    workspacePolicy("import_session_row"),
   ],
-);
+).enableRLS();
 
 // --- Catalog Import inferred types ---
 export type CategoryAlias = typeof CategoryAlias.$inferSelect;
@@ -709,6 +1084,11 @@ export const Warehouse = pgTable(
   "warehouse",
   (t) => ({
     id: t.uuid().notNull().primaryKey().defaultRandom(),
+    workspaceId: t
+      .uuid()
+      .notNull()
+      .references(() => Workspace.id)
+      .default(sql`current_setting('app.workspace_id')::uuid`),
     name: t.varchar({ length: 256 }).notNull(),
     type: warehouseTypeEnum().notNull(),
     location: t.varchar({ length: 512 }),
@@ -718,13 +1098,21 @@ export const Warehouse = pgTable(
       .defaultNow()
       .notNull(),
   }),
-  (table) => [index("idx_warehouse_type").on(table.type)],
-);
+  (table) => [
+    index("idx_warehouse_type").on(table.type),
+    workspacePolicy("warehouse"),
+  ],
+).enableRLS();
 
 export const WarehouseLocation = pgTable(
   "warehouse_location",
   (t) => ({
     id: t.uuid().notNull().primaryKey().defaultRandom(),
+    workspaceId: t
+      .uuid()
+      .notNull()
+      .references(() => Workspace.id)
+      .default(sql`current_setting('app.workspace_id')::uuid`),
     warehouseId: t
       .uuid()
       .notNull()
@@ -738,15 +1126,26 @@ export const WarehouseLocation = pgTable(
       .notNull(),
   }),
   (table) => [
-    unique("uq_wl_warehouse_code").on(table.warehouseId, table.code),
+    unique("uq_wl_warehouse_code").on(
+      table.workspaceId,
+      table.warehouseId,
+      table.code,
+    ),
     index("idx_wl_warehouse").on(table.warehouseId),
+
+    workspacePolicy("warehouse_location"),
   ],
-);
+).enableRLS();
 
 export const StockLedger = pgTable(
   "stock_ledger",
   (t) => ({
     id: t.uuid().notNull().primaryKey().defaultRandom(),
+    workspaceId: t
+      .uuid()
+      .notNull()
+      .references(() => Workspace.id)
+      .default(sql`current_setting('app.workspace_id')::uuid`),
     productId: t
       .uuid()
       .notNull()
@@ -763,16 +1162,27 @@ export const StockLedger = pgTable(
       .notNull(),
   }),
   (table) => [
-    unique("uq_stock_product_warehouse").on(table.productId, table.warehouseId),
+    unique("uq_stock_product_warehouse").on(
+      table.workspaceId,
+      table.productId,
+      table.warehouseId,
+    ),
     index("idx_stock_product").on(table.productId),
     index("idx_stock_warehouse").on(table.warehouseId),
+
+    workspacePolicy("stock_ledger"),
   ],
-);
+).enableRLS();
 
 export const ChannelAllocation = pgTable(
   "channel_allocation",
   (t) => ({
     id: t.uuid().notNull().primaryKey().defaultRandom(),
+    workspaceId: t
+      .uuid()
+      .notNull()
+      .references(() => Workspace.id)
+      .default(sql`current_setting('app.workspace_id')::uuid`),
     productId: t
       .uuid()
       .notNull()
@@ -785,16 +1195,27 @@ export const ChannelAllocation = pgTable(
       .notNull(),
   }),
   (table) => [
-    unique("uq_channel_product").on(table.productId, table.channel),
+    unique("uq_channel_product").on(
+      table.workspaceId,
+      table.productId,
+      table.channel,
+    ),
     index("idx_channel_product").on(table.productId),
     index("idx_channel_channel").on(table.channel),
+
+    workspacePolicy("channel_allocation"),
   ],
-);
+).enableRLS();
 
 export const StockMovement = pgTable(
   "stock_movement",
   (t) => ({
     id: t.uuid().notNull().primaryKey().defaultRandom(),
+    workspaceId: t
+      .uuid()
+      .notNull()
+      .references(() => Workspace.id)
+      .default(sql`current_setting('app.workspace_id')::uuid`),
     productId: t
       .uuid()
       .notNull()
@@ -817,13 +1238,20 @@ export const StockMovement = pgTable(
     index("idx_movement_product").on(table.productId),
     index("idx_movement_type").on(table.movementType),
     index("idx_movement_created").on(table.createdAt),
+
+    workspacePolicy("stock_movement"),
   ],
-);
+).enableRLS();
 
 export const InventoryCount = pgTable(
   "inventory_count",
   (t) => ({
     id: t.uuid().notNull().primaryKey().defaultRandom(),
+    workspaceId: t
+      .uuid()
+      .notNull()
+      .references(() => Workspace.id)
+      .default(sql`current_setting('app.workspace_id')::uuid`),
     warehouseId: t
       .uuid()
       .notNull()
@@ -842,13 +1270,20 @@ export const InventoryCount = pgTable(
   (table) => [
     index("idx_count_warehouse").on(table.warehouseId),
     index("idx_count_status").on(table.status),
+
+    workspacePolicy("inventory_count"),
   ],
-);
+).enableRLS();
 
 export const InventoryCountItem = pgTable(
   "inventory_count_item",
   (t) => ({
     id: t.uuid().notNull().primaryKey().defaultRandom(),
+    workspaceId: t
+      .uuid()
+      .notNull()
+      .references(() => Workspace.id)
+      .default(sql`current_setting('app.workspace_id')::uuid`),
     countId: t
       .uuid()
       .notNull()
@@ -865,13 +1300,20 @@ export const InventoryCountItem = pgTable(
   (table) => [
     index("idx_ici_count").on(table.countId),
     index("idx_ici_product").on(table.productId),
+
+    workspacePolicy("inventory_count_item"),
   ],
-);
+).enableRLS();
 
 export const InventoryDiscrepancy = pgTable(
   "inventory_discrepancy",
   (t) => ({
     id: t.uuid().notNull().primaryKey().defaultRandom(),
+    workspaceId: t
+      .uuid()
+      .notNull()
+      .references(() => Workspace.id)
+      .default(sql`current_setting('app.workspace_id')::uuid`),
     countId: t
       .uuid()
       .notNull()
@@ -894,13 +1336,20 @@ export const InventoryDiscrepancy = pgTable(
   (table) => [
     index("idx_id_count").on(table.countId),
     index("idx_id_product").on(table.productId),
+
+    workspacePolicy("inventory_discrepancy"),
   ],
-);
+).enableRLS();
 
 export const Container = pgTable(
   "container",
   (t) => ({
     id: t.uuid().notNull().primaryKey().defaultRandom(),
+    workspaceId: t
+      .uuid()
+      .notNull()
+      .references(() => Workspace.id)
+      .default(sql`current_setting('app.workspace_id')::uuid`),
     containerNumber: t.varchar({ length: 64 }).notNull(),
     supplierId: t.uuid().references(() => Supplier.id),
     status: containerStatusEnum().notNull().default("created"),
@@ -922,16 +1371,23 @@ export const Container = pgTable(
     packingListItemCount: t.integer().notNull().default(0),
   }),
   (table) => [
-    unique("uq_container_number").on(table.containerNumber),
+    unique("uq_container_number").on(table.workspaceId, table.containerNumber),
     index("idx_container_status").on(table.status),
     index("idx_container_supplier").on(table.supplierId),
+
+    workspacePolicy("container"),
   ],
-);
+).enableRLS();
 
 export const ContainerItem = pgTable(
   "container_item",
   (t) => ({
     id: t.uuid().notNull().primaryKey().defaultRandom(),
+    workspaceId: t
+      .uuid()
+      .notNull()
+      .references(() => Workspace.id)
+      .default(sql`current_setting('app.workspace_id')::uuid`),
     containerId: t
       .uuid()
       .notNull()
@@ -960,13 +1416,20 @@ export const ContainerItem = pgTable(
   (table) => [
     index("idx_citem_container").on(table.containerId),
     index("idx_citem_product").on(table.productId),
+
+    workspacePolicy("container_item"),
   ],
-);
+).enableRLS();
 
 export const ContainerDocument = pgTable(
   "container_document",
   (t) => ({
     id: t.uuid().notNull().primaryKey().defaultRandom(),
+    workspaceId: t
+      .uuid()
+      .notNull()
+      .references(() => Workspace.id)
+      .default(sql`current_setting('app.workspace_id')::uuid`),
     containerId: t
       .uuid()
       .notNull()
@@ -980,14 +1443,22 @@ export const ContainerDocument = pgTable(
       .defaultNow()
       .notNull(),
   }),
-  (table) => [index("idx_cd_container").on(table.containerId)],
-);
+  (table) => [
+    index("idx_cd_container").on(table.containerId),
+    workspacePolicy("container_document"),
+  ],
+).enableRLS();
 
 // AI Prompt Configuration
 export const AiPromptConfig = pgTable(
   "ai_prompt_config",
   (t) => ({
     id: t.uuid().notNull().primaryKey().defaultRandom(),
+    workspaceId: t
+      .uuid()
+      .notNull()
+      .references(() => Workspace.id)
+      .default(sql`current_setting('app.workspace_id')::uuid`),
     configKey: t.varchar({ length: 64 }).notNull(),
     systemPrompt: t.text().notNull(),
     fewShotExamples: t.jsonb().notNull().default([]),
@@ -1003,8 +1474,11 @@ export const AiPromptConfig = pgTable(
       .defaultNow()
       .notNull(),
   }),
-  (table) => [unique("uq_ai_prompt_config_key").on(table.configKey)],
-);
+  (table) => [
+    unique("uq_ai_prompt_config_key").on(table.workspaceId, table.configKey),
+    workspacePolicy("ai_prompt_config"),
+  ],
+).enableRLS();
 
 // ╔══════════════════════════════════════════════╗
 // ║ PHASE 4 — Pricing Engine                     ║
@@ -1014,6 +1488,11 @@ export const ExchangeRate = pgTable(
   "exchange_rate",
   (t) => ({
     id: t.uuid().notNull().primaryKey().defaultRandom(),
+    workspaceId: t
+      .uuid()
+      .notNull()
+      .references(() => Workspace.id)
+      .default(sql`current_setting('app.workspace_id')::uuid`),
     rateType: rateTypeEnum().notNull(),
     rate: t.doublePrecision().notNull(),
     source: t.varchar({ length: 128 }),
@@ -1027,13 +1506,20 @@ export const ExchangeRate = pgTable(
   (table) => [
     index("idx_rate_type").on(table.rateType),
     index("idx_rate_created").on(table.createdAt),
+
+    workspacePolicy("exchange_rate"),
   ],
-);
+).enableRLS();
 
 export const PriceHistory = pgTable(
   "price_history",
   (t) => ({
     id: t.uuid().notNull().primaryKey().defaultRandom(),
+    workspaceId: t
+      .uuid()
+      .notNull()
+      .references(() => Workspace.id)
+      .default(sql`current_setting('app.workspace_id')::uuid`),
     productId: t
       .uuid()
       .notNull()
@@ -1057,13 +1543,20 @@ export const PriceHistory = pgTable(
     index("idx_ph_product").on(table.productId),
     index("idx_ph_created").on(table.createdAt),
     index("idx_ph_trigger").on(table.trigger),
+
+    workspacePolicy("price_history"),
   ],
-);
+).enableRLS();
 
 export const PricingRule = pgTable(
   "pricing_rule",
   (t) => ({
     id: t.uuid().notNull().primaryKey().defaultRandom(),
+    workspaceId: t
+      .uuid()
+      .notNull()
+      .references(() => Workspace.id)
+      .default(sql`current_setting('app.workspace_id')::uuid`),
     name: t.varchar({ length: 128 }).notNull(),
     ruleType: t.varchar({ length: 32 }).notNull(),
     conditions: t.jsonb().notNull().default({}),
@@ -1081,13 +1574,20 @@ export const PricingRule = pgTable(
   (table) => [
     index("idx_pr_type").on(table.ruleType),
     index("idx_pr_active").on(table.isActive),
+
+    workspacePolicy("pricing_rule"),
   ],
-);
+).enableRLS();
 
 export const RepricingEvent = pgTable(
   "repricing_event",
   (t) => ({
     id: t.uuid().notNull().primaryKey().defaultRandom(),
+    workspaceId: t
+      .uuid()
+      .notNull()
+      .references(() => Workspace.id)
+      .default(sql`current_setting('app.workspace_id')::uuid`),
     trigger: repricingTriggerEnum().notNull(),
     rateType: rateTypeEnum(),
     oldRate: t.doublePrecision(),
@@ -1109,8 +1609,10 @@ export const RepricingEvent = pgTable(
     index("idx_reprice_trigger").on(table.trigger),
     index("idx_reprice_approved").on(table.isApproved),
     index("idx_reprice_created").on(table.createdAt),
+
+    workspacePolicy("repricing_event"),
   ],
-);
+).enableRLS();
 
 // ╔══════════════════════════════════════════════╗
 // ║ PHASE 5 — Sales, Payments & Cash             ║
@@ -1120,6 +1622,11 @@ export const Customer = pgTable(
   "customer",
   (t) => ({
     id: t.uuid().notNull().primaryKey().defaultRandom(),
+    workspaceId: t
+      .uuid()
+      .notNull()
+      .references(() => Workspace.id)
+      .default(sql`current_setting('app.workspace_id')::uuid`),
     name: t.varchar({ length: 256 }).notNull(),
     legalName: t.varchar({ length: 512 }),
     identification: t.varchar({ length: 32 }),
@@ -1142,13 +1649,20 @@ export const Customer = pgTable(
     index("idx_customer_type").on(table.customerType),
     index("idx_customer_name").on(table.name),
     index("idx_customer_vendor").on(table.assignedVendorId),
+
+    workspacePolicy("customer"),
   ],
-);
+).enableRLS();
 
 export const CustomerAddress = pgTable(
   "customer_address",
   (t) => ({
     id: t.uuid().notNull().primaryKey().defaultRandom(),
+    workspaceId: t
+      .uuid()
+      .notNull()
+      .references(() => Workspace.id)
+      .default(sql`current_setting('app.workspace_id')::uuid`),
     customerId: t
       .uuid()
       .notNull()
@@ -1165,13 +1679,21 @@ export const CustomerAddress = pgTable(
       .defaultNow()
       .notNull(),
   }),
-  (table) => [index("idx_ca_customer").on(table.customerId)],
-);
+  (table) => [
+    index("idx_ca_customer").on(table.customerId),
+    workspacePolicy("customer_address"),
+  ],
+).enableRLS();
 
 export const SalesOrder = pgTable(
   "sales_order",
   (t) => ({
     id: t.uuid().notNull().primaryKey().defaultRandom(),
+    workspaceId: t
+      .uuid()
+      .notNull()
+      .references(() => Workspace.id)
+      .default(sql`current_setting('app.workspace_id')::uuid`),
     orderNumber: t.varchar({ length: 32 }).notNull(),
     customerId: t.uuid().references(() => Customer.id),
     channel: salesChannelEnum().notNull().default("store"),
@@ -1193,18 +1715,25 @@ export const SalesOrder = pgTable(
       .$onUpdateFn(() => sql`now()`),
   }),
   (table) => [
-    unique("uq_order_number").on(table.orderNumber),
+    unique("uq_order_number").on(table.workspaceId, table.orderNumber),
     index("idx_order_customer").on(table.customerId),
     index("idx_order_channel").on(table.channel),
     index("idx_order_status").on(table.status),
     index("idx_order_created").on(table.createdAt),
+
+    workspacePolicy("sales_order"),
   ],
-);
+).enableRLS();
 
 export const OrderItem = pgTable(
   "order_item",
   (t) => ({
     id: t.uuid().notNull().primaryKey().defaultRandom(),
+    workspaceId: t
+      .uuid()
+      .notNull()
+      .references(() => Workspace.id)
+      .default(sql`current_setting('app.workspace_id')::uuid`),
     orderId: t
       .uuid()
       .notNull()
@@ -1221,13 +1750,20 @@ export const OrderItem = pgTable(
   (table) => [
     index("idx_oitem_order").on(table.orderId),
     index("idx_oitem_product").on(table.productId),
+
+    workspacePolicy("order_item"),
   ],
-);
+).enableRLS();
 
 export const Payment = pgTable(
   "payment",
   (t) => ({
     id: t.uuid().notNull().primaryKey().defaultRandom(),
+    workspaceId: t
+      .uuid()
+      .notNull()
+      .references(() => Workspace.id)
+      .default(sql`current_setting('app.workspace_id')::uuid`),
     orderId: t
       .uuid()
       .notNull()
@@ -1251,13 +1787,20 @@ export const Payment = pgTable(
     index("idx_payment_order").on(table.orderId),
     index("idx_payment_method").on(table.method),
     index("idx_payment_created").on(table.createdAt),
+
+    workspacePolicy("payment"),
   ],
-);
+).enableRLS();
 
 export const PaymentEvidence = pgTable(
   "payment_evidence",
   (t) => ({
     id: t.uuid().notNull().primaryKey().defaultRandom(),
+    workspaceId: t
+      .uuid()
+      .notNull()
+      .references(() => Workspace.id)
+      .default(sql`current_setting('app.workspace_id')::uuid`),
     paymentId: t
       .uuid()
       .notNull()
@@ -1270,13 +1813,21 @@ export const PaymentEvidence = pgTable(
       .defaultNow()
       .notNull(),
   }),
-  (table) => [index("idx_pe_payment").on(table.paymentId)],
-);
+  (table) => [
+    index("idx_pe_payment").on(table.paymentId),
+    workspacePolicy("payment_evidence"),
+  ],
+).enableRLS();
 
 export const PaymentAllocation = pgTable(
   "payment_allocation",
   (t) => ({
     id: t.uuid().notNull().primaryKey().defaultRandom(),
+    workspaceId: t
+      .uuid()
+      .notNull()
+      .references(() => Workspace.id)
+      .default(sql`current_setting('app.workspace_id')::uuid`),
     paymentId: t
       .uuid()
       .notNull()
@@ -1294,13 +1845,20 @@ export const PaymentAllocation = pgTable(
   (table) => [
     index("idx_pa_payment").on(table.paymentId),
     index("idx_pa_receivable").on(table.receivableId),
+
+    workspacePolicy("payment_allocation"),
   ],
-);
+).enableRLS();
 
 export const CashClosure = pgTable(
   "cash_closure",
   (t) => ({
     id: t.uuid().notNull().primaryKey().defaultRandom(),
+    workspaceId: t
+      .uuid()
+      .notNull()
+      .references(() => Workspace.id)
+      .default(sql`current_setting('app.workspace_id')::uuid`),
     closureDate: t.timestamp({ mode: "date", withTimezone: true }).notNull(),
     status: closureStatusEnum().notNull().default("open"),
     totalSales: t.doublePrecision().default(0),
@@ -1320,8 +1878,10 @@ export const CashClosure = pgTable(
   (table) => [
     index("idx_closure_date").on(table.closureDate),
     index("idx_closure_status").on(table.status),
+
+    workspacePolicy("cash_closure"),
   ],
-);
+).enableRLS();
 
 // ╔══════════════════════════════════════════════╗
 // ║ PHASE 5b — Quotes, Delivery Notes, Invoices  ║
@@ -1331,6 +1891,11 @@ export const Quote = pgTable(
   "quote",
   (t) => ({
     id: t.uuid().notNull().primaryKey().defaultRandom(),
+    workspaceId: t
+      .uuid()
+      .notNull()
+      .references(() => Workspace.id)
+      .default(sql`current_setting('app.workspace_id')::uuid`),
     quoteNumber: t.varchar({ length: 32 }).notNull(),
     customerId: t.uuid().references(() => Customer.id),
     status: quoteStatusEnum().notNull().default("draft"),
@@ -1349,16 +1914,23 @@ export const Quote = pgTable(
     updatedAt: t.timestamp({ mode: "date", withTimezone: true }),
   }),
   (table) => [
-    unique("uq_quote_number").on(table.quoteNumber),
+    unique("uq_quote_number").on(table.workspaceId, table.quoteNumber),
     index("idx_quote_customer").on(table.customerId),
     index("idx_quote_status").on(table.status),
+
+    workspacePolicy("quote"),
   ],
-);
+).enableRLS();
 
 export const QuoteItem = pgTable(
   "quote_item",
   (t) => ({
     id: t.uuid().notNull().primaryKey().defaultRandom(),
+    workspaceId: t
+      .uuid()
+      .notNull()
+      .references(() => Workspace.id)
+      .default(sql`current_setting('app.workspace_id')::uuid`),
     quoteId: t
       .uuid()
       .notNull()
@@ -1375,13 +1947,20 @@ export const QuoteItem = pgTable(
   (table) => [
     index("idx_qi_quote").on(table.quoteId),
     index("idx_qi_product").on(table.productId),
+
+    workspacePolicy("quote_item"),
   ],
-);
+).enableRLS();
 
 export const DeliveryNote = pgTable(
   "delivery_note",
   (t) => ({
     id: t.uuid().notNull().primaryKey().defaultRandom(),
+    workspaceId: t
+      .uuid()
+      .notNull()
+      .references(() => Workspace.id)
+      .default(sql`current_setting('app.workspace_id')::uuid`),
     noteNumber: t.varchar({ length: 32 }).notNull(),
     orderId: t
       .uuid()
@@ -1401,16 +1980,23 @@ export const DeliveryNote = pgTable(
       .notNull(),
   }),
   (table) => [
-    unique("uq_delivery_note_number").on(table.noteNumber),
+    unique("uq_delivery_note_number").on(table.workspaceId, table.noteNumber),
     index("idx_dn_order").on(table.orderId),
     index("idx_dn_status").on(table.status),
+
+    workspacePolicy("delivery_note"),
   ],
-);
+).enableRLS();
 
 export const DeliveryNoteItem = pgTable(
   "delivery_note_item",
   (t) => ({
     id: t.uuid().notNull().primaryKey().defaultRandom(),
+    workspaceId: t
+      .uuid()
+      .notNull()
+      .references(() => Workspace.id)
+      .default(sql`current_setting('app.workspace_id')::uuid`),
     deliveryNoteId: t
       .uuid()
       .notNull()
@@ -1426,13 +2012,20 @@ export const DeliveryNoteItem = pgTable(
   (table) => [
     index("idx_dni_note").on(table.deliveryNoteId),
     index("idx_dni_product").on(table.productId),
+
+    workspacePolicy("delivery_note_item"),
   ],
-);
+).enableRLS();
 
 export const InternalInvoice = pgTable(
   "internal_invoice",
   (t) => ({
     id: t.uuid().notNull().primaryKey().defaultRandom(),
+    workspaceId: t
+      .uuid()
+      .notNull()
+      .references(() => Workspace.id)
+      .default(sql`current_setting('app.workspace_id')::uuid`),
     invoiceNumber: t.varchar({ length: 32 }).notNull(),
     orderId: t
       .uuid()
@@ -1453,17 +2046,24 @@ export const InternalInvoice = pgTable(
       .notNull(),
   }),
   (table) => [
-    unique("uq_invoice_number").on(table.invoiceNumber),
+    unique("uq_invoice_number").on(table.workspaceId, table.invoiceNumber),
     index("idx_inv_order").on(table.orderId),
     index("idx_inv_customer").on(table.customerId),
     index("idx_inv_status").on(table.status),
+
+    workspacePolicy("internal_invoice"),
   ],
-);
+).enableRLS();
 
 export const InternalInvoiceItem = pgTable(
   "internal_invoice_item",
   (t) => ({
     id: t.uuid().notNull().primaryKey().defaultRandom(),
+    workspaceId: t
+      .uuid()
+      .notNull()
+      .references(() => Workspace.id)
+      .default(sql`current_setting('app.workspace_id')::uuid`),
     invoiceId: t
       .uuid()
       .notNull()
@@ -1480,8 +2080,10 @@ export const InternalInvoiceItem = pgTable(
   (table) => [
     index("idx_iii_invoice").on(table.invoiceId),
     index("idx_iii_product").on(table.productId),
+
+    workspacePolicy("internal_invoice_item"),
   ],
-);
+).enableRLS();
 
 // ╔══════════════════════════════════════════════╗
 // ║ PHASE 6 — Vendor Portal & AR                 ║
@@ -1491,6 +2093,11 @@ export const VendorCommission = pgTable(
   "vendor_commission",
   (t) => ({
     id: t.uuid().notNull().primaryKey().defaultRandom(),
+    workspaceId: t
+      .uuid()
+      .notNull()
+      .references(() => Workspace.id)
+      .default(sql`current_setting('app.workspace_id')::uuid`),
     vendorId: t
       .uuid()
       .notNull()
@@ -1514,13 +2121,20 @@ export const VendorCommission = pgTable(
     index("idx_vc_vendor").on(table.vendorId),
     index("idx_vc_order").on(table.orderId),
     index("idx_vc_paid").on(table.isPaid),
+
+    workspacePolicy("vendor_commission"),
   ],
-);
+).enableRLS();
 
 export const AccountReceivable = pgTable(
   "account_receivable",
   (t) => ({
     id: t.uuid().notNull().primaryKey().defaultRandom(),
+    workspaceId: t
+      .uuid()
+      .notNull()
+      .references(() => Workspace.id)
+      .default(sql`current_setting('app.workspace_id')::uuid`),
     customerId: t
       .uuid()
       .notNull()
@@ -1542,8 +2156,10 @@ export const AccountReceivable = pgTable(
     index("idx_ar_customer").on(table.customerId),
     index("idx_ar_status").on(table.status),
     index("idx_ar_due").on(table.dueDate),
+
+    workspacePolicy("account_receivable"),
   ],
-);
+).enableRLS();
 
 // --- AR Installments (PRD §18) ---
 
@@ -1551,6 +2167,11 @@ export const ArInstallment = pgTable(
   "ar_installment",
   (t) => ({
     id: t.uuid().notNull().primaryKey().defaultRandom(),
+    workspaceId: t
+      .uuid()
+      .notNull()
+      .references(() => Workspace.id)
+      .default(sql`current_setting('app.workspace_id')::uuid`),
     receivableId: t
       .uuid()
       .notNull()
@@ -1571,8 +2192,10 @@ export const ArInstallment = pgTable(
     index("idx_ari_receivable").on(table.receivableId),
     index("idx_ari_status").on(table.status),
     index("idx_ari_due").on(table.dueDate),
+
+    workspacePolicy("ar_installment"),
   ],
-);
+).enableRLS();
 
 // ╔══════════════════════════════════════════════╗
 // ║ PHASE 7 — Integrations (ML + WhatsApp)        ║
@@ -1582,6 +2205,11 @@ export const MlListing = pgTable(
   "ml_listing",
   (t) => ({
     id: t.uuid().notNull().primaryKey().defaultRandom(),
+    workspaceId: t
+      .uuid()
+      .notNull()
+      .references(() => Workspace.id)
+      .default(sql`current_setting('app.workspace_id')::uuid`),
     productId: t
       .uuid()
       .notNull()
@@ -1599,16 +2227,23 @@ export const MlListing = pgTable(
       .notNull(),
   }),
   (table) => [
-    unique("uq_ml_item").on(table.mlItemId),
+    unique("uq_ml_item").on(table.workspaceId, table.mlItemId),
     index("idx_ml_product").on(table.productId),
     index("idx_ml_status").on(table.status),
+
+    workspacePolicy("ml_listing"),
   ],
-);
+).enableRLS();
 
 export const MlOrder = pgTable(
   "ml_order",
   (t) => ({
     id: t.uuid().notNull().primaryKey().defaultRandom(),
+    workspaceId: t
+      .uuid()
+      .notNull()
+      .references(() => Workspace.id)
+      .default(sql`current_setting('app.workspace_id')::uuid`),
     mlOrderId: t.varchar({ length: 64 }).notNull(),
     mlListingId: t.uuid().references(() => MlListing.id),
     salesOrderId: t.uuid().references(() => SalesOrder.id),
@@ -1625,16 +2260,23 @@ export const MlOrder = pgTable(
       .notNull(),
   }),
   (table) => [
-    unique("uq_ml_order").on(table.mlOrderId),
+    unique("uq_ml_order").on(table.workspaceId, table.mlOrderId),
     index("idx_mlo_listing").on(table.mlListingId),
     index("idx_mlo_imported").on(table.isImported),
+
+    workspacePolicy("ml_order"),
   ],
-);
+).enableRLS();
 
 export const IntegrationLog = pgTable(
   "integration_log",
   (t) => ({
     id: t.uuid().notNull().primaryKey().defaultRandom(),
+    workspaceId: t
+      .uuid()
+      .notNull()
+      .references(() => Workspace.id)
+      .default(sql`current_setting('app.workspace_id')::uuid`),
     source: t.varchar({ length: 32 }).notNull(),
     level: integrationLogLevelEnum().notNull().default("info"),
     message: t.text().notNull(),
@@ -1650,13 +2292,20 @@ export const IntegrationLog = pgTable(
     index("idx_ilog_source").on(table.source),
     index("idx_ilog_level").on(table.level),
     index("idx_ilog_resolved").on(table.isResolved),
+
+    workspacePolicy("integration_log"),
   ],
-);
+).enableRLS();
 
 export const MercadolibreAccount = pgTable(
   "mercadolibre_account",
   (t) => ({
     id: t.uuid().notNull().primaryKey().defaultRandom(),
+    workspaceId: t
+      .uuid()
+      .notNull()
+      .references(() => Workspace.id)
+      .default(sql`current_setting('app.workspace_id')::uuid`),
     nickname: t.varchar({ length: 128 }).notNull(),
     mlUserId: t.varchar({ length: 64 }),
     accessToken: t.text(),
@@ -1668,13 +2317,21 @@ export const MercadolibreAccount = pgTable(
       .defaultNow()
       .notNull(),
   }),
-  (table) => [unique("uq_ml_user").on(table.mlUserId)],
-);
+  (table) => [
+    unique("uq_ml_user").on(table.workspaceId, table.mlUserId),
+    workspacePolicy("mercadolibre_account"),
+  ],
+).enableRLS();
 
 export const MercadolibreOrderEvent = pgTable(
   "mercadolibre_order_event",
   (t) => ({
     id: t.uuid().notNull().primaryKey().defaultRandom(),
+    workspaceId: t
+      .uuid()
+      .notNull()
+      .references(() => Workspace.id)
+      .default(sql`current_setting('app.workspace_id')::uuid`),
     mlOrderId: t.uuid().references(() => MlOrder.id),
     eventType: t.varchar({ length: 64 }).notNull(),
     payload: t.jsonb(),
@@ -1687,13 +2344,20 @@ export const MercadolibreOrderEvent = pgTable(
   (table) => [
     index("idx_moe_order").on(table.mlOrderId),
     index("idx_moe_type").on(table.eventType),
+
+    workspacePolicy("mercadolibre_order_event"),
   ],
-);
+).enableRLS();
 
 export const IntegrationFailure = pgTable(
   "integration_failure",
   (t) => ({
     id: t.uuid().notNull().primaryKey().defaultRandom(),
+    workspaceId: t
+      .uuid()
+      .notNull()
+      .references(() => Workspace.id)
+      .default(sql`current_setting('app.workspace_id')::uuid`),
     source: t.varchar({ length: 64 }).notNull(),
     errorCode: t.varchar({ length: 64 }),
     errorMessage: t.text().notNull(),
@@ -1711,8 +2375,10 @@ export const IntegrationFailure = pgTable(
   (table) => [
     index("idx_if_source").on(table.source),
     index("idx_if_resolved").on(table.isResolved),
+
+    workspacePolicy("integration_failure"),
   ],
-);
+).enableRLS();
 
 // ╔══════════════════════════════════════════════╗
 // ║ PHASE 8 — Dashboard & Alerts                  ║
@@ -1722,6 +2388,11 @@ export const SystemAlert = pgTable(
   "system_alert",
   (t) => ({
     id: t.uuid().notNull().primaryKey().defaultRandom(),
+    workspaceId: t
+      .uuid()
+      .notNull()
+      .references(() => Workspace.id)
+      .default(sql`current_setting('app.workspace_id')::uuid`),
     alertType: alertTypeEnum().notNull(),
     title: t.varchar({ length: 256 }).notNull(),
     message: t.text().notNull(),
@@ -1741,8 +2412,10 @@ export const SystemAlert = pgTable(
     index("idx_alert_severity").on(table.severity),
     index("idx_alert_dismissed").on(table.isDismissed),
     index("idx_alert_created").on(table.createdAt),
+
+    workspacePolicy("system_alert"),
   ],
-);
+).enableRLS();
 
 // ╔══════════════════════════════════════════════╗
 // ║ PHASE 9 — Approvals & Signatures             ║
@@ -1752,6 +2425,11 @@ export const Approval = pgTable(
   "approval",
   (t) => ({
     id: t.uuid().notNull().primaryKey().defaultRandom(),
+    workspaceId: t
+      .uuid()
+      .notNull()
+      .references(() => Workspace.id)
+      .default(sql`current_setting('app.workspace_id')::uuid`),
     approvalType: approvalTypeEnum().notNull(),
     status: approvalStatusEnum().notNull().default("pending"),
     entityType: t.varchar({ length: 64 }).notNull(),
@@ -1776,13 +2454,20 @@ export const Approval = pgTable(
     index("idx_approval_entity").on(table.entityType, table.entityId),
     index("idx_approval_requested").on(table.requestedBy),
     index("idx_approval_resolved").on(table.resolvedBy),
+
+    workspacePolicy("approval"),
   ],
-);
+).enableRLS();
 
 export const Signature = pgTable(
   "signature",
   (t) => ({
     id: t.uuid().notNull().primaryKey().defaultRandom(),
+    workspaceId: t
+      .uuid()
+      .notNull()
+      .references(() => Workspace.id)
+      .default(sql`current_setting('app.workspace_id')::uuid`),
     approvalId: t
       .uuid()
       .notNull()
@@ -1802,8 +2487,10 @@ export const Signature = pgTable(
   (table) => [
     index("idx_sig_approval").on(table.approvalId),
     index("idx_sig_signed_by").on(table.signedBy),
+
+    workspacePolicy("signature"),
   ],
-);
+).enableRLS();
 
 // ╔══════════════════════════════════════════════╗
 // ║ RELATIONS                                    ║
@@ -2086,3 +2773,128 @@ export const signatureRelations = relations(Signature, ({ one }) => ({
     references: [UserProfile.id],
   }),
 }));
+
+// --- Multi-tenancy relations ---
+
+export const workspaceRelations = relations(Workspace, ({ one, many }) => ({
+  organization: one(Organization, {
+    fields: [Workspace.organizationId],
+    references: [Organization.id],
+  }),
+  members: many(WorkspaceMember),
+  modules: many(WorkspaceModule),
+  profile: one(WorkspaceProfile, {
+    fields: [Workspace.id],
+    references: [WorkspaceProfile.workspaceId],
+  }),
+  quota: one(WorkspaceQuota, {
+    fields: [Workspace.id],
+    references: [WorkspaceQuota.workspaceId],
+  }),
+  sequences: many(DocumentSequence),
+  notificationBuckets: many(NotificationBucket),
+}));
+
+export const workspaceMemberRelations = relations(
+  WorkspaceMember,
+  ({ one }) => ({
+    workspace: one(Workspace, {
+      fields: [WorkspaceMember.workspaceId],
+      references: [Workspace.id],
+    }),
+    user: one(UserProfile, {
+      fields: [WorkspaceMember.userId],
+      references: [UserProfile.id],
+    }),
+  }),
+);
+
+export const workspaceModuleRelations = relations(
+  WorkspaceModule,
+  ({ one }) => ({
+    workspace: one(Workspace, {
+      fields: [WorkspaceModule.workspaceId],
+      references: [Workspace.id],
+    }),
+  }),
+);
+
+export const workspaceQuotaRelations = relations(WorkspaceQuota, ({ one }) => ({
+  workspace: one(Workspace, {
+    fields: [WorkspaceQuota.workspaceId],
+    references: [Workspace.id],
+  }),
+}));
+
+export const workspaceProfileRelations = relations(
+  WorkspaceProfile,
+  ({ one }) => ({
+    workspace: one(Workspace, {
+      fields: [WorkspaceProfile.workspaceId],
+      references: [Workspace.id],
+    }),
+  }),
+);
+
+export const documentSequenceRelations = relations(
+  DocumentSequence,
+  ({ one }) => ({
+    workspace: one(Workspace, {
+      fields: [DocumentSequence.workspaceId],
+      references: [Workspace.id],
+    }),
+  }),
+);
+
+export const notificationBucketRelations = relations(
+  NotificationBucket,
+  ({ one, many }) => ({
+    workspace: one(Workspace, {
+      fields: [NotificationBucket.workspaceId],
+      references: [Workspace.id],
+    }),
+    assignees: many(NotificationBucketAssignee),
+    routingRules: many(NotificationRoutingRule),
+  }),
+);
+
+export const notificationBucketAssigneeRelations = relations(
+  NotificationBucketAssignee,
+  ({ one }) => ({
+    bucket: one(NotificationBucket, {
+      fields: [NotificationBucketAssignee.bucketId],
+      references: [NotificationBucket.id],
+    }),
+    member: one(WorkspaceMember, {
+      fields: [NotificationBucketAssignee.memberId],
+      references: [WorkspaceMember.id],
+    }),
+  }),
+);
+
+export const notificationRoutingRuleRelations = relations(
+  NotificationRoutingRule,
+  ({ one }) => ({
+    bucket: one(NotificationBucket, {
+      fields: [NotificationRoutingRule.bucketId],
+      references: [NotificationBucket.id],
+    }),
+  }),
+);
+
+// ╔══════════════════════════════════════════════╗
+// ║ TYPE EXPORTS                                ║
+// ╚══════════════════════════════════════════════╝
+
+export type WorkspaceSelect = typeof Workspace.$inferSelect;
+export type WorkspaceInsert = typeof Workspace.$inferInsert;
+export type WorkspaceMemberSelect = typeof WorkspaceMember.$inferSelect;
+export type WorkspaceMemberInsert = typeof WorkspaceMember.$inferInsert;
+export type WorkspaceModuleSelect = typeof WorkspaceModule.$inferSelect;
+export type WorkspaceModuleInsert = typeof WorkspaceModule.$inferInsert;
+export type WorkspaceQuotaSelect = typeof WorkspaceQuota.$inferSelect;
+export type WorkspaceQuotaInsert = typeof WorkspaceQuota.$inferInsert;
+export type WorkspaceProfileSelect = typeof WorkspaceProfile.$inferSelect;
+export type WorkspaceProfileInsert = typeof WorkspaceProfile.$inferInsert;
+export type DocumentSequenceSelect = typeof DocumentSequence.$inferSelect;
+export type NotificationBucketSelect = typeof NotificationBucket.$inferSelect;

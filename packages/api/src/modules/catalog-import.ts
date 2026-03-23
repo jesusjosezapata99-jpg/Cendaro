@@ -21,11 +21,7 @@ import {
   StockMovement,
 } from "@cendaro/db/schema";
 
-import {
-  createTRPCRouter,
-  protectedProcedure,
-  roleRestrictedProcedure,
-} from "../trpc";
+import { createTRPCRouter, workspaceProcedure } from "../trpc";
 import { logAudit } from "./audit";
 
 // ── Zod Schemas (PRD §10) ────────────────────────
@@ -132,7 +128,7 @@ export const catalogImportRouter = createTRPCRouter({
    *
    * RBAC: owner, admin, supervisor (PRD §4)
    */
-  create: roleRestrictedProcedure(["owner", "admin", "supervisor"])
+  create: workspaceProcedure
     .input(catalogImportCreateSchema)
     .mutation(async ({ ctx, input }) => {
       // Auto-cancel any existing active sessions for this user.
@@ -221,7 +217,7 @@ export const catalogImportRouter = createTRPCRouter({
    *
    * RBAC: owner, admin, supervisor (PRD §4)
    */
-  validate: roleRestrictedProcedure(["owner", "admin", "supervisor"])
+  validate: workspaceProcedure
     .input(z.object({ sessionId: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       // Load session
@@ -745,7 +741,7 @@ export const catalogImportRouter = createTRPCRouter({
    *
    * RBAC: owner, admin, supervisor (PRD §4)
    */
-  resolveCategories: roleRestrictedProcedure(["owner", "admin", "supervisor"])
+  resolveCategories: workspaceProcedure
     .input(
       z.object({
         sessionId: z.string().uuid(),
@@ -872,7 +868,7 @@ export const catalogImportRouter = createTRPCRouter({
    *
    * RBAC: any authenticated user (PRD §4)
    */
-  dryRun: protectedProcedure
+  dryRun: workspaceProcedure
     .input(z.object({ sessionId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       const [session] = await ctx.db
@@ -952,7 +948,7 @@ export const catalogImportRouter = createTRPCRouter({
    *
    * RBAC: owner, admin only (PRD §4)
    */
-  commit: roleRestrictedProcedure(["owner", "admin"])
+  commit: workspaceProcedure
     .input(z.object({ sessionId: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       const [session] = await ctx.db
@@ -1213,7 +1209,7 @@ export const catalogImportRouter = createTRPCRouter({
    *
    * RBAC: any authenticated user (PRD §4)
    */
-  getSession: protectedProcedure
+  getSession: workspaceProcedure
     .input(z.object({ sessionId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       const [session] = await ctx.db

@@ -17,19 +17,15 @@ import {
   Product,
 } from "@cendaro/db/schema";
 
-import {
-  createTRPCRouter,
-  protectedProcedure,
-  roleRestrictedProcedure,
-} from "../trpc";
+import { createTRPCRouter, workspaceProcedure } from "../trpc";
 import { logAudit } from "./audit";
 
 export const containerRouter = createTRPCRouter({
-  list: protectedProcedure.query(async ({ ctx }) => {
+  list: workspaceProcedure.query(async ({ ctx }) => {
     return ctx.db.select().from(Container).orderBy(desc(Container.createdAt));
   }),
 
-  byId: protectedProcedure
+  byId: workspaceProcedure
     .input(z.object({ id: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       const [container] = await ctx.db
@@ -48,7 +44,7 @@ export const containerRouter = createTRPCRouter({
       return { ...container, items };
     }),
 
-  create: roleRestrictedProcedure(["owner", "admin", "supervisor"])
+  create: workspaceProcedure
     .input(
       z.object({
         containerNumber: z.string().min(1).max(64),
@@ -82,7 +78,7 @@ export const containerRouter = createTRPCRouter({
       return container;
     }),
 
-  updateStatus: roleRestrictedProcedure(["owner", "admin"])
+  updateStatus: workspaceProcedure
     .input(
       z.object({
         id: z.string().uuid(),
@@ -112,7 +108,7 @@ export const containerRouter = createTRPCRouter({
       return updated;
     }),
 
-  addItems: roleRestrictedProcedure(["owner", "admin", "supervisor"])
+  addItems: workspaceProcedure
     .input(
       z.object({
         containerId: z.string().uuid(),
@@ -147,18 +143,16 @@ export const containerRouter = createTRPCRouter({
     }),
 
   // ── AI Prompt Config ───────────────────────────────
-  getAIPromptConfig: roleRestrictedProcedure(["owner", "admin"]).query(
-    async ({ ctx }) => {
-      const [config] = await ctx.db
-        .select()
-        .from(AiPromptConfig)
-        .where(eq(AiPromptConfig.active, true))
-        .limit(1);
-      return config ?? null;
-    },
-  ),
+  getAIPromptConfig: workspaceProcedure.query(async ({ ctx }) => {
+    const [config] = await ctx.db
+      .select()
+      .from(AiPromptConfig)
+      .where(eq(AiPromptConfig.active, true))
+      .limit(1);
+    return config ?? null;
+  }),
 
-  updateAIPromptConfig: roleRestrictedProcedure(["owner", "admin"])
+  updateAIPromptConfig: workspaceProcedure
     .input(
       z.object({
         configKey: z.string().min(1).max(64),
@@ -204,7 +198,7 @@ export const containerRouter = createTRPCRouter({
     }),
 
   // ── Catalog Snapshot (for context injection) ──────
-  getCatalogSnapshot: protectedProcedure.query(async ({ ctx }) => {
+  getCatalogSnapshot: workspaceProcedure.query(async ({ ctx }) => {
     const categories = await ctx.db
       .select({ id: Category.id, name: Category.name, slug: Category.slug })
       .from(Category)
@@ -231,7 +225,7 @@ export const containerRouter = createTRPCRouter({
   }),
 
   // ── Confirm with Matching (v2) ───────────────────
-  confirmWithMatching: roleRestrictedProcedure(["owner", "admin", "supervisor"])
+  confirmWithMatching: workspaceProcedure
     .input(
       z.object({
         containerId: z.string().uuid(),
@@ -350,7 +344,7 @@ export const containerRouter = createTRPCRouter({
     }),
 
   // ── Save Correction (few-shot learning) ──────────
-  saveCorrection: roleRestrictedProcedure(["owner", "admin", "supervisor"])
+  saveCorrection: workspaceProcedure
     .input(
       z.object({
         original: z.string(),
@@ -401,7 +395,7 @@ export const containerRouter = createTRPCRouter({
     }),
 
   /** Get packing list items for a container (paginated for virtual scroll) */
-  getPackingListItems: protectedProcedure
+  getPackingListItems: workspaceProcedure
     .input(
       z.object({
         containerId: z.string().uuid(),
