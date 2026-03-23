@@ -63,6 +63,13 @@ export default function RootLayout({
           href="https://fonts.gstatic.com"
           crossOrigin="anonymous"
         />
+        {/* One-time migration: clear stale "light" default so next-themes re-detects system preference.
+             Safe to remove after all existing users have revisited (e.g. 2026-Q2). */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{var k="cendaro-theme",v=localStorage.getItem(k);if(v==='"light"'||v==="light")localStorage.removeItem(k)}catch(e){}`,
+          }}
+        />
       </head>
       <body
         className={`${inter.variable} ${playfair.variable} bg-background text-foreground font-sans antialiased`}
