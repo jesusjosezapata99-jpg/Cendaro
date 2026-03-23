@@ -42,8 +42,15 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // Forward workspace cookie as request header for RSC context
+  const wsId = request.cookies.get("cendaro-workspace-id")?.value;
+  const requestHeaders = new Headers(request.headers);
+  if (wsId) {
+    requestHeaders.set("x-workspace-id", wsId);
+  }
+
   const response = NextResponse.next({
-    request: { headers: request.headers },
+    request: { headers: requestHeaders },
   });
 
   const supabase = createSupabaseMiddlewareClient(
