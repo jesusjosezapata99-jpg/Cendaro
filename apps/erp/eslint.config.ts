@@ -5,6 +5,7 @@ import { nextjsConfig } from "@cendaro/eslint-config/nextjs";
 import { reactConfig } from "@cendaro/eslint-config/react";
 
 export default defineConfig(
+  { ignores: ["video/**"] },
   baseConfig,
   reactConfig,
   nextjsConfig,

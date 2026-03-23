@@ -21,17 +21,13 @@ import {
   StockMovement,
 } from "@cendaro/db/schema";
 
-import {
-  createTRPCRouter,
-  protectedProcedure,
-  roleRestrictedProcedure,
-} from "../trpc";
+import { createTRPCRouter, workspaceProcedure } from "../trpc";
 import { logAudit } from "./audit";
 
 export const salesRouter = createTRPCRouter({
   // ─── Customers (PRD §17) ─────────────────────
 
-  listCustomers: protectedProcedure
+  listCustomers: workspaceProcedure
     .input(
       z.object({
         limit: z.number().int().min(1).max(100).default(25),
@@ -62,7 +58,7 @@ export const salesRouter = createTRPCRouter({
         .offset(input.offset);
     }),
 
-  customerById: protectedProcedure
+  customerById: workspaceProcedure
     .input(z.object({ id: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       const [customer] = await ctx.db
@@ -73,7 +69,7 @@ export const salesRouter = createTRPCRouter({
       return customer ?? null;
     }),
 
-  createCustomer: roleRestrictedProcedure(["owner", "admin", "supervisor"])
+  createCustomer: workspaceProcedure
     .input(
       z.object({
         name: z.string().min(1).max(256),
@@ -100,7 +96,7 @@ export const salesRouter = createTRPCRouter({
 
   // ─── Orders (PRD §14-16) ─────────────────────
 
-  listOrders: protectedProcedure
+  listOrders: workspaceProcedure
     .input(
       z.object({
         limit: z.number().int().min(1).max(100).default(25),
@@ -137,7 +133,7 @@ export const salesRouter = createTRPCRouter({
         .offset(input.offset);
     }),
 
-  orderById: protectedProcedure
+  orderById: workspaceProcedure
     .input(z.object({ id: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       const [order] = await ctx.db
@@ -156,12 +152,7 @@ export const salesRouter = createTRPCRouter({
       return { ...order, items, payments };
     }),
 
-  createOrder: roleRestrictedProcedure([
-    "owner",
-    "admin",
-    "supervisor",
-    "employee",
-  ])
+  createOrder: workspaceProcedure
     .input(
       z.object({
         customerId: z.string().uuid().optional(),
@@ -227,7 +218,7 @@ export const salesRouter = createTRPCRouter({
       return order;
     }),
 
-  updateOrderStatus: roleRestrictedProcedure(["owner", "admin", "supervisor"])
+  updateOrderStatus: workspaceProcedure
     .input(
       z.object({
         id: z.string().uuid(),
@@ -321,7 +312,7 @@ export const salesRouter = createTRPCRouter({
 
   // ─── Payments (PRD §19) ──────────────────────
 
-  listPayments: protectedProcedure
+  listPayments: workspaceProcedure
     .input(
       z.object({
         limit: z.number().int().min(1).max(100).default(50),
@@ -351,7 +342,7 @@ export const salesRouter = createTRPCRouter({
         .limit(input.limit);
     }),
 
-  addPayment: protectedProcedure
+  addPayment: workspaceProcedure
     .input(
       z.object({
         orderId: z.string().uuid(),
@@ -385,12 +376,7 @@ export const salesRouter = createTRPCRouter({
       return payment;
     }),
 
-  validatePayment: roleRestrictedProcedure([
-    "owner",
-    "admin",
-    "supervisor",
-    "employee",
-  ])
+  validatePayment: workspaceProcedure
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       const [updated] = await ctx.db
@@ -410,7 +396,7 @@ export const salesRouter = createTRPCRouter({
 
   // ─── Cash Closure (PRD §19.6) ────────────────
 
-  listClosures: protectedProcedure.query(async ({ ctx }) => {
+  listClosures: workspaceProcedure.query(async ({ ctx }) => {
     return ctx.db
       .select({
         id: CashClosure.id,
@@ -428,7 +414,7 @@ export const salesRouter = createTRPCRouter({
       .limit(100);
   }),
 
-  createClosure: roleRestrictedProcedure(["owner", "admin", "supervisor"])
+  createClosure: workspaceProcedure
     .input(
       z.object({
         closureDate: z.string().datetime(),
@@ -471,7 +457,7 @@ export const salesRouter = createTRPCRouter({
       return closure;
     }),
 
-  reviewClosure: roleRestrictedProcedure(["owner", "admin"])
+  reviewClosure: workspaceProcedure
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       const [updated] = await ctx.db

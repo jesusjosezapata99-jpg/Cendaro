@@ -15,18 +15,14 @@ import {
   RepricingEvent,
 } from "@cendaro/db/schema";
 
-import {
-  createTRPCRouter,
-  protectedProcedure,
-  roleRestrictedProcedure,
-} from "../trpc";
+import { createTRPCRouter, workspaceProcedure } from "../trpc";
 import { logAudit } from "./audit";
 
 export const pricingRouter = createTRPCRouter({
   // ─── Exchange Rates (PRD §12.3) ──────────────
 
   /** Get latest rate for each type */
-  latestRates: protectedProcedure.query(async ({ ctx }) => {
+  latestRates: workspaceProcedure.query(async ({ ctx }) => {
     // Use SQL DISTINCT ON to get only the latest rate per type
     // instead of loading ALL rows and filtering in JS
     const rates = await ctx.db
@@ -51,7 +47,7 @@ export const pricingRouter = createTRPCRouter({
   }),
 
   /** Get rate history */
-  rateHistory: protectedProcedure
+  rateHistory: workspaceProcedure
     .input(
       z.object({
         rateType: z.enum(rateTypeEnum.enumValues).optional(),
@@ -81,7 +77,7 @@ export const pricingRouter = createTRPCRouter({
    * Rates can ONLY be set by automated sync processes (DolarAPI, Frankfurter).
    * Human-entered rates are explicitly blocked to prevent price manipulation.
    */
-  setRate: roleRestrictedProcedure(["owner", "admin", "supervisor"])
+  setRate: workspaceProcedure
     .input(
       z.object({
         rateType: z.enum(rateTypeEnum.enumValues),
@@ -131,7 +127,7 @@ export const pricingRouter = createTRPCRouter({
 
   // ─── Currency Calculator (PRD §12.7) ─────────
 
-  convert: protectedProcedure
+  convert: workspaceProcedure
     .input(
       z.object({
         amount: z.number().nonnegative(),
@@ -181,7 +177,7 @@ export const pricingRouter = createTRPCRouter({
 
   // ─── Price History (PRD §12.8) ───────────────
 
-  priceHistory: protectedProcedure
+  priceHistory: workspaceProcedure
     .input(
       z.object({
         productId: z.string().uuid().optional(),
@@ -210,7 +206,7 @@ export const pricingRouter = createTRPCRouter({
 
   // ─── Repricing Events ────────────────────────
 
-  listRepricingEvents: protectedProcedure
+  listRepricingEvents: workspaceProcedure
     .input(
       z.object({
         limit: z.number().int().min(1).max(50).default(20),
@@ -236,7 +232,7 @@ export const pricingRouter = createTRPCRouter({
         .limit(input.limit);
     }),
 
-  approveRepricing: roleRestrictedProcedure(["owner", "admin"])
+  approveRepricing: workspaceProcedure
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       const [updated] = await ctx.db

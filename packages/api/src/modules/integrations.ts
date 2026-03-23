@@ -16,17 +16,13 @@ import {
   MlOrder,
 } from "@cendaro/db/schema";
 
-import {
-  createTRPCRouter,
-  protectedProcedure,
-  roleRestrictedProcedure,
-} from "../trpc";
+import { createTRPCRouter, workspaceProcedure } from "../trpc";
 import { logAudit } from "./audit";
 
 export const integrationsRouter = createTRPCRouter({
   // ─── ML Listings (PRD §20) ───────────────────
 
-  listMlListings: protectedProcedure
+  listMlListings: workspaceProcedure
     .input(
       z.object({
         status: z.enum(mlListingStatusEnum.enumValues).optional(),
@@ -54,7 +50,7 @@ export const integrationsRouter = createTRPCRouter({
       return query.orderBy(desc(MlListing.createdAt)).limit(input.limit);
     }),
 
-  syncMlListing: roleRestrictedProcedure(["owner", "admin", "supervisor"])
+  syncMlListing: workspaceProcedure
     .input(
       z.object({
         id: z.string().uuid(),
@@ -86,7 +82,7 @@ export const integrationsRouter = createTRPCRouter({
 
   // ─── ML Orders (PRD §20) ────────────────────
 
-  listMlOrders: protectedProcedure
+  listMlOrders: workspaceProcedure
     .input(
       z.object({
         imported: z.boolean().optional(),
@@ -113,7 +109,7 @@ export const integrationsRouter = createTRPCRouter({
       return query.orderBy(desc(MlOrder.createdAt)).limit(input.limit);
     }),
 
-  importMlOrder: roleRestrictedProcedure(["owner", "admin", "supervisor"])
+  importMlOrder: workspaceProcedure
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       const [updated] = await ctx.db
@@ -133,7 +129,7 @@ export const integrationsRouter = createTRPCRouter({
 
   // ─── Integration Logs (PRD §20 alerts) ──────
 
-  listLogs: protectedProcedure
+  listLogs: workspaceProcedure
     .input(
       z.object({
         source: z.string().optional(),
@@ -167,7 +163,7 @@ export const integrationsRouter = createTRPCRouter({
       return query.orderBy(desc(IntegrationLog.createdAt)).limit(input.limit);
     }),
 
-  unresolvedAlerts: protectedProcedure.query(async ({ ctx }) => {
+  unresolvedAlerts: workspaceProcedure.query(async ({ ctx }) => {
     return ctx.db
       .select({
         id: IntegrationLog.id,
@@ -187,7 +183,7 @@ export const integrationsRouter = createTRPCRouter({
       .limit(50);
   }),
 
-  resolveLog: roleRestrictedProcedure(["owner", "admin"])
+  resolveLog: workspaceProcedure
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       const [updated] = await ctx.db

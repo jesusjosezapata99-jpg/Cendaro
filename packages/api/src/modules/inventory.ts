@@ -20,17 +20,13 @@ import {
   warehouseTypeEnum,
 } from "@cendaro/db/schema";
 
-import {
-  createTRPCRouter,
-  protectedProcedure,
-  roleRestrictedProcedure,
-} from "../trpc";
+import { createTRPCRouter, workspaceProcedure } from "../trpc";
 import { logAudit } from "./audit";
 
 export const inventoryRouter = createTRPCRouter({
   // ─── Warehouses ──────────────────────────────
 
-  listWarehouses: protectedProcedure.query(async ({ ctx }) => {
+  listWarehouses: workspaceProcedure.query(async ({ ctx }) => {
     return ctx.db
       .select({
         id: Warehouse.id,
@@ -42,7 +38,7 @@ export const inventoryRouter = createTRPCRouter({
       .orderBy(Warehouse.name);
   }),
 
-  createWarehouse: roleRestrictedProcedure(["owner", "admin"])
+  createWarehouse: workspaceProcedure
     .input(
       z.object({
         name: z.string().min(1).max(256),
@@ -63,7 +59,7 @@ export const inventoryRouter = createTRPCRouter({
 
   // ─── Stock Overview (all products) ──────────
 
-  stockOverview: protectedProcedure
+  stockOverview: workspaceProcedure
     .input(
       z.object({
         search: z.string().max(256).optional(),
@@ -126,7 +122,7 @@ export const inventoryRouter = createTRPCRouter({
       }));
     }),
 
-  channelSummary: protectedProcedure.query(async ({ ctx }) => {
+  channelSummary: workspaceProcedure.query(async ({ ctx }) => {
     const rows = await ctx.db
       .select({
         channel: ChannelAllocation.channel,
@@ -143,7 +139,7 @@ export const inventoryRouter = createTRPCRouter({
 
   // ─── Stock Overview (single product) ────────
 
-  stockByProduct: protectedProcedure
+  stockByProduct: workspaceProcedure
     .input(z.object({ productId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       const [ledger, channels] = await Promise.all([
@@ -161,7 +157,7 @@ export const inventoryRouter = createTRPCRouter({
 
   // ─── Channel Transfers (PRD §9.4) ───────────
 
-  transferStock: roleRestrictedProcedure(["owner", "admin", "supervisor"])
+  transferStock: workspaceProcedure
     .input(
       z.object({
         productId: z.string().uuid(),
@@ -219,7 +215,7 @@ export const inventoryRouter = createTRPCRouter({
 
   // ─── Stock Lock/Unlock (PRD §9.5) ───────────
 
-  toggleLock: roleRestrictedProcedure(["owner", "admin", "supervisor"])
+  toggleLock: workspaceProcedure
     .input(
       z.object({
         stockLedgerId: z.string().uuid(),
@@ -244,7 +240,7 @@ export const inventoryRouter = createTRPCRouter({
 
   // ─── Movements ───────────────────────────────
 
-  listMovements: protectedProcedure
+  listMovements: workspaceProcedure
     .input(
       z.object({
         limit: z.number().int().min(1).max(100).default(25),
@@ -282,7 +278,7 @@ export const inventoryRouter = createTRPCRouter({
 
   // ─── Warehouse Detail ───────────────────────
 
-  getWarehouseDetail: protectedProcedure
+  getWarehouseDetail: workspaceProcedure
     .input(z.object({ id: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       const rows = await ctx.db.execute<{
@@ -328,7 +324,7 @@ export const inventoryRouter = createTRPCRouter({
       };
     }),
 
-  warehouseStock: protectedProcedure
+  warehouseStock: workspaceProcedure
     .input(
       z.object({
         warehouseId: z.string().uuid(),
@@ -379,7 +375,7 @@ export const inventoryRouter = createTRPCRouter({
       }));
     }),
 
-  updateStockQuantity: roleRestrictedProcedure(["owner", "admin", "supervisor"])
+  updateStockQuantity: workspaceProcedure
     .input(
       z.object({
         stockLedgerId: z.string().uuid(),
@@ -413,7 +409,7 @@ export const inventoryRouter = createTRPCRouter({
 
   // ─── Inventory Counts (PRD §9.7) ─────────────
 
-  listCounts: protectedProcedure.query(async ({ ctx }) => {
+  listCounts: workspaceProcedure.query(async ({ ctx }) => {
     return ctx.db
       .select({
         id: InventoryCount.id,
@@ -428,7 +424,7 @@ export const inventoryRouter = createTRPCRouter({
       .limit(100);
   }),
 
-  createCount: roleRestrictedProcedure(["owner", "admin", "supervisor"])
+  createCount: workspaceProcedure
     .input(
       z.object({
         warehouseId: z.string().uuid(),
@@ -456,7 +452,7 @@ export const inventoryRouter = createTRPCRouter({
       return c;
     }),
 
-  approveCount: roleRestrictedProcedure(["owner", "admin"])
+  approveCount: workspaceProcedure
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       const [updated] = await ctx.db
@@ -480,7 +476,7 @@ export const inventoryRouter = createTRPCRouter({
 
   // ─── Count Items ─────────────────────────────
 
-  listCountItems: protectedProcedure
+  listCountItems: workspaceProcedure
     .input(z.object({ countId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       const rows = await ctx.db.execute<{
@@ -523,7 +519,7 @@ export const inventoryRouter = createTRPCRouter({
       }));
     }),
 
-  addCountItems: roleRestrictedProcedure(["owner", "admin", "supervisor"])
+  addCountItems: workspaceProcedure
     .input(
       z.object({
         countId: z.string().uuid(),
@@ -561,7 +557,7 @@ export const inventoryRouter = createTRPCRouter({
       return { success: true, itemsAdded: input.productIds.length };
     }),
 
-  submitCountItem: protectedProcedure
+  submitCountItem: workspaceProcedure
     .input(
       z.object({
         itemId: z.string().uuid(),
@@ -592,7 +588,7 @@ export const inventoryRouter = createTRPCRouter({
       return updated;
     }),
 
-  finalizeCount: roleRestrictedProcedure(["owner", "admin"])
+  finalizeCount: workspaceProcedure
     .input(z.object({ countId: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       // Get all items with discrepancies

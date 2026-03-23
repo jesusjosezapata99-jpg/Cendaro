@@ -10,16 +10,12 @@ import { z } from "zod/v4";
 import type { approvalStatusEnum } from "@cendaro/db/schema";
 import { Approval, approvalTypeEnum, Signature } from "@cendaro/db/schema";
 
-import {
-  createTRPCRouter,
-  protectedProcedure,
-  roleRestrictedProcedure,
-} from "../trpc";
+import { createTRPCRouter, workspaceProcedure } from "../trpc";
 import { logAudit } from "./audit";
 
 export const approvalsRouter = createTRPCRouter({
   // ─── List pending approvals ───────────────────
-  listPending: protectedProcedure
+  listPending: workspaceProcedure
     .input(
       z.object({
         limit: z.number().int().min(1).max(100).default(25),
@@ -47,7 +43,7 @@ export const approvalsRouter = createTRPCRouter({
     }),
 
   // ─── List all approvals ───────────────────────
-  list: protectedProcedure
+  list: workspaceProcedure
     .input(
       z.object({
         limit: z.number().int().min(1).max(100).default(25),
@@ -83,7 +79,7 @@ export const approvalsRouter = createTRPCRouter({
     }),
 
   // ─── Get approval by ID with signatures ───────
-  byId: protectedProcedure
+  byId: workspaceProcedure
     .input(z.object({ id: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       const [approval] = await ctx.db
@@ -103,7 +99,7 @@ export const approvalsRouter = createTRPCRouter({
     }),
 
   // ─── Request approval ─────────────────────────
-  request: protectedProcedure
+  request: workspaceProcedure
     .input(
       z.object({
         approvalType: z.enum(approvalTypeEnum.enumValues),
@@ -143,7 +139,7 @@ export const approvalsRouter = createTRPCRouter({
     }),
 
   // ─── Approve ──────────────────────────────────
-  approve: roleRestrictedProcedure(["owner", "admin", "supervisor"])
+  approve: workspaceProcedure
     .input(
       z.object({
         id: z.string().uuid(),
@@ -185,7 +181,7 @@ export const approvalsRouter = createTRPCRouter({
     }),
 
   // ─── Reject ───────────────────────────────────
-  reject: roleRestrictedProcedure(["owner", "admin", "supervisor"])
+  reject: workspaceProcedure
     .input(
       z.object({
         id: z.string().uuid(),
