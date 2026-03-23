@@ -7,8 +7,36 @@
 
 ## Session Registry
 
-- **Total agent sessions**: 44
-- **Last Modified By**: Antigravity Agent — 2026-03-22T22:58:00+01:00
+- **Total agent sessions**: 46
+- **Last Modified By**: Antigravity Agent — 2026-03-23T01:53:00+01:00
+
+---
+
+### 2026-03-23T01:53:00+01:00 — iOS Optimization + Auto Light/Dark Mode (Landing Page)
+
+- **Audit**: Professional audit of all 16 landing components against `ui-ux-pro-max` checklist. Found 3 critical, 5 high, 3 medium issues.
+- **Theme Tokens**: Added 7 CSS custom properties to `globals.css` (`--landing-card-border`, `--landing-card-bg`, `--landing-card-border-hover`, `--landing-line`, `--landing-dot-active/inactive`, `--landing-glow-opacity`) with `:root` (light) and `@variant dark` (dark) values.
+- **Color Migration**: Replaced all 11 hardcoded `rgba(255,255,255,*)` instances across `sticky-features.tsx`, `bento-grid.tsx`, `value-props.tsx`, `hero.tsx`, `noise-overlay.tsx` with semantic landing tokens using Tailwind v4 shorthand.
+- **iOS Fixes**: Removed `maximumScale: 1` from `layout.tsx` (WCAG pinch-to-zoom), added `safe-pt` to `navbar.tsx` for notch, `safe-pb` to `footer.tsx` for home indicator, body scroll lock on mobile menu, `min-h-[90dvh]` in `hero.tsx`, increased touch targets (hamburger 44px, social icons 44px, pricing toggle 32px).
+- **Bug Fixes**: Added unique SVG filter IDs via `useId()` in `noise-overlay.tsx` to prevent collision, hero glows now use `dark:` variant for proper light/dark adaptation.
+- **Files Modified**: `globals.css`, `layout.tsx`, `navbar.tsx`, `footer.tsx`, `hero.tsx`, `sticky-features.tsx`, `bento-grid.tsx`, `value-props.tsx`, `noise-overlay.tsx`, `pricing-cards.tsx`
+- **Verification**: `pnpm lint` ✅ (0 errors), `pnpm typecheck` ✅ (0 errors), `pnpm build` ✅ (exit 0, 5/5 tasks)
+
+---
+
+### 2026-03-23T01:41:00+01:00 — Sticky Features Overhaul (midday.ai-inspired)
+
+- **Rewrite**: Completely rewrote `sticky-features.tsx` to a professional sticky-scroll section benchmarked against midday.ai.
+- **5 Features**: Expanded from 3 to 5 features (Inventario, Pedidos, Catálogo, Reportes, Panel de control) using existing Remotion videos from `/videos/*.mp4`.
+- **Vertical Indicator Line**: Implemented midday.ai-style vertical line with animated square dots — clickable, smooth-scroll navigation, visual progress tracking.
+- **Typography & State**: Serif font for feature titles. Active features: 100% opacity, expanded descriptions. Inactive features: 20% opacity, collapsed.
+- **Section Header**: Added "CÓMO FUNCIONA" label above heading.
+- **Video Transitions**: 400ms duration with `blur(4px)` + `scale(0.98)` effect via `AnimatePresence`.
+- **Mobile Fallback**: Stacked card layout for mobile with enterprise styling.
+- **Lint Fix**: Removed unused `index` prop from `IndicatorDot` component (ESLint `@typescript-eslint/no-unused-vars`).
+- **Code Formatting**: User ran Prettier across landing page components (`bento-grid.tsx`, `hero.tsx`, `noise-overlay.tsx`, `scroll-video.tsx`, `sticky-features.tsx`, `value-props.tsx`, `globals.css`, `page.tsx`) and video scenes (`CendaroDemo.tsx`, `index.ts`, `AnalyticsScene.tsx`, `CatalogScene.tsx`, `DashboardScene.tsx`, `InventoryScene.tsx`, `OrderFlowScene.tsx`).
+- **Verification**: `pnpm lint` ✅ 0 errors, `pnpm typecheck` ✅ 0 errors, `pnpm build` ✅ 5/5 tasks exit 0.
+- **Files changed**: `sticky-features.tsx` (rewrite)
 
 ---
 

@@ -80,8 +80,8 @@ function IndicatorDot({
           width: isActive ? 8 : 5,
           height: isActive ? 8 : 5,
           backgroundColor: isActive
-            ? "rgba(255,255,255,0.9)"
-            : "rgba(255,255,255,0.2)",
+            ? "var(--landing-dot-active)"
+            : "var(--landing-dot-inactive)",
         }}
         transition={{ duration: 0.35, ease }}
       />
@@ -143,7 +143,7 @@ export function StickyFeatures() {
             {/* Vertical indicator line */}
             <div
               className="absolute top-0 left-[7px] h-full w-px"
-              style={{ background: "rgba(255,255,255,0.08)" }}
+              style={{ background: "var(--landing-line)" }}
             />
 
             {features.map((feature, index) => (
@@ -202,7 +202,7 @@ export function StickyFeatures() {
               <AnimatePresence mode="wait">
                 <motion.div
                   key={activeIndex}
-                  className="w-full overflow-hidden rounded-xl border border-[rgba(255,255,255,0.08)]"
+                  className="w-full overflow-hidden rounded-xl border border-(--landing-card-border)"
                   initial={{ opacity: 0, scale: 0.98, filter: "blur(4px)" }}
                   animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
                   exit={{ opacity: 0, scale: 0.98, filter: "blur(4px)" }}
@@ -225,7 +225,7 @@ export function StickyFeatures() {
         <div className="mt-12 space-y-8 lg:hidden">
           {features.map((feature, index) => (
             <ScrollEntrance key={feature.id} delay={index * 0.08}>
-              <div className="overflow-hidden rounded-xl border border-[rgba(255,255,255,0.06)] bg-[rgba(255,255,255,0.02)]">
+              <div className="overflow-hidden rounded-xl border border-(--landing-card-border) bg-(--landing-card-bg)">
                 <div className="p-6">
                   <h3 className="font-serif text-lg font-semibold tracking-tight">
                     {feature.title}
@@ -236,7 +236,7 @@ export function StickyFeatures() {
                 </div>
                 <ScrollVideo
                   src={feature.video}
-                  className="border-t border-[rgba(255,255,255,0.06)]"
+                  className="border-t border-(--landing-card-border)"
                 />
               </div>
             </ScrollEntrance>

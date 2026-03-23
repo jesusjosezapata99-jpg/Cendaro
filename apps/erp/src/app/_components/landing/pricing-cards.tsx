@@ -86,13 +86,13 @@ export function PricingCards() {
             </span>
             <button
               type="button"
-              className="bg-muted relative h-7 w-12 cursor-pointer rounded-full transition-colors"
+              className="bg-muted relative h-8 w-14 cursor-pointer rounded-full transition-colors"
               onClick={() => setAnnual(!annual)}
               aria-label={`Cambiar a plan ${annual ? "mensual" : "anual"}`}
             >
               <div
-                className={`bg-foreground absolute top-0.5 left-0.5 h-6 w-6 rounded-full transition-transform duration-200 ${
-                  annual ? "translate-x-5" : "translate-x-0"
+                className={`bg-foreground absolute top-1 left-1 h-6 w-6 rounded-full transition-transform duration-200 ${
+                  annual ? "translate-x-6" : "translate-x-0"
                 }`}
               />
             </button>

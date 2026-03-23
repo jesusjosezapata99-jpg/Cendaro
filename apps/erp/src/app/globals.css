@@ -13,6 +13,25 @@
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
   --duration-counter: 2000ms;
   --delay-mockup-entrance: 350ms;
+
+  /* ── Landing Page — Theme-Adaptive Tokens ────── */
+  --landing-card-border: oklch(0 0 0 / 0.08);
+  --landing-card-bg: oklch(0 0 0 / 0.025);
+  --landing-card-border-hover: oklch(0 0 0 / 0.14);
+  --landing-line: oklch(0 0 0 / 0.08);
+  --landing-dot-active: oklch(0.145 0.015 250);
+  --landing-dot-inactive: oklch(0.145 0.015 250 / 0.2);
+  --landing-glow-opacity: 0.06;
+
+  @variant dark {
+    --landing-card-border: oklch(1 0 0 / 0.06);
+    --landing-card-bg: oklch(1 0 0 / 0.02);
+    --landing-card-border-hover: oklch(1 0 0 / 0.12);
+    --landing-line: oklch(1 0 0 / 0.08);
+    --landing-dot-active: oklch(0.97 0.003 250 / 0.9);
+    --landing-dot-inactive: oklch(0.97 0.003 250 / 0.2);
+    --landing-glow-opacity: 0.12;
+  }
 }
 
 @keyframes count-pulse {

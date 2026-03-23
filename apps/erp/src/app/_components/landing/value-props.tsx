@@ -61,7 +61,7 @@ export function ValueProps() {
         >
           {painPoints.map((item) => (
             <StaggerItem key={item.label}>
-              <div className="flex h-full flex-col rounded-xl border border-[rgba(255,255,255,0.06)] bg-[rgba(255,255,255,0.02)] p-6">
+              <div className="flex h-full flex-col rounded-xl border border-(--landing-card-border) bg-(--landing-card-bg) p-6">
                 <span className="text-muted-foreground/60 text-xs font-medium tracking-wider uppercase">
                   {item.label}
                 </span>
@@ -83,7 +83,7 @@ export function ValueProps() {
 
         {/* Summary card — like midday's "What disappears over time" */}
         <ScrollEntrance delay={0.2}>
-          <div className="mt-4 overflow-hidden rounded-xl border border-[rgba(255,255,255,0.06)] bg-[rgba(255,255,255,0.02)]">
+          <div className="mt-4 overflow-hidden rounded-xl border border-(--landing-card-border) bg-(--landing-card-bg)">
             <div className="flex flex-col items-center justify-between gap-8 p-8 md:flex-row md:gap-16 md:p-10">
               {/* Left: description */}
               <div className="max-w-md">

@@ -12,23 +12,26 @@ export function Hero() {
   const reduced = useReducedMotion();
 
   return (
-    <section className="relative flex min-h-[90vh] flex-col items-center justify-center overflow-hidden px-6 pt-32 pb-24 text-center">
+    <section className="relative flex min-h-[90dvh] flex-col items-center justify-center overflow-hidden px-6 pt-32 pb-24 text-center">
       {/* Noise texture */}
       <NoiseOverlay />
 
       {/* Background glow — center */}
       <div
-        className="bg-primary/12 pointer-events-none absolute top-1/2 left-1/2 -z-10 h-[500px] w-[700px] -translate-x-1/2 -translate-y-1/3 rounded-full blur-[140px]"
+        className="pointer-events-none absolute top-1/2 left-1/2 -z-10 h-[500px] w-[700px] -translate-x-1/2 -translate-y-1/3 rounded-full blur-[140px]"
+        style={{
+          background: "oklch(0.546 0.195 262 / var(--landing-glow-opacity))",
+        }}
         aria-hidden="true"
       />
 
       {/* Edge vignettes — left & right (like midday) */}
       <div
-        className="pointer-events-none absolute top-0 left-0 -z-10 h-full w-[400px] bg-linear-to-r from-blue-600/6 to-transparent"
+        className="from-primary/4 dark:from-primary/6 pointer-events-none absolute top-0 left-0 -z-10 h-full w-[400px] bg-linear-to-r to-transparent"
         aria-hidden="true"
       />
       <div
-        className="pointer-events-none absolute top-0 right-0 -z-10 h-full w-[400px] bg-linear-to-l from-blue-600/6 to-transparent"
+        className="from-primary/4 dark:from-primary/6 pointer-events-none absolute top-0 right-0 -z-10 h-full w-[400px] bg-linear-to-l to-transparent"
         aria-hidden="true"
       />
 
@@ -116,7 +119,7 @@ export function Hero() {
           aria-hidden="true"
         />
 
-        <div className="overflow-hidden rounded-xl border border-[rgba(255,255,255,0.08)]">
+        <div className="overflow-hidden rounded-xl border border-(--landing-card-border)">
           <ScrollVideo
             src="/videos/hero-dashboard.mp4"
             eager
