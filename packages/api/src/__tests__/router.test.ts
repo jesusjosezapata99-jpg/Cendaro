@@ -86,15 +86,18 @@ describe("appRouter", () => {
 
     // Health
     expect(procedures).toHaveProperty("health.ping");
+
+    // Workspace
+    expect(procedures).toHaveProperty("workspace.list");
   });
 
   it("has the correct number of top-level routers", () => {
-    // 18 routers: users, audit, approvals, catalog, catalogImport, inventory, inventoryImport, container, pricing, quotes, sales, payments, receivables, reporting, vendor, integrations, dashboard, health
+    // 19 routers: users, audit, approvals, catalog, catalogImport, inventory, inventoryImport, container, pricing, quotes, sales, payments, receivables, reporting, vendor, integrations, dashboard, health, workspace
     const topLevel = new Set<string>();
     for (const key of Object.keys(appRouter._def.procedures)) {
       const router = key.split(".")[0];
       if (router) topLevel.add(router);
     }
-    expect(topLevel.size).toBe(18);
+    expect(topLevel.size).toBe(19);
   });
 });
