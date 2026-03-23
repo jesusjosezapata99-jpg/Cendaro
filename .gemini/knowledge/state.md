@@ -7,10 +7,17 @@
 
 ## Session Registry
 
-- **Total agent sessions**: 53
-- **Last Modified By**: Antigravity Agent — 2026-03-23T20:48:00+01:00
+- **Total agent sessions**: 54
+- **Last Modified By**: Antigravity Agent — 2026-03-23T21:16:00+01:00
 
 ---
+
+### 2026-03-23T21:16:00+01:00 — CI Lint Fix: Video Module ESLint Exclusion
+
+- **RCA**: ESLint's `projectService` mapped `video/src/*.tsx` files to `apps/erp/tsconfig.json` which does NOT include `video/` in its `include`. Remotion types were unresolvable → 116 `no-unsafe-*` errors.
+- **Fix**: Added `{ ignores: ["video/**"] }` to `apps/erp/eslint.config.ts`. The `video/` directory is a self-contained Remotion project with its own `tsconfig.json`.
+- **Files Changed**: `apps/erp/eslint.config.ts`
+- **Verified**: `eslint --cache` exits 0 with zero errors/warnings.
 
 ### 2026-03-23T20:48:00+01:00 — M8b+M9+M10: Router Migration + Workspace Router + Switcher UI
 
