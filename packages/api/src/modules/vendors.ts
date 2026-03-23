@@ -16,17 +16,13 @@ import {
   VendorCommission,
 } from "@cendaro/db/schema";
 
-import {
-  createTRPCRouter,
-  protectedProcedure,
-  roleRestrictedProcedure,
-} from "../trpc";
+import { createTRPCRouter, workspaceProcedure } from "../trpc";
 import { logAudit } from "./audit";
 
 export const vendorRouter = createTRPCRouter({
   // ─── Vendor Commissions (PRD §16) ────────────
 
-  myCommissions: protectedProcedure
+  myCommissions: workspaceProcedure
     .input(
       z.object({
         limit: z.number().int().min(1).max(100).default(25),
@@ -51,7 +47,7 @@ export const vendorRouter = createTRPCRouter({
         .limit(input.limit);
     }),
 
-  myOrders: protectedProcedure
+  myOrders: workspaceProcedure
     .input(
       z.object({
         limit: z.number().int().min(1).max(100).default(25),
@@ -75,7 +71,7 @@ export const vendorRouter = createTRPCRouter({
         .limit(input.limit);
     }),
 
-  myCustomers: protectedProcedure.query(async ({ ctx }) => {
+  myCustomers: workspaceProcedure.query(async ({ ctx }) => {
     return ctx.db
       .select({
         id: Customer.id,
@@ -90,7 +86,7 @@ export const vendorRouter = createTRPCRouter({
       .limit(200);
   }),
 
-  allCommissions: roleRestrictedProcedure(["owner", "admin", "supervisor"])
+  allCommissions: workspaceProcedure
     .input(
       z.object({
         vendorId: z.string().uuid().optional(),
@@ -118,7 +114,7 @@ export const vendorRouter = createTRPCRouter({
       return query.orderBy(desc(VendorCommission.createdAt)).limit(input.limit);
     }),
 
-  payCommission: roleRestrictedProcedure(["owner", "admin"])
+  payCommission: workspaceProcedure
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       const [updated] = await ctx.db
@@ -138,7 +134,7 @@ export const vendorRouter = createTRPCRouter({
 
   // ─── Accounts Receivable / CxC (PRD §17.3) ──
 
-  listAR: protectedProcedure
+  listAR: workspaceProcedure
     .input(
       z.object({
         customerId: z.string().uuid().optional(),
@@ -177,7 +173,7 @@ export const vendorRouter = createTRPCRouter({
       return query.orderBy(desc(AccountReceivable.dueDate)).limit(input.limit);
     }),
 
-  arById: protectedProcedure
+  arById: workspaceProcedure
     .input(z.object({ id: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       const [row] = await ctx.db
@@ -202,7 +198,7 @@ export const vendorRouter = createTRPCRouter({
       return row ?? null;
     }),
 
-  overdueAR: protectedProcedure.query(async ({ ctx }) => {
+  overdueAR: workspaceProcedure.query(async ({ ctx }) => {
     return ctx.db
       .select({
         id: AccountReceivable.id,
@@ -225,7 +221,7 @@ export const vendorRouter = createTRPCRouter({
       .limit(100);
   }),
 
-  createAR: roleRestrictedProcedure(["owner", "admin", "supervisor"])
+  createAR: workspaceProcedure
     .input(
       z.object({
         customerId: z.string().uuid(),
@@ -259,7 +255,7 @@ export const vendorRouter = createTRPCRouter({
       return ar;
     }),
 
-  recordPayment: roleRestrictedProcedure(["owner", "admin", "supervisor"])
+  recordPayment: workspaceProcedure
     .input(
       z.object({
         id: z.string().uuid(),

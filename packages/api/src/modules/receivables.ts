@@ -14,16 +14,12 @@ import {
   PaymentAllocation,
 } from "@cendaro/db/schema";
 
-import {
-  createTRPCRouter,
-  protectedProcedure,
-  roleRestrictedProcedure,
-} from "../trpc";
+import { createTRPCRouter, workspaceProcedure } from "../trpc";
 import { logAudit } from "./audit";
 
 export const receivablesRouter = createTRPCRouter({
   // ─── List all AR accounts ─────────────────────
-  list: protectedProcedure
+  list: workspaceProcedure
     .input(
       z.object({
         limit: z.number().int().min(1).max(100).default(25),
@@ -47,7 +43,7 @@ export const receivablesRouter = createTRPCRouter({
     }),
 
   // ─── Get by ID with installments + allocations ─
-  byId: protectedProcedure
+  byId: workspaceProcedure
     .input(z.object({ id: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       const [receivable] = await ctx.db
@@ -72,7 +68,7 @@ export const receivablesRouter = createTRPCRouter({
     }),
 
   // ─── Create installments for AR ───────────────
-  createInstallments: roleRestrictedProcedure(["owner", "admin", "supervisor"])
+  createInstallments: workspaceProcedure
     .input(
       z.object({
         receivableId: z.string().uuid(),
@@ -109,7 +105,7 @@ export const receivablesRouter = createTRPCRouter({
     }),
 
   // ─── Mark installment as paid ─────────────────
-  markPaid: roleRestrictedProcedure(["owner", "admin", "supervisor"])
+  markPaid: workspaceProcedure
     .input(
       z.object({
         installmentId: z.string().uuid(),
@@ -135,7 +131,7 @@ export const receivablesRouter = createTRPCRouter({
     }),
 
   // ─── Summary stats ────────────────────────────
-  summary: protectedProcedure.query(async ({ ctx }) => {
+  summary: workspaceProcedure.query(async ({ ctx }) => {
     const [stats] = await ctx.db
       .select({
         totalActive: sql<number>`count(*) filter (where ${AccountReceivable.status} = 'pending')`,
