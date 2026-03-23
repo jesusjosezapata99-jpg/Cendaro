@@ -55,8 +55,8 @@ graph TB
 
   subgraph PACKAGES["◫  SHARED PACKAGES"]
     direction TB
-    API["▸ @cendaro/api\ntRPC v11 · 18 domain routers\nRBAC middleware · Audit logger"]:::pkg
-    DB["▸ @cendaro/db\nDrizzle ORM · 58 tables\n11 schema phases · 30 enums"]:::pkg
+    API["▸ @cendaro/api\ntRPC v11 · 19 domain routers\nRBAC middleware · Audit logger"]:::pkg
+    DB["▸ @cendaro/db\nDrizzle ORM · 67 tables\n12 schema phases · 34 enums"]:::pkg
     AUTH["▸ @cendaro/auth\nSupabase SSR\nServer · Client · Middleware"]:::pkg
     UI["▸ @cendaro/ui\nshadcn/ui · Radix\nButton · Dialog · Sidebar · Forms"]:::pkg
     VAL["▸ @cendaro/validators\nZod v4 · Domain schemas\nRIF · Cédula · Money · RBAC"]:::pkg
@@ -115,7 +115,7 @@ sequenceDiagram
   P->>+N: Authenticated request
   N->>+T: tRPC procedure call
 
-  Note right of T: Role-based access control<br/>owner > admin > supervisor > employee
+  Note right of T: Workspace isolation<br/>SET LOCAL app.workspace_id<br/>Role-based access control<br/>owner > admin > supervisor > employee
 
   T->>T: Check user.role ∈ allowedRoles
 
@@ -138,20 +138,21 @@ sequenceDiagram
 cendaro/
 ├── apps/
 │   └── erp/                              ← Next.js 16 (App Router + PWA)
-│       └── src/
-│           ├── app/(app)/                 ← 22 authenticated route groups
-│           ├── app/api/                   ← tRPC + AI + Auth endpoints
-│           ├── components/                ← Sidebar, TopBar, Dialog, 14 forms
-│           ├── hooks/                     ← useBcvRate, useCnyRate, useCurrentUser, useDebounce
-│           ├── modules/                   ← 13 client-side domain modules
-│           ├── trpc/                      ← Client, server, query-client setup
-│           └── proxy.ts                   ← Edge auth guard
+│       ├── src/
+│       │   ├── app/(app)/                 ← 22 authenticated route groups
+│       │   ├── app/api/                   ← tRPC + AI + Auth endpoints
+│       │   ├── components/                ← Sidebar, TopBar, WorkspaceSwitcher, 14 forms
+│       │   ├── hooks/                     ← useBcvRate, useCnyRate, useCurrentUser, useDebounce, useWorkspace
+│       │   ├── modules/                   ← 13 client-side domain modules
+│       │   ├── trpc/                      ← Client, server, query-client setup
+│       │   └── proxy.ts                   ← Edge auth guard
+│       └── video/                         ← Remotion demo videos (5 scenes)
 │
 ├── packages/
 │   ├── api/                              ← tRPC v11 business logic
-│   │   └── src/modules/                  ← 18 domain routers
+│   │   └── src/modules/                  ← 19 domain routers
 │   ├── auth/                             ← Supabase SSR (3 clients)
-│   ├── db/                               ← Drizzle schema (58 tables)
+│   ├── db/                               ← Drizzle schema (67 tables)
 │   ├── ui/                               ← shadcn/ui components
 │   └── validators/                       ← Zod v4 domain schemas
 │
@@ -269,6 +270,7 @@ graph LR
   ROOT --- O["🛒 sales"]:::router
   ROOT --- P["👤 users"]:::router
   ROOT --- Q["🤝 vendor"]:::router
+  ROOT --- R["🏢 workspace"]:::router
 ```
 
 | Router            | Domain                                  | Key Operations                             | Access                  |
@@ -291,12 +293,13 @@ graph LR
 | `integrations`    | Mercado Libre, WhatsApp                 | Order sync, listing management             | 👑 Admin                |
 | `dashboard`       | Executive KPIs                          | Sales analytics, margin reports            | 👑 Admin+               |
 | `health`          | System status                           | Readiness check                            | 🌐 Public               |
+| `workspace`       | Multi-tenancy                           | List, create, switch, manage members       | 🔒 Authenticated        |
 
 ---
 
 ### `@cendaro/db` — Database & Schema
 
-> 58 tables, 30 enums, 11 implementation phases — the entire data domain in one schema file.
+> 67 tables, 34 enums, 12 implementation phases — the entire data domain in one schema file.
 
 <details>
 <summary><strong>📊 Click to expand full schema map</strong></summary>
@@ -404,6 +407,21 @@ graph TB
     SIG[Signature]:::phase9
   end
 
+  subgraph P10["◆ PHASE 10 — Multi-tenancy"]
+    WK[Workspace]:::phase1
+    WM[WorkspaceMember]:::phase1
+    WMO[WorkspaceModule]:::phase1
+    WP[WorkspaceProfile]:::phase1
+    WQ[WorkspaceQuota]:::phase1
+    DS[DocumentSequence]:::phase1
+  end
+
+  subgraph P11["◆ PHASE 11 — Notifications"]
+    NB[NotificationBucket]:::phase8
+    NBA[NotificationBucketAssignee]:::phase8
+    NRR[NotificationRoutingRule]:::phase8
+  end
+
   O --> UP
   UP --> AL
   BR --> PR
@@ -438,6 +456,12 @@ graph TB
   AR --> ARI
   ML --> MO
   APR --> SIG
+  WK --> WM
+  WK --> WMO
+  WK --> WP
+  WK --> WQ
+  WK --> DS
+  NB --> NBA
 ```
 
 </details>
@@ -454,6 +478,8 @@ graph TB
 | **7**  |  🟪   | Integrations           | `ml_listing` · `ml_order` · `integration_log` · `mercadolibre_account` · `mercadolibre_order_event` · `integration_failure`                                                                                                                       |
 | **8**  |  💗   | Alerts                 | `system_alert`                                                                                                                                                                                                                                    |
 | **9**  |  🔮   | Approvals & Signatures | `approval` · `signature`                                                                                                                                                                                                                          |
+| **10** |  🔵   | Multi-tenancy          | `workspace` · `workspace_member` · `workspace_module` · `workspace_profile` · `workspace_quota` · `document_sequence`                                                                                                                             |
+| **11** |  🔴   | Notifications          | `notification_bucket` · `notification_bucket_assignee` · `notification_routing_rule`                                                                                                                                                              |
 
 ---
 
@@ -486,7 +512,7 @@ graph LR
 
 | Category       | Components                                                                                                                                                                                                                                        |
 | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Layout**     | `Sidebar` · `TopBar` · `Dialog`                                                                                                                                                                                                                   |
+| **Layout**     | `Sidebar` · `TopBar` · `Dialog` · `WorkspaceSwitcher`                                                                                                                                                                                             |
 | **Controls**   | `Button` (7 variants × 4 sizes) · `ThemeToggle`                                                                                                                                                                                                   |
 | **Auth**       | `RoleGuard` — RBAC-based conditional rendering                                                                                                                                                                                                    |
 | **Forms (14)** | `CreateProduct` · `EditProduct` · `CreateOrder` · `UpdateOrderStatus` · `CreateCustomer` · `CreateContainer` · `CreateBrand` · `CreateCategory` · `CreateSupplier` · `CreateClosure` · `CycleCount` · `TransferStock` · `CreateUser` · `EditUser` |
@@ -641,6 +667,14 @@ erDiagram
   InternalInvoice ||--o{ InternalInvoiceItem : "includes"
 
   Approval ||--o{ Signature : "signed by"
+
+  Workspace ||--o{ WorkspaceMember : "has members"
+  Workspace ||--o{ WorkspaceModule : "enables"
+  Workspace ||--o{ WorkspaceProfile : "profiles"
+  Workspace ||--o{ WorkspaceQuota : "limits"
+  Workspace ||--o{ DocumentSequence : "sequences"
+
+  NotificationBucket ||--o{ NotificationBucketAssignee : "assigned to"
 ```
 
 ---
@@ -708,14 +742,15 @@ graph TB
   end
 
   subgraph L2["🛡 LAYER 2 — AUTHORIZATION"]
-    B1["tRPC RBAC Middleware\nroleRestrictedProcedure"]:::rbac
+    B1["tRPC RBAC Middleware\nworkspaceProcedure"]:::rbac
     B2["6 Role Levels\n👑 owner → admin → supervisor\n👤 employee · vendor · marketing"]:::rbac
   end
 
   subgraph L3["🔐 LAYER 3 — DATA ISOLATION"]
-    C1["Supabase RLS Policies\nRow-Level Security"]:::data
-    C2["Vendor Data Isolation\nOrg-Level Scoping"]:::data
-    C3["Service-Role Key\nPrivileged Operations"]:::data
+    C1["Workspace Isolation\nSET LOCAL app.workspace_id"]:::data
+    C2["Supabase RLS Policies\nRow-Level Security"]:::data
+    C3["pgPolicy Factory\nworkspacePolicy helper"]:::data
+    C4["Service-Role Key\nPrivileged Operations"]:::data
   end
 
   subgraph L4["📜 LAYER 4 — AUDIT TRAIL"]
@@ -869,18 +904,20 @@ pnpm dev:erp      # ERP app only
 
 ## 🗺 Roadmap
 
-| Phase | Domain                                          | Status |
-| :---: | ----------------------------------------------- | :----: |
-| **0** | Foundation — monorepo, tooling, design system   |   ✅   |
-| **1** | Schema, RBAC, audit trail, permissions          |   ✅   |
-| **2** | Catalog, inventory, containers, AI pipeline     |   ✅   |
-| **3** | Pricing engine, exchange rates, auto-repricing  |   ✅   |
-| **4** | Sales, payments, cash closure, order workflow   |   ✅   |
-| **5** | Mercado Libre + WhatsApp integrations           |   ✅   |
-| **6** | Executive dashboard, vendor portal, commissions |   ✅   |
-| **7** | Testing, hardening, CI/CD, Git lifecycle        |   ✅   |
-| **8** | Dashboard KPIs, system alerts, AI inference     |   ✅   |
-| **9** | Approvals, signatures, quotes, documents        |   ✅   |
+| Phase  | Domain                                          | Status |
+| :----: | ----------------------------------------------- | :----: |
+| **0**  | Foundation — monorepo, tooling, design system   |   ✅   |
+| **1**  | Schema, RBAC, audit trail, permissions          |   ✅   |
+| **2**  | Catalog, inventory, containers, AI pipeline     |   ✅   |
+| **3**  | Pricing engine, exchange rates, auto-repricing  |   ✅   |
+| **4**  | Sales, payments, cash closure, order workflow   |   ✅   |
+| **5**  | Mercado Libre + WhatsApp integrations           |   ✅   |
+| **6**  | Executive dashboard, vendor portal, commissions |   ✅   |
+| **7**  | Testing, hardening, CI/CD, Git lifecycle        |   ✅   |
+| **8**  | Dashboard KPIs, system alerts, AI inference     |   ✅   |
+| **9**  | Approvals, signatures, quotes, documents        |   ✅   |
+| **10** | Multi-tenancy, workspace isolation, RLS         |   ✅   |
+| **11** | Notification buckets, routing rules             |   ✅   |
 
 ---
 
