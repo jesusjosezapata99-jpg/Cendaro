@@ -7,12 +7,20 @@
 
 ## Session Registry
 
-- **Total agent sessions**: 55
-- **Last Modified By**: Antigravity Agent — 2026-03-23T21:37:00+01:00
+- **Total agent sessions**: 56
+- **Last Modified By**: Antigravity Agent — 2026-03-23T22:53:00+01:00
 
 ---
 
-### 2026-03-23T21:37:00+01:00 — README Professional Audit & Update
+### 2026-03-23T22:53:00+01:00 — Multi-Tenant Implementation Completion
+
+- **Scope**: Closed critical RLS gap + server-side workspace propagation + user seeding.
+- **Phase A**: Applied migration `fix_workspace_rls_policies` — dropped 62 empty RLS policies and recreated with `USING/WITH CHECK (workspace_id = current_setting('app.workspace_id', true)::uuid)`. Granted CRUD privileges to `app_user` on 62 tables + SELECT on 5 lookup tables.
+- **Phase B**: Added cookie persistence (`cendaro-workspace-id`) in `use-workspace.tsx`, server-side cookie reading in `server.ts`, proxy header forwarding in `proxy.ts`.
+- **Phase C**: Applied migration `set_default_workspace_on_profiles` — set `default_workspace_id` for 2 existing users.
+- **Phase D**: 62/62 policies verified with non-null expressions. `pnpm typecheck` exit 0, `pnpm test` 39/39 pass.
+- **Files Changed**: `apps/erp/src/hooks/use-workspace.tsx`, `apps/erp/src/trpc/server.ts`, `apps/erp/src/proxy.ts`
+- **Supabase Migrations**: `fix_workspace_rls_policies`, `set_default_workspace_on_profiles`
 
 - **Scope**: Full monorepo audit to update README.md with all structural changes.
 - **Changes**: 19 routers (was 18), 67 tables (was 58), 34 enums (was 30), 12 phases (was 11). Added Phase 10 (Multi-tenancy: 6 tables), Phase 11 (Notifications: 3 tables). Updated file tree, router graph, schema diagram, ER diagram, security diagram, UI components, roadmap.

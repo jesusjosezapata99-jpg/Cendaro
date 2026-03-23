@@ -17,6 +17,20 @@ import {
 } from "react";
 
 const STORAGE_KEY = "cendaro:workspace-id";
+const COOKIE_NAME = "cendaro-workspace-id";
+const COOKIE_MAX_AGE = 60 * 60 * 24 * 365; // 1 year
+
+/** Set workspace ID cookie (client-readable, SameSite=Lax) */
+function setWorkspaceCookie(id: string) {
+  document.cookie = `${COOKIE_NAME}=${id}; path=/; max-age=${COOKIE_MAX_AGE}; SameSite=Lax`;
+}
+
+/** Read workspace ID from cookie */
+function readWorkspaceCookie(): string | null {
+  const re = new RegExp(`(?:^|; )${COOKIE_NAME}=([^;]*)`);
+  const match = re.exec(document.cookie);
+  return match?.[1] ?? null;
+}
 
 export interface WorkspaceContext {
   /** Currently selected workspace ID */
@@ -43,15 +57,21 @@ export function WorkspaceProvider({
   initialWorkspaceId?: string;
 }) {
   const [workspaceId, setWorkspaceId] = useState<string | null>(() => {
-    // SSR-safe: only read localStorage on client
+    // SSR-safe: only read storage on client
     if (typeof window === "undefined") return initialWorkspaceId ?? null;
-    return localStorage.getItem(STORAGE_KEY) ?? initialWorkspaceId ?? null;
+    return (
+      localStorage.getItem(STORAGE_KEY) ??
+      readWorkspaceCookie() ??
+      initialWorkspaceId ??
+      null
+    );
   });
 
-  // Sync to localStorage when workspace changes
+  // Sync to localStorage + cookie when workspace changes
   useEffect(() => {
     if (workspaceId) {
       localStorage.setItem(STORAGE_KEY, workspaceId);
+      setWorkspaceCookie(workspaceId);
     }
   }, [workspaceId]);
 
@@ -82,8 +102,12 @@ export function useWorkspace(): WorkspaceContext {
 /**
  * Returns the current workspace ID for use in tRPC headers.
  * Used internally by the tRPC client configuration.
+ * Reads from localStorage (client) or cookie (universal).
  */
 export function getWorkspaceId(): string | null {
   if (typeof window === "undefined") return null;
-  return localStorage.getItem(STORAGE_KEY);
+  return localStorage.getItem(STORAGE_KEY) ?? readWorkspaceCookie();
 }
+
+/** Cookie name — exported for server-side reading */
+export const WORKSPACE_COOKIE = COOKIE_NAME;

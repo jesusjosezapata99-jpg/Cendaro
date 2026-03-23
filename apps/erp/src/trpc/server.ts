@@ -25,9 +25,15 @@ const createContext = cache(async () => {
   const heads = new Headers(await headers());
   heads.set("x-trpc-source", "rsc");
 
+  // Inject workspace ID from cookie for RSC/Server Actions
+  const cookieStore = await cookies();
+  const wsId = cookieStore.get("cendaro-workspace-id")?.value;
+  if (wsId && !heads.has("x-workspace-id")) {
+    heads.set("x-workspace-id", wsId);
+  }
+
   let user = null;
   if (supabaseUrl && supabaseKey) {
-    const cookieStore = await cookies();
     const supabase = createSupabaseServerClient(
       cookieStore,
       supabaseUrl,
