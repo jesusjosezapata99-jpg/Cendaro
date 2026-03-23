@@ -11,6 +11,47 @@
   --duration-entrance: 600ms;
   --duration-micro: 250ms;
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --duration-counter: 2000ms;
+  --delay-mockup-entrance: 350ms;
+}
+
+@keyframes count-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+}
+
+@keyframes row-highlight {
+  0%,
+  100% {
+    background: transparent;
+  }
+  50% {
+    background: oklch(0.75 0.1 145 / 0.08);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes float-y {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
 }
 
 @keyframes marquee {

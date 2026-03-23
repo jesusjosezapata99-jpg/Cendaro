@@ -7,8 +7,17 @@
 
 ## Session Registry
 
-- **Total agent sessions**: 42
-- **Last Modified By**: Antigravity Agent — 2026-03-22T20:10:00+01:00
+- **Total agent sessions**: 44
+- **Last Modified By**: Antigravity Agent — 2026-03-22T22:58:00+01:00
+
+---
+
+### 2026-03-22T22:58:00+01:00 — Dynamic Visual System (Phases 1-3)
+
+- **Phase 1 — Code Mockups**: Replaced static wireframes in `hero.tsx` (dashboard replica with CountUp KPIs, operations table, closures, floating notification), `sticky-features.tsx` (3 distinct mockups: Inventory/Orders/Catalog with Framer Motion animations), `bento-grid.tsx` (8 enhanced mini-visuals with real data). Added keyframes in `globals.css`.
+- **Phase 2 — Remotion Video**: Created `apps/erp/video/` project with 3 scenes (`DashboardScene`, `InventoryScene`, `OrderFlowScene`). Rendered 18s MP4 (1.3 MB, h264). Copied to `apps/erp/public/cendaro-demo.mp4`. Added Dashboard ↔ Video Demo toggle in hero using `AnimatePresence`.
+- **Phase 3 — Verification**: `pnpm typecheck --filter @cendaro/erp` — 0 errors. `pnpm build --filter @cendaro/erp` — exit 0 (31.7s, 5/5 tasks). Visual browser check passed (both toggle views).
+- **New files**: `video/package.json`, `video/tsconfig.json`, `video/remotion.config.ts`, `video/src/index.ts`, `video/src/CendaroDemo.tsx`, `video/src/Walkthrough.tsx`, `video/src/scenes/DashboardScene.tsx`, `video/src/scenes/InventoryScene.tsx`, `video/src/scenes/OrderFlowScene.tsx`, `public/cendaro-demo.mp4`
 
 ---
 

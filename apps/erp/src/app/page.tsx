@@ -7,10 +7,12 @@ import { Footer } from "./_components/landing/footer";
 import { Hero } from "./_components/landing/hero";
 import { IntegrationsMarquee } from "./_components/landing/integrations-marquee";
 import { Navbar } from "./_components/landing/navbar";
+import { SectionDivider } from "./_components/landing/noise-overlay";
 import { PricingCards } from "./_components/landing/pricing-cards";
 import { StatsSection } from "./_components/landing/stats-section";
 import { StickyFeatures } from "./_components/landing/sticky-features";
 import { Testimonials } from "./_components/landing/testimonials";
+import { ValueProps } from "./_components/landing/value-props";
 
 const SITE_URL = "https://cendaro.com";
 
@@ -87,11 +89,18 @@ export default function LandingPage() {
       <Navbar />
       <main>
         <Hero />
+        <SectionDivider />
         <StickyFeatures />
+        <SectionDivider />
         <BentoGrid />
+        <SectionDivider />
+        <ValueProps />
+        <SectionDivider />
         <StatsSection />
         <Testimonials />
+        <SectionDivider />
         <IntegrationsMarquee />
+        <SectionDivider />
         <PricingCards />
         <FAQSection />
         <FinalCTA />
