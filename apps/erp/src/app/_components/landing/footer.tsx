@@ -77,7 +77,7 @@ export function Footer() {
         </div>
 
         {/* Bottom bar */}
-        <div className="border-border mt-16 flex flex-col items-center justify-between gap-6 border-t pt-8 md:flex-row">
+        <div className="border-border safe-pb mt-16 flex flex-col items-center justify-between gap-6 border-t pt-8 md:flex-row">
           {/* Logo + copyright */}
           <div className="flex items-center gap-2">
             <div className="bg-primary flex h-6 w-6 items-center justify-center rounded">
@@ -97,7 +97,7 @@ export function Footer() {
               href="https://github.com/cendaro"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-muted-foreground hover:bg-muted hover:text-foreground flex h-8 w-8 items-center justify-center rounded-lg transition-colors duration-200"
+              className="text-muted-foreground hover:bg-muted hover:text-foreground flex h-11 w-11 items-center justify-center rounded-lg transition-colors duration-200"
               aria-label="GitHub"
             >
               <GitHubIcon />

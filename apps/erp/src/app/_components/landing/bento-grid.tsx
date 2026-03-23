@@ -331,7 +331,7 @@ export function BentoGrid() {
               key={feature.title}
               className={`${feature.span === 2 ? "lg:col-span-2" : ""}`}
             >
-              <div className="group hover:shadow-primary/5 flex h-full flex-col rounded-xl border border-[rgba(255,255,255,0.06)] bg-[rgba(255,255,255,0.02)] p-6 transition-all duration-300 hover:-translate-y-0.5 hover:border-[rgba(255,255,255,0.12)] hover:shadow-lg">
+              <div className="group hover:shadow-primary/5 flex h-full flex-col rounded-xl border border-(--landing-card-border) bg-(--landing-card-bg) p-6 transition-all duration-300 hover:-translate-y-0.5 hover:border-(--landing-card-border-hover) hover:shadow-lg">
                 <feature.icon
                   className="text-primary h-6 w-6"
                   strokeWidth={1.5}

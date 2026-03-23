@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -30,10 +30,16 @@ export function Navbar() {
   const scrolled = useScrollY(50);
   const [mobileOpen, setMobileOpen] = useState(false);
 
+  /* Lock body scroll when mobile menu is open (uses .dialog-open from globals.css) */
+  useEffect(() => {
+    document.documentElement.classList.toggle("dialog-open", mobileOpen);
+    return () => document.documentElement.classList.remove("dialog-open");
+  }, [mobileOpen]);
+
   return (
     <>
       <header
-        className={`fixed top-0 right-0 left-0 z-50 transition-all duration-300 ${
+        className={`safe-pt fixed top-0 right-0 left-0 z-50 transition-all duration-300 ${
           scrolled
             ? "bg-background/80 border-border/50 border-b backdrop-blur-xl"
             : "bg-transparent"
@@ -83,7 +89,7 @@ export function Navbar() {
           {/* Mobile hamburger */}
           <button
             type="button"
-            className="flex h-10 w-10 cursor-pointer items-center justify-center rounded-lg md:hidden"
+            className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-lg md:hidden"
             onClick={() => setMobileOpen(!mobileOpen)}
             aria-label={mobileOpen ? "Cerrar menú" : "Abrir menú"}
           >
