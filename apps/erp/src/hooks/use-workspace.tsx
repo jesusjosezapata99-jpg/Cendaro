@@ -37,7 +37,7 @@ export interface WorkspaceContext {
   workspaceId: string | null;
   /** Switch to a different workspace */
   switchWorkspace: (workspaceId: string) => void;
-  /** Whether a workspace is selected */
+  /** Whether a workspace is selected and ready for queries */
   isReady: boolean;
 }
 

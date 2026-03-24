@@ -7,8 +7,27 @@
 
 ## Session Registry
 
-- **Total agent sessions**: 57
-- **Last Modified By**: Antigravity Agent — 2026-03-23T23:31:00+01:00
+- **Total agent sessions**: 59
+- **Last Modified By**: Antigravity Agent — 2026-03-24T01:24:00+01:00
+
+---
+
+### 2026-03-24T01:24:00+01:00 — Production Console Error Fixes (manifest.json + meta tag)
+
+- **Scope**: Fixed 2 of 3 production console errors on `cendaro-erp.vercel.app`. Error #1 (tRPC 500 workspace auto-resolve) handled separately by user.
+- **Fix #1 (manifest.json 404)**: Created `apps/erp/public/manifest.json` — PWA manifest with name, icons (`cendaro-logo.png`, `favicon.ico`), standalone display, dark theme colors (`#0a0a0a`/`#0f172a`).
+- **Fix #2 (deprecated meta tag)**: Changed `apple-mobile-web-app-capable` → `mobile-web-app-capable` in `apps/erp/src/app/layout.tsx` line 52.
+- **Also fixed (prior)**: ESLint lint-staged error — removed inline `eslint-disable-next-line @next/next/no-img-element` from `opengraph-image.tsx`, added config-level override in `eslint.config.ts` for OG/Twitter image files. Root cause was lint-staged running ESLint from root (no `@next/next` plugin) while the disable comment referenced that plugin's rule.
+- **Files Changed**: `apps/erp/public/manifest.json` (NEW), `apps/erp/src/app/layout.tsx`, `apps/erp/src/app/opengraph-image.tsx`, `apps/erp/eslint.config.ts`
+- **Verification**: `pnpm typecheck` ✅ (6/6 tasks, exit 0)
+
+### 2026-03-24T01:24:00+01:00 — Workspace Auto-Resolve (First Login Fix)
+
+- **RCA**: `WorkspaceProvider` had no fallback when localStorage/cookie are empty (first login, cache clear, new device). `getWorkspaceId()` returned null → `workspaceProcedure` threw BAD_REQUEST → 500 on every workspace-scoped endpoint.
+- **Fix**: Created `WorkspaceAutoResolver` component that runs inside both `TRPCProvider` and `WorkspaceProvider`. When no workspace is stored, it queries `workspace.list` (protectedProcedure, no workspace context needed), auto-selects the first active workspace, and persists to localStorage + cookie. Layout wraps children in this component — rendering is gated behind `isReady`.
+- **New File**: `apps/erp/src/components/workspace-auto-resolver.tsx`
+- **Files Changed**: `apps/erp/src/hooks/use-workspace.tsx` (cleanup), `apps/erp/src/app/(app)/layout.tsx` (added WorkspaceAutoResolver wrapper)
+- **Verification**: `pnpm typecheck` ✅ exit 0, `pnpm test` ✅ 39/39 pass
 
 ---
 
