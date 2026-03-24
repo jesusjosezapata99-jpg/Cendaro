@@ -4,6 +4,7 @@ import { Suspense, useState } from "react";
 
 import { Sidebar } from "~/components/sidebar";
 import { TopBar } from "~/components/top-bar";
+import { WorkspaceAutoResolver } from "~/components/workspace-auto-resolver";
 import { WorkspaceProvider } from "~/hooks/use-workspace";
 import { TRPCProvider } from "~/trpc/client";
 
@@ -24,15 +25,17 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <TRPCProvider>
       <WorkspaceProvider>
-        <div className="flex h-dvh overflow-hidden">
-          <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-          <div className="flex flex-1 flex-col overflow-hidden">
-            <TopBar onToggleSidebar={() => setSidebarOpen((o) => !o)} />
-            <main className="bg-background safe-pb flex-1 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch]">
-              <Suspense fallback={<PageSkeleton />}>{children}</Suspense>
-            </main>
+        <WorkspaceAutoResolver fallback={<PageSkeleton />}>
+          <div className="flex h-dvh overflow-hidden">
+            <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+            <div className="flex flex-1 flex-col overflow-hidden">
+              <TopBar onToggleSidebar={() => setSidebarOpen((o) => !o)} />
+              <main className="bg-background safe-pb flex-1 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch]">
+                <Suspense fallback={<PageSkeleton />}>{children}</Suspense>
+              </main>
+            </div>
           </div>
-        </div>
+        </WorkspaceAutoResolver>
       </WorkspaceProvider>
     </TRPCProvider>
   );
