@@ -1,4 +1,11 @@
-import { AbsoluteFill, interpolate, spring, useCurrentFrame } from "remotion";
+import {
+  AbsoluteFill,
+  Img,
+  interpolate,
+  spring,
+  staticFile,
+  useCurrentFrame,
+} from "remotion";
 
 const FPS = 30;
 const BG = "#0a0a12";
@@ -52,8 +59,9 @@ export const OrderFlowScene: React.FC = () => {
     <AbsoluteFill
       style={{
         background: BG,
-        padding: "0 36px 28px 36px",
+        padding: "0 32px 20px 32px",
         fontFamily: "system-ui, -apple-system, sans-serif",
+        overflow: "hidden",
       }}
     >
       {/* Header */}
@@ -62,35 +70,28 @@ export const OrderFlowScene: React.FC = () => {
           display: "flex",
           alignItems: "center",
           gap: 10,
-          padding: "14px 0",
+          padding: "12px 0",
           borderBottom: "1px solid rgba(255,255,255,0.06)",
           opacity: entrance,
         }}
       >
-        <div
+        <Img
+          src={staticFile("cendaro-logo.png")}
           style={{
-            width: 28,
-            height: 28,
-            borderRadius: 7,
-            background: "linear-gradient(135deg, #3b82f6, #6366f1)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            color: "#fff",
-            fontSize: 14,
-            fontWeight: 700,
+            width: 26,
+            height: 26,
+            borderRadius: 5,
+            objectFit: "contain",
           }}
-        >
-          C
-        </div>
-        <span style={{ color: "#fff", fontSize: 20, fontWeight: 600 }}>
+        />
+        <span style={{ color: "#fff", fontSize: 18, fontWeight: 600 }}>
           Cendaro
         </span>
-        <span style={{ color: "rgba(255,255,255,0.2)", fontSize: 20 }}>·</span>
+        <span style={{ color: "rgba(255,255,255,0.2)", fontSize: 18 }}>·</span>
         <span
           style={{
             color: "rgba(255,255,255,0.5)",
-            fontSize: 20,
+            fontSize: 18,
             fontWeight: 500,
           }}
         >
@@ -99,10 +100,10 @@ export const OrderFlowScene: React.FC = () => {
         <div style={{ flex: 1 }} />
         <div
           style={{
-            padding: "8px 18px",
+            padding: "6px 14px",
             borderRadius: 8,
             fontWeight: 600,
-            fontSize: 18,
+            fontSize: 15,
             background: "rgba(59,130,246,0.15)",
             color: "#60a5fa",
           }}
@@ -117,8 +118,8 @@ export const OrderFlowScene: React.FC = () => {
           flex: 1,
           display: "grid",
           gridTemplateColumns: "repeat(4, 1fr)",
-          gap: 14,
-          paddingTop: 16,
+          gap: 12,
+          paddingTop: 12,
         }}
       >
         {COLUMNS.map((col, colIdx) => (
@@ -129,8 +130,8 @@ export const OrderFlowScene: React.FC = () => {
               flexDirection: "column",
               background: "rgba(255,255,255,0.02)",
               border: "1px solid rgba(255,255,255,0.06)",
-              borderRadius: 12,
-              padding: "14px 14px",
+              borderRadius: 10,
+              padding: "12px 12px",
               opacity: spring({
                 frame: frame - 3 - colIdx * 2,
                 fps: FPS,
@@ -143,14 +144,14 @@ export const OrderFlowScene: React.FC = () => {
               style={{
                 display: "flex",
                 alignItems: "center",
-                gap: 8,
-                marginBottom: 14,
+                gap: 7,
+                marginBottom: 12,
               }}
             >
               <span
                 style={{
-                  width: 12,
-                  height: 12,
+                  width: 10,
+                  height: 10,
                   borderRadius: "50%",
                   background: col.color,
                 }}
@@ -158,7 +159,7 @@ export const OrderFlowScene: React.FC = () => {
               <span
                 style={{
                   color: "rgba(255,255,255,0.75)",
-                  fontSize: 20,
+                  fontSize: 16,
                   fontWeight: 700,
                   textTransform: "uppercase",
                   letterSpacing: 1,
@@ -170,7 +171,7 @@ export const OrderFlowScene: React.FC = () => {
                 style={{
                   marginLeft: "auto",
                   color: "rgba(255,255,255,0.3)",
-                  fontSize: 18,
+                  fontSize: 15,
                   fontVariantNumeric: "tabular-nums",
                 }}
               >
@@ -184,7 +185,7 @@ export const OrderFlowScene: React.FC = () => {
                 flex: 1,
                 display: "flex",
                 flexDirection: "column",
-                gap: 10,
+                gap: 8,
               }}
             >
               {col.cards.map((card, cardIdx) => {
@@ -202,8 +203,8 @@ export const OrderFlowScene: React.FC = () => {
                   <div
                     key={card.id}
                     style={{
-                      padding: "16px 18px",
-                      borderRadius: 12,
+                      padding: "12px 14px",
+                      borderRadius: 10,
                       background: `${col.color}10`,
                       border: `1px solid ${col.color}20`,
                       opacity: isMoving ? 1 - moveProgress : cs,
@@ -220,14 +221,18 @@ export const OrderFlowScene: React.FC = () => {
                       }}
                     >
                       <span
-                        style={{ color: "#fff", fontSize: 24, fontWeight: 700 }}
+                        style={{
+                          color: "#fff",
+                          fontSize: 20,
+                          fontWeight: 700,
+                        }}
                       >
                         {card.id}
                       </span>
                       <span
                         style={{
                           color: col.color,
-                          fontSize: 22,
+                          fontSize: 18,
                           fontWeight: 600,
                           fontVariantNumeric: "tabular-nums",
                         }}
@@ -238,8 +243,8 @@ export const OrderFlowScene: React.FC = () => {
                     <div
                       style={{
                         color: "rgba(255,255,255,0.5)",
-                        fontSize: 18,
-                        marginTop: 5,
+                        fontSize: 15,
+                        marginTop: 4,
                       }}
                     >
                       {card.client}
@@ -252,8 +257,8 @@ export const OrderFlowScene: React.FC = () => {
               {colIdx === 2 && moveProgress > 0.3 && (
                 <div
                   style={{
-                    padding: "16px 18px",
-                    borderRadius: 12,
+                    padding: "12px 14px",
+                    borderRadius: 10,
                     background: `${col.color}10`,
                     border: `1px solid ${col.color}20`,
                     opacity: interpolate(moveProgress, [0.3, 0.7], [0, 1], {
@@ -270,14 +275,14 @@ export const OrderFlowScene: React.FC = () => {
                     }}
                   >
                     <span
-                      style={{ color: "#fff", fontSize: 24, fontWeight: 700 }}
+                      style={{ color: "#fff", fontSize: 20, fontWeight: 700 }}
                     >
                       #1040
                     </span>
                     <span
                       style={{
                         color: col.color,
-                        fontSize: 22,
+                        fontSize: 18,
                         fontWeight: 600,
                       }}
                     >
@@ -287,8 +292,8 @@ export const OrderFlowScene: React.FC = () => {
                   <div
                     style={{
                       color: "rgba(255,255,255,0.5)",
-                      fontSize: 18,
-                      marginTop: 5,
+                      fontSize: 15,
+                      marginTop: 4,
                     }}
                   >
                     Super Express

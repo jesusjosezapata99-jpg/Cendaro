@@ -7,8 +7,25 @@
 
 ## Session Registry
 
-- **Total agent sessions**: 59
-- **Last Modified By**: Antigravity Agent — 2026-03-24T01:24:00+01:00
+- **Total agent sessions**: 60
+- **Last Modified By**: Antigravity Agent — 2026-03-24T01:48:00+01:00
+
+---
+
+### 2026-03-24T01:48:00+01:00 — Landing Page Polish & Remotion Scene Overhaul
+
+- **Scope**: Professional update to landing page (navbar, section transitions) and complete Remotion scene rewrite (5 scenes).
+- **Navbar**: Changed from `bg-transparent` at rest to always-on `backdrop-blur-md`, with `backdrop-blur-xl` + `bg-background/60` on scroll. File: `apps/erp/src/app/_components/landing/navbar.tsx`.
+- **Section Dividers**: Replaced 1px hard lines with 96px gradient fade zones using `bg-linear-to-b from-background to-transparent`. File: `apps/erp/src/app/_components/landing/noise-overlay.tsx`.
+- **Remotion Scenes** (all 5): Replaced generic gradient "C" box logo with actual `<Img src={staticFile("cendaro-logo.png")}/>`. Reduced all font sizes, padding, and added `overflow: "hidden"` to fit 1280×720 viewport cleanly.
+  - `DashboardScene`: KPI values 48→36px, bar chart 80→60px, table reduced to 3 rows, stock alert repositioned to `bottom: 20`.
+  - `InventoryScene`: Product name 26→20px, stock 30→24px, compact rows.
+  - `OrderFlowScene`: Kanban cards compact, font sizes reduced.
+  - `CatalogScene`: Replaced color swatches with 6 AI-generated product images (`video/public/products/*.png`).
+  - `AnalyticsScene`: Chart height 110→80px, invoice table compact.
+- **Files Changed**: `navbar.tsx`, `noise-overlay.tsx`, 5 Remotion scene files, `video/public/cendaro-logo.png` (NEW), `video/public/products/` (6 NEW images).
+- **Verification**: `pnpm typecheck` ✅ 6/6 tasks, exit 0 (FULL TURBO).
+- **Pending**: Remotion video re-rendering (user must run `npx remotion render` for each composition).
 
 ---
 

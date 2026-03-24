@@ -1,4 +1,11 @@
-import { AbsoluteFill, interpolate, spring, useCurrentFrame } from "remotion";
+import {
+  AbsoluteFill,
+  Img,
+  interpolate,
+  spring,
+  staticFile,
+  useCurrentFrame,
+} from "remotion";
 
 const FPS = 30;
 const BG = "#0a0a12";
@@ -60,8 +67,9 @@ export const AnalyticsScene: React.FC = () => {
     <AbsoluteFill
       style={{
         background: BG,
-        padding: "0 36px 28px 36px",
+        padding: "0 32px 20px 32px",
         fontFamily: "system-ui, -apple-system, sans-serif",
+        overflow: "hidden",
       }}
     >
       {/* Header */}
@@ -70,35 +78,28 @@ export const AnalyticsScene: React.FC = () => {
           display: "flex",
           alignItems: "center",
           gap: 10,
-          padding: "14px 0",
+          padding: "12px 0",
           borderBottom: "1px solid rgba(255,255,255,0.06)",
           opacity: entrance,
         }}
       >
-        <div
+        <Img
+          src={staticFile("cendaro-logo.png")}
           style={{
-            width: 28,
-            height: 28,
-            borderRadius: 7,
-            background: "linear-gradient(135deg, #3b82f6, #6366f1)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            color: "#fff",
-            fontSize: 14,
-            fontWeight: 700,
+            width: 26,
+            height: 26,
+            borderRadius: 5,
+            objectFit: "contain",
           }}
-        >
-          C
-        </div>
-        <span style={{ color: "#fff", fontSize: 20, fontWeight: 600 }}>
+        />
+        <span style={{ color: "#fff", fontSize: 18, fontWeight: 600 }}>
           Cendaro
         </span>
-        <span style={{ color: "rgba(255,255,255,0.2)", fontSize: 20 }}>·</span>
+        <span style={{ color: "rgba(255,255,255,0.2)", fontSize: 18 }}>·</span>
         <span
           style={{
             color: "rgba(255,255,255,0.5)",
-            fontSize: 20,
+            fontSize: 18,
             fontWeight: 500,
           }}
         >
@@ -107,10 +108,10 @@ export const AnalyticsScene: React.FC = () => {
         <div style={{ flex: 1 }} />
         <div
           style={{
-            padding: "8px 18px",
+            padding: "6px 14px",
             borderRadius: 8,
             fontWeight: 600,
-            fontSize: 18,
+            fontSize: 15,
             background: "rgba(59,130,246,0.15)",
             color: "#60a5fa",
           }}
@@ -124,8 +125,8 @@ export const AnalyticsScene: React.FC = () => {
         style={{
           display: "grid",
           gridTemplateColumns: "1fr 1fr",
-          gap: 14,
-          padding: "16px 0",
+          gap: 12,
+          padding: "12px 0",
         }}
       >
         {METRICS.map((m, i) => {
@@ -140,11 +141,11 @@ export const AnalyticsScene: React.FC = () => {
             <div
               key={m.label}
               style={{
-                padding: "20px 24px",
-                borderRadius: 12,
+                padding: "16px 20px",
+                borderRadius: 10,
                 background: "rgba(255,255,255,0.03)",
                 border: "1px solid rgba(255,255,255,0.06)",
-                borderLeft: `4px solid ${m.color}60`,
+                borderLeft: `3px solid ${m.color}60`,
                 opacity: ms,
                 transform: `translateY(${interpolate(ms, [0, 1], [6, 0])}px)`,
               }}
@@ -152,8 +153,8 @@ export const AnalyticsScene: React.FC = () => {
               <div
                 style={{
                   color: "rgba(255,255,255,0.5)",
-                  fontSize: 20,
-                  marginBottom: 6,
+                  fontSize: 15,
+                  marginBottom: 4,
                   fontWeight: 500,
                 }}
               >
@@ -162,7 +163,7 @@ export const AnalyticsScene: React.FC = () => {
               <div
                 style={{
                   color: "#fff",
-                  fontSize: 52,
+                  fontSize: 40,
                   fontWeight: 700,
                   fontVariantNumeric: "tabular-nums",
                   lineHeight: 1,
@@ -180,9 +181,9 @@ export const AnalyticsScene: React.FC = () => {
       {/* Chart */}
       <div
         style={{
-          padding: "16px 24px",
-          borderRadius: 12,
-          marginBottom: 12,
+          padding: "12px 20px",
+          borderRadius: 10,
+          marginBottom: 10,
           background: "rgba(255,255,255,0.03)",
           border: "1px solid rgba(255,255,255,0.06)",
           opacity: spring({
@@ -195,9 +196,9 @@ export const AnalyticsScene: React.FC = () => {
         <div
           style={{
             color: "rgba(255,255,255,0.5)",
-            fontSize: 18,
+            fontSize: 13,
             fontWeight: 600,
-            marginBottom: 14,
+            marginBottom: 10,
             textTransform: "uppercase",
             letterSpacing: 1,
           }}
@@ -208,9 +209,9 @@ export const AnalyticsScene: React.FC = () => {
           style={{
             display: "flex",
             alignItems: "flex-end",
-            gap: 8,
-            height: 110,
-            paddingBottom: 6,
+            gap: 6,
+            height: 80,
+            paddingBottom: 4,
             borderBottom: "1px solid rgba(255,255,255,0.06)",
           }}
         >
@@ -221,7 +222,7 @@ export const AnalyticsScene: React.FC = () => {
               fps: FPS,
               config: { damping: 14, stiffness: 80 },
             });
-            const barHeight = interpolate(bs, [0, 1], [0, (val / 100) * 100]);
+            const barHeight = interpolate(bs, [0, 1], [0, (val / 100) * 70]);
             return (
               <div
                 key={i}
@@ -236,7 +237,7 @@ export const AnalyticsScene: React.FC = () => {
                   style={{
                     width: "100%",
                     height: barHeight,
-                    borderRadius: 4,
+                    borderRadius: 3,
                     background: "linear-gradient(180deg, #3b82f680, #3b82f620)",
                   }}
                 />
@@ -244,7 +245,7 @@ export const AnalyticsScene: React.FC = () => {
             );
           })}
         </div>
-        <div style={{ display: "flex", gap: 8, paddingTop: 5 }}>
+        <div style={{ display: "flex", gap: 6, paddingTop: 4 }}>
           {MONTHS.map((m) => (
             <div
               key={m}
@@ -252,7 +253,7 @@ export const AnalyticsScene: React.FC = () => {
                 flex: 1,
                 textAlign: "center",
                 color: "rgba(255,255,255,0.3)",
-                fontSize: 14,
+                fontSize: 11,
                 fontWeight: 600,
               }}
             >
@@ -266,10 +267,11 @@ export const AnalyticsScene: React.FC = () => {
       <div
         style={{
           flex: 1,
-          padding: "16px 24px",
-          borderRadius: 12,
+          padding: "12px 20px",
+          borderRadius: 10,
           background: "rgba(255,255,255,0.03)",
           border: "1px solid rgba(255,255,255,0.06)",
+          overflow: "hidden",
           opacity: spring({
             frame: frame - 8,
             fps: FPS,
@@ -280,9 +282,9 @@ export const AnalyticsScene: React.FC = () => {
         <div
           style={{
             color: "rgba(255,255,255,0.5)",
-            fontSize: 18,
+            fontSize: 13,
             fontWeight: 600,
-            marginBottom: 10,
+            marginBottom: 8,
             textTransform: "uppercase",
             letterSpacing: 1,
           }}
@@ -293,14 +295,14 @@ export const AnalyticsScene: React.FC = () => {
           style={{
             display: "grid",
             gridTemplateColumns: "1.2fr 1fr 1fr",
-            gap: 10,
-            padding: "0 0 8px 0",
+            gap: 8,
+            padding: "0 0 6px 0",
             borderBottom: "1px solid rgba(255,255,255,0.06)",
             textTransform: "uppercase",
             letterSpacing: 1,
             fontWeight: 700,
             color: "rgba(255,255,255,0.25)",
-            fontSize: 16,
+            fontSize: 12,
           }}
         >
           <span>Factura</span>
@@ -321,9 +323,9 @@ export const AnalyticsScene: React.FC = () => {
               style={{
                 display: "grid",
                 gridTemplateColumns: "1.2fr 1fr 1fr",
-                gap: 10,
+                gap: 8,
                 alignItems: "center",
-                padding: "12px 0",
+                padding: "8px 0",
                 borderBottom:
                   i < INVOICES.length - 1
                     ? "1px solid rgba(255,255,255,0.03)"
@@ -336,7 +338,7 @@ export const AnalyticsScene: React.FC = () => {
                 <div
                   style={{
                     color: "rgba(255,255,255,0.9)",
-                    fontSize: 22,
+                    fontSize: 18,
                     fontWeight: 600,
                   }}
                 >
@@ -345,8 +347,8 @@ export const AnalyticsScene: React.FC = () => {
                 <div
                   style={{
                     color: "rgba(255,255,255,0.3)",
-                    fontSize: 16,
-                    marginTop: 2,
+                    fontSize: 13,
+                    marginTop: 1,
                   }}
                 >
                   {inv.client}
@@ -356,7 +358,7 @@ export const AnalyticsScene: React.FC = () => {
                 style={{
                   textAlign: "right",
                   color: "#fff",
-                  fontSize: 22,
+                  fontSize: 18,
                   fontWeight: 700,
                   fontVariantNumeric: "tabular-nums",
                 }}
@@ -366,9 +368,9 @@ export const AnalyticsScene: React.FC = () => {
               <div style={{ display: "flex", justifyContent: "flex-end" }}>
                 <span
                   style={{
-                    padding: "6px 14px",
+                    padding: "4px 12px",
                     borderRadius: 999,
-                    fontSize: 17,
+                    fontSize: 14,
                     fontWeight: 600,
                     background: `${inv.sColor}15`,
                     color: inv.sColor,
