@@ -37,8 +37,9 @@ export function NoiseOverlay({ opacity = 0.035 }: { opacity?: number }) {
  */
 export function SectionDivider() {
   return (
-    <div className="mx-auto max-w-7xl px-6" aria-hidden="true">
-      <div className="h-px w-full bg-(--landing-line)" />
+    <div className="pointer-events-none relative h-24" aria-hidden="true">
+      <div className="from-background absolute inset-x-0 top-0 h-12 bg-linear-to-b to-transparent" />
+      <div className="to-background absolute inset-x-0 bottom-0 h-12 bg-linear-to-b from-transparent" />
     </div>
   );
 }

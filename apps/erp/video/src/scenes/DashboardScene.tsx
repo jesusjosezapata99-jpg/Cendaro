@@ -1,4 +1,11 @@
-import { AbsoluteFill, interpolate, spring, useCurrentFrame } from "remotion";
+import {
+  AbsoluteFill,
+  Img,
+  interpolate,
+  spring,
+  staticFile,
+  useCurrentFrame,
+} from "remotion";
 
 const FPS = 30;
 const BG = "#0a0a12";
@@ -14,7 +21,6 @@ const CLOSURES = [
   { date: "22/03", sales: "$1,240", cash: "$680", digital: "$560", orders: 18 },
   { date: "21/03", sales: "$980", cash: "$420", digital: "$560", orders: 14 },
   { date: "20/03", sales: "$1,100", cash: "$500", digital: "$600", orders: 16 },
-  { date: "19/03", sales: "$870", cash: "$390", digital: "$480", orders: 12 },
 ];
 
 const SPARKLINE = [42, 58, 45, 72, 65, 80, 75];
@@ -56,46 +62,42 @@ export const DashboardScene: React.FC = () => {
     <AbsoluteFill
       style={{
         background: BG,
-        padding: "0 36px 28px 36px",
         fontFamily: "system-ui, -apple-system, sans-serif",
+        overflow: "hidden",
+        display: "flex",
+        flexDirection: "column",
       }}
     >
-      {/* Simplified header */}
+      {/* Header with real logo */}
       <div
         style={{
           display: "flex",
           alignItems: "center",
           gap: 10,
-          padding: "14px 0",
+          padding: "14px 36px",
           borderBottom: "1px solid rgba(255,255,255,0.06)",
           opacity: fadeIn,
           transform: `translateY(${slideY}px)`,
+          flexShrink: 0,
         }}
       >
-        <div
+        <Img
+          src={staticFile("cendaro-logo.png")}
           style={{
             width: 28,
             height: 28,
-            borderRadius: 7,
-            background: "linear-gradient(135deg, #3b82f6, #6366f1)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            color: "#fff",
-            fontSize: 14,
-            fontWeight: 700,
+            borderRadius: 5,
+            objectFit: "contain",
           }}
-        >
-          C
-        </div>
-        <span style={{ color: "#fff", fontSize: 20, fontWeight: 600 }}>
+        />
+        <span style={{ color: "#fff", fontSize: 17, fontWeight: 600 }}>
           Cendaro
         </span>
-        <span style={{ color: "rgba(255,255,255,0.2)", fontSize: 20 }}>·</span>
+        <span style={{ color: "rgba(255,255,255,0.2)", fontSize: 17 }}>·</span>
         <span
           style={{
             color: "rgba(255,255,255,0.5)",
-            fontSize: 20,
+            fontSize: 17,
             fontWeight: 500,
           }}
         >
@@ -104,9 +106,9 @@ export const DashboardScene: React.FC = () => {
         <div style={{ flex: 1 }} />
         <div
           style={{
-            padding: "6px 14px",
+            padding: "5px 12px",
             borderRadius: 7,
-            fontSize: 16,
+            fontSize: 13,
             fontWeight: 700,
             background: "rgba(34,197,94,0.12)",
             color: "#4ade80",
@@ -116,79 +118,284 @@ export const DashboardScene: React.FC = () => {
         </div>
       </div>
 
-      {/* 4 KPI cards */}
+      {/* Content area — fills remaining space */}
       <div
         style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(4, 1fr)",
-          gap: 12,
-          paddingTop: 16,
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          padding: "10px 36px 16px 36px",
+          gap: 10,
+          minHeight: 0,
         }}
       >
-        {KPIS.map((kpi, i) => {
-          const delay = i * 2;
-          const s = spring({
-            frame: frame - delay,
-            fps: FPS,
-            config: { damping: 12, stiffness: 100 },
-          });
-          const countValue = Math.round(interpolate(s, [0, 1], [0, kpi.value]));
-          return (
-            <div
-              key={kpi.label}
-              style={{
-                padding: "16px 20px",
-                borderRadius: 12,
-                background: "rgba(255,255,255,0.03)",
-                border: "1px solid rgba(255,255,255,0.06)",
-                borderLeft: `4px solid ${kpi.color}60`,
-                transform: `translateY(${interpolate(s, [0, 1], [8, 0])}px)`,
-                opacity: s,
-              }}
-            >
-              <div
-                style={{
-                  color: "rgba(255,255,255,0.5)",
-                  fontSize: 20,
-                  marginBottom: 6,
-                  fontWeight: 500,
-                }}
-              >
-                {kpi.label}
-              </div>
-              <div
-                style={{
-                  color: "#fff",
-                  fontSize: 48,
-                  fontWeight: 700,
-                  fontVariantNumeric: "tabular-nums",
-                  lineHeight: 1,
-                }}
-              >
-                {kpi.prefix ?? ""}
-                {countValue.toLocaleString("en-US")}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* 2 panels: Sparkline + Activity */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gap: 12,
-          paddingTop: 12,
-        }}
-      >
-        {/* Sparkline chart */}
+        {/* 4 KPI cards — compact row */}
         <div
           style={{
-            padding: "16px 20px",
-            borderRadius: 12,
+            display: "grid",
+            gridTemplateColumns: "repeat(4, 1fr)",
+            gap: 10,
+            flexShrink: 0,
+          }}
+        >
+          {KPIS.map((kpi, i) => {
+            const delay = i * 2;
+            const s = spring({
+              frame: frame - delay,
+              fps: FPS,
+              config: { damping: 12, stiffness: 100 },
+            });
+            const countValue = Math.round(
+              interpolate(s, [0, 1], [0, kpi.value]),
+            );
+            return (
+              <div
+                key={kpi.label}
+                style={{
+                  padding: "10px 14px",
+                  borderRadius: 10,
+                  background: "rgba(255,255,255,0.03)",
+                  border: "1px solid rgba(255,255,255,0.06)",
+                  borderLeft: `3px solid ${kpi.color}60`,
+                  transform: `translateY(${interpolate(s, [0, 1], [8, 0])}px)`,
+                  opacity: s,
+                }}
+              >
+                <div
+                  style={{
+                    color: "rgba(255,255,255,0.5)",
+                    fontSize: 12,
+                    marginBottom: 2,
+                    fontWeight: 500,
+                  }}
+                >
+                  {kpi.label}
+                </div>
+                <div
+                  style={{
+                    color: "#fff",
+                    fontSize: 30,
+                    fontWeight: 700,
+                    fontVariantNumeric: "tabular-nums",
+                    lineHeight: 1.1,
+                  }}
+                >
+                  {kpi.prefix ?? ""}
+                  {countValue.toLocaleString("en-US")}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* 2 panels: Sparkline + Activity — flex: 1 to fill space properly */}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: 10,
+            flex: 1,
+            minHeight: 0,
+          }}
+        >
+          {/* Sparkline chart — bars fill the available space */}
+          <div
+            style={{
+              padding: "14px 18px",
+              borderRadius: 10,
+              background: "rgba(255,255,255,0.03)",
+              border: "1px solid rgba(255,255,255,0.06)",
+              display: "flex",
+              flexDirection: "column",
+              opacity: spring({
+                frame: frame - 8,
+                fps: FPS,
+                config: { damping: 14, stiffness: 80 },
+              }),
+            }}
+          >
+            <div
+              style={{
+                color: "rgba(255,255,255,0.5)",
+                fontSize: 12,
+                fontWeight: 600,
+                marginBottom: 10,
+                textTransform: "uppercase",
+                letterSpacing: 1,
+                flexShrink: 0,
+              }}
+            >
+              Ventas — Última Semana
+            </div>
+            <div
+              style={{
+                flex: 1,
+                display: "flex",
+                alignItems: "flex-end",
+                gap: 8,
+                minHeight: 0,
+              }}
+            >
+              {SPARKLINE.map((val, i) => {
+                const barDelay = 10 + i * 2;
+                const bs = spring({
+                  frame: frame - barDelay,
+                  fps: FPS,
+                  config: { damping: 14, stiffness: 80 },
+                });
+                // Bars fill percentage of AVAILABLE space (flex container)
+                const barPercent = interpolate(
+                  bs,
+                  [0, 1],
+                  [0, (val / 100) * 100],
+                );
+                return (
+                  <div
+                    key={i}
+                    style={{
+                      flex: 1,
+                      height: "100%",
+                      display: "flex",
+                      flexDirection: "column",
+                      justifyContent: "flex-end",
+                      alignItems: "center",
+                      gap: 4,
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: "100%",
+                        height: `${barPercent}%`,
+                        borderRadius: 5,
+                        background:
+                          "linear-gradient(180deg, #3b82f6a0, #3b82f630)",
+                        minHeight: 2,
+                      }}
+                    />
+                    <span
+                      style={{
+                        color: "rgba(255,255,255,0.35)",
+                        fontSize: 11,
+                        fontWeight: 600,
+                        flexShrink: 0,
+                      }}
+                    >
+                      {DAYS[i]}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Activity feed */}
+          <div
+            style={{
+              padding: "14px 18px",
+              borderRadius: 10,
+              background: "rgba(255,255,255,0.03)",
+              border: "1px solid rgba(255,255,255,0.06)",
+              display: "flex",
+              flexDirection: "column",
+              opacity: spring({
+                frame: frame - 10,
+                fps: FPS,
+                config: { damping: 14, stiffness: 80 },
+              }),
+            }}
+          >
+            <div
+              style={{
+                color: "rgba(255,255,255,0.5)",
+                fontSize: 12,
+                fontWeight: 600,
+                marginBottom: 10,
+                textTransform: "uppercase",
+                letterSpacing: 1,
+                flexShrink: 0,
+              }}
+            >
+              Actividad Reciente
+            </div>
+            <div
+              style={{
+                flex: 1,
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "space-evenly",
+              }}
+            >
+              {ACTIVITY.map((item, i) => {
+                const aDelay = 12 + i * 3;
+                const as = spring({
+                  frame: frame - aDelay,
+                  fps: FPS,
+                  config: { damping: 12, stiffness: 100 },
+                });
+                return (
+                  <div
+                    key={i}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 10,
+                      opacity: as,
+                      transform: `translateX(${interpolate(as, [0, 1], [-4, 0])}px)`,
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 32,
+                        height: 32,
+                        borderRadius: 8,
+                        background: `${item.color}15`,
+                        border: `1px solid ${item.color}25`,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: 14,
+                        flexShrink: 0,
+                      }}
+                    >
+                      {item.icon}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div
+                        style={{
+                          color: "rgba(255,255,255,0.85)",
+                          fontSize: 13,
+                          fontWeight: 500,
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                        }}
+                      >
+                        {item.text}
+                      </div>
+                      <div
+                        style={{ color: "rgba(255,255,255,0.3)", fontSize: 11 }}
+                      >
+                        {item.time}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* Cierres de Caja table — takes remaining flex space */}
+        <div
+          style={{
+            flex: 1,
+            padding: "14px 18px",
+            borderRadius: 10,
             background: "rgba(255,255,255,0.03)",
             border: "1px solid rgba(255,255,255,0.06)",
+            display: "flex",
+            flexDirection: "column",
+            minHeight: 0,
             opacity: spring({
               frame: frame - 8,
               fps: FPS,
@@ -199,141 +406,120 @@ export const DashboardScene: React.FC = () => {
           <div
             style={{
               color: "rgba(255,255,255,0.5)",
-              fontSize: 18,
+              fontSize: 12,
               fontWeight: 600,
-              marginBottom: 12,
+              marginBottom: 8,
               textTransform: "uppercase",
               letterSpacing: 1,
+              flexShrink: 0,
             }}
           >
-            Ventas — Última Semana
+            Cierres de Caja
           </div>
+          {/* Header row */}
           <div
             style={{
-              display: "flex",
-              alignItems: "flex-end",
+              display: "grid",
+              gridTemplateColumns: "0.8fr 1fr 1fr 1fr 0.6fr",
               gap: 8,
-              height: 80,
+              padding: "0 0 6px 0",
+              borderBottom: "1px solid rgba(255,255,255,0.06)",
+              flexShrink: 0,
             }}
           >
-            {SPARKLINE.map((val, i) => {
-              const barDelay = 10 + i * 2;
-              const bs = spring({
-                frame: frame - barDelay,
+            {["Fecha", "Ventas", "Efectivo", "Digital", "Pedidos"].map((h) => (
+              <div
+                key={h}
+                style={{
+                  color: "rgba(255,255,255,0.3)",
+                  fontSize: 11,
+                  fontWeight: 700,
+                  textTransform: "uppercase",
+                  letterSpacing: 1.5,
+                }}
+              >
+                {h}
+              </div>
+            ))}
+          </div>
+          {/* Data rows — evenly distributed */}
+          <div
+            style={{
+              flex: 1,
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "space-evenly",
+            }}
+          >
+            {CLOSURES.map((row, i) => {
+              const rowDelay = 10 + i * 3;
+              const rs = spring({
+                frame: frame - rowDelay,
                 fps: FPS,
                 config: { damping: 14, stiffness: 80 },
               });
-              const barH = interpolate(bs, [0, 1], [0, (val / 100) * 68]);
               return (
                 <div
-                  key={i}
+                  key={row.date}
                   style={{
-                    flex: 1,
-                    display: "flex",
-                    flexDirection: "column",
+                    display: "grid",
+                    gridTemplateColumns: "0.8fr 1fr 1fr 1fr 0.6fr",
+                    gap: 8,
                     alignItems: "center",
-                    gap: 4,
+                    borderBottom:
+                      i < CLOSURES.length - 1
+                        ? "1px solid rgba(255,255,255,0.03)"
+                        : "none",
+                    opacity: rs,
+                    transform: `translateX(${interpolate(rs, [0, 1], [-4, 0])}px)`,
+                    padding: "4px 0",
                   }}
                 >
                   <div
                     style={{
-                      width: "100%",
-                      height: barH,
-                      borderRadius: 5,
-                      background:
-                        "linear-gradient(180deg, #3b82f680, #3b82f620)",
+                      color: "rgba(255,255,255,0.7)",
+                      fontSize: 14,
+                      fontWeight: 500,
                     }}
-                  />
-                  <span
+                  >
+                    {row.date}
+                  </div>
+                  <div
                     style={{
-                      color: "rgba(255,255,255,0.3)",
+                      color: "#fff",
                       fontSize: 15,
-                      fontWeight: 600,
+                      fontWeight: 700,
+                      fontVariantNumeric: "tabular-nums",
                     }}
                   >
-                    {DAYS[i]}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Activity feed */}
-        <div
-          style={{
-            padding: "16px 20px",
-            borderRadius: 12,
-            background: "rgba(255,255,255,0.03)",
-            border: "1px solid rgba(255,255,255,0.06)",
-            opacity: spring({
-              frame: frame - 10,
-              fps: FPS,
-              config: { damping: 14, stiffness: 80 },
-            }),
-          }}
-        >
-          <div
-            style={{
-              color: "rgba(255,255,255,0.5)",
-              fontSize: 18,
-              fontWeight: 600,
-              marginBottom: 12,
-              textTransform: "uppercase",
-              letterSpacing: 1,
-            }}
-          >
-            Actividad Reciente
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-            {ACTIVITY.map((item, i) => {
-              const aDelay = 12 + i * 3;
-              const as = spring({
-                frame: frame - aDelay,
-                fps: FPS,
-                config: { damping: 12, stiffness: 100 },
-              });
-              return (
-                <div
-                  key={i}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 12,
-                    opacity: as,
-                    transform: `translateX(${interpolate(as, [0, 1], [-4, 0])}px)`,
-                  }}
-                >
+                    {row.sales}
+                  </div>
                   <div
                     style={{
-                      width: 32,
-                      height: 32,
-                      borderRadius: 8,
-                      background: `${item.color}15`,
-                      border: `1px solid ${item.color}25`,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: 16,
+                      color: "rgba(255,255,255,0.5)",
+                      fontSize: 14,
+                      fontVariantNumeric: "tabular-nums",
                     }}
                   >
-                    {item.icon}
+                    {row.cash}
                   </div>
-                  <div style={{ flex: 1 }}>
-                    <div
-                      style={{
-                        color: "rgba(255,255,255,0.85)",
-                        fontSize: 18,
-                        fontWeight: 500,
-                      }}
-                    >
-                      {item.text}
-                    </div>
-                    <div
-                      style={{ color: "rgba(255,255,255,0.3)", fontSize: 14 }}
-                    >
-                      {item.time}
-                    </div>
+                  <div
+                    style={{
+                      color: "rgba(255,255,255,0.5)",
+                      fontSize: 14,
+                      fontVariantNumeric: "tabular-nums",
+                    }}
+                  >
+                    {row.digital}
+                  </div>
+                  <div
+                    style={{
+                      color: "rgba(255,255,255,0.6)",
+                      fontSize: 14,
+                      fontVariantNumeric: "tabular-nums",
+                    }}
+                  >
+                    {row.orders}
                   </div>
                 </div>
               );
@@ -342,134 +528,7 @@ export const DashboardScene: React.FC = () => {
         </div>
       </div>
 
-      {/* Cierres de Caja table */}
-      <div
-        style={{
-          flex: 1,
-          padding: "16px 20px",
-          borderRadius: 12,
-          marginTop: 12,
-          background: "rgba(255,255,255,0.03)",
-          border: "1px solid rgba(255,255,255,0.06)",
-          opacity: spring({
-            frame: frame - 8,
-            fps: FPS,
-            config: { damping: 14, stiffness: 80 },
-          }),
-        }}
-      >
-        <div
-          style={{
-            color: "rgba(255,255,255,0.5)",
-            fontSize: 18,
-            fontWeight: 600,
-            marginBottom: 10,
-            textTransform: "uppercase",
-            letterSpacing: 1,
-          }}
-        >
-          Cierres de Caja
-        </div>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "0.8fr 1fr 1fr 1fr 0.6fr",
-            gap: 10,
-            padding: "0 0 8px 0",
-            borderBottom: "1px solid rgba(255,255,255,0.06)",
-          }}
-        >
-          {["Fecha", "Ventas", "Efectivo", "Digital", "Pedidos"].map((h) => (
-            <div
-              key={h}
-              style={{
-                color: "rgba(255,255,255,0.3)",
-                fontSize: 16,
-                fontWeight: 700,
-                textTransform: "uppercase",
-                letterSpacing: 1.5,
-              }}
-            >
-              {h}
-            </div>
-          ))}
-        </div>
-        {CLOSURES.map((row, i) => {
-          const rowDelay = 10 + i * 3;
-          const rs = spring({
-            frame: frame - rowDelay,
-            fps: FPS,
-            config: { damping: 14, stiffness: 80 },
-          });
-          return (
-            <div
-              key={row.date}
-              style={{
-                display: "grid",
-                gridTemplateColumns: "0.8fr 1fr 1fr 1fr 0.6fr",
-                gap: 10,
-                padding: "10px 0",
-                alignItems: "center",
-                borderBottom:
-                  i < CLOSURES.length - 1
-                    ? "1px solid rgba(255,255,255,0.03)"
-                    : "none",
-                opacity: rs,
-                transform: `translateX(${interpolate(rs, [0, 1], [-4, 0])}px)`,
-              }}
-            >
-              <div
-                style={{
-                  color: "rgba(255,255,255,0.7)",
-                  fontSize: 20,
-                  fontWeight: 500,
-                }}
-              >
-                {row.date}
-              </div>
-              <div
-                style={{
-                  color: "#fff",
-                  fontSize: 22,
-                  fontWeight: 700,
-                  fontVariantNumeric: "tabular-nums",
-                }}
-              >
-                {row.sales}
-              </div>
-              <div
-                style={{
-                  color: "rgba(255,255,255,0.5)",
-                  fontSize: 20,
-                  fontVariantNumeric: "tabular-nums",
-                }}
-              >
-                {row.cash}
-              </div>
-              <div
-                style={{
-                  color: "rgba(255,255,255,0.5)",
-                  fontSize: 20,
-                  fontVariantNumeric: "tabular-nums",
-                }}
-              >
-                {row.digital}
-              </div>
-              <div
-                style={{
-                  color: "rgba(255,255,255,0.6)",
-                  fontSize: 20,
-                  fontVariantNumeric: "tabular-nums",
-                }}
-              >
-                {row.orders}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Stock alert notification */}
+      {/* Stock alert — absolute positioned in safe corner */}
       {frame >= 40 &&
         (() => {
           const ns = spring({
@@ -481,32 +540,32 @@ export const DashboardScene: React.FC = () => {
             <div
               style={{
                 position: "absolute",
-                bottom: 40,
-                right: 48,
+                bottom: 24,
+                right: 40,
                 display: "flex",
                 alignItems: "center",
-                gap: 12,
-                padding: "14px 20px",
-                borderRadius: 12,
-                background: "rgba(255,255,255,0.06)",
+                gap: 10,
+                padding: "10px 16px",
+                borderRadius: 10,
+                background: "rgba(30,30,40,0.95)",
                 border: "1px solid rgba(255,255,255,0.1)",
-                boxShadow: "0 12px 40px rgba(0,0,0,0.5)",
+                boxShadow: "0 12px 40px rgba(0,0,0,0.6)",
                 opacity: ns,
                 transform: `scale(${interpolate(ns, [0, 1], [0.85, 1])}) translateY(${interpolate(ns, [0, 1], [6, 0])}px)`,
               }}
             >
-              <span style={{ fontSize: 18 }}>⚡</span>
+              <span style={{ fontSize: 14 }}>⚡</span>
               <div>
                 <div
                   style={{
                     color: "rgba(255,255,255,0.9)",
-                    fontSize: 17,
+                    fontSize: 13,
                     fontWeight: 600,
                   }}
                 >
                   Alerta de stock
                 </div>
-                <div style={{ color: "rgba(255,255,255,0.45)", fontSize: 14 }}>
+                <div style={{ color: "rgba(255,255,255,0.45)", fontSize: 11 }}>
                   Jabón Antibacterial: 8 uds
                 </div>
               </div>
