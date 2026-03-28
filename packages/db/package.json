@@ -16,7 +16,7 @@
       "default": "./src/schema.ts"
     }
   },
-  "license": "MIT",
+  "license": "AGPL-3.0",
   "scripts": {
     "build": "tsc",
     "clean": "git clean -xdf .cache .turbo dist node_modules",

@@ -2,8 +2,10 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
 import { createSupabaseServerClient } from "@cendaro/auth/server";
+import { createUserSchema } from "@cendaro/validators";
 
 import { env } from "~/env";
+import { rateLimit } from "~/lib/rate-limit";
 
 /**
  * POST /api/auth/create-user
@@ -12,49 +14,44 @@ import { env } from "~/env";
  * Only callable by authenticated owner/admin users.
  *
  * Flow:
- * 1. Validate caller session (must be owner or admin)
- * 2. Create auth user via admin.createUser()
- * 3. Insert user_profile via service-role client (bypasses RLS)
- * 4. Return created user data
+ * 1. Rate limit + Zod input validation
+ * 2. Validate caller session (must be owner or admin)
+ * 3. Create auth user via admin.createUser()
+ * 4. Insert user_profile via service-role client (bypasses RLS)
+ * 5. Return created user data
  */
 export async function POST(request: Request) {
-  const body = (await request.json()) as {
-    username?: string;
-    fullName?: string;
-    email?: string;
-    password?: string;
-    role?: string;
-    phone?: string;
-  };
-
-  const { username, fullName, email, password, role, phone } = body;
-
-  // Validate required fields
-  if (!username || !fullName || !email || !password || !role) {
+  // ── Rate Limiting (3 attempts per 60s per IP — stricter for user creation) ──
+  const ip =
+    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  const { success: allowed, reset } = rateLimit(`create-user:${ip}`, {
+    window: 60_000,
+    max: 3,
+  });
+  if (!allowed) {
     return NextResponse.json(
-      { error: "Todos los campos obligatorios son requeridos" },
+      { error: "Demasiados intentos. Intente de nuevo más tarde." },
+      {
+        status: 429,
+        headers: {
+          "Retry-After": String(Math.ceil((reset - Date.now()) / 1000)),
+        },
+      },
+    );
+  }
+
+  // ── Zod Input Validation ──
+  const parsed = createUserSchema.safeParse(
+    await request.json().catch(() => ({})),
+  );
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: "Datos inválidos", details: parsed.error.issues },
       { status: 400 },
     );
   }
 
-  if (password.length < 6) {
-    return NextResponse.json(
-      { error: "La contraseña debe tener al menos 6 caracteres" },
-      { status: 400 },
-    );
-  }
-
-  const validRoles = [
-    "owner",
-    "admin",
-    "supervisor",
-    "employee",
-    "vendor",
-    "marketing",
-  ];
-  if (!validRoles.includes(role)) {
-    return NextResponse.json({ error: "Rol inválido" }, { status: 400 });
-  }
+  const { username, fullName, email, password, role, phone } = parsed.data;
 
   const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = env.NEXT_PUBLIC_SUPABASE_ANON_KEY;

@@ -1,6 +1,6 @@
 # Cendaro — CI/CD Pipeline
 # Runs on: push to main, all PRs
-# Steps: install → typecheck → lint → build → test
+# Steps: install → audit → typecheck → lint → build → test
 
 name: CI
 
@@ -48,6 +48,10 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Audit dependencies
+        run: pnpm audit --prod --audit-level=high
+        continue-on-error: true
 
       - name: Typecheck
         run: pnpm typecheck

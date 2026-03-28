@@ -1,8 +1,10 @@
 import type { NextRequest } from "next/server";
+import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import JSZip from "jszip";
 import sharp from "sharp";
 
+import { createSupabaseServerClient } from "@cendaro/auth/server";
 import { desc, eq } from "@cendaro/db";
 import { getDb } from "@cendaro/db/client";
 import { AiPromptConfig, Brand, Category, Product } from "@cendaro/db/schema";
@@ -710,6 +712,21 @@ export async function POST(request: NextRequest) {
       { status: 500 },
     );
   }
+
+  // ── Authentication Guard ──
+  const cookieStore = await cookies();
+  const supabase = createSupabaseServerClient(
+    cookieStore,
+    env.NEXT_PUBLIC_SUPABASE_URL,
+    env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+  );
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+  }
+
   const apiKey = String(env.GROQ_API_KEY);
 
   try {

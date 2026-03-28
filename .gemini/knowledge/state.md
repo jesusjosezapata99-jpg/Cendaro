@@ -7,9 +7,64 @@
 
 ## Session Registry
 
-- **Total agent sessions**: 61
+- **Total agent sessions**: 63
 
-### Session 61 — 2026-03-24T17:05 — LTX-2 Cloud API Integration
+### Session 63 — 2026-03-28T21:56 — README Professional Upgrade
+
+**Objective**: Upgrade README.md to enterprise-grade visual presentation with theme-aware assets for GitHub dark/light modes.
+
+**Files created**:
+
+- `docs/assets/cendaro-logo-dark.png` — White logo on black background (2171×645, Gemini watermark removed)
+- `docs/assets/cendaro-logo-light.png` — Black logo on white background (2171×645, Gemini watermark removed)
+
+**Files modified**:
+
+- `README.md` — Complete visual overhaul:
+  - Replaced shields.io badge header with theme-aware `<picture>` + `<source>` logo
+  - Switched all Mermaid diagrams from `theme: 'base'` to `theme: 'neutral'` for dark/light GitHub compatibility
+  - Added visual navigation bar with colored badge links
+  - Added `<br/>` spacers between sections for breathing room
+  - Added collapsible `<details>` for router and module tables to reduce scroll fatigue
+  - Added Layer 5 (Rate Limiting) to the security architecture diagram
+  - Added `createUserSchema` to the validators reference table
+  - Added `lib/` directory to the monorepo file tree
+  - Added `docs/` directory with assets/architecture/product/adr subdirectories
+
+**Key decisions**:
+
+- Used `theme: 'neutral'` for Mermaid — renders correctly on both GitHub dark and light themes
+- Logo processed with Python/Pillow+numpy luminance thresholding to extract white content from checkered fake-transparency background
+- Watermark removed by masking 120×120px bottom-right corner before final composite
+
+### Session 62 — 2026-03-28T21:45 — Security Hardening (Post-Audit)
+
+
+**Objective**: Implement 5 non-blocking security recommendations from the forensic OSS audit to bring score from 98.75 → 100/100.
+
+**Files created**:
+
+- `apps/erp/src/lib/rate-limit.ts` — Zero-dependency in-memory sliding-window rate limiter (module-scoped Map, periodic cleanup, configurable window/max)
+
+**Files modified**:
+
+- `apps/erp/src/app/api/auth/login/route.ts` — Added IP-based rate limiting (5 req/60s)
+- `apps/erp/src/app/api/auth/create-user/route.ts` — Added rate limiting (3 req/60s) + replaced manual validation with `createUserSchema` from `@cendaro/validators`
+- `apps/erp/src/app/api/ai/parse-packing-list/route.ts` — Added Supabase session auth guard to prevent unauthenticated Groq API quota drainage
+- `packages/validators/src/index.ts` — Added `createUserSchema` (Zod v4) for shared frontend/backend validation
+- `.env.example` — Added security header with explicit credential rotation checklist
+- `.github/workflows/ci.yml` — Added `pnpm audit --prod --audit-level=high` step (advisory-only)
+
+**Verification**: `pnpm typecheck` (6/6 ✅) + `pnpm lint` (6/6 ✅) — Exit Code 0
+
+**Key decisions**:
+
+- In-memory rate limiter (Option A) chosen over Upstash Redis — zero dependencies, sufficient for current scale, easy migration path
+- Rate limit keys are namespaced (`create-user:${ip}`) to prevent cross-endpoint interference
+- AI auth guard placed after GROQ_API_KEY check (fail-fast pattern: cheapest check first)
+- CI audit step uses `continue-on-error: true` to surface CVEs without blocking deployments
+
+
 
 **Objective**: Integrate Lightricks LTX-2 Cloud API as a video pre-rendering pipeline for the landing page.
 
@@ -610,6 +665,16 @@ pnpm exec dotenv -e apps/erp/.env.local -- node scripts/generate-ltx-videos.mjs
 ## Progress Log
 
 <!-- Entries should be prepended (newest first) -->
+
+### [2026-03-28] Enterprise OSS Pre-Flight Audit: 100% Cleared
+
+- **Scope**: Executed the `/oss-preflight` Zero-Trust Workflow prior to public deployment.
+- **Phase 1 (Blinding & Secrets)**: Truffle-level Regex scan executed across source code. Evaluated `.gitignore` fencing (`.agents`, `.gemini`, `.ops`). Zero IP leaks detected.
+- **Phase 2 (Telemetry)**: Verified and auto-patched 10 internal packages to inject strict `license: AGPL-3.0` and `author: Cendaro` configurations for OSS platforms.
+- **Phase 3 (Sanitization)**: Scanned repository root. No internal or operational files found outside isolated boundaries.
+- **Phase 4 (Build & Integrity Matrix)**: Executed `--frozen-lockfile`, `pnpm typecheck`, `pnpm lint`, `pnpm test`, and `turbo run build`. All 10 workspaces compiled successfully (Exit Code 0).
+- **Phase 5 (Governance)**: Git index staged and validated natively.
+- **Status**: ✅ **READY FOR OPEN SOURCE PUSH**
 
 ### [2026-03-28] Enterprise Open Source Metrology & Governance Stabilization
 
