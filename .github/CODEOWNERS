@@ -1,0 +1,21 @@
+# Cendaro Governance - Global Codeowners Definitions
+
+# Default owners (fallback)
+*       @cendaro/core-team
+
+# Application layers
+/apps/erp/               @cendaro/frontend-engineers
+
+# Packages
+/packages/api/           @cendaro/backend-engineers
+/packages/db/            @cendaro/database-administrators
+/packages/auth/          @cendaro/security-team
+/packages/ui/            @cendaro/frontend-engineers
+/packages/validators/    @cendaro/architects
+
+# Tooling and configuration
+/tooling/                @cendaro/devops-team
+/turbo.json              @cendaro/devops-team
+
+# Infrastructure
+/.github/workflows/      @cendaro/devops-team

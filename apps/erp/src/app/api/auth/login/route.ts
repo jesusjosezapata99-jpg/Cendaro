@@ -1,28 +1,31 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
+import { z } from "zod/v4";
 
 import { createSupabaseServerClient } from "@cendaro/auth/server";
 
-export async function POST(request: Request) {
-  const body = (await request.json()) as {
-    username?: string;
-    password?: string;
-  };
-  const { username, password } = body;
+import { env } from "~/env";
 
-  if (!username || !password) {
+export async function POST(request: Request) {
+  const rawBody = (await request.json().catch(() => ({}))) as unknown;
+  const loginSchema = z.object({
+    username: z.string().min(1).max(128),
+    password: z.string().min(6).max(256),
+  });
+
+  const parsed = loginSchema.safeParse(rawBody);
+  if (!parsed.success) {
     return NextResponse.json(
-      { error: "Usuario y contraseña son requeridos" },
+      { error: "Usuario y contraseña son requeridos y deben ser válidos" },
       { status: 400 },
     );
   }
 
-  // eslint-disable-next-line no-restricted-properties
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-  // eslint-disable-next-line no-restricted-properties
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
-  // eslint-disable-next-line no-restricted-properties
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
+  const { username, password } = parsed.data;
+
+  const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const serviceKey = env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!supabaseUrl || !supabaseKey) {
     return NextResponse.json(

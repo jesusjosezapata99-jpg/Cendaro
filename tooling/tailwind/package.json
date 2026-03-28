@@ -10,5 +10,14 @@
   "devDependencies": {
     "@tailwindcss/postcss": "catalog:",
     "tailwindcss": "catalog:"
+  },
+  "license": "AGPL-3.0",
+  "author": "Cendaro",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/cendaro/cendaro.git"
+  },
+  "bugs": {
+    "url": "https://github.com/cendaro/cendaro/issues"
   }
 }

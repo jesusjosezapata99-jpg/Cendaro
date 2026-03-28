@@ -37,5 +37,13 @@
     "typescript": "catalog:",
     "vitest": "^4.0.18"
   },
-  "prettier": "@cendaro/prettier-config"
+  "prettier": "@cendaro/prettier-config",
+  "author": "Cendaro",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/cendaro/cendaro.git"
+  },
+  "bugs": {
+    "url": "https://github.com/cendaro/cendaro/issues"
+  }
 }

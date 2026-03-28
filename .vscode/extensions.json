@@ -1,0 +1,12 @@
+{
+  "recommendations": [
+    "dbaeumer.vscode-eslint",
+    "esbenp.prettier-vscode",
+    "bradlc.vscode-tailwindcss",
+    "prisma.prisma",
+    "ms-vsliveshare.vsliveshare",
+    "yoavbls.pretty-ts-errors",
+    "eamodio.gitlens",
+    "shardulm94.trailing-spaces"
+  ]
+}
