@@ -129,7 +129,15 @@ export async function POST(request: Request) {
         { status: 409 },
       );
     }
-    return NextResponse.json({ error: authError.message }, { status: 400 });
+    // Log the actual error for server audit but return a generic sanitized error to the client
+    console.error("[CreateUser] Auth error:", authError);
+    return NextResponse.json(
+      {
+        error:
+          "Ocurrió un error al intentar crear el usuario. Verifique los datos o contacte a soporte.",
+      },
+      { status: 400 },
+    );
   }
 
   // Insert user_profile record

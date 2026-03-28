@@ -37,3 +37,8 @@ workbox-*.js
 
 # UI/UX Pro Max generated design systems
 design-system/
+
+# Agent configuration (private)
+.agents/
+.gemini/
+.ops/

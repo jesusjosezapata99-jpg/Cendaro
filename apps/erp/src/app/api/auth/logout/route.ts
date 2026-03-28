@@ -3,11 +3,11 @@ import { NextResponse } from "next/server";
 
 import { createSupabaseServerClient } from "@cendaro/auth/server";
 
+import { env } from "~/env";
+
 export async function POST() {
-  // eslint-disable-next-line no-restricted-properties
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-  // eslint-disable-next-line no-restricted-properties
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
+  const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!supabaseUrl || !supabaseKey) {
     return NextResponse.json(

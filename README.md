@@ -14,6 +14,7 @@
   <img src="https://img.shields.io/badge/Supabase-PostgreSQL-3FCF8E?style=flat-square&logo=supabase&logoColor=white" alt="Supabase" />
   <img src="https://img.shields.io/badge/Tailwind-4.2-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white" alt="Tailwind" />
   <img src="https://img.shields.io/badge/Turborepo-2.8-EF4444?style=flat-square&logo=turborepo&logoColor=white" alt="Turborepo" />
+  <img src="https://img.shields.io/badge/License-AGPL_v3-blue.svg?style=flat-square" alt="License: AGPL v3" />
 </p>
 
 <p align="center">
@@ -921,6 +922,14 @@ pnpm dev:erp      # ERP app only
 
 ---
 
+## ⚖️ License
+
+Cendaro ERP is open source software licensed under the [GNU Affero General Public License v3.0 (AGPL-3.0)](LICENSE).
+
+This requires anyone who modifies and distributes (or provides network access to) the software to share their source code under the same license. For commercial licensing exceptions, please contact the repository owners.
+
+---
+
 ## 📄 Documentation
 
 > **Source of truth**: The [`docs/`](docs/README.md) folder contains the canonical ERP v1.0 specification package. See [ADR-001](docs/adr/001-erp-v1-source-of-truth.md) for the migration decision.
@@ -940,7 +949,7 @@ pnpm dev:erp      # ERP app only
 | **README**                 | this file                                                                                                                    |  ✅ Active  |
 | **Workflows**              | `.agents/workflows/`                                                                                                         |  ✅ Active  |
 
-> **Sync policy:** Critical changes must be verified against the PRD v1.0 and reflected here. See `.agents/workflows/prd-sync.md`.
+> **Synchronization Policy:** Critical architectural changes must be strictly verified against the PRD v1.0 and accurately reflected in this document. Reference `.agents/workflows/prd-sync.md`.
 
 ---
 

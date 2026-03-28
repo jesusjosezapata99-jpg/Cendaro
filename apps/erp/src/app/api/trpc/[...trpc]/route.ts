@@ -15,11 +15,11 @@ import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 import { appRouter, createTRPCContext } from "@cendaro/api";
 import { createSupabaseServerClient } from "@cendaro/auth/server";
 
+import { env } from "~/env";
+
 const handler = async (req: Request) => {
-  /* eslint-disable no-restricted-properties */
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
-  /* eslint-enable no-restricted-properties */
+  const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   let user = null;
   if (supabaseUrl && supabaseKey) {
