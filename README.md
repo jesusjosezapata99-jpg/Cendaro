@@ -1,3 +1,5 @@
+<a name="top"></a>
+
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/assets/cendaro-logo-dark.png" />
@@ -10,17 +12,6 @@
   <strong>Enterprise-grade omnichannel ERP</strong> for wholesale + retail commerce in Venezuela.<br/>
   Unified inventory · Multi-currency pricing engine · AI-powered container processing · Marketplace integrations
 </p>
-
-<p align="center">
-  <a href="#-architecture"><img src="https://img.shields.io/badge/Architecture-0f172a?style=for-the-badge&logo=blueprint&logoColor=white" alt="Architecture" /></a>
-  <a href="#-tech-stack"><img src="https://img.shields.io/badge/Tech_Stack-2463eb?style=for-the-badge&logo=stackblitz&logoColor=white" alt="Tech Stack" /></a>
-  <a href="#-monorepo-packages"><img src="https://img.shields.io/badge/Packages-7c3aed?style=for-the-badge&logo=npm&logoColor=white" alt="Packages" /></a>
-  <a href="#-erp-modules"><img src="https://img.shields.io/badge/Modules-059669?style=for-the-badge&logo=grid&logoColor=white" alt="Modules" /></a>
-  <a href="#-security"><img src="https://img.shields.io/badge/Security-dc2626?style=for-the-badge&logo=shield&logoColor=white" alt="Security" /></a>
-  <a href="#-getting-started"><img src="https://img.shields.io/badge/Quick_Start-d97706?style=for-the-badge&logo=lightning&logoColor=white" alt="Quick Start" /></a>
-</p>
-
-<br/>
 
 <p align="center">
   <img src="https://img.shields.io/badge/Next.js-16.0-000?style=flat-square&logo=next.js" alt="Next.js" />
@@ -40,7 +31,85 @@
 
 <br/>
 
+## 📋 Table of Contents
+
+<table>
+<tr>
+<td width="50%" valign="top">
+
+**🏗 Architecture**
+
+- [System Overview](#-system-overview)
+- [Request Lifecycle](#-request-lifecycle)
+- [Monorepo File Tree](#-monorepo-file-tree)
+
+**⚡ Tech Stack**
+
+- [Frontend & Framework](#-frontend--framework)
+- [Backend & Data](#-backend--data)
+- [Build & Quality](#-build--quality)
+- [Deployment](#-deployment)
+
+**📦 Monorepo Packages**
+
+- [@cendaro/api — Business Logic](#cendaroapi--business-logic-layer)
+- [@cendaro/db — Database & Schema](#cendar-db--database--schema)
+- [@cendaro/auth — Authentication](#cendar-auth--authentication)
+- [@cendaro/ui — Component Library](#cendar-ui--component-library)
+- [@cendaro/validators — Validation](#cendar-validators--domain-validation)
+
+</td>
+<td width="50%" valign="top">
+
+**🖥 ERP Modules**
+
+- [Core Operations](#-core-operations)
+- [Commerce Modules](#-commerce-modules)
+- [Integrations & Management](#-integrations--management)
+
+**🗄 Database Schema**
+
+- [Entity-Relationship Diagram](#-database-schema)
+
+**🤖 AI Pipeline**
+
+- [3-Tier Architecture](#-ai-pipeline)
+
+**🔐 Security**
+
+- [5-Layer Security Model](#-security)
+
+**🎨 Design System**
+
+- [Color Palette & Tokens](#-design-system)
+
+**🚀 Getting Started**
+
+- [Prerequisites & Installation](#-getting-started)
+- [Environment Variables](#environment-variables)
+- [Scripts Reference](#-scripts)
+
+**📄 Additional**
+
+- [Roadmap](#-roadmap)
+- [License](#-license)
+- [Documentation](#-documentation)
+
+</td>
+</tr>
+</table>
+
+<br/>
+
+---
+
+<br/>
+
+<a name="architecture"></a>
+
 ## 🏗 Architecture
+
+<a name="-system-overview"></a>
 
 ### System Overview
 
@@ -97,6 +166,8 @@ graph TB
 
 <br/>
 
+<a name="-request-lifecycle"></a>
+
 ### Request Lifecycle
 
 ```mermaid
@@ -141,6 +212,8 @@ sequenceDiagram
 ```
 
 <br/>
+
+<a name="-monorepo-file-tree"></a>
 
 ### Monorepo File Tree
 
@@ -187,11 +260,17 @@ cendaro/
 
 <br/>
 
+<p align="right"><a href="#top">↑ Back to top</a></p>
+
 ---
 
 <br/>
 
+<a name="tech-stack"></a>
+
 ## ⚡ Tech Stack
+
+<a name="-frontend--framework"></a>
 
 <table>
 <tr>
@@ -209,6 +288,9 @@ cendaro/
 | 📊  | **TanStack Query**       | `5.90.21` |
 
 </td>
+
+<a name="-backend--data"></a>
+
 <td width="50%">
 
 ### ⚙️ Backend & Data
@@ -224,6 +306,9 @@ cendaro/
 
 </td>
 </tr>
+
+<a name="-build--quality"></a>
+
 <tr>
 <td>
 
@@ -239,6 +324,9 @@ cendaro/
 | 🐶  | **Husky** + lint-staged | Latest     |
 
 </td>
+
+<a name="-deployment"></a>
+
 <td>
 
 ### 🚢 Deployment
@@ -258,11 +346,18 @@ cendaro/
 
 <br/>
 
+<p align="right"><a href="#top">↑ Back to top</a></p>
+
 ---
 
 <br/>
 
+<a name="monorepo-packages"></a>
+
 ## 📦 Monorepo Packages
+
+<a name="cendar-oapi--business-logic-layer"></a>
+<a name="cendaroapi--business-logic-layer"></a>
 
 ### `@cendaro/api` — Business Logic Layer
 
@@ -299,7 +394,7 @@ graph LR
 ```
 
 <details>
-<summary><strong>📋 Full Router Reference Table</strong></summary>
+<summary><strong>📋 Full Router Reference Table (19 routers)</strong></summary>
 
 | Router            | Domain                                  | Key Operations                             | Access                  |
 | ----------------- | --------------------------------------- | ------------------------------------------ | ----------------------- |
@@ -328,6 +423,8 @@ graph LR
 <br/>
 
 ---
+
+<a name="cendar-db--database--schema"></a>
 
 ### `@cendaro/db` — Database & Schema
 
@@ -517,6 +614,8 @@ graph TB
 
 ---
 
+<a name="cendar-auth--authentication"></a>
+
 ### `@cendaro/auth` — Authentication
 
 > Supabase Auth SSR with three specialized clients for the Next.js App Router lifecycle.
@@ -542,6 +641,8 @@ graph LR
 
 ---
 
+<a name="cendar-ui--component-library"></a>
+
 ### `@cendaro/ui` — Component Library
 
 > Design system built on shadcn/ui (new-york) + Radix — accessible, composable, themed.
@@ -557,6 +658,8 @@ graph LR
 <br/>
 
 ---
+
+<a name="cendar-validators--domain-validation"></a>
 
 ### `@cendaro/validators` — Domain Validation
 
@@ -582,9 +685,13 @@ graph LR
 
 <br/>
 
+<p align="right"><a href="#top">↑ Back to top</a></p>
+
 ---
 
 <br/>
+
+<a name="erp-modules"></a>
 
 ## 🖥 ERP Modules
 
@@ -664,9 +771,13 @@ graph TB
 
 <br/>
 
+<p align="right"><a href="#top">↑ Back to top</a></p>
+
 ---
 
 <br/>
+
+<a name="database-schema"></a>
 
 ## 🗄 Database Schema
 
@@ -731,9 +842,13 @@ erDiagram
 
 <br/>
 
+<p align="right"><a href="#top">↑ Back to top</a></p>
+
 ---
 
 <br/>
+
+<a name="ai-pipeline"></a>
 
 ## 🤖 AI Pipeline
 
@@ -780,9 +895,13 @@ graph LR
 
 <br/>
 
+<p align="right"><a href="#top">↑ Back to top</a></p>
+
 ---
 
 <br/>
+
+<a name="security"></a>
 
 ## 🔐 Security
 
@@ -831,9 +950,13 @@ graph TB
 
 <br/>
 
+<p align="right"><a href="#top">↑ Back to top</a></p>
+
 ---
 
 <br/>
+
+<a name="design-system"></a>
 
 ## 🎨 Design System
 
@@ -871,9 +994,13 @@ graph TB
 
 <br/>
 
+<p align="right"><a href="#top">↑ Back to top</a></p>
+
 ---
 
 <br/>
+
+<a name="getting-started"></a>
 
 ## 🚀 Getting Started
 
@@ -894,7 +1021,7 @@ pnpm install
 
 # 2. Configure environment
 cp .env.example .env
-# → Edit .env with Supabase credentials
+# → Edit .env with your Supabase credentials
 
 # 3. Push schema to database
 pnpm db:push
@@ -921,9 +1048,13 @@ pnpm dev:erp      # ERP app only
 
 <br/>
 
+<p align="right"><a href="#top">↑ Back to top</a></p>
+
 ---
 
 <br/>
+
+<a name="scripts"></a>
 
 ## 📜 Scripts
 
@@ -981,9 +1112,13 @@ pnpm dev:erp      # ERP app only
 
 <br/>
 
+<p align="right"><a href="#top">↑ Back to top</a></p>
+
 ---
 
 <br/>
+
+<a name="roadmap"></a>
 
 ## 🗺 Roadmap
 
@@ -1004,9 +1139,13 @@ pnpm dev:erp      # ERP app only
 
 <br/>
 
+<p align="right"><a href="#top">↑ Back to top</a></p>
+
 ---
 
 <br/>
+
+<a name="license"></a>
 
 ## ⚖️ License
 
@@ -1016,9 +1155,13 @@ This requires anyone who modifies and distributes (or provides network access to
 
 <br/>
 
+<p align="right"><a href="#top">↑ Back to top</a></p>
+
 ---
 
 <br/>
+
+<a name="documentation"></a>
 
 ## 📄 Documentation
 
@@ -1041,7 +1184,11 @@ This requires anyone who modifies and distributes (or provides network access to
 
 <br/>
 
+<p align="right"><a href="#top">↑ Back to top</a></p>
+
 ---
+
+<br/>
 
 <p align="center">
   <sub><strong>Cendaro</strong> © 2026 — Built with ❤️ for Venezuelan commerce</sub>
