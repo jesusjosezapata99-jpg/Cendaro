@@ -1,0 +1,26 @@
+[
+  {
+    "name": "ambient-background",
+    "prompt": "INT. DIGITAL VOID — CONTINUOUS. The frame opens on an infinite dark space filled with gently drifting luminous particles. Tiny specks of deep indigo and soft violet light float at varying depths, some closer and brighter, others distant and faint, creating a layered sense of parallax. A few larger translucent orbs with a subtle purple glow drift lazily from left to right across the mid-ground. A gradient wash of midnight blue spreads slowly across the lower third of the frame, shifting almost imperceptibly. The camera holds perfectly still in a static wide shot, centered composition. The color palette is restricted to deep navy, indigo, violet, and scattered white highlights. The motion is extremely smooth and continuous, with no jitter, no flicker, and no abrupt changes. Gentle ambient hum fills the space. No recognizable objects, no text, no faces appear — this is a purely atmospheric, meditative visual.",
+    "duration": 10,
+    "resolution": "1920x1080",
+    "model": "ltx-2-3-fast",
+    "generate_audio": false
+  },
+  {
+    "name": "hero-cinematic",
+    "prompt": "INT. DARK ENTERPRISE COMMAND CENTER — NIGHT. The shot opens on pure black, then a faint indigo glow blooms at the center of the frame as a software dashboard interface materializes from the darkness. Four translucent data cards fade into view across the top row, each displaying a glowing KPI number that counts upward with smooth animation — green, blue, amber, pink accent colors pulse softly at their borders. Below the cards, a horizontal bar chart draws itself from left to right, its gradient bars shifting from deep blue to soft violet. A data table with alternating translucent rows scrolls slowly upward in the lower half, each row carrying small colored status badges. The entire interface uses frosted glass panels with thin luminous borders and a subtle inner glow. The camera pushes in slowly toward the center panel, revealing finer details as it advances. The background remains absolute black with a faint diffused indigo light bloom behind the main display. The atmosphere is quiet, precise, and premium — the hum of a high-tech operations floor. No people appear on screen.",
+    "duration": 8,
+    "resolution": "1920x1080",
+    "model": "ltx-2-3-fast",
+    "generate_audio": false
+  },
+  {
+    "name": "feature-showcase",
+    "prompt": "INT. SOFTWARE INTERFACE STUDIO — CONTINUOUS. The frame opens on a dark workspace displaying an inventory management screen with a clean grid of product cards, each showing a small thumbnail and a price label beneath it. After two seconds, the view cross-dissolves smoothly into a kanban-style order board with four vertical columns, compact status cards slide gently downward into their positions within each column. The view holds briefly, then cross-dissolves again into an analytics dashboard where a line chart draws itself from left to right across the center and a donut chart assembles its colored segments one by one in the corner. All three interfaces share the same design language — frosted translucent panels, thin glowing borders, rounded corners, deep dark background with soft indigo accent lighting along the edges. The camera tracks laterally from left to right throughout the sequence, maintaining a medium-wide framing. The transitions between views are smooth and unhurried, approximately two seconds per screen. No readable text appears, no people are visible. The atmosphere is clean, minimal, and professional.",
+    "duration": 6,
+    "resolution": "1920x1080",
+    "model": "ltx-2-3-fast",
+    "generate_audio": false
+  }
+]
