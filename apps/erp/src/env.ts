@@ -4,6 +4,7 @@ import { z } from "zod/v4";
 export const env = createEnv({
   server: {
     DATABASE_URL: z.string().url(),
+    LTX_API_KEY: z.string().startsWith("ltxv_").optional(),
     SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
     SENTRY_DSN: z.preprocess(
       (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),

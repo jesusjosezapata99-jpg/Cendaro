@@ -7,7 +7,36 @@
 
 ## Session Registry
 
-- **Total agent sessions**: 60
+- **Total agent sessions**: 61
+
+### Session 61 — 2026-03-24T17:05 — LTX-2 Cloud API Integration
+
+**Objective**: Integrate Lightricks LTX-2 Cloud API as a video pre-rendering pipeline for the landing page.
+
+**Files created**:
+
+- `apps/erp/.env.local` — LTX API key (gitignored, secured)
+- `apps/erp/src/env.ts` — Added `LTX_API_KEY` with `z.string().startsWith("ltxv_").optional()` validation
+- `scripts/ltx-prompts.json` — 3 cinematography-grade prompts (ambient-background 10s, hero-cinematic 8s, feature-showcase 6s)
+- `scripts/generate-ltx-videos.mjs` — Standalone generation pipeline with `--dry-run`, `--only`, `--model` flags
+
+**Key decisions**:
+
+- LTX-2 cannot run locally (needs 24GB+ VRAM, user has RTX 3060 6GB) — using Cloud API instead
+- API is synchronous (returns MP4 binary directly, no polling)
+- Budget: $1.25 credits, plan uses $0.96 (24s of video)
+- Videos are complementary to existing Remotion assets, not replacements
+- Zero React component changes — videos are static MP4s in `public/videos/`
+
+**Execution command** (not yet run):
+
+```powershell
+pnpm exec dotenv -e apps/erp/.env.local -- node scripts/generate-ltx-videos.mjs --dry-run
+pnpm exec dotenv -e apps/erp/.env.local -- node scripts/generate-ltx-videos.mjs
+```
+
+**Status**: Implementation complete. API not yet called — awaiting user execution.
+
 - **Last Modified By**: Antigravity Agent — 2026-03-24T01:48:00+01:00
 
 ---
