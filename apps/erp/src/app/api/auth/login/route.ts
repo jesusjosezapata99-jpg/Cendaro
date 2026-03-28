@@ -5,8 +5,25 @@ import { z } from "zod/v4";
 import { createSupabaseServerClient } from "@cendaro/auth/server";
 
 import { env } from "~/env";
+import { rateLimit } from "~/lib/rate-limit";
 
 export async function POST(request: Request) {
+  // ── Rate Limiting (5 attempts per 60s per IP) ──
+  const ip =
+    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  const { success: allowed, reset } = rateLimit(ip, { window: 60_000, max: 5 });
+  if (!allowed) {
+    return NextResponse.json(
+      { error: "Demasiados intentos. Intente de nuevo más tarde." },
+      {
+        status: 429,
+        headers: {
+          "Retry-After": String(Math.ceil((reset - Date.now()) / 1000)),
+        },
+      },
+    );
+  }
+
   const rawBody = (await request.json().catch(() => ({}))) as unknown;
   const loginSchema = z.object({
     username: z.string().min(1).max(128),

@@ -151,3 +151,13 @@ export const createPaymentSchema = z.object({
   payerIdDoc: z.string().max(32).optional(),
   notes: z.string().optional(),
 });
+
+/** Create user form schema — shared between admin panel and API */
+export const createUserSchema = z.object({
+  username: z.string().min(3, "Mínimo 3 caracteres").max(128),
+  fullName: z.string().min(1, "Nombre requerido").max(256),
+  email: z.string().email("Correo electrónico inválido"),
+  password: z.string().min(6, "Mínimo 6 caracteres").max(256),
+  role: userRoleSchema,
+  phone: z.string().max(32).optional(),
+});

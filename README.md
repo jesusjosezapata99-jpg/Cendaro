@@ -1,9 +1,26 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://img.shields.io/badge/%E2%96%B2_CENDARO-ERP_PLATFORM-2463eb?style=for-the-badge&labelColor=0a0a0a" />
-    <img src="https://img.shields.io/badge/%E2%96%B2_CENDARO-ERP_PLATFORM-2463eb?style=for-the-badge&labelColor=111" alt="Cendaro ERP" />
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/cendaro-logo-dark.png" />
+    <source media="(prefers-color-scheme: light)" srcset="docs/assets/cendaro-logo-light.png" />
+    <img src="docs/assets/cendaro-logo-dark.png" alt="Cendaro ERP" width="480" />
   </picture>
 </p>
+
+<p align="center">
+  <strong>Enterprise-grade omnichannel ERP</strong> for wholesale + retail commerce in Venezuela.<br/>
+  Unified inventory · Multi-currency pricing engine · AI-powered container processing · Marketplace integrations
+</p>
+
+<p align="center">
+  <a href="#-architecture"><img src="https://img.shields.io/badge/Architecture-0f172a?style=for-the-badge&logo=blueprint&logoColor=white" alt="Architecture" /></a>
+  <a href="#-tech-stack"><img src="https://img.shields.io/badge/Tech_Stack-2463eb?style=for-the-badge&logo=stackblitz&logoColor=white" alt="Tech Stack" /></a>
+  <a href="#-monorepo-packages"><img src="https://img.shields.io/badge/Packages-7c3aed?style=for-the-badge&logo=npm&logoColor=white" alt="Packages" /></a>
+  <a href="#-erp-modules"><img src="https://img.shields.io/badge/Modules-059669?style=for-the-badge&logo=grid&logoColor=white" alt="Modules" /></a>
+  <a href="#-security"><img src="https://img.shields.io/badge/Security-dc2626?style=for-the-badge&logo=shield&logoColor=white" alt="Security" /></a>
+  <a href="#-getting-started"><img src="https://img.shields.io/badge/Quick_Start-d97706?style=for-the-badge&logo=lightning&logoColor=white" alt="Quick Start" /></a>
+</p>
+
+<br/>
 
 <p align="center">
   <img src="https://img.shields.io/badge/Next.js-16.0-000?style=flat-square&logo=next.js" alt="Next.js" />
@@ -17,21 +34,9 @@
   <img src="https://img.shields.io/badge/License-AGPL_v3-blue.svg?style=flat-square" alt="License: AGPL v3" />
 </p>
 
-<p align="center">
-  <strong>Enterprise-grade omnichannel ERP</strong> for wholesale + retail commerce in Venezuela.<br/>
-  Unified inventory · Multi-currency pricing engine · AI-powered container processing · Marketplace integrations
-</p>
+<br/>
 
-<p align="center">
-  <a href="#-architecture">Architecture</a> · 
-  <a href="#-tech-stack">Stack</a> · 
-  <a href="#-monorepo-packages">Packages</a> · 
-  <a href="#-erp-modules">Modules</a> · 
-  <a href="#-database-schema">Schema</a> · 
-  <a href="#-ai-pipeline">AI</a> · 
-  <a href="#-security">Security</a> · 
-  <a href="#-getting-started">Start</a>
-</p>
+---
 
 <br/>
 
@@ -40,12 +45,12 @@
 ### System Overview
 
 ```mermaid
-%%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#2463eb', 'primaryTextColor': '#fff', 'primaryBorderColor': '#1d4ed8', 'lineColor': '#64748b', 'secondaryColor': '#f1f5f9', 'tertiaryColor': '#f8fafc', 'fontSize': '14px'}}}%%
+%%{init: {'theme': 'neutral', 'themeVariables': {'fontSize': '14px'}}}%%
 
 graph TB
   classDef app fill:#2463eb,stroke:#1d4ed8,color:#fff,stroke-width:2px,font-weight:bold
-  classDef pkg fill:#0f172a,stroke:#334155,color:#e2e8f0,stroke-width:2px
-  classDef tool fill:#1e293b,stroke:#475569,color:#94a3b8,stroke-width:1px
+  classDef pkg fill:#1e293b,stroke:#475569,color:#e2e8f0,stroke-width:2px
+  classDef tool fill:#334155,stroke:#64748b,color:#cbd5e1,stroke-width:1px
   classDef infra fill:#059669,stroke:#047857,color:#fff,stroke-width:2px
   classDef external fill:#7c3aed,stroke:#6d28d9,color:#fff,stroke-width:2px
 
@@ -90,10 +95,12 @@ graph TB
   ERP -.-> GROQ
 ```
 
+<br/>
+
 ### Request Lifecycle
 
 ```mermaid
-%%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#2463eb', 'actorTextColor': '#0f172a', 'actorBkg': '#e2e8f0', 'actorBorder': '#94a3b8', 'signalColor': '#334155', 'signalTextColor': '#0f172a', 'labelBoxBkgColor': '#f8fafc', 'labelBoxBorderColor': '#e2e8f0', 'noteBkgColor': '#eff6ff', 'noteBorderColor': '#bfdbfe', 'noteTextColor': '#1e40af', 'activationBkgColor': '#dbeafe', 'activationBorderColor': '#93c5fd', 'sequenceNumberColor': '#fff', 'fontSize': '13px'}}}%%
+%%{init: {'theme': 'neutral', 'themeVariables': {'fontSize': '13px'}}}%%
 
 sequenceDiagram
   autonumber
@@ -133,6 +140,8 @@ sequenceDiagram
   P-->>-U: Rendered page
 ```
 
+<br/>
+
 ### Monorepo File Tree
 
 ```
@@ -144,6 +153,7 @@ cendaro/
 │       │   ├── app/api/                   ← tRPC + AI + Auth endpoints
 │       │   ├── components/                ← Sidebar, TopBar, WorkspaceSwitcher, 14 forms
 │       │   ├── hooks/                     ← useBcvRate, useCnyRate, useCurrentUser, useDebounce, useWorkspace
+│       │   ├── lib/                       ← rate-limit, utilities
 │       │   ├── modules/                   ← 13 client-side domain modules
 │       │   ├── trpc/                      ← Client, server, query-client setup
 │       │   └── proxy.ts                   ← Edge auth guard
@@ -163,13 +173,23 @@ cendaro/
 │   ├── typescript/                       ← Strict ES2024 base configs
 │   └── tailwind/                         ← oklch theme + design tokens
 │
+├── docs/                                 ← Canonical v1.0 specification
+│   ├── assets/                           ← Logos & brand assets
+│   ├── architecture/                     ← ERD, module & API blueprints
+│   ├── product/                          ← PRDs & feature specs
+│   └── adr/                              ← Architecture Decision Records
+│
 ├── turbo.json                            ← Turborepo pipeline (15 tasks)
 ├── vercel.json                           ← Deployment config
 ├── pnpm-workspace.yaml                   ← Workspace + dependency catalog
 └── .husky/                               ← Git hooks (lint-staged)
 ```
 
+<br/>
+
 ---
+
+<br/>
 
 ## ⚡ Tech Stack
 
@@ -236,7 +256,11 @@ cendaro/
 
 > **📌 Version policy:** All dependencies are centralized in `pnpm-workspace.yaml` → `catalog:` section. Pinned to latest verified stable — not bleeding-edge.
 
+<br/>
+
 ---
+
+<br/>
 
 ## 📦 Monorepo Packages
 
@@ -245,7 +269,7 @@ cendaro/
 > End-to-end type-safe API with tRPC v11, RBAC middleware, and structured audit logging.
 
 ```mermaid
-%%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#1e293b', 'primaryTextColor': '#e2e8f0', 'primaryBorderColor': '#475569', 'lineColor': '#64748b', 'fontSize': '13px'}}}%%
+%%{init: {'theme': 'neutral', 'themeVariables': {'fontSize': '13px'}}}%%
 
 graph LR
   classDef router fill:#1e293b,stroke:#475569,color:#e2e8f0,stroke-width:1px
@@ -274,6 +298,9 @@ graph LR
   ROOT --- R["🏢 workspace"]:::router
 ```
 
+<details>
+<summary><strong>📋 Full Router Reference Table</strong></summary>
+
 | Router            | Domain                                  | Key Operations                             | Access                  |
 | ----------------- | --------------------------------------- | ------------------------------------------ | ----------------------- |
 | `users`           | Profiles, RBAC                          | Create, update roles/status                | 👑 Admin, Owner         |
@@ -296,6 +323,10 @@ graph LR
 | `health`          | System status                           | Readiness check                            | 🌐 Public               |
 | `workspace`       | Multi-tenancy                           | List, create, switch, manage members       | 🔒 Authenticated        |
 
+</details>
+
+<br/>
+
 ---
 
 ### `@cendaro/db` — Database & Schema
@@ -306,7 +337,7 @@ graph LR
 <summary><strong>📊 Click to expand full schema map</strong></summary>
 
 ```mermaid
-%%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#0f172a', 'primaryTextColor': '#e2e8f0', 'primaryBorderColor': '#334155', 'lineColor': '#475569', 'fontSize': '12px'}}}%%
+%%{init: {'theme': 'neutral', 'themeVariables': {'fontSize': '12px'}}}%%
 
 graph TB
   classDef phase1 fill:#2463eb,stroke:#1d4ed8,color:#fff,stroke-width:2px
@@ -482,6 +513,8 @@ graph TB
 | **10** |  🔵   | Multi-tenancy          | `workspace` · `workspace_member` · `workspace_module` · `workspace_profile` · `workspace_quota` · `document_sequence`                                                                                                                             |
 | **11** |  🔴   | Notifications          | `notification_bucket` · `notification_bucket_assignee` · `notification_routing_rule`                                                                                                                                                              |
 
+<br/>
+
 ---
 
 ### `@cendaro/auth` — Authentication
@@ -489,7 +522,7 @@ graph TB
 > Supabase Auth SSR with three specialized clients for the Next.js App Router lifecycle.
 
 ```mermaid
-%%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#059669', 'primaryTextColor': '#fff', 'primaryBorderColor': '#047857', 'lineColor': '#64748b', 'fontSize': '13px'}}}%%
+%%{init: {'theme': 'neutral', 'themeVariables': {'fontSize': '13px'}}}%%
 
 graph LR
   classDef server fill:#059669,stroke:#047857,color:#fff,stroke-width:2px
@@ -505,6 +538,8 @@ graph LR
   M --> SB
 ```
 
+<br/>
+
 ---
 
 ### `@cendaro/ui` — Component Library
@@ -518,6 +553,8 @@ graph LR
 | **Auth**       | `RoleGuard` — RBAC-based conditional rendering                                                                                                                                                                                                    |
 | **Forms (14)** | `CreateProduct` · `EditProduct` · `CreateOrder` · `UpdateOrderStatus` · `CreateCustomer` · `CreateContainer` · `CreateBrand` · `CreateCategory` · `CreateSupplier` · `CreateClosure` · `CycleCount` · `TransferStock` · `CreateUser` · `EditUser` |
 | **Utilities**  | `cn()` — Tailwind Merge + clsx                                                                                                                                                                                                                    |
+
+<br/>
 
 ---
 
@@ -541,13 +578,18 @@ graph LR
 | `createOrderSchema`     | Composite form         | Order with items, channel, notes                             |
 | `createQuoteSchema`     | Composite form         | Quote with items, expiry, notes                              |
 | `createPaymentSchema`   | Composite form         | Payment with method, amount, reference                       |
+| `createUserSchema`      | Composite form         | User with username, fullName, email, role, phone             |
+
+<br/>
 
 ---
+
+<br/>
 
 ## 🖥 ERP Modules
 
 ```mermaid
-%%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#2463eb', 'primaryTextColor': '#fff', 'primaryBorderColor': '#1d4ed8', 'lineColor': '#475569', 'fontSize': '12px'}}}%%
+%%{init: {'theme': 'neutral', 'themeVariables': {'fontSize': '12px'}}}%%
 
 graph TB
   classDef core fill:#2463eb,stroke:#1d4ed8,color:#fff,stroke-width:2px,font-weight:bold
@@ -590,6 +632,9 @@ graph TB
   end
 ```
 
+<details>
+<summary><strong>📋 Full Module Reference (22 routes)</strong></summary>
+
 |  #  | Route                  | Module                                                         | Status |
 | :-: | ---------------------- | -------------------------------------------------------------- | :----: |
 |  1  | `/dashboard`           | Executive Dashboard — KPI widgets, charts, filters             |   ✅   |
@@ -615,12 +660,18 @@ graph TB
 | 21  | `/alerts`              | System Alerts — low stock, rate changes, overdue AR            |   ✅   |
 | 22  | `/settings`            | Configuration — organization, preferences                      |   ✅   |
 
+</details>
+
+<br/>
+
 ---
+
+<br/>
 
 ## 🗄 Database Schema
 
 ```mermaid
-%%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#1e293b', 'primaryTextColor': '#e2e8f0', 'lineColor': '#475569', 'fontSize': '12px'}}}%%
+%%{init: {'theme': 'neutral', 'themeVariables': {'fontSize': '12px'}}}%%
 
 erDiagram
   Organization ||--o{ UserProfile : "employs"
@@ -678,12 +729,16 @@ erDiagram
   NotificationBucket ||--o{ NotificationBucketAssignee : "assigned to"
 ```
 
+<br/>
+
 ---
+
+<br/>
 
 ## 🤖 AI Pipeline
 
 ```mermaid
-%%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#7c3aed', 'primaryTextColor': '#fff', 'primaryBorderColor': '#6d28d9', 'lineColor': '#64748b', 'fontSize': '13px'}}}%%
+%%{init: {'theme': 'neutral', 'themeVariables': {'fontSize': '13px'}}}%%
 
 graph LR
   classDef tier1 fill:#2463eb,stroke:#1d4ed8,color:#fff,stroke-width:2px
@@ -723,12 +778,16 @@ graph LR
 | **Image Processing** | Supabase Storage + Groq Vision           | Extract product details from packing list images     |
 | **Fallback Model**   | Llama 4 Scout                            | Secondary model for rate-limit recovery              |
 
+<br/>
+
 ---
+
+<br/>
 
 ## 🔐 Security
 
 ```mermaid
-%%{init: {'theme': 'base', 'themeVariables': {'primaryColor': '#dc2626', 'primaryTextColor': '#fff', 'primaryBorderColor': '#b91c1c', 'lineColor': '#64748b', 'fontSize': '13px'}}}%%
+%%{init: {'theme': 'neutral', 'themeVariables': {'fontSize': '13px'}}}%%
 
 graph TB
   classDef auth fill:#059669,stroke:#047857,color:#fff,stroke-width:2px
@@ -760,10 +819,21 @@ graph TB
     D3["price_history\nPricing Trail"]:::audit
   end
 
+  subgraph L5["🚦 LAYER 5 — RATE LIMITING"]
+    E1["In-Memory Sliding Window\nPer-IP throttling"]:::auth
+    E2["Login: 5 req/60s\nCreate-User: 3 req/60s"]:::auth
+    E3["429 + Retry-After\nBrute-force protection"]:::auth
+  end
+
   L1 --> L2 --> L3 --> L4
+  L1 --> L5
 ```
 
+<br/>
+
 ---
+
+<br/>
 
 ## 🎨 Design System
 
@@ -799,7 +869,11 @@ graph TB
 
 > Defined in `tooling/tailwind/theme.css` — imported globally via `@import "@cendaro/tailwind-config/theme"`.
 
+<br/>
+
 ---
+
+<br/>
 
 ## 🚀 Getting Started
 
@@ -845,7 +919,11 @@ pnpm dev:erp      # ERP app only
 | `MERCADOLIBRE_SECRET`           |    —     | Mercado Libre OAuth          |
 | `PORT`                          |    —     | Custom server port           |
 
+<br/>
+
 ---
+
+<br/>
 
 ## 📜 Scripts
 
@@ -901,7 +979,11 @@ pnpm dev:erp      # ERP app only
 </tr>
 </table>
 
+<br/>
+
 ---
+
+<br/>
 
 ## 🗺 Roadmap
 
@@ -920,7 +1002,11 @@ pnpm dev:erp      # ERP app only
 | **10** | Multi-tenancy, workspace isolation, RLS         |   ✅   |
 | **11** | Notification buckets, routing rules             |   ✅   |
 
+<br/>
+
 ---
+
+<br/>
 
 ## ⚖️ License
 
@@ -928,7 +1014,11 @@ Cendaro ERP is open source software licensed under the [GNU Affero General Publi
 
 This requires anyone who modifies and distributes (or provides network access to) the software to share their source code under the same license. For commercial licensing exceptions, please contact the repository owners.
 
+<br/>
+
 ---
+
+<br/>
 
 ## 📄 Documentation
 
@@ -946,10 +1036,10 @@ This requires anyone who modifies and distributes (or provides network access to
 | **Catalog Import PRD**     | [`docs/product/features_prd/FEATURE_PRD_CATALOG_IMPORT.md`](docs/product/features_prd/FEATURE_PRD_CATALOG_IMPORT.md)         |  ✅ Active  |
 | **ADR-001**                | [`docs/adr/001-erp-v1-source-of-truth.md`](docs/adr/001-erp-v1-source-of-truth.md)                                           |  ✅ Active  |
 | **Legacy PRD v0.7**        | [`docs/product/LEGACY_PRD_v0.7.md`](docs/product/LEGACY_PRD_v0.7.md)                                                         | 🗄️ Archived |
-| **README**                 | this file                                                                                                                    |  ✅ Active  |
-| **Workflows**              | `.agents/workflows/`                                                                                                         |  ✅ Active  |
 
 > **Synchronization Policy:** Critical architectural changes must be strictly verified against the PRD v1.0 and accurately reflected in this document. Reference `.agents/workflows/prd-sync.md`.
+
+<br/>
 
 ---
 

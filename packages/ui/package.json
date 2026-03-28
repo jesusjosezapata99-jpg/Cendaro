@@ -6,7 +6,7 @@
     ".": "./src/index.ts",
     "./button": "./src/button.tsx"
   },
-  "license": "MIT",
+  "license": "AGPL-3.0",
   "scripts": {
     "clean": "git clean -xdf .cache .turbo dist node_modules",
     "format": "prettier --check . --ignore-path ../../.gitignore",
