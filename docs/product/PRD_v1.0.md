@@ -5,7 +5,7 @@
 - **Versión:** 1.0
 - **Estado:** Cerrado para diseño, arquitectura y construcción inicial
 - **Idioma operativo:** Español
-- **Audiencia principal:** Claude Code Opus 4.6 Thinking / Anti-Gravity / equipo técnico / stakeholders operativos
+- **Audiencia principal:** Equipo técnico / stakeholders operativos / contribuidores
 - **Formato de salida esperado del desarrollo:** aplicación web moderna, mobile-first, con foco operativo, visual, rápida y auditable
 
 ---

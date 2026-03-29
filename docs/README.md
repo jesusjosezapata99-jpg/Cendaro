@@ -2,17 +2,68 @@
 
 > **Source of Truth**: This `/docs` folder contains the canonical specification package for the Cendaro ERP Omnicanal system. All architectural, product, and data-modeling decisions reference these documents.
 
-## Document Map
+---
 
-| Document                   | Path                                                                                      | Status                                                 |
-| -------------------------- | ----------------------------------------------------------------------------------------- | ------------------------------------------------------ |
-| **PRD v1.0**               | [`docs/product/PRD_v1.0.md`](product/PRD_v1.0.md)                                         | ✅ Active — canonical product specification            |
-| **Legacy PRD v0.7**        | [`docs/product/LEGACY_PRD_v0.7.md`](product/LEGACY_PRD_v0.7.md)                           | 🗄️ Archived — historical reference only                |
-| **ERD & Schema Blueprint** | [`docs/architecture/erd_schema_blueprint_v1.md`](architecture/erd_schema_blueprint_v1.md) | ✅ Active — data model & entity relationships          |
-| **Module & API Blueprint** | [`docs/architecture/module_api_blueprint_v1.md`](architecture/module_api_blueprint_v1.md) | ✅ Active — module boundaries, API surface, navigation |
-| **DBML Schema**            | [`docs/data/erp_schema_v1.dbml`](data/erp_schema_v1.dbml)                                 | ✅ Active — machine-readable schema definition         |
-| **Schema Alignment**       | [`docs/data/SCHEMA_ALIGNMENT.md`](data/SCHEMA_ALIGNMENT.md)                               | ✅ Active — maps existing Drizzle schema to new ERD    |
-| **ADR-001**                | [`docs/adr/001-erp-v1-source-of-truth.md`](adr/001-erp-v1-source-of-truth.md)             | ✅ Active — decision record for v1.0 adoption          |
+## 📋 Product Specifications
+
+| Document            | Path                                                       |   Status    |
+| ------------------- | ---------------------------------------------------------- | :---------: |
+| **PRD v1.0**        | [`product/PRD_v1.0.md`](product/PRD_v1.0.md)               |  ✅ Active  |
+| **Legacy PRD v0.7** | [`product/LEGACY_PRD_v0.7.md`](product/LEGACY_PRD_v0.7.md) | 🗄️ Archived |
+
+### Feature PRDs
+
+| Document               | Path                                                                                                       |  Status   |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------- | :-------: |
+| **Spreadsheet Import** | [`product/features/FEATURE_PRD_SPREADSHEET_IMPORT.md`](product/features/FEATURE_PRD_SPREADSHEET_IMPORT.md) | ✅ Active |
+| **Inventory Import**   | [`product/features/FEATURE_PRD_INVENTORY_IMPORT.md`](product/features/FEATURE_PRD_INVENTORY_IMPORT.md)     | ✅ Active |
+| **Catalog Import**     | [`product/features/FEATURE_PRD_CATALOG_IMPORT.md`](product/features/FEATURE_PRD_CATALOG_IMPORT.md)         | ✅ Active |
+
+---
+
+## 🏗 Architecture
+
+| Document                      | Path                                                                                     |  Status   |
+| ----------------------------- | ---------------------------------------------------------------------------------------- | :-------: |
+| **ERD & Schema Blueprint**    | [`architecture/erd_schema_blueprint_v1.md`](architecture/erd_schema_blueprint_v1.md)     | ✅ Active |
+| **Module & API Blueprint**    | [`architecture/module_api_blueprint_v1.md`](architecture/module_api_blueprint_v1.md)     | ✅ Active |
+| **Multi-Tenant Architecture** | [`architecture/multi-tenant-architecture.md`](architecture/multi-tenant-architecture.md) | ✅ Active |
+
+---
+
+## 🗄 Data Model
+
+| Document             | Path                                                   |  Status   |
+| -------------------- | ------------------------------------------------------ | :-------: |
+| **DBML Schema v1**   | [`data/erp_schema_v1.dbml`](data/erp_schema_v1.dbml)   | ✅ Active |
+| **Schema Alignment** | [`data/SCHEMA_ALIGNMENT.md`](data/SCHEMA_ALIGNMENT.md) | ✅ Active |
+
+---
+
+## 🔐 Security
+
+| Document                      | Path                                                             |  Status   |
+| ----------------------------- | ---------------------------------------------------------------- | :-------: |
+| **Incident Response Runbook** | [`security/INCIDENT_RESPONSE.md`](security/INCIDENT_RESPONSE.md) | ✅ Active |
+
+---
+
+## 📝 Architecture Decision Records (ADR)
+
+| Decision                                  | Path                                                                     |   Status    |
+| ----------------------------------------- | ------------------------------------------------------------------------ | :---------: |
+| **ADR-001** — ERP v1.0 as Source of Truth | [`adr/001-erp-v1-source-of-truth.md`](adr/001-erp-v1-source-of-truth.md) | ✅ Accepted |
+
+---
+
+## 🎨 Assets
+
+| Asset             | Path                                                             |
+| ----------------- | ---------------------------------------------------------------- |
+| Logo (Dark Mode)  | [`assets/cendaro-logo-dark.png`](assets/cendaro-logo-dark.png)   |
+| Logo (Light Mode) | [`assets/cendaro-logo-light.png`](assets/cendaro-logo-light.png) |
+
+---
 
 ## Source-of-Truth Priority
 
@@ -26,8 +77,8 @@
 ## Architecture Overview
 
 - **Style**: Modular monolith
-- **Frontend**: Next.js App Router (Turborepo)
+- **Frontend**: Next.js 16 App Router (Turborepo)
 - **Backend boundary**: Server actions + tRPC
 - **Database**: PostgreSQL + Drizzle ORM
-- **UI**: shadcn/ui + Tailwind CSS
+- **UI**: shadcn/ui + Tailwind CSS v4
 - **Monorepo**: Turborepo + pnpm workspaces

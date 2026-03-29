@@ -1074,7 +1074,7 @@ graph TB
 
 ```bash
 # 1. Clone & install
-git clone <repo-url> cendaro && cd cendaro
+git clone https://github.com/jesusjosezapata99-jpg/Cendaro.git && cd Cendaro
 pnpm install
 
 # 2. Configure environment
@@ -1225,18 +1225,20 @@ This requires anyone who modifies and distributes (or provides network access to
 
 > **Source of truth**: The [`docs/`](docs/README.md) folder contains the canonical ERP v1.0 specification package. See [ADR-001](docs/adr/001-erp-v1-source-of-truth.md) for the migration decision.
 
-| Document                   | Path                                                                                                                         |   Status    |
-| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | :---------: |
-| **PRD v1.0**               | [`docs/product/PRD_v1.0.md`](docs/product/PRD_v1.0.md)                                                                       |  ✅ Active  |
-| **ERD & Schema Blueprint** | [`docs/architecture/erd_schema_blueprint_v1.md`](docs/architecture/erd_schema_blueprint_v1.md)                               |  ✅ Active  |
-| **Module & API Blueprint** | [`docs/architecture/module_api_blueprint_v1.md`](docs/architecture/module_api_blueprint_v1.md)                               |  ✅ Active  |
-| **DBML Schema**            | [`docs/data/erp_schema_v1.dbml`](docs/data/erp_schema_v1.dbml)                                                               |  ✅ Active  |
-| **Schema Alignment**       | [`docs/data/SCHEMA_ALIGNMENT.md`](docs/data/SCHEMA_ALIGNMENT.md)                                                             |  ✅ Active  |
-| **Spreadsheet Import PRD** | [`docs/product/features_prd/FEATURE_PRD_SPREADSHEET_IMPORT.md`](docs/product/features_prd/FEATURE_PRD_SPREADSHEET_IMPORT.md) |  ✅ Active  |
-| **Inventory Import PRD**   | [`docs/product/features_prd/FEATURE_PRD_INVENTORY_IMPORT.md`](docs/product/features_prd/FEATURE_PRD_INVENTORY_IMPORT.md)     |  ✅ Active  |
-| **Catalog Import PRD**     | [`docs/product/features_prd/FEATURE_PRD_CATALOG_IMPORT.md`](docs/product/features_prd/FEATURE_PRD_CATALOG_IMPORT.md)         |  ✅ Active  |
-| **ADR-001**                | [`docs/adr/001-erp-v1-source-of-truth.md`](docs/adr/001-erp-v1-source-of-truth.md)                                           |  ✅ Active  |
-| **Legacy PRD v0.7**        | [`docs/product/LEGACY_PRD_v0.7.md`](docs/product/LEGACY_PRD_v0.7.md)                                                         | 🗄️ Archived |
+| Document                      | Path                                                                                                                 |   Status    |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------------------- | :---------: |
+| **PRD v1.0**                  | [`docs/product/PRD_v1.0.md`](docs/product/PRD_v1.0.md)                                                               |  ✅ Active  |
+| **ERD & Schema Blueprint**    | [`docs/architecture/erd_schema_blueprint_v1.md`](docs/architecture/erd_schema_blueprint_v1.md)                       |  ✅ Active  |
+| **Module & API Blueprint**    | [`docs/architecture/module_api_blueprint_v1.md`](docs/architecture/module_api_blueprint_v1.md)                       |  ✅ Active  |
+| **Multi-Tenant Architecture** | [`docs/architecture/multi-tenant-architecture.md`](docs/architecture/multi-tenant-architecture.md)                   |  ✅ Active  |
+| **DBML Schema**               | [`docs/data/erp_schema_v1.dbml`](docs/data/erp_schema_v1.dbml)                                                       |  ✅ Active  |
+| **Schema Alignment**          | [`docs/data/SCHEMA_ALIGNMENT.md`](docs/data/SCHEMA_ALIGNMENT.md)                                                     |  ✅ Active  |
+| **Incident Response Runbook** | [`docs/security/INCIDENT_RESPONSE.md`](docs/security/INCIDENT_RESPONSE.md)                                           |  ✅ Active  |
+| **Spreadsheet Import PRD**    | [`docs/product/features/FEATURE_PRD_SPREADSHEET_IMPORT.md`](docs/product/features/FEATURE_PRD_SPREADSHEET_IMPORT.md) |  ✅ Active  |
+| **Inventory Import PRD**      | [`docs/product/features/FEATURE_PRD_INVENTORY_IMPORT.md`](docs/product/features/FEATURE_PRD_INVENTORY_IMPORT.md)     |  ✅ Active  |
+| **Catalog Import PRD**        | [`docs/product/features/FEATURE_PRD_CATALOG_IMPORT.md`](docs/product/features/FEATURE_PRD_CATALOG_IMPORT.md)         |  ✅ Active  |
+| **ADR-001**                   | [`docs/adr/001-erp-v1-source-of-truth.md`](docs/adr/001-erp-v1-source-of-truth.md)                                   |  ✅ Active  |
+| **Legacy PRD v0.7**           | [`docs/product/LEGACY_PRD_v0.7.md`](docs/product/LEGACY_PRD_v0.7.md)                                                 | 🗄️ Archived |
 
 > **Synchronization Policy:** Critical architectural changes must be strictly verified against the PRD v1.0 and accurately reflected in this document. Reference `.agents/workflows/prd-sync.md`.
 

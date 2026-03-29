@@ -1,6 +1,8 @@
 # Schema Alignment — Existing Drizzle vs New ERD Blueprint
 
 > This document maps the existing `packages/db/src/schema.ts` (Drizzle ORM) tables to the target tables defined in the ERD & Schema Blueprint v1 and DBML Schema v1. It serves as a migration planning reference.
+>
+> **⚠️ Point-in-Time Snapshot (2026-03-11):** This alignment was captured at the time of the ERP v1.0 specification adoption (see [ADR-001](../adr/001-erp-v1-source-of-truth.md)). Many tables marked ❌ (Missing) have since been implemented. Consult the current `packages/db/src/schema.ts` for the live state of the database schema.
 
 ## Legend
 

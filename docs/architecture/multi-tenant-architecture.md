@@ -55,7 +55,7 @@ Cendaro implements **shared-database, shared-schema** multi-tenancy. All tenants
 
 ```mermaid
 graph TB
-    subgraph CLIENT ["Frontend - Next.js 15 App Router"]
+    subgraph CLIENT ["Frontend - Next.js 16 App Router"]
         direction TB
         WP["WorkspaceProvider"]
         WS["WorkspaceSwitcher"]
