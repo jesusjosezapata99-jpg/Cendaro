@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
   sync:
@@ -23,8 +24,31 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Merge development into web_design
+      - name: Check for differences
+        id: diff
         run: |
-          git checkout web_design
-          git merge development --no-edit
-          git push origin web_design
+          git fetch origin web_design
+          DIFF=$(git diff origin/development..origin/web_design --stat)
+          if [ -z "$DIFF" ]; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create sync branch and PR
+        if: steps.diff.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          SYNC_BRANCH="sync/development-to-web_design-$(date +%Y%m%d-%H%M%S)"
+          git checkout -b "$SYNC_BRANCH" origin/web_design
+          git merge origin/development --no-edit
+          git push origin "$SYNC_BRANCH"
+
+          # Create PR (will be auto-merged if no conflicts)
+          gh pr create \
+            --base web_design \
+            --head "$SYNC_BRANCH" \
+            --title "sync: merge development into web_design" \
+            --body "Automated sync from \`development\` → \`web_design\`.\n\nTriggered by push to development." \
+            --label "sync"
