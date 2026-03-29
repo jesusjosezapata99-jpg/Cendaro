@@ -28,7 +28,7 @@
   "devDependencies": {
     "@cendaro/eslint-config": "workspace:*",
     "@cendaro/prettier-config": "workspace:*",
-    "@turbo/gen": "^2.8.14",
+    "@turbo/gen": "^2.8.21",
     "dotenv-cli": "^10.0.0",
     "eslint": "catalog:",
     "husky": "^9.1.7",
