@@ -22,9 +22,11 @@
  *   - Key is read exclusively from environment variables.
  */
 
-import { writeFile, mkdir } from "node:fs/promises";
-import { existsSync } from "node:fs";
+import { mkdir, stat } from "node:fs/promises";
+import { existsSync, createWriteStream } from "node:fs";
 import { resolve, dirname } from "node:path";
+import { pipeline } from "node:stream/promises";
+import { Readable } from "node:stream";
 import { fileURLToPath } from "node:url";
 
 /* ── Constants ─────────────────────────────────────────── */
@@ -105,7 +107,7 @@ async function main() {
     process.exit(1);
   }
 
-  log("🔑", `API key loaded ${c.dim}(ltxv_****${apiKey.slice(-4)})${c.reset}`);
+  log("🔑", "API key validated and loaded into memory");
 
   /* 2. Load prompt configuration */
   const { default: prompts } = await import(
@@ -175,7 +177,16 @@ async function main() {
   for (let i = 0; i < videosToGenerate.length; i++) {
     const video = videosToGenerate[i];
     const model = MODEL_OVERRIDE || video.model;
-    const outputPath = resolve(OUTPUT_DIR, `${video.name}.mp4`);
+    /* Sanitize filename — strip any non-alphanumeric/dash/underscore chars
+       to prevent path traversal (CodeQL: js/path-injection) */
+    const safeName = video.name.replace(/[^a-zA-Z0-9_\-]/g, "_");
+    const outputPath = resolve(OUTPUT_DIR, `${safeName}.mp4`);
+
+    /* Defense-in-depth: verify resolved path is inside OUTPUT_DIR */
+    if (!outputPath.startsWith(OUTPUT_DIR)) {
+      logError(`Path traversal detected for "${video.name}". Skipping.`);
+      continue;
+    }
 
     log(
       "⏳",
@@ -227,12 +238,27 @@ async function main() {
         continue;
       }
 
-      /* Save MP4 file */
-      const buffer = Buffer.from(await response.arrayBuffer());
-      await writeFile(outputPath, buffer);
+      /* Enforce file size cap (500 MB) to prevent resource exhaustion
+         (CodeQL: js/network-data-written-to-file) */
+      const MAX_FILE_BYTES = 500 * 1024 * 1024;
+      const contentLength = Number(
+        response.headers.get("content-length") || "0"
+      );
+      if (contentLength > MAX_FILE_BYTES) {
+        logError(
+          `Response too large (${(contentLength / (1024 * 1024)).toFixed(0)} MB exceeds 500 MB cap). Skipping.`
+        );
+        continue;
+      }
+
+      /* Stream response to disk via Node.js pipeline (memory-efficient).
+         pipeline() handles backpressure and automatic cleanup on errors. */
+      const fileStream = createWriteStream(outputPath);
+      await pipeline(Readable.fromWeb(response.body), fileStream);
 
       const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-      const sizeMB = (buffer.length / (1024 * 1024)).toFixed(2);
+      const fileStats = await stat(outputPath);
+      const sizeMB = (fileStats.size / (1024 * 1024)).toFixed(2);
       const cost = video.duration * COST_PER_SECOND;
       totalSpent += cost;
 
