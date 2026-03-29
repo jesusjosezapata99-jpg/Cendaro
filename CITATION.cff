@@ -1,0 +1,36 @@
+cff-version: 1.2.0
+message: "If you use Cendaro in your research or project, please cite it using the metadata below."
+type: software
+
+title: "Cendaro ERP"
+abstract: >
+  Enterprise Resource Planning (ERP) platform for cross-border commerce.
+  Built with Next.js 16, Turborepo, and AI-powered logistics automation.
+  Features unified inventory management, multi-currency pricing engine,
+  AI-powered container processing, and marketplace integrations.
+
+authors:
+  - family-names: "Zapata"
+    given-names: "Jesus Jose"
+    alias: "jesusjosezapata99-jpg"
+    orcid: ""
+
+repository-code: "https://github.com/jesusjosezapata99-jpg/Cendaro"
+url: "https://cendaro.io"
+license: AGPL-3.0-only
+
+version: "0.1.0"
+date-released: "2026-03-08"
+
+keywords:
+  - erp
+  - enterprise-resource-planning
+  - nextjs
+  - typescript
+  - turborepo
+  - react
+  - supply-chain
+  - logistics
+  - commerce
+  - ai-powered-search
+  - automation

@@ -1,0 +1,12 @@
+# GitHub Sponsors / Funding configuration
+# Ref: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/displaying-a-sponsor-button-in-your-repository
+
+# Supported platforms:
+# github, patreon, open_collective, ko_fi, tidelift, community_bridge, liberapay, issuehunt, otechie, polar, buy_me_a_coffee, custom
+
+# Add your GitHub Sponsors username once the account is set up:
+# github: [username]
+
+# External / custom donation links:
+custom:
+  - https://cendaro.io

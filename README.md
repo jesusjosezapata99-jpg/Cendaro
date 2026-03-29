@@ -14,7 +14,14 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Next.js-16.0-000?style=flat-square&logo=next.js" alt="Next.js" />
+  <!-- Live status badges -->
+  <a href="https://github.com/jesusjosezapata99-jpg/Cendaro/actions/workflows/ci.yml">
+    <img src="https://github.com/jesusjosezapata99-jpg/Cendaro/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI" />
+  </a>
+  <a href="https://github.com/jesusjosezapata99-jpg/Cendaro/actions/workflows/codeql.yml">
+    <img src="https://github.com/jesusjosezapata99-jpg/Cendaro/actions/workflows/codeql.yml/badge.svg?branch=main" alt="CodeQL" />
+  </a>
+  <img src="https://img.shields.io/badge/Next.js-16.1-000?style=flat-square&logo=next.js" alt="Next.js" />
   <img src="https://img.shields.io/badge/React-19.1-087ea4?style=flat-square&logo=react" alt="React" />
   <img src="https://img.shields.io/badge/TypeScript-5.9-3178C6?style=flat-square&logo=typescript&logoColor=white" alt="TypeScript" />
   <img src="https://img.shields.io/badge/tRPC-11.12-398CCB?style=flat-square&logo=trpc&logoColor=white" alt="tRPC" />
