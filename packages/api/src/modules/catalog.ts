@@ -43,11 +43,16 @@ export const catalogRouter = createTRPCRouter({
       const conditions = [];
 
       if (input.search) {
+        // Escape LIKE wildcards to prevent pattern injection
+        const escaped = input.search
+          .replace(/\\/g, "\\\\")
+          .replace(/%/g, "\\%")
+          .replace(/_/g, "\\_");
         conditions.push(
           or(
-            ilike(Product.name, `%${input.search}%`),
-            ilike(Product.sku, `%${input.search}%`),
-            ilike(Product.barcode, `%${input.search}%`),
+            ilike(Product.name, `%${escaped}%`),
+            ilike(Product.sku, `%${escaped}%`),
+            ilike(Product.barcode, `%${escaped}%`),
           ),
         );
       }
