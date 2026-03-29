@@ -11,16 +11,16 @@ import type { AppRouter } from "@cendaro/api";
 import { createCaller, createTRPCContext } from "@cendaro/api";
 import { createSupabaseServerClient } from "@cendaro/auth/server";
 
+import { env } from "~/env";
+
 /**
  * Create a cached tRPC context for the current request.
  * React `cache()` ensures we reuse the same context within
  * a single server render.
  */
 const createContext = cache(async () => {
-  /* eslint-disable no-restricted-properties */
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
-  const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
-  /* eslint-enable no-restricted-properties */
+  const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey = env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   const heads = new Headers(await headers());
   heads.set("x-trpc-source", "rsc");

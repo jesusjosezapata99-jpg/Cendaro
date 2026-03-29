@@ -950,9 +950,13 @@ Responde ÚNICAMENTE con JSON válido:
       promptSource: config ? "database" : "fallback",
     });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : "Error desconocido";
+    // Log full error server-side for debugging — never expose internals to client
+    console.error(
+      "[parse-packing-list] Error:",
+      err instanceof Error ? err.message : err,
+    );
     return NextResponse.json(
-      { error: `Error procesando packing list: ${message}` },
+      { error: "Error procesando packing list. Intente de nuevo más tarde." },
       { status: 500 },
     );
   }

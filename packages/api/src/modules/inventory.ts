@@ -72,7 +72,7 @@ export const inventoryRouter = createTRPCRouter({
       // Before: 3 queries + 10K+ rows transferred + JS Maps → 6.18s
       // After:  1 query + 500 aggregated rows → <100ms
       const searchPattern = input.search
-        ? `%${input.search.toLowerCase()}%`
+        ? `%${input.search.toLowerCase().replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_")}%`
         : null;
 
       const rows = await ctx.db.execute<{
@@ -333,7 +333,7 @@ export const inventoryRouter = createTRPCRouter({
     )
     .query(async ({ ctx, input }) => {
       const searchPattern = input.search
-        ? `%${input.search.toLowerCase()}%`
+        ? `%${input.search.toLowerCase().replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_")}%`
         : null;
 
       const rows = await ctx.db.execute<{
