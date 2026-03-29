@@ -29,7 +29,7 @@
     "@cendaro/eslint-config": "workspace:*",
     "@cendaro/prettier-config": "workspace:*",
     "@turbo/gen": "^2.8.14",
-    "dotenv-cli": "^10.0.0",
+    "dotenv-cli": "^11.0.0",
     "eslint": "catalog:",
     "husky": "^9.1.7",
     "jiti": "^2.6.1",
