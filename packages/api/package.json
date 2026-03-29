@@ -21,7 +21,7 @@
   "dependencies": {
     "@cendaro/db": "workspace:*",
     "@cendaro/validators": "workspace:*",
-    "@supabase/supabase-js": "^2.98.0",
+    "@supabase/supabase-js": "^2.100.1",
     "@trpc/server": "catalog:",
     "drizzle-orm": "catalog:",
     "superjson": "2.2.6",
