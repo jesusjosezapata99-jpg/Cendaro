@@ -45,7 +45,7 @@ const config = {
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "font-src 'self' https://fonts.gstatic.com",
       "img-src 'self' data: blob: https://*.supabase.co",
-      "media-src 'none'",
+      "media-src 'self'",
       "object-src 'none'",
       "frame-ancestors 'none'",
       "connect-src 'self' https://*.supabase.co https://api.groq.com https://ve.dolarapi.com https://api.frankfurter.dev https://v6.exchangerate-api.com https://*.sentry.io",
