@@ -1,21 +1,15 @@
-# Cendaro Governance - Global Codeowners Definitions
+# ──────────────────────────────────────────────────────────────
+# CODEOWNERS — Cendaro ERP
+#
+# Defines REQUIRED reviewers for pull requests.
+# GitHub enforces that all matching CODEOWNERS must approve
+# before a PR can be merged into protected branches.
+#
+# Since this is the primary maintainer's repository, ALL code
+# changes require explicit approval from the repository owner.
+#
+# Docs: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+# ──────────────────────────────────────────────────────────────
 
-# Default owners (fallback)
-*       @cendaro/core-team
-
-# Application layers
-/apps/erp/               @cendaro/frontend-engineers
-
-# Packages
-/packages/api/           @cendaro/backend-engineers
-/packages/db/            @cendaro/database-administrators
-/packages/auth/          @cendaro/security-team
-/packages/ui/            @cendaro/frontend-engineers
-/packages/validators/    @cendaro/architects
-
-# Tooling and configuration
-/tooling/                @cendaro/devops-team
-/turbo.json              @cendaro/devops-team
-
-# Infrastructure
-/.github/workflows/      @cendaro/devops-team
+# Global rule: ALL files require owner approval
+* @jesusjosezapata99-jpg
