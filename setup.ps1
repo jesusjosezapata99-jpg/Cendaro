@@ -1,8 +1,10 @@
 # Cendaro Developer Setup — Core Architecture Bridging
-# Execute from the root directory of the cloned public repository
+# ⚠ INTERNAL USE ONLY — This script requires access to the private cendaro-ops repository.
+# External contributors do NOT need to run this script.
+# Execute from the root directory of the cloned public repository.
 
 param(
-    [string]$OpsRepoUrl = "git@github.com:cendaro/cendaro-ops.git"
+    [string]$OpsRepoUrl = "git@github.com:jesusjosezapata99-jpg/cendaro-ops.git"
 )
 
 Write-Host "🔧 Cendaro Developer Setup" -ForegroundColor Cyan

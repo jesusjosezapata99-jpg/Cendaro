@@ -1,6 +1,6 @@
 Project ERP_OMNICHANNEL_V1 {
   database_type: 'PostgreSQL'
-  Note: 'Schema inicial ERP omnicanal mayorista/retail basado en PRD master v1.1'
+  Note: 'Schema inicial ERP omnicanal mayorista/retail basado en PRD master v1.0'
 }
 
 Enum warehouse_type {

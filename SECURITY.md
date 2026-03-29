@@ -19,8 +19,8 @@ We enforce a rolling-release cycle. We actively audit and backport security patc
 
 Under no circumstances should security vulnerabilities be disclosed via public GitHub Issues, Discussions, or Pull Requests.
 
-If you suspect you have identified a critical vulnerability, please escalate it directly to our infrastructure security team:
-**Email:** `security@cendaro.com`
+If you suspect you have identified a critical vulnerability, please escalate it directly to the repository maintainer:
+**Email:** `info@cendaro.io`
 
 **Your report should ideally encompass:**
 

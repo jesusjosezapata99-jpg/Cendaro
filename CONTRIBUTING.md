@@ -45,8 +45,8 @@ _(This script mirrors the `.agents/` and `.gemini/` configurations from our inte
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/cendaro/cendaro.git
-cd cendaro
+git clone https://github.com/jesusjosezapata99-jpg/Cendaro.git
+cd Cendaro
 
 # 2. Install dependencies via strictly frozen lockfiles
 pnpm install
@@ -54,7 +54,7 @@ pnpm install
 # 3. Environment configuration
 cp .env.example .env
 
-# 4. Generate local Prisma/Drizzle types and push schemas
+# 4. Generate Drizzle types and push schema
 pnpm db:generate
 pnpm db:push
 
@@ -96,7 +96,7 @@ Before submitting your Pull Request, you must guarantee that all continuous inte
 **Submission Guidelines:**
 
 - Fill out the provided Pull Request Template exhaustively.
-- Request reviews from the designated `@cendaro/core-team` or the specific package owners defined in our `.github/CODEOWNERS`.
+- Request reviews from the repository owner or the specific package owners defined in our `.github/CODEOWNERS`.
 - Address review feedback efficiently. Maintain a single, clean commit history utilizing `git rebase` prior to final merge.
 
 Welcome aboard! 🚀

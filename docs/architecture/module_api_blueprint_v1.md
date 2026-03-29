@@ -13,7 +13,7 @@
 
 ```text
 apps/
-  web/
+  erp/
     app/
       (auth)/
       (dashboard)/

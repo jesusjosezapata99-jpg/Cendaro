@@ -24,8 +24,8 @@ If you have an architectural enhancement, new API endpoint request, or UI/UX imp
 
 Our GitHub Issues tracker is strictly reserved for verifiable bugs and structural framework features. If you need assistance setting up the Next.js apps, connecting the Drizzle ORM to Supabase, understanding our tRPC workflows, or standardizing the environment variables:
 
-- Start a thread in our [GitHub Discussions](https://github.com/cendaro/cendaro/discussions).
-- Visit our official [Discord Community](https://discord.gg/cendaro) for real-time peer guidance.
+- Start a thread in our [GitHub Discussions](https://github.com/jesusjosezapata99-jpg/Cendaro/discussions).
+- Visit our official [Discord Community](https://discord.gg/cendaro) for real-time peer guidance (coming soon).
 
 ## 🛡️ Security Vulnerabilities
 
