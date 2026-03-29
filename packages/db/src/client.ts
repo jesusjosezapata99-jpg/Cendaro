@@ -15,10 +15,19 @@ const createDb = () => {
   //   2. Transaction-mode pooler (pooler.supabase.com:6543) → IPv4, NO prepared stmts
   //   3. Direct (db.xxx.supabase.co:5432) → IPv6 only, supports prepared stmts
   // We use session-mode pooler for IPv4 compatibility + RLS bypass via postgres role.
-  const isTransactionPooler = connectionString.includes(":6543");
+  // Parse the connection URL safely to avoid incomplete substring matching
+  // (CodeQL: js/incomplete-url-substring-sanitization)
+  const connectionUrl = (() => {
+    try {
+      return new URL(connectionString);
+    } catch {
+      return null;
+    }
+  })();
+  const isTransactionPooler = connectionUrl?.port === "6543";
   const isSupabase =
-    connectionString.includes(".supabase.co") ||
-    connectionString.includes(".supabase.com");
+    connectionUrl?.hostname.endsWith(".supabase.co") === true ||
+    connectionUrl?.hostname.endsWith(".supabase.com") === true;
 
   const client = postgres(connectionString, {
     // Connection pool sizing:
