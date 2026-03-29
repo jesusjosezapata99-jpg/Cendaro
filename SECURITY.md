@@ -37,20 +37,45 @@ If you suspect you have identified a critical vulnerability, please escalate it 
 
 ---
 
-## 🔒 Threat Model & Out-of-Scope Vulnerabilities
+## 🔒 Threat Model & Security Architecture
 
-Cendaro ERP employs a hardened, multi-tier defense architecture:
+Cendaro ERP employs a hardened, multi-tier defense-in-depth architecture:
 
-1. **Authentication:** Operated entirely via Supabase Auth SSR leveraging strictly `HTTPOnly` and `SameSite=Lax` cookies.
-2. **Authorization:** Validated at the edge via Next.js middleware and resolved by tRPC `workspaceProcedure` utilizing a strict 6-tier RBAC system (`owner` > `admin` > `supervisor` > `employee`).
-3. **Data Isolation (RLS):** Supabase PostgreSQL Row-Level Security explicitly enforces isolation boundaries. Edge requests inject a `SET LOCAL app.workspace_id` to strictly limit query perimeters.
-4. **Injection Protection:** All data ingestion is systematically sanitized through `Drizzle ORM` parameterized queries and `zod` schema validations.
+| Layer                   | Controls                                                                    |
+| ----------------------- | --------------------------------------------------------------------------- |
+| **Edge (Proxy)**        | Rate limiting (IP + username), AAL2 enforcement, security headers, X-Robots |
+| **API (Route Handler)** | Zod validation, constant-time auth, body-size caps, CSRF origin checks      |
+| **tRPC (Middleware)**   | RBAC (6-tier), workspace isolation via `SET LOCAL`, session verification    |
+| **Database (RLS)**      | Row-Level Security, `app.workspace_id` scoping, parameterized queries       |
+| **Transport**           | HSTS, CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy         |
+| **Authentication**      | MFA/TOTP (mandatory admin), dual-vector rate limiter, timing oracle defense |
+
+### Key Security Controls
+
+1. **MFA/TOTP**: Mandatory for `owner` and `admin` roles. TOTP enrollment is forced on first login for unprivileged admin accounts.
+2. **Constant-Time Auth**: Login responses take identical time regardless of whether the username exists (timing oracle mitigation).
+3. **Dual-Vector Rate Limiting**: Per-IP (5/60s) + per-username (10/15min) with 15-minute hard lockout after 8 failures.
+4. **Content Security Policy**: Strict CSP header limiting script/style/connect sources.
+5. **Session Hardening**: `HTTPOnly`, `SameSite=Lax` cookies via Supabase SSR. Proxy enforces AAL2 for MFA-enrolled users.
 
 ### 🚫 Out of Scope
 
-The following theoretical attack vectors are considered accepted risks or out of scope for our bug bounty and reporting program:
+The following are out of scope for our vulnerability reporting program:
 
-- Volumetric/Distributed Denial of Service (DDoS) attacks.
-- Social engineering (phishing, vishing) targeting Cendaro's developers or employees.
-- Missing rate limits on non-authentication endpoints (unless demonstrating an immediate data-leak).
-- Theoretical CSRF vulnerabilities decoupled from verified session hijacking parameters.
+- Volumetric/Distributed Denial of Service (DDoS) attacks
+- Social engineering targeting developers or employees
+- Issues in third-party infrastructure (Supabase platform, Vercel CDN)
+- Theoretical vulnerabilities without proven exploitability
+- Issues requiring physical device access
+
+---
+
+## 🤝 Safe Harbor
+
+We support responsible security research. Researchers who:
+
+- Act in good faith and avoid damaging the service
+- Do not access or modify other users' data
+- Report issues promptly and privately
+
+Will **not** face legal action. We will work collaboratively to resolve verified issues and credit researchers in release notes (unless anonymity is preferred).

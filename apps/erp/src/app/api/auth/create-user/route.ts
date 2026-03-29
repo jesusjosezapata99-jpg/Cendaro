@@ -13,6 +13,13 @@ import { rateLimit } from "~/lib/rate-limit";
  * Creates a new Supabase Auth user + user_profile record.
  * Only callable by authenticated owner/admin users.
  *
+ * Security:
+ *   • Rate limited — 3 req/60s per IP
+ *   • Auth guard — requires valid Supabase session
+ *   • RBAC guard — caller must be owner or admin
+ *   • Owner protection — only owner can create another owner
+ *   • Security response headers — no-store, nosniff on all responses
+ *
  * Flow:
  * 1. Rate limit + Zod input validation
  * 2. Validate caller session (must be owner or admin)
@@ -20,6 +27,13 @@ import { rateLimit } from "~/lib/rate-limit";
  * 4. Insert user_profile via service-role client (bypasses RLS)
  * 5. Return created user data
  */
+
+// Security headers applied to every response from this endpoint
+const AUTH_SECURITY_HEADERS = {
+  "Cache-Control": "no-store, no-cache, must-revalidate, private",
+  Pragma: "no-cache",
+  "X-Content-Type-Options": "nosniff",
+} as const;
 export async function POST(request: Request) {
   // ── Rate Limiting (3 attempts per 60s per IP — stricter for user creation) ──
   const ip =
@@ -34,7 +48,8 @@ export async function POST(request: Request) {
       {
         status: 429,
         headers: {
-          "Retry-After": String(Math.ceil((reset - Date.now()) / 1000)),
+          ...AUTH_SECURITY_HEADERS,
+          "Retry-After": String(Math.ceil((reset - Date.now()) / 1_000)),
         },
       },
     );
@@ -47,7 +62,7 @@ export async function POST(request: Request) {
   if (!parsed.success) {
     return NextResponse.json(
       { error: "Datos inválidos", details: parsed.error.issues },
-      { status: 400 },
+      { status: 400, headers: AUTH_SECURITY_HEADERS },
     );
   }
 
@@ -70,7 +85,10 @@ export async function POST(request: Request) {
   } = await supabase.auth.getUser();
 
   if (!caller) {
-    return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+    return NextResponse.json(
+      { error: "No autenticado" },
+      { status: 401, headers: AUTH_SECURITY_HEADERS },
+    );
   }
 
   // Check caller role from user_metadata
@@ -79,7 +97,7 @@ export async function POST(request: Request) {
   if (!callerRole || !["owner", "admin"].includes(callerRole)) {
     return NextResponse.json(
       { error: "No tienes permisos para crear usuarios" },
-      { status: 403 },
+      { status: 403, headers: AUTH_SECURITY_HEADERS },
     );
   }
 
@@ -87,7 +105,7 @@ export async function POST(request: Request) {
   if (role === "owner" && callerRole !== "owner") {
     return NextResponse.json(
       { error: "Solo un dueño puede crear otro dueño" },
-      { status: 403 },
+      { status: 403, headers: AUTH_SECURITY_HEADERS },
     );
   }
 
@@ -105,7 +123,7 @@ export async function POST(request: Request) {
   if (existingUsername) {
     return NextResponse.json(
       { error: "El nombre de usuario ya está en uso" },
-      { status: 409 },
+      { status: 409, headers: AUTH_SECURITY_HEADERS },
     );
   }
 
@@ -123,7 +141,7 @@ export async function POST(request: Request) {
     if (authError.message.includes("already been registered")) {
       return NextResponse.json(
         { error: "Este correo electrónico ya está registrado" },
-        { status: 409 },
+        { status: 409, headers: AUTH_SECURITY_HEADERS },
       );
     }
     // Log the actual error for server audit but return a generic sanitized error to the client
@@ -133,7 +151,7 @@ export async function POST(request: Request) {
         error:
           "Ocurrió un error al intentar crear el usuario. Verifique los datos o contacte a soporte.",
       },
-      { status: 400 },
+      { status: 400, headers: AUTH_SECURITY_HEADERS },
     );
   }
 
@@ -154,24 +172,27 @@ export async function POST(request: Request) {
     if (profileError.message.includes("duplicate")) {
       return NextResponse.json(
         { error: "El usuario o correo ya existe" },
-        { status: 409 },
+        { status: 409, headers: AUTH_SECURITY_HEADERS },
       );
     }
 
     return NextResponse.json(
       { error: "Error al crear el perfil del usuario" },
-      { status: 500 },
+      { status: 500, headers: AUTH_SECURITY_HEADERS },
     );
   }
 
-  return NextResponse.json({
-    success: true,
-    user: {
-      id: authData.user.id,
-      email: email.toLowerCase().trim(),
-      username: username.toLowerCase().trim(),
-      fullName: fullName.trim(),
-      role,
+  return NextResponse.json(
+    {
+      success: true,
+      user: {
+        id: authData.user.id,
+        email: email.toLowerCase().trim(),
+        username: username.toLowerCase().trim(),
+        fullName: fullName.trim(),
+        role,
+      },
     },
-  });
+    { status: 200, headers: AUTH_SECURITY_HEADERS },
+  );
 }

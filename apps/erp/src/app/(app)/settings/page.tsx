@@ -1,8 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
+import { createSupabaseBrowserClient } from "@cendaro/auth/client";
+
+import { env } from "~/env";
 import { useTRPC } from "~/trpc/client";
 
 const DEFAULT_MODULES = [
@@ -53,6 +56,119 @@ export default function SettingsPage() {
   const [adminWindow, setAdminWindow] = useState("24");
   const [orgSaved, setOrgSaved] = useState(false);
   const [pricingSaved, setPricingSaved] = useState(false);
+
+  // ── MFA State ─────────────────────────────────────────────────────────
+  interface MfaFactor {
+    id: string;
+    friendly_name?: string;
+    factor_type: string;
+  }
+  const [mfaFactors, setMfaFactors] = useState<MfaFactor[]>([]);
+  const [mfaLoading, setMfaLoading] = useState(true);
+  const [mfaEnrolling, setMfaEnrolling] = useState(false);
+  const [mfaQrCode, setMfaQrCode] = useState("");
+  const [mfaSecret, setMfaSecret] = useState("");
+  const [mfaFactorId, setMfaFactorId] = useState("");
+  const [mfaVerifyCode, setMfaVerifyCode] = useState("");
+  const [mfaVerifying, setMfaVerifying] = useState(false);
+  const [mfaError, setMfaError] = useState("");
+  const [mfaSuccess, setMfaSuccess] = useState("");
+
+  const supabase = createSupabaseBrowserClient(
+    env.NEXT_PUBLIC_SUPABASE_URL,
+    env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+  );
+
+  const loadMfaFactors = useCallback(async () => {
+    setMfaLoading(true);
+    try {
+      const { data } = await supabase.auth.mfa.listFactors();
+      setMfaFactors(data?.totp ?? []);
+    } catch {
+      // silently fail — not critical for settings load
+    } finally {
+      setMfaLoading(false);
+    }
+  }, [supabase.auth.mfa]);
+
+  useEffect(() => {
+    void loadMfaFactors();
+  }, [loadMfaFactors]);
+
+  async function handleMfaEnroll() {
+    setMfaError("");
+    setMfaSuccess("");
+    try {
+      const { data, error: enrollError } = await supabase.auth.mfa.enroll({
+        factorType: "totp",
+        friendlyName: "Cendaro Authenticator",
+      });
+      if (enrollError) {
+        setMfaError(enrollError.message);
+        return;
+      }
+      setMfaQrCode(data.totp.qr_code);
+      setMfaSecret(data.totp.secret);
+      setMfaFactorId(data.id);
+      setMfaEnrolling(true);
+    } catch {
+      setMfaError("Error al iniciar la configuración MFA.");
+    }
+  }
+
+  async function handleMfaVerify() {
+    if (mfaVerifyCode.length !== 6) return;
+    setMfaVerifying(true);
+    setMfaError("");
+    try {
+      const { data: challenge, error: challengeErr } =
+        await supabase.auth.mfa.challenge({ factorId: mfaFactorId });
+      if (challengeErr) {
+        setMfaError("Error al crear desafío.");
+        setMfaVerifying(false);
+        return;
+      }
+      const { error: verifyErr } = await supabase.auth.mfa.verify({
+        factorId: mfaFactorId,
+        challengeId: challenge.id,
+        code: mfaVerifyCode,
+      });
+      if (verifyErr) {
+        setMfaError("Código incorrecto. Verifica e intenta de nuevo.");
+        setMfaVerifyCode("");
+        setMfaVerifying(false);
+        return;
+      }
+      setMfaSuccess("¡2FA activado exitosamente!");
+      setMfaEnrolling(false);
+      setMfaQrCode("");
+      setMfaSecret("");
+      setMfaVerifyCode("");
+      await loadMfaFactors();
+    } catch {
+      setMfaError("Error de conexión.");
+    } finally {
+      setMfaVerifying(false);
+    }
+  }
+
+  async function handleMfaUnenroll(factorId: string) {
+    setMfaError("");
+    setMfaSuccess("");
+    try {
+      const { error: unenrollErr } = await supabase.auth.mfa.unenroll({
+        factorId,
+      });
+      if (unenrollErr) {
+        setMfaError(unenrollErr.message);
+        return;
+      }
+      setMfaSuccess("Factor 2FA eliminado.");
+      await loadMfaFactors();
+    } catch {
+      setMfaError("Error al eliminar factor.");
+    }
+  }
 
   // Populate form when profile data arrives
   useEffect(() => {
@@ -125,6 +241,182 @@ export default function SettingsPage() {
           </div>
         </section>
       )}
+
+      {/* ── Security / MFA ─────────────────────────────────────────── */}
+      <section className="border-border bg-card rounded-xl border p-6 shadow-sm">
+        <div className="mb-4 flex items-center gap-2">
+          <span className="material-symbols-outlined text-primary text-xl">
+            shield
+          </span>
+          <div>
+            <h2 className="text-lg font-semibold">Seguridad</h2>
+            <p className="text-muted-foreground text-sm">
+              Autenticación de dos factores (2FA/TOTP)
+            </p>
+          </div>
+        </div>
+
+        {/* Status alerts */}
+        {mfaError && (
+          <div className="bg-destructive/10 text-destructive border-destructive/15 mb-4 flex items-center gap-2.5 rounded-xl border px-4 py-3 text-sm">
+            <span className="material-symbols-outlined text-base">error</span>
+            <span className="font-medium">{mfaError}</span>
+          </div>
+        )}
+        {mfaSuccess && (
+          <div className="mb-4 flex items-center gap-2.5 rounded-xl border border-emerald-500/15 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-600 dark:text-emerald-400">
+            <span className="material-symbols-outlined text-base">
+              check_circle
+            </span>
+            <span className="font-medium">{mfaSuccess}</span>
+          </div>
+        )}
+
+        {/* Loading */}
+        {mfaLoading ? (
+          <div className="flex items-center gap-3 py-4">
+            <div className="border-primary size-5 animate-spin rounded-full border-2 border-t-transparent" />
+            <span className="text-muted-foreground text-sm">
+              Cargando estado de seguridad...
+            </span>
+          </div>
+        ) : mfaFactors.length > 0 ? (
+          /* Enrolled factors list */
+          <div className="space-y-3">
+            {mfaFactors.map((factor) => (
+              <div
+                key={factor.id}
+                className="border-border flex items-center justify-between rounded-lg border p-4"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="flex size-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                    <span className="material-symbols-outlined text-xl">
+                      verified_user
+                    </span>
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold">
+                      {factor.friendly_name ?? "Autenticador TOTP"}
+                    </p>
+                    <p className="text-muted-foreground text-xs">
+                      Activo · {factor.factor_type.toUpperCase()}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => void handleMfaUnenroll(factor.id)}
+                  className="text-destructive hover:bg-destructive/10 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors"
+                >
+                  Desactivar
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : !mfaEnrolling ? (
+          /* No factors — show enroll button */
+          <div className="border-border rounded-lg border border-dashed p-6 text-center">
+            <div className="bg-muted mx-auto mb-3 flex size-12 items-center justify-center rounded-2xl">
+              <span className="material-symbols-outlined text-muted-foreground text-2xl">
+                lock_open
+              </span>
+            </div>
+            <p className="text-foreground text-sm font-semibold">
+              2FA no configurado
+            </p>
+            <p className="text-muted-foreground mt-1 text-xs">
+              Protege tu cuenta con un código de verificación adicional
+            </p>
+            <button
+              onClick={() => void handleMfaEnroll()}
+              className="bg-primary text-primary-foreground hover:bg-primary/90 mt-4 rounded-lg px-4 py-2 text-sm font-semibold transition-colors"
+            >
+              Configurar 2FA
+            </button>
+          </div>
+        ) : (
+          /* Enrollment flow */
+          <div className="space-y-4">
+            {/* QR Code */}
+            <div className="text-center">
+              <p className="text-foreground mb-3 text-sm font-semibold">
+                Escanea este código QR con tu app autenticadora
+              </p>
+              <div className="bg-background mx-auto mb-3 inline-flex size-48 items-center justify-center rounded-2xl border p-2">
+                <img src={mfaQrCode} alt="QR Code TOTP" className="size-full" />
+              </div>
+              <div className="bg-secondary/60 border-border/60 mx-auto max-w-xs rounded-lg border px-3 py-2">
+                <p className="text-muted-foreground mb-1 text-[0.65rem] uppercase">
+                  Código manual
+                </p>
+                <code className="text-foreground font-mono text-xs font-semibold tracking-widest break-all">
+                  {mfaSecret}
+                </code>
+              </div>
+            </div>
+
+            {/* Verify code input */}
+            <div>
+              <label className="mb-1.5 block text-sm font-medium">
+                Código de verificación
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={6}
+                  value={mfaVerifyCode}
+                  onChange={(e) =>
+                    setMfaVerifyCode(
+                      e.target.value.replace(/\D/g, "").slice(0, 6),
+                    )
+                  }
+                  placeholder="000000"
+                  className="border-border bg-background focus:border-primary focus:ring-primary/20 flex-1 rounded-lg border px-3 py-2 text-center font-mono text-lg tracking-widest focus:ring-2 focus:outline-none"
+                />
+                <button
+                  onClick={() => void handleMfaVerify()}
+                  disabled={mfaVerifying || mfaVerifyCode.length !== 6}
+                  className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg px-4 py-2 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {mfaVerifying ? "Verificando..." : "Activar"}
+                </button>
+              </div>
+            </div>
+
+            {/* Cancel */}
+            <button
+              onClick={() => {
+                setMfaEnrolling(false);
+                setMfaQrCode("");
+                setMfaSecret("");
+                setMfaVerifyCode("");
+                setMfaError("");
+              }}
+              className="text-muted-foreground hover:text-foreground text-sm font-medium transition-colors"
+            >
+              Cancelar
+            </button>
+          </div>
+        )}
+
+        {/* Mandatory note for owner/admin */}
+        {profile &&
+          ["owner", "admin"].includes(profile.role) &&
+          mfaFactors.length === 0 &&
+          !mfaEnrolling && (
+            <div className="mt-4 flex items-start gap-2.5 rounded-xl border border-amber-500/15 bg-amber-500/10 px-4 py-3 text-xs text-amber-600 dark:text-amber-400">
+              <span className="material-symbols-outlined mt-0.5 text-sm">
+                warning
+              </span>
+              <span>
+                <strong>Obligatorio:</strong> Como {profile.role}, debes
+                configurar 2FA. Se te pedirá configurarlo en tu próximo inicio
+                de sesión.
+              </span>
+            </div>
+          )}
+      </section>
 
       {/* Organization */}
       <section className="border-border bg-card rounded-xl border p-6 shadow-sm">
