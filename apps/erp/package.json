@@ -20,7 +20,7 @@
     "@cendaro/validators": "workspace:*",
     "@supabase/ssr": "^0.6.1",
     "@supabase/supabase-js": "^2.98.0",
-    "@t3-oss/env-nextjs": "^0.13.10",
+    "@t3-oss/env-nextjs": "^0.13.11",
     "@tanstack/react-query": "catalog:",
     "@tanstack/react-virtual": "^3.13.21",
     "@trpc/client": "catalog:",
