@@ -77,7 +77,7 @@
 
 **🔐 Security**
 
-- [5-Layer Security Model](#-security)
+- [7-Layer Security Model](#-security)
 
 **🎨 Design System**
 
@@ -910,26 +910,32 @@ graph LR
 
 graph TB
   classDef auth fill:#059669,stroke:#047857,color:#fff,stroke-width:2px
+  classDef mfa fill:#0d9488,stroke:#0f766e,color:#fff,stroke-width:2px
   classDef rbac fill:#2463eb,stroke:#1d4ed8,color:#fff,stroke-width:2px
   classDef data fill:#7c3aed,stroke:#6d28d9,color:#fff,stroke-width:2px
   classDef audit fill:#d97706,stroke:#b45309,color:#fff,stroke-width:2px
+  classDef headers fill:#dc2626,stroke:#b91c1c,color:#fff,stroke-width:2px
+  classDef session fill:#e11d48,stroke:#be123c,color:#fff,stroke-width:2px
 
   subgraph L1["🔒 LAYER 1 — AUTHENTICATION"]
     A1["Supabase Auth SSR\nEmail/Password"]:::auth
     A2["Cookie-based Sessions\nHTTPOnly + Secure"]:::auth
     A3["Proxy Guard\nEdge Runtime"]:::auth
+    A4["Constant-Time Auth\nTiming Oracle Elimination"]:::auth
+    A5["MFA/TOTP\nMandatory for owner/admin"]:::mfa
+    A6["AAL2 Enforcement\nProxy + Login redirect"]:::mfa
   end
 
   subgraph L2["🛡 LAYER 2 — AUTHORIZATION"]
     B1["tRPC RBAC Middleware\nworkspaceProcedure"]:::rbac
     B2["6 Role Levels\n👑 owner → admin → supervisor\n👤 employee · vendor · marketing"]:::rbac
+    B3["DB-Driven Permissions\npermission × role_permission"]:::rbac
   end
 
   subgraph L3["🔐 LAYER 3 — DATA ISOLATION"]
     C1["Workspace Isolation\nSET LOCAL app.workspace_id"]:::data
-    C2["Supabase RLS Policies\nRow-Level Security"]:::data
-    C3["pgPolicy Factory\nworkspacePolicy helper"]:::data
-    C4["Service-Role Key\nPrivileged Operations"]:::data
+    C2["PostgreSQL RLS Policies\nRestrictive pgPolicy"]:::data
+    C3["Parameterized Queries\nDrizzle ORM — Zero Raw SQL"]:::data
   end
 
   subgraph L4["📜 LAYER 4 — AUDIT TRAIL"]
@@ -939,14 +945,66 @@ graph TB
   end
 
   subgraph L5["🚦 LAYER 5 — RATE LIMITING"]
-    E1["In-Memory Sliding Window\nPer-IP throttling"]:::auth
-    E2["Login: 5 req/60s\nCreate-User: 3 req/60s"]:::auth
-    E3["429 + Retry-After\nBrute-force protection"]:::auth
+    E1["Dual-Vector Composite\nPer-IP + Per-Username"]:::auth
+    E2["Login: IP×5/60s + User×10/15m\nCreate-User: 3/60s\nLogout: 10/60s"]:::auth
+    E3["Hard Lockout\n15min after 8 failures"]:::auth
+    E4["429 + Retry-After\n+ X-RateLimit-Remaining"]:::auth
+  end
+
+  subgraph L6["🛡 LAYER 6 — TRANSPORT SECURITY"]
+    F1["HSTS Preload\nmax-age=31536000"]:::headers
+    F2["X-Frame-Options: DENY\nClickjacking Protection"]:::headers
+    F3["Content-Type-Options: nosniff\nMIME Sniffing Prevention"]:::headers
+    F4["CSRF Origin Validation\nLogout + Admin Routes"]:::headers
+    F5["Open-Redirect Prevention\n22-Route Allowlist"]:::headers
+    F6["Cache-Control: no-store\nAuth Response Privacy"]:::headers
+  end
+
+  subgraph L7["⏱ LAYER 7 — SESSION HARDENING"]
+    G1["Idle Timeout\n30min auto-logout"]:::session
+    G2["Activity Tracking\nSecure cookie timestamp"]:::session
+    G3["Session Expired UX\nContextual login message"]:::session
   end
 
   L1 --> L2 --> L3 --> L4
   L1 --> L5
+  L1 --> L6
+  L1 --> L7
 ```
+
+<details>
+<summary><strong>📋 Full Security Layer Reference</strong></summary>
+
+| Layer  | Defense                   | Implementation                                                  | Protects Against                             |
+| ------ | ------------------------- | --------------------------------------------------------------- | -------------------------------------------- |
+| **L1** | Supabase Auth SSR         | Cookie-based sessions, `getUser()` verification                 | Session hijacking, token theft               |
+| **L1** | Proxy Guard               | Edge middleware redirects unauthenticated requests              | Unauthorized page access                     |
+| **L1** | Constant-Time Auth        | Dummy `signInWithPassword` on username-not-found                | Timing oracle username enumeration           |
+| **L1** | Unified Error Messages    | Same `"Credenciales incorrectas"` for all failures              | Error-based username enumeration             |
+| **L1** | Content-Type + Size Guard | 415 if not JSON, 413 if > 4KB                                   | Memory pressure attacks, malformed payloads  |
+| **L1** | **MFA/TOTP**              | Mandatory TOTP for owner/admin via Supabase MFA API             | Stolen password compromise                   |
+| **L1** | **AAL2 Enforcement**      | Proxy verifies assurance level, redirects to /login/mfa         | MFA bypass via direct navigation             |
+| **L1** | **Forced Enrollment**     | Owner/admin without MFA redirected to /login/mfa-setup          | Unenrolled admin vulnerability               |
+| **L2** | tRPC RBAC                 | `protectedProcedure`, `roleRestrictedProcedure()`               | Privilege escalation                         |
+| **L2** | DB Permissions            | `permissionProcedure(module, action)` queries `role_permission` | Unauthorized operations                      |
+| **L2** | Module Gating             | `moduleProcedure()` checks `workspace_module`                   | Access to disabled features                  |
+| **L3** | Workspace Isolation       | `SET LOCAL app.workspace_id` + RLS                              | Cross-tenant data leaks                      |
+| **L3** | Restrictive RLS           | `workspacePolicy()` factory with `restrictive` mode             | Direct DB access bypass                      |
+| **L3** | Parameterized Queries     | Drizzle ORM, zero `sql.raw()` or `sql.unsafe()`                 | SQL injection                                |
+| **L4** | Immutable Audit           | `audit_log` table, structured logging middleware                | Repudiation, forensics gaps                  |
+| **L5** | Dual-Vector Rate Limit    | `rateLimitComposite([IP, username])`                            | Distributed brute-force, credential stuffing |
+| **L5** | Hard Lockout              | 15-min lock after 8 failures per username                       | Slow brute-force, password spray             |
+| **L5** | Failure Accounting        | `recordFailure()` + `getFailureCount()`                         | Lockout evasion across IP rotation           |
+| **L6** | HSTS Preload              | `max-age=31536000; includeSubDomains; preload`                  | SSL stripping, downgrade attacks             |
+| **L6** | CSRF Validation           | Origin/Referer check on logout, localhost bypass                | Cross-site forced logout                     |
+| **L6** | Open-Redirect Allowlist   | `?redirect=` only accepts 22 known routes                       | Phishing via redirect parameter              |
+| **L6** | Cache-Control: no-store   | All `/api/auth/*` responses                                     | Session caching by proxies                   |
+| **L6** | X-Robots-Tag              | `noindex, nofollow` on `/login`                                 | Search engine credential page indexing       |
+| **L7** | **Idle Session Timeout**  | 30-min inactivity auto-logout via proxy cookie                  | Unattended device session hijacking          |
+| **L7** | **Activity Tracking**     | HTTPOnly secure cookie with timestamp                           | Session fixation after idle                  |
+| **L7** | **Session Expired UX**    | `?expired=1` contextual login notification                      | User confusion on forced re-auth             |
+
+</details>
 
 <br/>
 

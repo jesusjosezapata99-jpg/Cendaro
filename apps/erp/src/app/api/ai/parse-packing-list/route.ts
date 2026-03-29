@@ -727,6 +727,25 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "No autenticado" }, { status: 401 });
   }
 
+  // ── Per-user Rate Limit ──
+  // 3 parse requests per 60s per authenticated user.
+  // Prevents a compromised session from draining the Groq API quota.
+  const { rateLimit } = await import("~/lib/rate-limit");
+  const rlResult = rateLimit(`ai:user:${user.id}`, { window: 60_000, max: 3 });
+  if (!rlResult.success) {
+    const retryAfter = Math.ceil((rlResult.reset - Date.now()) / 1_000);
+    return NextResponse.json(
+      {
+        error: "Demasiadas solicitudes. Intente de nuevo más tarde.",
+        retryAfter,
+      },
+      {
+        status: 429,
+        headers: { "Retry-After": String(retryAfter) },
+      },
+    );
+  }
+
   const apiKey = String(env.GROQ_API_KEY);
 
   try {

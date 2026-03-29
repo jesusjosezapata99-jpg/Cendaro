@@ -38,7 +38,9 @@ workbox-*.js
 # UI/UX Pro Max generated design systems
 design-system/
 
-# Agent configuration (private)
-.agents/
+# Agent configuration
+# .agents/ is PUBLIC — tracked by git (open source skills and workflows)
+# .gemini/ is PRIVATE — knowledge base stays local only
+# .ops/ is PRIVATE — internal operations
 .gemini/
 .ops/

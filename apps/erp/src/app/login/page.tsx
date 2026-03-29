@@ -2,10 +2,12 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const sessionExpired = searchParams.get("expired") === "1";
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -24,15 +26,29 @@ export default function LoginPage() {
         body: JSON.stringify({ username, password }),
       });
 
-      const data = (await res.json()) as { error?: string };
+      const data = (await res.json()) as {
+        error?: string;
+        requiresMfa?: boolean;
+        requiresMfaSetup?: boolean;
+      };
 
       if (!res.ok) {
         setError(data.error ?? "Error al iniciar sesión");
         return;
       }
 
-      router.push("/dashboard");
-      router.refresh();
+      // MFA routing: redirect based on factor enrollment status
+      if (data.requiresMfaSetup) {
+        // Owner/admin without MFA → forced enrollment
+        router.push("/login/mfa-setup");
+      } else if (data.requiresMfa) {
+        // User has verified TOTP factor → must complete challenge
+        router.push("/login/mfa");
+      } else {
+        // No MFA required — direct access
+        router.push("/dashboard");
+        router.refresh();
+      }
     } catch {
       setError("Error de conexión. Intente de nuevo.");
     } finally {
@@ -93,6 +109,17 @@ export default function LoginPage() {
             </p>
           </div>
 
+          {/* Session expired notice */}
+          {sessionExpired && (
+            <div className="animate-in fade-in slide-in-from-top-1 mb-5 flex items-center gap-2.5 rounded-xl border border-amber-500/15 bg-amber-500/10 px-4 py-3 text-sm text-amber-600 duration-200 dark:text-amber-400">
+              <span className="material-symbols-outlined text-base">
+                schedule
+              </span>
+              <span className="font-medium">
+                Tu sesión expiró por inactividad. Inicia sesión de nuevo.
+              </span>
+            </div>
+          )}
           {/* Error Alert */}
           {error && (
             <div className="bg-destructive/10 text-destructive border-destructive/15 animate-in fade-in slide-in-from-top-1 mb-5 flex items-center gap-2.5 rounded-xl border px-4 py-3 text-sm duration-200">
