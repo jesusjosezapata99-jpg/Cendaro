@@ -41,8 +41,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           SYNC_BRANCH="sync/main-to-development-$(date +%Y%m%d-%H%M%S)"
-          git checkout -b "$SYNC_BRANCH" origin/development
-          git merge origin/main --no-edit
+          git checkout -b "$SYNC_BRANCH" origin/main
           git push origin "$SYNC_BRANCH"
 
           # Create PR (will be auto-merged if no conflicts)
