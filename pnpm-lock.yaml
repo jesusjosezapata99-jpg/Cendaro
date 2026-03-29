@@ -75,7 +75,7 @@ importers:
         version: link:tooling/prettier
       '@turbo/gen':
         specifier: ^2.8.14
-        version: 2.8.14(@types/node@25.3.5)
+        version: 2.8.14(@types/node@25.5.0)
       dotenv-cli:
         specifier: ^10.0.0
         version: 10.0.0
@@ -120,10 +120,10 @@ importers:
         version: link:../../packages/validators
       '@supabase/ssr':
         specifier: ^0.6.1
-        version: 0.6.1(@supabase/supabase-js@2.98.0)
+        version: 0.6.1(@supabase/supabase-js@2.100.1)
       '@supabase/supabase-js':
-        specifier: ^2.98.0
-        version: 2.98.0
+        specifier: ^2.100.1
+        version: 2.100.1
       '@t3-oss/env-nextjs':
         specifier: ^0.13.10
         version: 0.13.10(typescript@5.9.3)(zod@4.3.6)
@@ -234,8 +234,8 @@ importers:
         specifier: workspace:*
         version: link:../validators
       '@supabase/supabase-js':
-        specifier: ^2.98.0
-        version: 2.98.0
+        specifier: ^2.100.1
+        version: 2.100.1
       '@trpc/server':
         specifier: 'catalog:'
         version: 11.12.0(typescript@5.9.3)
@@ -278,10 +278,10 @@ importers:
     dependencies:
       '@supabase/ssr':
         specifier: ^0.6.1
-        version: 0.6.1(@supabase/supabase-js@2.98.0)
+        version: 0.6.1(@supabase/supabase-js@2.100.1)
       '@supabase/supabase-js':
-        specifier: ^2.98.0
-        version: 2.98.0
+        specifier: ^2.100.1
+        version: 2.100.1
     devDependencies:
       '@cendaro/eslint-config':
         specifier: workspace:*
@@ -2359,20 +2359,23 @@ packages:
   '@standard-schema/spec@1.1.0':
     resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
 
-  '@supabase/auth-js@2.98.0':
-    resolution: {integrity: sha512-GBH361T0peHU91AQNzOlIrjUZw9TZbB9YDRiyFgk/3Kvr3/Z1NWUZ2athWTfHhwNNi8IrW00foyFxQD9IO/Trg==}
+  '@supabase/auth-js@2.100.1':
+    resolution: {integrity: sha512-c5FB4nrG7cs1mLSzFGuIVl2iR2YO5XkSJ96uF4zubYm8YDn71XOi2emE9sBm/avfGCj61jaRBLOvxEAVnpys0Q==}
     engines: {node: '>=20.0.0'}
 
-  '@supabase/functions-js@2.98.0':
-    resolution: {integrity: sha512-N/xEyiNU5Org+d+PNCpv+TWniAXRzxIURxDYsS/m2I/sfAB/HcM9aM2Dmf5edj5oWb9GxID1OBaZ8NMmPXL+Lg==}
+  '@supabase/functions-js@2.100.1':
+    resolution: {integrity: sha512-mo8QheoV4KR+wSubtyEWhZUxWnCM7YZ23TncccMAlbWAHb8YTDqRGRm9IalWCAswniKyud6buZCk9snRqI86KA==}
     engines: {node: '>=20.0.0'}
 
-  '@supabase/postgrest-js@2.98.0':
-    resolution: {integrity: sha512-v6e9WeZuJijzUut8HyXu6gMqWFepIbaeaMIm1uKzei4yLg9bC9OtEW9O14LE/9ezqNbSAnSLO5GtOLFdm7Bpkg==}
+  '@supabase/phoenix@0.4.0':
+    resolution: {integrity: sha512-RHSx8bHS02xwfHdAbX5Lpbo6PXbgyf7lTaXTlwtFDPwOIw64NnVRwFAXGojHhjtVYI+PEPNSWwkL90f4agN3bw==}
+
+  '@supabase/postgrest-js@2.100.1':
+    resolution: {integrity: sha512-OIh4mOSo2LdqF2kox76OAPDtcSs+PwKABJOjc6plUV4/LXhFEsI2uwdEEIs7K7fd141qehWEVl/Y+Ts0fNvYsw==}
     engines: {node: '>=20.0.0'}
 
-  '@supabase/realtime-js@2.98.0':
-    resolution: {integrity: sha512-rOWt28uGyFipWOSd+n0WVMr9kUXiWaa7J4hvyLCIHjRFqWm1z9CaaKAoYyfYMC1Exn3WT8WePCgiVhlAtWC2yw==}
+  '@supabase/realtime-js@2.100.1':
+    resolution: {integrity: sha512-FHuRWPX4qZQ4x+0Q+ZrKaBZnOiVGiwsgiAUJM98pYRib1yeaE/fOM1lZ1ozd+4gA8Udw23OyaD8SxKS5mT5NYw==}
     engines: {node: '>=20.0.0'}
 
   '@supabase/ssr@0.6.1':
@@ -2380,12 +2383,12 @@ packages:
     peerDependencies:
       '@supabase/supabase-js': ^2.43.4
 
-  '@supabase/storage-js@2.98.0':
-    resolution: {integrity: sha512-tzr2mG+v7ILSAZSfZMSL9OPyIH4z1ikgQ8EcQTKfMRz4EwmlFt3UnJaGzSOxyvF5b+fc9So7qdSUWTqGgeLokQ==}
+  '@supabase/storage-js@2.100.1':
+    resolution: {integrity: sha512-x9xpEIoWM4xKiAlwfWTgHPSN6N4Y0aS4FVU4F6ZPbq7Gayw08SrtC6/YH/gOr8CjXQr0HxXYXDop2xGTSjubYA==}
     engines: {node: '>=20.0.0'}
 
-  '@supabase/supabase-js@2.98.0':
-    resolution: {integrity: sha512-Ohc97CtInLwZyiSASz7tT9/Abm/vqnIbO9REp+PivVUII8UZsuI3bngRQnYgJdFoOIwvaEII1fX1qy8x0CyNiw==}
+  '@supabase/supabase-js@2.100.1':
+    resolution: {integrity: sha512-CAeFm5sfX8sbTzxoxRafhohreIzl9a7R6qHTck3MrgTqm5M5g/u0IHfEKYzI9w/17r8NINl8UZrw2i08wrO7Iw==}
     engines: {node: '>=20.0.0'}
 
   '@swc/helpers@0.5.15':
@@ -2610,11 +2613,8 @@ packages:
   '@types/node@22.19.15':
     resolution: {integrity: sha512-F0R/h2+dsy5wJAUe3tAU6oqa2qbWY5TpNfL/RGmo1y38hiyO1w3x2jPtt76wmuaJI4DQnOBu21cNXQ2STIUUWg==}
 
-  '@types/node@25.3.5':
-    resolution: {integrity: sha512-oX8xrhvpiyRCQkG1MFchB09f+cXftgIXb3a7UUa4Y3wpmZPw5tyZGTLWhlESOLq1Rq6oDlc8npVU2/9xiCuXMA==}
-
-  '@types/phoenix@1.6.7':
-    resolution: {integrity: sha512-oN9ive//QSBkf19rfDv45M7eZPi0eEXylht2OLEXicu5b4KoQ1OzXIw+xDSGWxSxe1JmepRR/ZH283vsu518/Q==}
+  '@types/node@25.5.0':
+    resolution: {integrity: sha512-jp2P3tQMSxWugkCUKLRPVUpGaL5MVFwF8RDuSRztfwgN1wmqJeMSbKlnEtQqU8UrhTmzEmZdu2I6v2dpp7XIxw==}
 
   '@types/react-dom@19.1.11':
     resolution: {integrity: sha512-3BKc/yGdNTYQVVw4idqHtSOcFsgGuBbMveKCOgF8wQ5QtrYOc3jDIlzg3jef04zcXFIHLelyGlj0T+BJ8+KN+w==}
@@ -4844,8 +4844,8 @@ packages:
   wrappy@1.0.2:
     resolution: {integrity: sha512-l4Sp/DRseor9wL6EvV2+TuQn63dMkPjZ/sp9XkghTEbV9KlPS1xUsZ3u7/IQO4wxtcFB4bgpQPRcR3QCvezPcQ==}
 
-  ws@8.19.0:
-    resolution: {integrity: sha512-blAT2mjOEIi0ZzruJfIhb3nps74PRWTCz1IjglWEEpQl5XS/UNama6u2/rjFkDDouqr4L67ry+1aGIALViWjDg==}
+  ws@8.20.0:
+    resolution: {integrity: sha512-sAt8BhgNbzCtgGbt2OxmpuryO63ZoDk/sqaB/znQm94T4fCEsy/yV+7CdC1kJhOU9lboAEU7R3kquuycDoibVA==}
     engines: {node: '>=10.0.0'}
     peerDependencies:
       bufferutil: ^4.0.1
@@ -5360,128 +5360,128 @@ snapshots:
 
   '@inquirer/ansi@1.0.2': {}
 
-  '@inquirer/checkbox@4.3.2(@types/node@25.3.5)':
+  '@inquirer/checkbox@4.3.2(@types/node@25.5.0)':
     dependencies:
       '@inquirer/ansi': 1.0.2
-      '@inquirer/core': 10.3.2(@types/node@25.3.5)
+      '@inquirer/core': 10.3.2(@types/node@25.5.0)
       '@inquirer/figures': 1.0.15
-      '@inquirer/type': 3.0.10(@types/node@25.3.5)
+      '@inquirer/type': 3.0.10(@types/node@25.5.0)
       yoctocolors-cjs: 2.1.3
     optionalDependencies:
-      '@types/node': 25.3.5
+      '@types/node': 25.5.0
 
-  '@inquirer/confirm@5.1.21(@types/node@25.3.5)':
+  '@inquirer/confirm@5.1.21(@types/node@25.5.0)':
     dependencies:
-      '@inquirer/core': 10.3.2(@types/node@25.3.5)
-      '@inquirer/type': 3.0.10(@types/node@25.3.5)
+      '@inquirer/core': 10.3.2(@types/node@25.5.0)
+      '@inquirer/type': 3.0.10(@types/node@25.5.0)
     optionalDependencies:
-      '@types/node': 25.3.5
+      '@types/node': 25.5.0
 
-  '@inquirer/core@10.3.2(@types/node@25.3.5)':
+  '@inquirer/core@10.3.2(@types/node@25.5.0)':
     dependencies:
       '@inquirer/ansi': 1.0.2
       '@inquirer/figures': 1.0.15
-      '@inquirer/type': 3.0.10(@types/node@25.3.5)
+      '@inquirer/type': 3.0.10(@types/node@25.5.0)
       cli-width: 4.1.0
       mute-stream: 2.0.0
       signal-exit: 4.1.0
       wrap-ansi: 6.2.0
       yoctocolors-cjs: 2.1.3
     optionalDependencies:
-      '@types/node': 25.3.5
+      '@types/node': 25.5.0
 
-  '@inquirer/editor@4.2.23(@types/node@25.3.5)':
+  '@inquirer/editor@4.2.23(@types/node@25.5.0)':
     dependencies:
-      '@inquirer/core': 10.3.2(@types/node@25.3.5)
-      '@inquirer/external-editor': 1.0.3(@types/node@25.3.5)
-      '@inquirer/type': 3.0.10(@types/node@25.3.5)
+      '@inquirer/core': 10.3.2(@types/node@25.5.0)
+      '@inquirer/external-editor': 1.0.3(@types/node@25.5.0)
+      '@inquirer/type': 3.0.10(@types/node@25.5.0)
     optionalDependencies:
-      '@types/node': 25.3.5
+      '@types/node': 25.5.0
 
-  '@inquirer/expand@4.0.23(@types/node@25.3.5)':
+  '@inquirer/expand@4.0.23(@types/node@25.5.0)':
     dependencies:
-      '@inquirer/core': 10.3.2(@types/node@25.3.5)
-      '@inquirer/type': 3.0.10(@types/node@25.3.5)
+      '@inquirer/core': 10.3.2(@types/node@25.5.0)
+      '@inquirer/type': 3.0.10(@types/node@25.5.0)
       yoctocolors-cjs: 2.1.3
     optionalDependencies:
-      '@types/node': 25.3.5
+      '@types/node': 25.5.0
 
-  '@inquirer/external-editor@1.0.3(@types/node@25.3.5)':
+  '@inquirer/external-editor@1.0.3(@types/node@25.5.0)':
     dependencies:
       chardet: 2.1.1
       iconv-lite: 0.7.2
     optionalDependencies:
-      '@types/node': 25.3.5
+      '@types/node': 25.5.0
 
   '@inquirer/figures@1.0.15': {}
 
-  '@inquirer/input@4.3.1(@types/node@25.3.5)':
+  '@inquirer/input@4.3.1(@types/node@25.5.0)':
     dependencies:
-      '@inquirer/core': 10.3.2(@types/node@25.3.5)
-      '@inquirer/type': 3.0.10(@types/node@25.3.5)
+      '@inquirer/core': 10.3.2(@types/node@25.5.0)
+      '@inquirer/type': 3.0.10(@types/node@25.5.0)
     optionalDependencies:
-      '@types/node': 25.3.5
+      '@types/node': 25.5.0
 
-  '@inquirer/number@3.0.23(@types/node@25.3.5)':
+  '@inquirer/number@3.0.23(@types/node@25.5.0)':
     dependencies:
-      '@inquirer/core': 10.3.2(@types/node@25.3.5)
-      '@inquirer/type': 3.0.10(@types/node@25.3.5)
+      '@inquirer/core': 10.3.2(@types/node@25.5.0)
+      '@inquirer/type': 3.0.10(@types/node@25.5.0)
     optionalDependencies:
-      '@types/node': 25.3.5
+      '@types/node': 25.5.0
 
-  '@inquirer/password@4.0.23(@types/node@25.3.5)':
-    dependencies:
-      '@inquirer/ansi': 1.0.2
-      '@inquirer/core': 10.3.2(@types/node@25.3.5)
-      '@inquirer/type': 3.0.10(@types/node@25.3.5)
-    optionalDependencies:
-      '@types/node': 25.3.5
-
-  '@inquirer/prompts@7.10.1(@types/node@25.3.5)':
-    dependencies:
-      '@inquirer/checkbox': 4.3.2(@types/node@25.3.5)
-      '@inquirer/confirm': 5.1.21(@types/node@25.3.5)
-      '@inquirer/editor': 4.2.23(@types/node@25.3.5)
-      '@inquirer/expand': 4.0.23(@types/node@25.3.5)
-      '@inquirer/input': 4.3.1(@types/node@25.3.5)
-      '@inquirer/number': 3.0.23(@types/node@25.3.5)
-      '@inquirer/password': 4.0.23(@types/node@25.3.5)
-      '@inquirer/rawlist': 4.1.11(@types/node@25.3.5)
-      '@inquirer/search': 3.2.2(@types/node@25.3.5)
-      '@inquirer/select': 4.4.2(@types/node@25.3.5)
-    optionalDependencies:
-      '@types/node': 25.3.5
-
-  '@inquirer/rawlist@4.1.11(@types/node@25.3.5)':
-    dependencies:
-      '@inquirer/core': 10.3.2(@types/node@25.3.5)
-      '@inquirer/type': 3.0.10(@types/node@25.3.5)
-      yoctocolors-cjs: 2.1.3
-    optionalDependencies:
-      '@types/node': 25.3.5
-
-  '@inquirer/search@3.2.2(@types/node@25.3.5)':
-    dependencies:
-      '@inquirer/core': 10.3.2(@types/node@25.3.5)
-      '@inquirer/figures': 1.0.15
-      '@inquirer/type': 3.0.10(@types/node@25.3.5)
-      yoctocolors-cjs: 2.1.3
-    optionalDependencies:
-      '@types/node': 25.3.5
-
-  '@inquirer/select@4.4.2(@types/node@25.3.5)':
+  '@inquirer/password@4.0.23(@types/node@25.5.0)':
     dependencies:
       '@inquirer/ansi': 1.0.2
-      '@inquirer/core': 10.3.2(@types/node@25.3.5)
-      '@inquirer/figures': 1.0.15
-      '@inquirer/type': 3.0.10(@types/node@25.3.5)
+      '@inquirer/core': 10.3.2(@types/node@25.5.0)
+      '@inquirer/type': 3.0.10(@types/node@25.5.0)
+    optionalDependencies:
+      '@types/node': 25.5.0
+
+  '@inquirer/prompts@7.10.1(@types/node@25.5.0)':
+    dependencies:
+      '@inquirer/checkbox': 4.3.2(@types/node@25.5.0)
+      '@inquirer/confirm': 5.1.21(@types/node@25.5.0)
+      '@inquirer/editor': 4.2.23(@types/node@25.5.0)
+      '@inquirer/expand': 4.0.23(@types/node@25.5.0)
+      '@inquirer/input': 4.3.1(@types/node@25.5.0)
+      '@inquirer/number': 3.0.23(@types/node@25.5.0)
+      '@inquirer/password': 4.0.23(@types/node@25.5.0)
+      '@inquirer/rawlist': 4.1.11(@types/node@25.5.0)
+      '@inquirer/search': 3.2.2(@types/node@25.5.0)
+      '@inquirer/select': 4.4.2(@types/node@25.5.0)
+    optionalDependencies:
+      '@types/node': 25.5.0
+
+  '@inquirer/rawlist@4.1.11(@types/node@25.5.0)':
+    dependencies:
+      '@inquirer/core': 10.3.2(@types/node@25.5.0)
+      '@inquirer/type': 3.0.10(@types/node@25.5.0)
       yoctocolors-cjs: 2.1.3
     optionalDependencies:
-      '@types/node': 25.3.5
+      '@types/node': 25.5.0
 
-  '@inquirer/type@3.0.10(@types/node@25.3.5)':
+  '@inquirer/search@3.2.2(@types/node@25.5.0)':
+    dependencies:
+      '@inquirer/core': 10.3.2(@types/node@25.5.0)
+      '@inquirer/figures': 1.0.15
+      '@inquirer/type': 3.0.10(@types/node@25.5.0)
+      yoctocolors-cjs: 2.1.3
     optionalDependencies:
-      '@types/node': 25.3.5
+      '@types/node': 25.5.0
+
+  '@inquirer/select@4.4.2(@types/node@25.5.0)':
+    dependencies:
+      '@inquirer/ansi': 1.0.2
+      '@inquirer/core': 10.3.2(@types/node@25.5.0)
+      '@inquirer/figures': 1.0.15
+      '@inquirer/type': 3.0.10(@types/node@25.5.0)
+      yoctocolors-cjs: 2.1.3
+    optionalDependencies:
+      '@types/node': 25.5.0
+
+  '@inquirer/type@3.0.10(@types/node@25.5.0)':
+    optionalDependencies:
+      '@types/node': 25.5.0
 
   '@jridgewell/gen-mapping@0.3.13':
     dependencies:
@@ -6417,45 +6417,47 @@ snapshots:
 
   '@standard-schema/spec@1.1.0': {}
 
-  '@supabase/auth-js@2.98.0':
+  '@supabase/auth-js@2.100.1':
     dependencies:
       tslib: 2.8.1
 
-  '@supabase/functions-js@2.98.0':
+  '@supabase/functions-js@2.100.1':
     dependencies:
       tslib: 2.8.1
 
-  '@supabase/postgrest-js@2.98.0':
+  '@supabase/phoenix@0.4.0': {}
+
+  '@supabase/postgrest-js@2.100.1':
     dependencies:
       tslib: 2.8.1
 
-  '@supabase/realtime-js@2.98.0':
+  '@supabase/realtime-js@2.100.1':
     dependencies:
-      '@types/phoenix': 1.6.7
+      '@supabase/phoenix': 0.4.0
       '@types/ws': 8.18.1
       tslib: 2.8.1
-      ws: 8.19.0
+      ws: 8.20.0
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
 
-  '@supabase/ssr@0.6.1(@supabase/supabase-js@2.98.0)':
+  '@supabase/ssr@0.6.1(@supabase/supabase-js@2.100.1)':
     dependencies:
-      '@supabase/supabase-js': 2.98.0
+      '@supabase/supabase-js': 2.100.1
       cookie: 1.1.1
 
-  '@supabase/storage-js@2.98.0':
+  '@supabase/storage-js@2.100.1':
     dependencies:
       iceberg-js: 0.8.1
       tslib: 2.8.1
 
-  '@supabase/supabase-js@2.98.0':
+  '@supabase/supabase-js@2.100.1':
     dependencies:
-      '@supabase/auth-js': 2.98.0
-      '@supabase/functions-js': 2.98.0
-      '@supabase/postgrest-js': 2.98.0
-      '@supabase/realtime-js': 2.98.0
-      '@supabase/storage-js': 2.98.0
+      '@supabase/auth-js': 2.100.1
+      '@supabase/functions-js': 2.100.1
+      '@supabase/postgrest-js': 2.100.1
+      '@supabase/realtime-js': 2.100.1
+      '@supabase/storage-js': 2.100.1
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
@@ -6592,9 +6594,9 @@ snapshots:
   '@turbo/gen-windows-64@2.8.14':
     optional: true
 
-  '@turbo/gen@2.8.14(@types/node@25.3.5)':
+  '@turbo/gen@2.8.14(@types/node@25.5.0)':
     dependencies:
-      '@inquirer/prompts': 7.10.1(@types/node@25.3.5)
+      '@inquirer/prompts': 7.10.1(@types/node@25.5.0)
       node-plop: 0.26.3
     optionalDependencies:
       '@turbo/gen-darwin-64': 2.8.14
@@ -6617,7 +6619,7 @@ snapshots:
   '@types/glob@7.2.0':
     dependencies:
       '@types/minimatch': 5.1.2
-      '@types/node': 25.3.5
+      '@types/node': 25.5.0
 
   '@types/inquirer@6.5.0':
     dependencies:
@@ -6634,11 +6636,9 @@ snapshots:
     dependencies:
       undici-types: 6.21.0
 
-  '@types/node@25.3.5':
+  '@types/node@25.5.0':
     dependencies:
       undici-types: 7.18.2
-
-  '@types/phoenix@1.6.7': {}
 
   '@types/react-dom@19.1.11(@types/react@19.1.17)':
     dependencies:
@@ -6650,11 +6650,11 @@ snapshots:
 
   '@types/through@0.0.33':
     dependencies:
-      '@types/node': 25.3.5
+      '@types/node': 25.5.0
 
   '@types/ws@8.18.1':
     dependencies:
-      '@types/node': 25.3.5
+      '@types/node': 25.5.0
 
   '@typescript-eslint/eslint-plugin@8.56.1(@typescript-eslint/parser@8.56.1(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3))(eslint@9.39.4(jiti@2.6.1))(typescript@5.9.3)':
     dependencies:
@@ -9114,7 +9114,7 @@ snapshots:
 
   wrappy@1.0.2: {}
 
-  ws@8.19.0: {}
+  ws@8.20.0: {}
 
   xlsx@0.18.5:
     dependencies:
