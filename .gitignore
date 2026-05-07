@@ -39,8 +39,18 @@ workbox-*.js
 design-system/
 
 # Agent configuration
-# .agents/ is PUBLIC — tracked by git (open source skills and workflows)
-# .gemini/ is PRIVATE — knowledge base stays local only
-# .ops/ is PRIVATE — internal operations
+# .agents/ is PUBLIC â€” tracked by git (open source skills and workflows)
+# .gemini/ is PRIVATE â€” knowledge base stays local only
+# .ops/ is PRIVATE â€” internal operations
 .gemini/
 .ops/
+
+# graphify knowledge graph (local only)
+graphify-out/
+
+# Claude Code local settings (user-specific)
+.claude/settings.local.json
+
+# Claude secrets and ephemeral state
+.claude/mcp.json
+claude_code_implementation_plan
