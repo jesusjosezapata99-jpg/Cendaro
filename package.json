@@ -35,7 +35,7 @@
     "jiti": "^2.6.1",
     "lint-staged": "^16.1.0",
     "prettier": "catalog:",
-    "turbo": "^2.8.14",
+    "turbo": "^2.9.12",
     "typescript": "catalog:"
   },
   "lint-staged": {
