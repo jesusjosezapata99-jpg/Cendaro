@@ -40,7 +40,7 @@
     "@cendaro/prettier-config": "workspace:*",
     "@cendaro/tsconfig": "workspace:*",
     "@types/node": "catalog:",
-    "drizzle-kit": "^0.31.9",
+    "drizzle-kit": "^0.31.10",
     "eslint": "catalog:",
     "prettier": "catalog:",
     "typescript": "catalog:"
