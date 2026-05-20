@@ -8,7 +8,7 @@ description: >
 tools: Read, Bash, mcp__supabase
 model: opus
 permissionMode: default
-memory: none
+memory: local
 maxTurns: 20
 effort: medium
 color: cyan
