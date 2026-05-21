@@ -1,0 +1,5 @@
+#!/bin/sh
+. "$(dirname "$0")/_/husky.sh"
+
+echo "=== [Graphify Sync] Fusión de código detectada. Sincronizando mapa AST ==="
+graphify update .

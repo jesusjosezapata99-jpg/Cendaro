@@ -61,11 +61,11 @@ pnpm ui-add       # Add shadcn/ui components
 
 ### graphify
 
-This project has a knowledge graph at `graphify-out/`.
+This project has an automated knowledge graph at `graphify-out/`.
 
 - Before answering architecture questions, read `graphify-out/GRAPH_REPORT.md`
 - For cross-module questions use `graphify query`, `graphify path`, `graphify explain` — not grep
-- After modifying code files, run `graphify update .` (AST-only, free)
+- Updates are 100% automated: a filesystem watcher runs in the background during `pnpm dev`, and Husky hooks automatically trigger `graphify update .` after commits, branch checkouts, and pull/merges. You rarely need to run `graphify update .` manually.
 
 ---
 
@@ -99,11 +99,11 @@ Before calling ANY MCP tool that creates, updates, deletes, or mutates data, you
 
 ### Risk Classification
 
-| Risk | Operations | Verification |
-|:-----|:-----------|:-------------|
+| Risk        | Operations                                                    | Verification                                      |
+| :---------- | :------------------------------------------------------------ | :------------------------------------------------ |
 | 🔴 CRITICAL | DDL (DROP/ALTER), RLS changes, function/trigger modifications | Double verification — re-read resource, ask AGAIN |
-| 🟡 HIGH | INSERT into auth tables, bulk UPDATE/DELETE | Show before/after diff |
-| 🟢 STANDARD | SELECT queries, read-only operations | No confirmation needed |
+| 🟡 HIGH     | INSERT into auth tables, bulk UPDATE/DELETE                   | Show before/after diff                            |
+| 🟢 STANDARD | SELECT queries, read-only operations                          | No confirmation needed                            |
 
 ### Supabase Safety
 
@@ -115,11 +115,11 @@ Before calling ANY MCP tool that creates, updates, deletes, or mutates data, you
 
 ## MCP Tool Guide
 
-| Tool | When to use |
-|:-----|:------------|
-| `context7` | Fetch up-to-date docs for Next.js, Supabase, tRPC, Drizzle, Tailwind, React, shadcn/ui |
+| Tool                  | When to use                                                                                                     |
+| :-------------------- | :-------------------------------------------------------------------------------------------------------------- |
+| `context7`            | Fetch up-to-date docs for Next.js, Supabase, tRPC, Drizzle, Tailwind, React, shadcn/ui                          |
 | `sequential-thinking` | Complex multi-step reasoning, architecture decisions, debugging multi-layer issues — invoke BEFORE writing code |
-| `supabase` | Read-only access to Supabase project `ljwoptpaxazqmnhdczsb`. ⚠️ Write ops require user approval |
+| `supabase`            | Read-only access to Supabase project `ljwoptpaxazqmnhdczsb`. ⚠️ Write ops require user approval                 |
 
 ### Sequential Thinking Protocol
 
@@ -141,6 +141,7 @@ Always use Context7 MCP when needing library/API documentation. Prefer Context7 
 > Full standards: `.claude/rules/coding-standards.md` (loaded automatically by Claude Code)
 
 **Key rules (quick reference):**
+
 - TypeScript strict — zero `any`, zero `@ts-ignore`
 - `~/` alias in ERP app — no `../../` climbing
 - Workspace refs between packages: `@cendaro/api`, `@cendaro/db`, etc.
@@ -156,14 +157,14 @@ Always use Context7 MCP when needing library/API documentation. Prefer Context7 
 
 Custom specialist agents in `.claude/agents/`. Invoke by name or `@-mention`.
 
-| Agent | Model | Purpose | Memory |
-|:------|:------|:--------|:-------|
-| `code-reviewer` | opus | Pre-commit quality + security audit | ✅ project |
-| `debugger` | opus | Root cause analysis for errors | ✅ project |
-| `researcher` | opus | Read-only codebase exploration | ✅ project |
-| `test-runner` | opus | Run and fix tests (Vitest) | ✅ project |
-| `supabase-guard` | opus | Read-only DB queries (SQL writes blocked) | ❌ |
-| `browser-tester` | opus | Visual/functional browser testing via agent-browser | ✅ project |
+| Agent            | Model | Purpose                                             | Memory     |
+| :--------------- | :---- | :-------------------------------------------------- | :--------- |
+| `code-reviewer`  | opus  | Pre-commit quality + security audit                 | ✅ project |
+| `debugger`       | opus  | Root cause analysis for errors                      | ✅ project |
+| `researcher`     | opus  | Read-only codebase exploration                      | ✅ project |
+| `test-runner`    | opus  | Run and fix tests (Vitest)                          | ✅ project |
+| `supabase-guard` | opus  | Read-only DB queries (SQL writes blocked)           | ❌         |
+| `browser-tester` | opus  | Visual/functional browser testing via agent-browser | ✅ project |
 
 **Usage**: `@"code-reviewer (agent)" review auth changes` or `Use the debugger to fix this error`
 
@@ -172,6 +173,7 @@ Custom specialist agents in `.claude/agents/`. Invoke by name or `@-mention`.
 ## Skills & Commands
 
 ### Available Skills (use `/project:project-skills` for full catalog)
+
 - `/project:coding-review` — Pre-commit quality checks
 - `/project:memory-sync` — Post-task memory synchronization
 - `/project:create-plan` — Scaffold plan in `.opencode/plans/`
@@ -179,17 +181,21 @@ Custom specialist agents in `.claude/agents/`. Invoke by name or `@-mention`.
 - `/project:project-skills` — Browse all available skills
 
 ### Quick Commands
+
 - `/project:typecheck` — Run `pnpm typecheck`
 - `/project:dev` — Start ERP dev server
 - `/project:hydrate` — Read all context files
 - `/project:db-studio` — Open Drizzle Studio
 
 ### Hooks (automatic)
+
+- **graphify-auto-sync** — Graphify automatically updates on post-commit, post-checkout, post-merge, and in dev-mode filesystem watcher.
 - **graphify-reminder** — Reminds about knowledge graph before shell commands
 - **auto-lint** — Runs ESLint asynchronously after file writes
 - **validate-readonly-query** — Blocks SQL writes for `supabase-guard` agent
 
 ### Browser Automation
+
 - `agent-browser` CLI installed globally — native Rust browser automation
 - Skills: `agent-browser skills get core --full` for command reference
 - Web Vitals: `agent-browser vitals <url>`
@@ -212,6 +218,7 @@ After completing any significant task:
 ## Violation Protocol
 
 If you realize you executed a write operation WITHOUT user approval:
+
 1. IMMEDIATELY inform the user what was executed
 2. Provide the exact data that was written/changed
 3. Offer the reversal command if available

@@ -1,0 +1,5 @@
+#!/bin/sh
+. "$(dirname "$0")/_/husky.sh"
+
+echo "=== [Graphify Sync] Actualizando mapa de arquitectura AST ==="
+graphify update .
