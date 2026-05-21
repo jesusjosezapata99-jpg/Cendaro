@@ -14,6 +14,7 @@ const config = {
     "@cendaro/validators",
   ],
   /** Tree-shake heavy packages for smaller bundles */
+  cacheComponents: true,
   experimental: {
     optimizePackageImports: [
       "@trpc/client",

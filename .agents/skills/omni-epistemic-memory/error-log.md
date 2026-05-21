@@ -1,7 +1,7 @@
 ---
-version: "3.1"
-last-audit: "2026-03-14"
-entries: 10
+version: "3.2"
+last-audit: "2026-05-21"
+entries: 12
 shared-by: ["Gemini/Antigravity"]
 ---
 
@@ -32,6 +32,8 @@ This file is the **single source of truth** for error history. Every entry makes
 | 15  | After claude-mem MCP fix, verify `bash` in Windows system PATH                                                                                                           | Plugin hooks           |
 | 16  | NEVER use PowerShell `-Encoding UTF8` for Bun config files — use `[System.IO.File]::WriteAllText($path, $content, [System.Text.UTF8Encoding]::new($false))` to avoid BOM | claude-mem settings    |
 | 17  | Both `cache/` and `marketplaces/` dirs are needed for claude-mem — patch BOTH `.mcp.json` files when fixing Windows compat                                               | claude-mem dual-source |
+| 18  | NEVER use dynamic segment configurations (e.g. `export const dynamic = "force-dynamic"`) when `cacheComponents` is enabled globally                                      | Next.js 16 routes      |
+| 19  | NEVER use dynamic runtime constructors (e.g. `new Date()`) inside static Server Components to avoid prerendering failure                                                 | Next.js 16 rendering   |
 
 ## Entry Template
 
@@ -151,16 +153,36 @@ This file is the **single source of truth** for error history. Every entry makes
 - **Severity**: Major
 - **Recurrence**: 1st
 
+### [2026-05-21] Next.js 16 dynamic route segment override conflict with `cacheComponents`
+
+- **Error**: `pnpm build` failed to compile dynamic routes because of segment overrides.
+- **Root Cause**: Custom route configs such as `export const dynamic = "force-dynamic"` are fully rejected by Turbopack if `cacheComponents: true` is enabled globally.
+- **Fix**: Removed the conflicting segment override.
+- **Prevention**: Do not use `export const dynamic = "force-dynamic"` or similar segment overrides in App Router routes when `cacheComponents` is active. Rely on the framework's native dynamic resolution instead.
+- **Workspace**: `@cendaro/erp` (`apps/erp/src/app/api/ai/parse-packing-list/route.ts`)
+- **Severity**: Major
+- **Recurrence**: 1st
+
+### [2026-05-21] Next.js 16 dynamic runtime date constructor static generation prerender failure
+
+- **Error**: `pnpm build` failed during static page generation / prerendering due to dynamic code execution in `footer.tsx`.
+- **Root Cause**: In Next.js 16, utilizing dynamic date constructors (`new Date()`) inside static Server Components without matching headers or dynamic requests fails the compiler's prerender checks.
+- **Fix**: Replaced dynamic year calculation with compile-time optimized static constant `2026`.
+- **Prevention**: Never use dynamic, non-deterministic constructors inside static Server Components. Move them to Client Component scopes or use static compile-time constants.
+- **Workspace**: `@cendaro/erp` (`apps/erp/src/app/_components/landing/footer.tsx`)
+- **Severity**: Major
+- **Recurrence**: 1st
+
 ---
 
 ## Statistics
 
 | Metric                    | Value                        |
 | ------------------------- | ---------------------------- |
-| **Total entries**         | 10                           |
+| **Total entries**         | 12                           |
 | **Critical**              | 5                            |
-| **Major**                 | 4                            |
+| **Major**                 | 6                            |
 | **Minor**                 | 1                            |
-| **Most common workspace** | Root monorepo (6/10 entries) |
-| **Date of last entry**    | 2026-05-08                   |
-| **Quick Reference rules** | 15                           |
+| **Most common workspace** | Root monorepo (6/12 entries) |
+| **Date of last entry**    | 2026-05-21                   |
+| **Quick Reference rules** | 19                           |
