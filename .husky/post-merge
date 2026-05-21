@@ -1,5 +1,5 @@
-#!/bin/sh
-. "$(dirname "$0")/_/husky.sh"
+# Graphify AST sync — runs after git merge / git pull
+# Non-blocking: graphify failures must never break git operations
 
-echo "=== [Graphify Sync] Fusión de código detectada. Sincronizando mapa AST ==="
-graphify update .
+echo "=== [Graphify] post-merge: merge detected, syncing knowledge graph ==="
+graphify update . && graphify cluster-only . --no-viz || echo "[Graphify] warning: sync failed (non-blocking)"
