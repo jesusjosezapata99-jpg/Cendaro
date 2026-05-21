@@ -1,42 +1,25 @@
-"use client";
+import { Suspense } from "react";
+import { cookies } from "next/headers";
 
-import { Suspense, useState } from "react";
+import { WORKSPACE_COOKIE } from "~/hooks/use-workspace";
+import { AppShell } from "./app-shell";
+import { Providers } from "./providers";
 
-import { Sidebar } from "~/components/sidebar";
-import { TopBar } from "~/components/top-bar";
-import { WorkspaceAutoResolver } from "~/components/workspace-auto-resolver";
-import { WorkspaceProvider } from "~/hooks/use-workspace";
-import { TRPCProvider } from "~/trpc/client";
+async function WorkspaceLoader({ children }: { children: React.ReactNode }) {
+  const cookieStore = await cookies();
+  const workspaceId = cookieStore.get(WORKSPACE_COOKIE)?.value;
 
-function PageSkeleton() {
   return (
-    <div className="flex h-full items-center justify-center p-8">
-      <div className="flex flex-col items-center gap-3">
-        <div className="border-primary h-8 w-8 animate-spin rounded-full border-2 border-t-transparent" />
-        <p className="text-muted-foreground text-xs">Cargando…</p>
-      </div>
-    </div>
+    <Providers initialWorkspaceId={workspaceId}>
+      <AppShell>{children}</AppShell>
+    </Providers>
   );
 }
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-
   return (
-    <TRPCProvider>
-      <WorkspaceProvider>
-        <WorkspaceAutoResolver fallback={<PageSkeleton />}>
-          <div className="flex h-dvh overflow-hidden">
-            <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-            <div className="flex flex-1 flex-col overflow-hidden">
-              <TopBar onToggleSidebar={() => setSidebarOpen((o) => !o)} />
-              <main className="bg-background safe-pb flex-1 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch]">
-                <Suspense fallback={<PageSkeleton />}>{children}</Suspense>
-              </main>
-            </div>
-          </div>
-        </WorkspaceAutoResolver>
-      </WorkspaceProvider>
-    </TRPCProvider>
+    <Suspense fallback={null}>
+      <WorkspaceLoader>{children}</WorkspaceLoader>
+    </Suspense>
   );
 }

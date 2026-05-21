@@ -1,0 +1,8 @@
+# Graphify AST sync — runs after branch switch (checkout)
+# $3 = 1 means branch was changed (vs. file checkout)
+# Non-blocking: graphify failures must never break git operations
+
+if [ "$3" = "1" ]; then
+  echo "=== [Graphify] post-checkout: branch switched, syncing knowledge graph ==="
+  graphify update . && graphify cluster-only . --no-viz || echo "[Graphify] warning: sync failed (non-blocking)"
+fi

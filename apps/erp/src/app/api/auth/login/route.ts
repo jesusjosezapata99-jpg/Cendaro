@@ -275,29 +275,9 @@ export async function POST(request: Request) {
     });
   }
 
-  // ── Step 11: MFA factor detection ──────────────────────────────────────
-  //
-  // After successful password auth, check if the user has MFA enrolled.
-  // This determines whether the client should redirect to the MFA challenge
-  // page or the MFA setup page (for owner/admin who haven't enrolled yet).
-  //
-  const { data: factors } = await supabase.auth.mfa.listFactors();
-  const hasVerifiedTotp = (factors?.totp ?? []).length > 0;
-
-  // Roles that MUST have MFA — cannot access the system without it
-  const MFA_REQUIRED_ROLES = ["owner", "admin"];
-  const userRole = profile.role.toLowerCase();
-  const isMfaRequired = MFA_REQUIRED_ROLES.includes(userRole);
-
-  // ── Step 12: Success with MFA context ──────────────────────────────────
+  // ── Step 11: Success ────────────────────────────────────────────────────
   return NextResponse.json(
-    {
-      success: true,
-      // User has a verified TOTP factor → needs to complete MFA challenge
-      requiresMfa: hasVerifiedTotp,
-      // Owner/admin without TOTP → must enroll before accessing the system
-      requiresMfaSetup: isMfaRequired && !hasVerifiedTotp,
-    },
+    { success: true },
     {
       status: 200,
       headers: {

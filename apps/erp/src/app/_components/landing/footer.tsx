@@ -89,8 +89,7 @@ export function Footer() {
               className="h-6 w-6"
             />
             <span className="text-muted-foreground text-sm">
-              © {new Date().getFullYear()} Cendaro. Todos los derechos
-              reservados.
+              © 2026 Cendaro. Todos los derechos reservados.
             </span>
           </div>
 

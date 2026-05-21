@@ -1,7 +1,7 @@
 ---
-version: "3.1"
-last-audit: "2026-03-14"
-entries: 8
+version: "3.2"
+last-audit: "2026-05-21"
+entries: 12
 shared-by: ["Gemini/Antigravity"]
 ---
 
@@ -13,21 +13,27 @@ This file is the **single source of truth** for error history. Every entry makes
 
 ## Quick Reference — Active Prevention Rules
 
-| #   | Rule                                                            | Context            |
-| --- | --------------------------------------------------------------- | ------------------ |
-| 1   | Tools via `pnpm exec` need root devDependency                   | Windows PATH       |
-| 2   | Root `eslint.config.ts` required for lint-staged                | ESLint v9          |
-| 3   | `?.` + `eslint-disable` for third-party type mismatches         | TS ↔ ESLint        |
-| 4   | Always `pnpm exec` prefix in lint-staged                        | Windows bins       |
-| 5   | Verify `exports` field matches file extensions                  | Shared packages    |
-| 6   | NEVER use `npx skills add` — git clone + manual copy            | Skills install     |
-| 7   | Always commit + push BEFORE handing off to user                 | Git discipline     |
-| 8   | Run `pnpm typecheck` before committing type changes             | Pre-push guard     |
-| 9   | Client-side parsing + chunked JSON for file uploads             | Vercel 4.5MB       |
-| 10  | Verify `project_id = ljwoptpaxazqmnhdczsb` before DB ops        | Supabase safety    |
-| 11  | Run `/memory-audit` after dependency changes                    | KI freshness       |
-| 12  | Maintain `.gemini/rules.md` + `.agents/skills/` as refs         | Multi-agent        |
-| 13  | Use specific `.next/{build,server,static,types,cache}/**` globs | Turbo remote cache |
+| #   | Rule                                                                                                                                                                     | Context                |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------- |
+| 1   | Tools via `pnpm exec` need root devDependency                                                                                                                            | Windows PATH           |
+| 2   | Root `eslint.config.ts` required for lint-staged                                                                                                                         | ESLint v9              |
+| 3   | `?.` + `eslint-disable` for third-party type mismatches                                                                                                                  | TS ↔ ESLint            |
+| 4   | Always `pnpm exec` prefix in lint-staged                                                                                                                                 | Windows bins           |
+| 5   | Verify `exports` field matches file extensions                                                                                                                           | Shared packages        |
+| 6   | NEVER use `npx skills add` — git clone + manual copy                                                                                                                     | Skills install         |
+| 7   | Always commit + push BEFORE handing off to user                                                                                                                          | Git discipline         |
+| 8   | Run `pnpm typecheck` before committing type changes                                                                                                                      | Pre-push guard         |
+| 9   | Client-side parsing + chunked JSON for file uploads                                                                                                                      | Vercel 4.5MB           |
+| 10  | Verify `project_id = ljwoptpaxazqmnhdczsb` before DB ops                                                                                                                 | Supabase safety        |
+| 11  | Run `/memory-audit` after dependency changes                                                                                                                             | KI freshness           |
+| 12  | Maintain `.gemini/rules.md` + `.agents/skills/` as refs                                                                                                                  | Multi-agent            |
+| 13  | Use specific `.next/{build,server,static,types,cache}/**` globs                                                                                                          | Turbo remote cache     |
+| 14  | NEVER set `PATH` in `~/.claude/settings.json` env section                                                                                                                | Claude Code env        |
+| 15  | After claude-mem MCP fix, verify `bash` in Windows system PATH                                                                                                           | Plugin hooks           |
+| 16  | NEVER use PowerShell `-Encoding UTF8` for Bun config files — use `[System.IO.File]::WriteAllText($path, $content, [System.Text.UTF8Encoding]::new($false))` to avoid BOM | claude-mem settings    |
+| 17  | Both `cache/` and `marketplaces/` dirs are needed for claude-mem — patch BOTH `.mcp.json` files when fixing Windows compat                                               | claude-mem dual-source |
+| 18  | NEVER use dynamic segment configurations (e.g. `export const dynamic = "force-dynamic"`) when `cacheComponents` is enabled globally                                      | Next.js 16 routes      |
+| 19  | NEVER use dynamic runtime constructors (e.g. `new Date()`) inside static Server Components to avoid prerendering failure                                                 | Next.js 16 rendering   |
 
 ## Entry Template
 
@@ -46,6 +52,26 @@ This file is the **single source of truth** for error history. Every entry makes
 ---
 
 ## Entries
+
+### [2026-05-08] Claude Code `settings.json` PATH Override Destroys All MCP Servers
+
+- **Error**: After adding `"PATH": "C:\\Program Files\\Git\\bin;%PATH%"` to `~/.claude/settings.json` `env` section, all MCP servers (sequential-thinking, stripe, supabase, claude-mem) failed with `X Failed`. Only `context7` (HTTP transport) survived.
+- **Root Cause**: Claude Code's `env` section in `settings.json` **replaces** environment variables — it does NOT expand shell variable syntax like `%PATH%`. Setting `PATH` to a string containing `%PATH%` literally destroys the entire system PATH, removing access to `node`, `npx`, `pnpm`, and all binaries that MCP servers depend on.
+- **Fix**: (1) Removed `PATH` from `settings.json` env. (2) Added `C:\Program Files\Git\bin` to Windows User PATH via `[System.Environment]::SetEnvironmentVariable("Path", ..., "User")` instead. (3) Killed 16+ zombie node processes from failed MCP startups.
+- **Prevention**: **NEVER add `PATH` to `~/.claude/settings.json` `env` section.** To make binaries available to Claude Code, modify the Windows User PATH via registry (`[System.Environment]::SetEnvironmentVariable`). The `env` section only supports setting NEW variables, not extending existing ones.
+- **Workspace**: Claude Code infrastructure (`~/.claude/settings.json`)
+- **Severity**: Critical
+- **Recurrence**: 1st
+
+### [2026-05-08] Claude-mem Plugin Hooks Hang on Windows (bash not in PATH)
+
+- **Error**: Claude Code crashes with `Subprocess initialization did not complete within 60000ms` after fixing the claude-mem MCP server in Session 79.
+- **Root Cause**: Plugin `claude-mem` v12.7.5 registers 7 hooks with `"shell": "bash"`. On Windows, `bash.exe` exists at `C:\Program Files\Git\bin\bash.exe` but only `C:\Program Files\Git\cmd` is in PATH (exposes `git.exe` only, NOT `bash.exe`). Before Session 79, the MCP server was broken so hooks were dormant. After the fix, hooks started executing → bash not found → `SessionStart` hook hangs for 60 seconds → timeout kills Claude Code.
+- **Fix**: Added `C:\Program Files\Git\bin` to Windows User PATH permanently via `[System.Environment]::SetEnvironmentVariable("Path", "$currentPath;C:\Program Files\Git\bin", "User")`.
+- **Prevention**: **After ANY claude-mem MCP server fix on Windows, ALWAYS verify that `bash` is accessible in the system PATH** (`Get-Command bash`). If not, add `C:\Program Files\Git\bin` to the User PATH. The plugin hooks hardcode `"shell": "bash"` and this cannot be changed without modifying plugin files (which auto-update).
+- **Workspace**: Claude Code infrastructure (`~/.claude/plugins/cache/thedotmack/claude-mem/`)
+- **Severity**: Critical
+- **Recurrence**: 1st
 
 ### [2026-03-14] Turborepo Remote Cache 413 Entity Too Large
 
@@ -127,16 +153,36 @@ This file is the **single source of truth** for error history. Every entry makes
 - **Severity**: Major
 - **Recurrence**: 1st
 
+### [2026-05-21] Next.js 16 dynamic route segment override conflict with `cacheComponents`
+
+- **Error**: `pnpm build` failed to compile dynamic routes because of segment overrides.
+- **Root Cause**: Custom route configs such as `export const dynamic = "force-dynamic"` are fully rejected by Turbopack if `cacheComponents: true` is enabled globally.
+- **Fix**: Removed the conflicting segment override.
+- **Prevention**: Do not use `export const dynamic = "force-dynamic"` or similar segment overrides in App Router routes when `cacheComponents` is active. Rely on the framework's native dynamic resolution instead.
+- **Workspace**: `@cendaro/erp` (`apps/erp/src/app/api/ai/parse-packing-list/route.ts`)
+- **Severity**: Major
+- **Recurrence**: 1st
+
+### [2026-05-21] Next.js 16 dynamic runtime date constructor static generation prerender failure
+
+- **Error**: `pnpm build` failed during static page generation / prerendering due to dynamic code execution in `footer.tsx`.
+- **Root Cause**: In Next.js 16, utilizing dynamic date constructors (`new Date()`) inside static Server Components without matching headers or dynamic requests fails the compiler's prerender checks.
+- **Fix**: Replaced dynamic year calculation with compile-time optimized static constant `2026`.
+- **Prevention**: Never use dynamic, non-deterministic constructors inside static Server Components. Move them to Client Component scopes or use static compile-time constants.
+- **Workspace**: `@cendaro/erp` (`apps/erp/src/app/_components/landing/footer.tsx`)
+- **Severity**: Major
+- **Recurrence**: 1st
+
 ---
 
 ## Statistics
 
-| Metric                    | Value                       |
-| ------------------------- | --------------------------- |
-| **Total entries**         | 8                           |
-| **Critical**              | 3                           |
-| **Major**                 | 4                           |
-| **Minor**                 | 1                           |
-| **Most common workspace** | Root monorepo (6/8 entries) |
-| **Date of last entry**    | 2026-03-14                  |
-| **Quick Reference rules** | 13                          |
+| Metric                    | Value                        |
+| ------------------------- | ---------------------------- |
+| **Total entries**         | 12                           |
+| **Critical**              | 5                            |
+| **Major**                 | 6                            |
+| **Minor**                 | 1                            |
+| **Most common workspace** | Root monorepo (6/12 entries) |
+| **Date of last entry**    | 2026-05-21                   |
+| **Quick Reference rules** | 19                           |

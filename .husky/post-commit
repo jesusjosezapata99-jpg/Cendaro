@@ -1,0 +1,7 @@
+# Graphify AST sync — runs after every commit
+# 1. Re-extract AST from changed files into cache
+# 2. Force cluster rebuild to write graph.json + GRAPH_REPORT.md
+# Non-blocking: graphify failures must never break git operations
+
+echo "=== [Graphify] post-commit: syncing knowledge graph ==="
+graphify update . && graphify cluster-only . --no-viz || echo "[Graphify] warning: sync failed (non-blocking)"
