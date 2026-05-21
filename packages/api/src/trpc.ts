@@ -29,6 +29,52 @@ import type { ILogger } from "./logger";
 import { generateRequestId, logger } from "./logger";
 
 // ──────────────────────────────────────────────
+// 1a. PERMISSION & MODULE CACHE
+// ──────────────────────────────────────────────
+
+interface CacheEntry<T> {
+  value: T;
+  expiry: number;
+}
+
+const permissionCache = new Map<string, CacheEntry<boolean>>();
+const PERMISSION_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const PERMISSION_CACHE_MAX = 1000;
+
+function getPermissionCacheKey(
+  type: "permission" | "module" | "ws_permission",
+  ...parts: string[]
+): string {
+  return `${type}:${parts.join(":")}`;
+}
+
+function getCachedPermission(key: string): boolean | undefined {
+  const entry = permissionCache.get(key);
+  if (!entry) return undefined;
+  if (Date.now() > entry.expiry) {
+    permissionCache.delete(key);
+    return undefined;
+  }
+  return entry.value;
+}
+
+function setCachedPermission(key: string, value: boolean): void {
+  // Evict oldest entries when cache is full
+  if (permissionCache.size >= PERMISSION_CACHE_MAX) {
+    const oldest = permissionCache.keys().next().value;
+    if (oldest) permissionCache.delete(oldest);
+  }
+  permissionCache.set(key, {
+    value,
+    expiry: Date.now() + PERMISSION_CACHE_TTL,
+  });
+}
+
+export function invalidatePermissionCache(): void {
+  permissionCache.clear();
+}
+
+// ──────────────────────────────────────────────
 // 1. CONTEXT
 // ──────────────────────────────────────────────
 
@@ -220,6 +266,23 @@ export function permissionProcedure(
       return next({ ctx });
     }
 
+    const cacheKey = getPermissionCacheKey(
+      "permission",
+      ctx.user.id,
+      module,
+      action,
+    );
+    const cached = getCachedPermission(cacheKey);
+    if (cached !== undefined) {
+      if (!cached) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: `Permiso denegado: ${module}.${action} no asignado al rol ${userRole}`,
+        });
+      }
+      return next({ ctx });
+    }
+
     const result = await ctx.db
       .select({ id: Permission.id })
       .from(RolePermission)
@@ -234,12 +297,14 @@ export function permissionProcedure(
       .limit(1);
 
     if (result.length === 0) {
+      setCachedPermission(cacheKey, false);
       throw new TRPCError({
         code: "FORBIDDEN",
         message: `Permiso denegado: ${module}.${action} no asignado al rol ${userRole}`,
       });
     }
 
+    setCachedPermission(cacheKey, true);
     return next({ ctx });
   });
 }
@@ -319,6 +384,23 @@ export function moduleProcedure(
   module: (typeof erpModuleEnum.enumValues)[number],
 ) {
   return workspaceProcedure.use(async ({ ctx, next }) => {
+    const cacheKey = getPermissionCacheKey(
+      "module",
+      ctx.user.id,
+      ctx.workspace.workspaceId,
+      module,
+    );
+    const cached = getCachedPermission(cacheKey);
+    if (cached !== undefined) {
+      if (!cached) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: `Módulo "${module}" no habilitado en este workspace`,
+        });
+      }
+      return next({ ctx });
+    }
+
     const [enabled] = await ctx.db
       .select({ id: WorkspaceModule.id })
       .from(WorkspaceModule)
@@ -331,11 +413,13 @@ export function moduleProcedure(
       .limit(1);
 
     if (!enabled) {
+      setCachedPermission(cacheKey, false);
       throw new TRPCError({
         code: "FORBIDDEN",
         message: `Módulo "${module}" no habilitado en este workspace`,
       });
     }
+    setCachedPermission(cacheKey, true);
     return next({ ctx });
   });
 }
@@ -351,6 +435,24 @@ export function wsPermissionProcedure(
   return moduleProcedure(module).use(async ({ ctx, next }) => {
     // Owner bypasses permission checks
     if (ctx.workspace.role === "owner") {
+      return next({ ctx });
+    }
+
+    const cacheKey = getPermissionCacheKey(
+      "ws_permission",
+      ctx.user.id,
+      ctx.workspace.workspaceId,
+      module,
+      action,
+    );
+    const cached = getCachedPermission(cacheKey);
+    if (cached !== undefined) {
+      if (!cached) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: `Permiso denegado: ${module}.${action}`,
+        });
+      }
       return next({ ctx });
     }
 
@@ -371,12 +473,14 @@ export function wsPermissionProcedure(
       .limit(1);
 
     if (!perm) {
+      setCachedPermission(cacheKey, false);
       throw new TRPCError({
         code: "FORBIDDEN",
         message: `Permiso denegado: ${module}.${action}`,
       });
     }
 
+    setCachedPermission(cacheKey, true);
     return next({ ctx });
   });
 }

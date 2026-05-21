@@ -1,8 +1,9 @@
 "use client";
 
-import { lazy, Suspense, useState } from "react";
+import { lazy, Suspense, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
+import { useVirtualizer } from "@tanstack/react-virtual";
 
 import { useTRPC } from "~/trpc/client";
 
@@ -93,17 +94,23 @@ export default function InventoryClient() {
   const [showCycle, setShowCycle] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [searchTerm, setSearchTerm] = useState("");
+  const tableScrollRef = useRef<HTMLDivElement>(null);
 
   const items = (products ?? []) as StockItem[];
-  const filtered = items.filter((item) => {
-    const stockStatus = getStockStatus(item);
-    const matchStatus = statusFilter === "all" || stockStatus === statusFilter;
-    const matchSearch =
-      !searchTerm ||
-      item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.sku.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchStatus && matchSearch;
-  });
+  const filtered = useMemo(
+    () =>
+      items.filter((item) => {
+        const stockStatus = getStockStatus(item);
+        const matchStatus =
+          statusFilter === "all" || stockStatus === statusFilter;
+        const matchSearch =
+          !searchTerm ||
+          item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          item.sku.toLowerCase().includes(searchTerm.toLowerCase());
+        return matchStatus && matchSearch;
+      }),
+    [items, statusFilter, searchTerm],
+  );
 
   const channelStock = (channelData ??
     CHANNELS.map((ch) => ({
@@ -111,13 +118,25 @@ export default function InventoryClient() {
       stock: 0,
     }))) as ChannelRow[];
 
-  const totalStock = items.reduce((s, it) => s + it.totalStock, 0);
-  const lowStockCount = items.filter(
-    (it) => getStockStatus(it) === "low_stock",
-  ).length;
-  const outOfStockCount = items.filter(
-    (it) => getStockStatus(it) === "out_of_stock",
-  ).length;
+  const { totalStock, lowStockCount, outOfStockCount } = useMemo(() => {
+    let ts = 0;
+    let ls = 0;
+    let os = 0;
+    for (const it of items) {
+      ts += it.totalStock;
+      const status = getStockStatus(it);
+      if (status === "low_stock") ls++;
+      if (status === "out_of_stock") os++;
+    }
+    return { totalStock: ts, lowStockCount: ls, outOfStockCount: os };
+  }, [items]);
+
+  const virtualizer = useVirtualizer({
+    count: filtered.length,
+    getScrollElement: () => tableScrollRef.current,
+    estimateSize: () => 49,
+    overscan: 10,
+  });
 
   return (
     <div className="space-y-6 p-4 lg:p-8">
@@ -366,7 +385,7 @@ export default function InventoryClient() {
         )}
       </div>
 
-      {/* ── Desktop: Table View ───────────────────── */}
+      {/* ── Desktop: Virtual Table View ───────────────── */}
       <div className="border-border bg-card hidden overflow-hidden rounded-xl border md:block">
         <table className="w-full text-left text-sm">
           <thead>
@@ -380,10 +399,20 @@ export default function InventoryClient() {
               <th className="px-4 py-3 text-right">Vendedores</th>
             </tr>
           </thead>
-          <tbody>
-            {isLoading
-              ? Array.from({ length: 5 }).map((_, i) => (
-                  <tr key={i} className="border-border border-b">
+        </table>
+        <div
+          ref={tableScrollRef}
+          style={{ height: "min(600px, 70vh)", overflow: "auto" }}
+        >
+          <table className="w-full text-left text-sm">
+            <tbody>
+              {isLoading ? (
+                Array.from({ length: 5 }).map((_, i) => (
+                  <tr
+                    key={i}
+                    className="border-border border-b"
+                    style={{ height: "49px" }}
+                  >
                     {Array.from({ length: 7 }).map((_, j) => (
                       <td key={j} className="px-4 py-3">
                         <Skeleton className="h-5 w-16" />
@@ -391,60 +420,69 @@ export default function InventoryClient() {
                     ))}
                   </tr>
                 ))
-              : filtered.map((item) => {
-                  const stockStatus = getStockStatus(item);
-                  const statusCfg = STATUS_CONFIG[stockStatus] ?? {
-                    label: stockStatus,
-                    color: "",
-                  };
-                  return (
-                    <tr
-                      key={item.id}
-                      className="border-border hover:bg-accent/50 border-b transition-colors"
-                    >
-                      <td className="text-muted-foreground px-4 py-3 font-mono text-xs">
-                        {item.sku}
-                      </td>
-                      <td className="text-foreground px-4 py-3 font-medium">
-                        {item.name}
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <span
-                          className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold ${statusCfg.color}`}
-                        >
-                          {statusCfg.label}
-                        </span>
-                      </td>
-                      <td className="text-foreground px-4 py-3 text-right font-mono font-bold">
-                        {item.totalStock}
-                      </td>
-                      <td className="text-muted-foreground px-4 py-3 text-right font-mono">
-                        {item.storeStock}
-                      </td>
-                      <td className="text-muted-foreground px-4 py-3 text-right font-mono">
-                        {item.mlStock}
-                      </td>
-                      <td className="text-muted-foreground px-4 py-3 text-right font-mono">
-                        {item.vendorStock}
-                      </td>
-                    </tr>
-                  );
-                })}
-            {!isLoading && filtered.length === 0 && (
-              <tr>
-                <td
-                  colSpan={7}
-                  className="text-muted-foreground px-4 py-12 text-center"
-                >
-                  <span className="material-symbols-outlined mb-2 block text-3xl">
-                    inventory_2
-                  </span>
-                  No se encontraron items
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+              ) : (
+                <>
+                  {virtualizer.getVirtualItems().map((virtualRow) => {
+                    const item = filtered[virtualRow.index];
+                    if (!item) return null;
+                    const stockStatus = getStockStatus(item);
+                    const statusCfg = STATUS_CONFIG[stockStatus] ?? {
+                      label: stockStatus,
+                      color: "",
+                    };
+                    return (
+                      <tr
+                        key={item.id}
+                        data-index={virtualRow.index}
+                        ref={virtualizer.measureElement}
+                        className="border-border hover:bg-accent/50 border-b transition-colors"
+                      >
+                        <td className="text-muted-foreground px-4 py-3 font-mono text-xs">
+                          {item.sku}
+                        </td>
+                        <td className="text-foreground px-4 py-3 font-medium">
+                          {item.name}
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <span
+                            className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold ${statusCfg.color}`}
+                          >
+                            {statusCfg.label}
+                          </span>
+                        </td>
+                        <td className="text-foreground px-4 py-3 text-right font-mono font-bold">
+                          {item.totalStock}
+                        </td>
+                        <td className="text-muted-foreground px-4 py-3 text-right font-mono">
+                          {item.storeStock}
+                        </td>
+                        <td className="text-muted-foreground px-4 py-3 text-right font-mono">
+                          {item.mlStock}
+                        </td>
+                        <td className="text-muted-foreground px-4 py-3 text-right font-mono">
+                          {item.vendorStock}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </>
+              )}
+              {!isLoading && filtered.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={7}
+                    className="text-muted-foreground px-4 py-12 text-center"
+                  >
+                    <span className="material-symbols-outlined mb-2 block text-3xl">
+                      inventory_2
+                    </span>
+                    No se encontraron items
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

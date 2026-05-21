@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, Playfair_Display } from "next/font/google";
-import Script from "next/script";
 import { Toaster } from "sonner";
 
 import { ThemeProvider } from "~/components/theme-provider";
@@ -63,6 +62,16 @@ export default function RootLayout({
           href="https://fonts.gstatic.com"
           crossOrigin="anonymous"
         />
+        {/* Material Symbols — preloaded to eliminate FOUI */}
+        <link
+          rel="preload"
+          as="style"
+          href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap"
+        />
+        <link
+          rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap"
+        />
         {/* One-time migration: clear stale "light" default so next-themes re-detects system preference.
              Safe to remove after all existing users have revisited (e.g. 2026-Q2). */}
         <script
@@ -76,20 +85,6 @@ export default function RootLayout({
       >
         <ThemeProvider>{children}</ThemeProvider>
         <Toaster richColors position="top-right" />
-        <Script
-          id="material-symbols"
-          strategy="afterInteractive"
-          dangerouslySetInnerHTML={{
-            __html: `
-              (function(){
-                var l=document.createElement('link');
-                l.rel='stylesheet';
-                l.href='https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap';
-                document.head.appendChild(l);
-              })();
-            `,
-          }}
-        />
       </body>
     </html>
   );

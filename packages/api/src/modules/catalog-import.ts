@@ -481,136 +481,212 @@ export const catalogImportRouter = createTRPCRouter({
         }
       }
 
-      // Enhanced fuzzy match: category name similarity + product-name similarity
-      for (const unresolved of unresolvedCategories) {
+      // Batch fuzzy match: single query for all unresolved categories
+      if (unresolvedCategories.length > 0) {
         try {
-          // Get up to 3 representative product names for this unresolved category
-          const sampleProducts = (
-            productNamesByRawCategory.get(
-              unresolved.rawCategory.toLowerCase(),
-            ) ?? []
-          ).slice(0, 3);
+          const unresolvedNames = unresolvedCategories.map(
+            (u) => u.rawCategory,
+          );
 
-          // Query 1: Standard category-name fuzzy match (always runs)
-          const categoryNameResults = await ctx.db.execute<{
+          // Batch query 1: category-name fuzzy match for all unresolved at once
+          const batchResults = await ctx.db.execute<{
+            input_name: string;
             id: string;
             name: string;
             score: number;
           }>(sql`
             SELECT
+              t.input_name,
               c.id,
               c.name,
-              similarity(LOWER(c.name), LOWER(${unresolved.rawCategory})) AS score
-            FROM category c
-            WHERE similarity(LOWER(c.name), LOWER(${unresolved.rawCategory})) >= 0.2
-            ORDER BY score DESC
-            LIMIT 5
+              similarity(LOWER(c.name), LOWER(t.input_name)) AS score
+            FROM unnest(${sql`ARRAY[${sql.join(
+              unresolvedNames.map((n) => sql`${n}`),
+              sql`, `,
+            )}]`}::text[]) AS t(input_name)
+            INNER JOIN LATERAL (
+              SELECT id, name
+              FROM category c
+              WHERE similarity(LOWER(c.name), LOWER(t.input_name)) >= 0.2
+              ORDER BY similarity(LOWER(c.name), LOWER(t.input_name)) DESC
+              LIMIT 5
+            ) c ON true
+            ORDER BY t.input_name, score DESC
           `);
 
-          // Query 2: Product-name-based scoring (only if we have product names)
-          let productMatchResults: {
-            id: string;
-            name: string;
-            avg_score: number;
-            match_count: number;
-          }[] = [];
+          // Group results by input_name
+          const resultsByCategory = new Map<
+            string,
+            { id: string; name: string; score: number }[]
+          >();
+          for (const r of batchResults) {
+            const key = String(r.input_name);
+            const list = resultsByCategory.get(key) ?? [];
+            list.push({
+              id: r.id,
+              name: r.name,
+              score: Number(r.score),
+            });
+            resultsByCategory.set(key, list);
+          }
 
-          if (sampleProducts.length > 0) {
-            // For each existing category, check how similar its already-cataloged
-            // product names are to the products being imported in this batch.
-            // This gives semantic relevance: "Cable USB-C" → "Cables y Conectores"
-            const sampleName = sampleProducts[0] ?? "";
-            productMatchResults = await ctx.db.execute<{
+          // Batch query 2: product-name-based scoring
+          // Collect one representative product name per unresolved category
+          const productSampleMap = new Map<string, string>();
+          for (const unresolved of unresolvedCategories) {
+            const samples =
+              productNamesByRawCategory.get(
+                unresolved.rawCategory.toLowerCase(),
+              ) ?? [];
+            if (samples[0]) {
+              productSampleMap.set(unresolved.rawCategory, samples[0]);
+            }
+          }
+
+          const sampleEntries = Array.from(productSampleMap.entries());
+          const productMatchByCategory = new Map<
+            string,
+            {
+              id: string;
+              name: string;
+              avg_score: number;
+              match_count: number;
+            }[]
+          >();
+
+          if (sampleEntries.length > 0) {
+            const sampleNames = sampleEntries.map(([, name]) => name);
+            const rawCategories = sampleEntries.map(([raw]) => raw);
+
+            const batchProductResults = await ctx.db.execute<{
+              input_name: string;
               id: string;
               name: string;
               avg_score: number;
               match_count: number;
             }>(sql`
               SELECT
+                t.input_name,
                 c.id,
                 c.name,
-                AVG(similarity(LOWER(p.name), LOWER(${sampleName}))) AS avg_score,
+                AVG(similarity(LOWER(p.name), LOWER(t.sample))) AS avg_score,
                 COUNT(p.id)::int AS match_count
-              FROM category c
-              INNER JOIN product p ON p."categoryId" = c.id
-              WHERE similarity(LOWER(p.name), LOWER(${sampleName})) >= 0.15
-              GROUP BY c.id, c.name
-              HAVING AVG(similarity(LOWER(p.name), LOWER(${sampleName}))) >= 0.2
+              FROM unnest(
+                ${sql`ARRAY[${sql.join(
+                  rawCategories.map((n) => sql`${n}`),
+                  sql`, `,
+                )}]`}::text[],
+                ${sql`ARRAY[${sql.join(
+                  sampleNames.map((n) => sql`${n}`),
+                  sql`, `,
+                )}]`}::text[]
+              ) AS t(input_name, sample)
+              INNER JOIN LATERAL (
+                SELECT c2.id, c2.name
+                FROM category c2
+                INNER JOIN product p ON p."categoryId" = c2.id
+                WHERE similarity(LOWER(p.name), LOWER(t.sample)) >= 0.15
+                GROUP BY c2.id, c2.name
+                HAVING AVG(similarity(LOWER(p.name), LOWER(t.sample))) >= 0.2
+              ) sub ON true
+              INNER JOIN product p ON p."categoryId" = sub.id
+              WHERE similarity(LOWER(p.name), LOWER(t.sample)) >= 0.15
+              GROUP BY t.input_name, sub.id, sub.name
+              HAVING AVG(similarity(LOWER(p.name), LOWER(t.sample))) >= 0.2
               ORDER BY avg_score DESC
-              LIMIT 5
             `);
-          }
 
-          // Merge results: combine category-name and product-name scores
-          const mergedMap = new Map<
-            string,
-            {
-              id: string;
-              name: string;
-              catNameScore: number;
-              productScore: number;
-              matchCount: number;
+            for (const r of batchProductResults) {
+              const key = String(r.input_name);
+              const list = productMatchByCategory.get(key) ?? [];
+              list.push({
+                id: r.id,
+                name: r.name,
+                avg_score: Number(r.avg_score),
+                match_count: Number(r.match_count),
+              });
+              productMatchByCategory.set(key, list);
             }
-          >();
-
-          for (const r of categoryNameResults) {
-            mergedMap.set(r.id, {
-              id: r.id,
-              name: r.name,
-              catNameScore: Number(r.score),
-              productScore: 0,
-              matchCount: 0,
-            });
           }
 
-          for (const r of productMatchResults) {
-            const existing = mergedMap.get(r.id);
-            if (existing) {
-              existing.productScore = Number(r.avg_score);
-              existing.matchCount = Number(r.match_count);
-            } else {
+          // Merge results for each unresolved category
+          for (const unresolved of unresolvedCategories) {
+            const catResults =
+              resultsByCategory.get(unresolved.rawCategory) ?? [];
+            const prodResults =
+              productMatchByCategory.get(unresolved.rawCategory) ?? [];
+
+            const mergedMap = new Map<
+              string,
+              {
+                id: string;
+                name: string;
+                catNameScore: number;
+                productScore: number;
+                matchCount: number;
+              }
+            >();
+
+            for (const r of catResults) {
               mergedMap.set(r.id, {
                 id: r.id,
                 name: r.name,
-                catNameScore: 0,
-                productScore: Number(r.avg_score),
-                matchCount: Number(r.match_count),
+                catNameScore: r.score,
+                productScore: 0,
+                matchCount: 0,
               });
             }
-          }
 
-          // Compute final score: 40% category name + 60% product similarity
-          const suggestions = Array.from(mergedMap.values())
-            .map((m) => {
-              const finalScore =
-                m.productScore > 0
-                  ? 0.4 * m.catNameScore + 0.6 * m.productScore
-                  : m.catNameScore;
-
-              let reason: string;
-              if (m.productScore > 0 && m.catNameScore > 0) {
-                reason = `Nombre similar + ${m.matchCount} producto(s) similares en esta categoría`;
-              } else if (m.productScore > 0) {
-                reason = `${m.matchCount} producto(s) similares ya catalogados aquí`;
+            for (const r of prodResults) {
+              const existing = mergedMap.get(r.id);
+              if (existing) {
+                existing.productScore = r.avg_score;
+                existing.matchCount = r.match_count;
               } else {
-                reason = "Nombre de categoría similar";
+                mergedMap.set(r.id, {
+                  id: r.id,
+                  name: r.name,
+                  catNameScore: 0,
+                  productScore: r.avg_score,
+                  matchCount: r.match_count,
+                });
               }
+            }
 
-              return {
-                id: m.id,
-                name: m.name,
-                score: Math.round(finalScore * 100) / 100,
-                reason,
-              };
-            })
-            .filter((s) => s.score >= 0.2)
-            .sort((a, b) => b.score - a.score)
-            .slice(0, 5);
+            const suggestions = Array.from(mergedMap.values())
+              .map((m) => {
+                const finalScore =
+                  m.productScore > 0
+                    ? 0.4 * m.catNameScore + 0.6 * m.productScore
+                    : m.catNameScore;
 
-          unresolved.suggestions = suggestions;
+                let reason: string;
+                if (m.productScore > 0 && m.catNameScore > 0) {
+                  reason = `Nombre similar + ${m.matchCount} producto(s) similares en esta categoría`;
+                } else if (m.productScore > 0) {
+                  reason = `${m.matchCount} producto(s) similares ya catalogados aquí`;
+                } else {
+                  reason = "Nombre de categoría similar";
+                }
+
+                return {
+                  id: m.id,
+                  name: m.name,
+                  score: Math.round(finalScore * 100) / 100,
+                  reason,
+                };
+              })
+              .filter((s) => s.score >= 0.2)
+              .sort((a, b) => b.score - a.score)
+              .slice(0, 5);
+
+            unresolved.suggestions = suggestions;
+          }
         } catch {
-          // pg_trgm not available — graceful fallback (PRD §22 edge case #14)
-          unresolved.suggestions = [];
+          // pg_trgm not available — graceful fallback
+          for (const unresolved of unresolvedCategories) {
+            unresolved.suggestions = [];
+          }
         }
       }
 

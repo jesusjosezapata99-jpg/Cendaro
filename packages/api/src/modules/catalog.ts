@@ -252,7 +252,17 @@ export const catalogRouter = createTRPCRouter({
 
   listBrands: workspaceProcedure.query(async ({ ctx }) => {
     return getCachedData(ctx.workspace.workspaceId, "brands", () =>
-      ctx.db.select().from(Brand).orderBy(Brand.name).limit(200),
+      ctx.db
+        .select({
+          id: Brand.id,
+          name: Brand.name,
+          slug: Brand.slug,
+          logoUrl: Brand.logoUrl,
+          description: Brand.description,
+        })
+        .from(Brand)
+        .orderBy(Brand.name)
+        .limit(200),
     );
   }),
 
@@ -282,7 +292,14 @@ export const catalogRouter = createTRPCRouter({
   listCategories: workspaceProcedure.query(async ({ ctx }) => {
     return getCachedData(ctx.workspace.workspaceId, "categories", () =>
       ctx.db
-        .select()
+        .select({
+          id: Category.id,
+          name: Category.name,
+          slug: Category.slug,
+          parentId: Category.parentId,
+          depth: Category.depth,
+          sortOrder: Category.sortOrder,
+        })
         .from(Category)
         .orderBy(Category.sortOrder, Category.name)
         .limit(500),
@@ -322,7 +339,18 @@ export const catalogRouter = createTRPCRouter({
 
   listSuppliers: workspaceProcedure.query(async ({ ctx }) => {
     return getCachedData(ctx.workspace.workspaceId, "suppliers", () =>
-      ctx.db.select().from(Supplier).orderBy(Supplier.name).limit(200),
+      ctx.db
+        .select({
+          id: Supplier.id,
+          name: Supplier.name,
+          country: Supplier.country,
+          contactName: Supplier.contactName,
+          contactEmail: Supplier.contactEmail,
+          status: Supplier.status,
+        })
+        .from(Supplier)
+        .orderBy(Supplier.name)
+        .limit(200),
     );
   }),
 
