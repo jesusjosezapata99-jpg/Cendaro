@@ -1,0 +1,110 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm *)",
+      "Bash(npx *)",
+      "Bash(npx impeccable *)",
+      "Bash(turbo *)",
+      "Bash(bun *)",
+      "Bash(node *)",
+      "Bash(graphify *)",
+      "Bash(agent-browser *)",
+      "Bash(python *)",
+      "Bash(git status)",
+      "Bash(git status *)",
+      "Bash(git diff)",
+      "Bash(git diff *)",
+      "Bash(git log)",
+      "Bash(git log *)",
+      "Bash(git add *)",
+      "Bash(git branch)",
+      "Bash(git branch *)",
+      "Bash(git checkout *)",
+      "Bash(git stash *)",
+      "Bash(git fetch *)",
+      "Bash(git pull *)",
+      "PowerShell(pnpm *)",
+      "PowerShell(npx *)",
+      "PowerShell(npx impeccable *)",
+      "PowerShell(turbo *)",
+      "PowerShell(bun *)",
+      "PowerShell(node *)",
+      "PowerShell(graphify *)",
+      "PowerShell(agent-browser *)",
+      "PowerShell(python *)",
+      "PowerShell(git status)",
+      "PowerShell(git status *)",
+      "PowerShell(git diff)",
+      "PowerShell(git diff *)",
+      "PowerShell(git log)",
+      "PowerShell(git log *)",
+      "PowerShell(git add *)",
+      "PowerShell(git branch)",
+      "PowerShell(git branch *)",
+      "PowerShell(git checkout *)",
+      "PowerShell(git stash *)",
+      "PowerShell(git fetch *)",
+      "PowerShell(git pull *)",
+      "mcp__sequential-thinking",
+      "mcp__context7",
+      "mcp__supabase"
+    ],
+    "deny": [
+      "Bash(git commit *)",
+      "Bash(git push)",
+      "Bash(git push *)",
+      "Bash(git push --force *)",
+      "Bash(git push -f *)",
+      "Bash(rm -rf *)",
+      "Bash(rmdir /s *)",
+      "Bash(del /f /s *)",
+      "PowerShell(git commit *)",
+      "PowerShell(git push)",
+      "PowerShell(git push *)",
+      "PowerShell(git push --force *)",
+      "PowerShell(git push -f *)",
+      "PowerShell(Remove-Item -Recurse *)",
+      "PowerShell(Remove-Item -Force *)",
+      "PowerShell(rm -Recurse *)",
+      "PowerShell(rm -Force *)"
+    ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -ExecutionPolicy Bypass -File \"$CLAUDE_PROJECT_DIR\\.claude\\hooks\\session-start.ps1\"",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash|PowerShell",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -ExecutionPolicy Bypass -File \"$CLAUDE_PROJECT_DIR\\.claude\\hooks\\graphify-reminder.ps1\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -ExecutionPolicy Bypass -File \"$CLAUDE_PROJECT_DIR\\.claude\\hooks\\auto-lint.ps1\"",
+            "timeout": 30,
+            "async": true
+          }
+        ]
+      }
+    ]
+  }
+}

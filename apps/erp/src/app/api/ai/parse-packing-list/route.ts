@@ -683,7 +683,6 @@ async function processChunks(
 
 // ── Route Segment Config ───────────────────────────────
 export const maxDuration = 60; // seconds — AI processing needs time
-export const dynamic = "force-dynamic";
 
 // ── Route Handler ──────────────────────────────────────
 

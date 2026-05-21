@@ -36,8 +36,7 @@ function LoginContent() {
 
       const data = (await res.json()) as {
         error?: string;
-        requiresMfa?: boolean;
-        requiresMfaSetup?: boolean;
+        success?: boolean;
       };
 
       if (!res.ok) {
@@ -45,18 +44,8 @@ function LoginContent() {
         return;
       }
 
-      // MFA routing: redirect based on factor enrollment status
-      if (data.requiresMfaSetup) {
-        // Owner/admin without MFA → forced enrollment
-        router.push("/login/mfa-setup");
-      } else if (data.requiresMfa) {
-        // User has verified TOTP factor → must complete challenge
-        router.push("/login/mfa");
-      } else {
-        // No MFA required — direct access
-        router.push("/dashboard");
-        router.refresh();
-      }
+      router.push("/dashboard");
+      router.refresh();
     } catch {
       setError("Error de conexión. Intente de nuevo.");
     } finally {

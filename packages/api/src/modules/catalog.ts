@@ -23,6 +23,42 @@ import {
 import { createTRPCRouter, workspaceProcedure } from "../trpc";
 import { logAudit } from "./audit";
 
+// ─── Query Cache (Workspace-Scoped) ───────────
+interface CacheEntry<T> {
+  data: T;
+  expiry: number;
+}
+
+const catalogMemoryCache = new Map<string, CacheEntry<unknown>>();
+const CACHE_TTL = 3600_000; // 1-hour cache
+
+function getCacheKey(workspaceId: string, entity: string): string {
+  return `${workspaceId}:${entity}`;
+}
+
+async function getCachedData<T>(
+  workspaceId: string,
+  entity: string,
+  fetchFn: () => Promise<T>,
+): Promise<T> {
+  const key = getCacheKey(workspaceId, entity);
+  const now = Date.now();
+  const cached = catalogMemoryCache.get(key);
+
+  if (cached && cached.expiry > now) {
+    return cached.data as T;
+  }
+
+  const data = await fetchFn();
+  catalogMemoryCache.set(key, { data, expiry: now + CACHE_TTL });
+  return data;
+}
+
+function invalidateCacheKey(workspaceId: string, entity: string) {
+  const key = getCacheKey(workspaceId, entity);
+  catalogMemoryCache.delete(key);
+}
+
 export const catalogRouter = createTRPCRouter({
   // ─── Products ────────────────────────────────
 
@@ -215,7 +251,9 @@ export const catalogRouter = createTRPCRouter({
   // ─── Brands ──────────────────────────────────
 
   listBrands: workspaceProcedure.query(async ({ ctx }) => {
-    return ctx.db.select().from(Brand).orderBy(Brand.name).limit(200);
+    return getCachedData(ctx.workspace.workspaceId, "brands", () =>
+      ctx.db.select().from(Brand).orderBy(Brand.name).limit(200),
+    );
   }),
 
   createBrand: workspaceProcedure
@@ -235,17 +273,20 @@ export const catalogRouter = createTRPCRouter({
         entityId: brand?.id,
         newValue: { name: input.name },
       });
+      invalidateCacheKey(ctx.workspace.workspaceId, "brands");
       return brand;
     }),
 
   // ─── Categories ──────────────────────────────
 
   listCategories: workspaceProcedure.query(async ({ ctx }) => {
-    return ctx.db
-      .select()
-      .from(Category)
-      .orderBy(Category.sortOrder, Category.name)
-      .limit(500);
+    return getCachedData(ctx.workspace.workspaceId, "categories", () =>
+      ctx.db
+        .select()
+        .from(Category)
+        .orderBy(Category.sortOrder, Category.name)
+        .limit(500),
+    );
   }),
 
   createCategory: workspaceProcedure
@@ -273,13 +314,16 @@ export const catalogRouter = createTRPCRouter({
         entityId: category?.id,
         newValue: { name: input.name },
       });
+      invalidateCacheKey(ctx.workspace.workspaceId, "categories");
       return category;
     }),
 
   // ─── Suppliers ───────────────────────────────
 
   listSuppliers: workspaceProcedure.query(async ({ ctx }) => {
-    return ctx.db.select().from(Supplier).orderBy(Supplier.name).limit(200);
+    return getCachedData(ctx.workspace.workspaceId, "suppliers", () =>
+      ctx.db.select().from(Supplier).orderBy(Supplier.name).limit(200),
+    );
   }),
 
   createSupplier: workspaceProcedure
@@ -305,6 +349,7 @@ export const catalogRouter = createTRPCRouter({
         entityId: supplier?.id,
         newValue: { name: input.name },
       });
+      invalidateCacheKey(ctx.workspace.workspaceId, "suppliers");
       return supplier;
     }),
 

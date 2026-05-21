@@ -7,7 +7,8 @@
  *
  * PRD: FEATURE_PRD_CATALOG_IMPORT.md §11
  */
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 
 import type { ValidatedCatalogRow } from "../lib/catalog-validators";
 
@@ -36,10 +37,28 @@ export function ValidationPreview({
 }: ValidationPreviewProps) {
   const [filter, setFilter] = useState<StatusFilter>("all");
 
+  const parentRef = useRef<HTMLDivElement>(null);
+
   const filteredRows = useMemo(() => {
     if (filter === "all") return validatedRows;
     return validatedRows.filter((r) => r.status === filter);
   }, [validatedRows, filter]);
+
+  const rowVirtualizer = useVirtualizer({
+    count: filteredRows.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 40,
+    overscan: 10,
+  });
+
+  const virtualRows = rowVirtualizer.getVirtualItems();
+  const totalSize = rowVirtualizer.getTotalSize();
+
+  const firstRow = virtualRows[0];
+  const lastRow = virtualRows[virtualRows.length - 1];
+
+  const paddingTop = firstRow ? firstRow.start : 0;
+  const paddingBottom = lastRow ? totalSize - lastRow.end : 0;
 
   const statCards: {
     key: StatusFilter;
@@ -107,9 +126,9 @@ export function ValidationPreview({
 
       {/* Data table */}
       <div className="overflow-hidden rounded-xl border">
-        <div className="max-h-[400px] overflow-auto">
+        <div ref={parentRef} className="max-h-[400px] overflow-auto">
           <table className="w-full text-sm">
-            <thead className="bg-muted/50 sticky top-0">
+            <thead className="bg-muted/50 sticky top-0 z-10">
               <tr>
                 <th className="px-3 py-2 text-left font-semibold">#</th>
                 <th className="px-3 py-2 text-left font-semibold">Estado</th>
@@ -122,74 +141,90 @@ export function ValidationPreview({
               </tr>
             </thead>
             <tbody className="divide-border divide-y">
-              {filteredRows.map((row, idx) => (
-                <tr
-                  key={idx}
-                  className={`hover:bg-muted/20 transition-colors ${
-                    row.status === "error"
-                      ? "bg-red-50/50 dark:bg-red-900/5"
-                      : row.status === "warning"
-                        ? "bg-amber-50/50 dark:bg-amber-900/5"
-                        : ""
-                  }`}
-                >
-                  <td className="text-muted-foreground px-3 py-2 text-xs">
-                    {row.rowNumber}
-                  </td>
-                  <td className="px-3 py-2">
-                    <span
-                      className={`material-symbols-outlined text-base ${
-                        row.status === "valid"
-                          ? "text-emerald-500"
-                          : row.status === "warning"
-                            ? "text-amber-500"
-                            : "text-red-500"
-                      }`}
-                    >
-                      {row.status === "valid"
-                        ? "check_circle"
-                        : row.status === "warning"
-                          ? "warning"
-                          : "error"}
-                    </span>
-                  </td>
-                  <td className="text-foreground px-3 py-2 font-mono text-xs">
-                    {row.sku || "—"}
-                  </td>
-                  <td className="text-foreground max-w-[200px] truncate px-3 py-2">
-                    {row.name || "—"}
-                  </td>
-                  <td className="text-muted-foreground px-3 py-2 text-xs">
-                    {row.categoryRaw ?? "—"}
-                  </td>
-                  <td className="text-muted-foreground px-3 py-2 text-xs">
-                    {row.brandRaw ?? "—"}
-                  </td>
-                  <td className="text-muted-foreground px-3 py-2 text-xs">
-                    {row.cost !== undefined ? `$${row.cost.toFixed(2)}` : "—"}
-                  </td>
-                  <td className="px-3 py-2">
-                    {row.errors.length > 0 && (
-                      <div className="space-y-0.5">
-                        {row.errors.map((err, eIdx) => (
-                          <p
-                            key={eIdx}
-                            className={`text-xs ${
-                              err.severity === "error"
-                                ? "text-red-600 dark:text-red-400"
-                                : err.severity === "warning"
-                                  ? "text-amber-600 dark:text-amber-400"
-                                  : "text-blue-600 dark:text-blue-400"
-                            }`}
-                          >
-                            {err.message}
-                          </p>
-                        ))}
-                      </div>
-                    )}
-                  </td>
+              {paddingTop > 0 && (
+                <tr>
+                  <td colSpan={8} style={{ height: `${paddingTop}px` }} />
                 </tr>
-              ))}
+              )}
+              {virtualRows.map((virtualRow) => {
+                const row = filteredRows[virtualRow.index];
+                if (!row) return null;
+                return (
+                  <tr
+                    key={virtualRow.key}
+                    ref={rowVirtualizer.measureElement}
+                    data-index={virtualRow.index}
+                    className={`hover:bg-muted/20 transition-colors ${
+                      row.status === "error"
+                        ? "bg-red-50/50 dark:bg-red-900/5"
+                        : row.status === "warning"
+                          ? "bg-amber-50/50 dark:bg-amber-900/5"
+                          : ""
+                    }`}
+                  >
+                    <td className="text-muted-foreground px-3 py-2 text-xs">
+                      {row.rowNumber}
+                    </td>
+                    <td className="px-3 py-2">
+                      <span
+                        className={`material-symbols-outlined text-base ${
+                          row.status === "valid"
+                            ? "text-emerald-500"
+                            : row.status === "warning"
+                              ? "text-amber-500"
+                              : "text-red-500"
+                        }`}
+                      >
+                        {row.status === "valid"
+                          ? "check_circle"
+                          : row.status === "warning"
+                            ? "warning"
+                            : "error"}
+                      </span>
+                    </td>
+                    <td className="text-foreground px-3 py-2 font-mono text-xs">
+                      {row.sku || "—"}
+                    </td>
+                    <td className="text-foreground max-w-[200px] truncate px-3 py-2">
+                      {row.name || "—"}
+                    </td>
+                    <td className="text-muted-foreground px-3 py-2 text-xs">
+                      {row.categoryRaw ?? "—"}
+                    </td>
+                    <td className="text-muted-foreground px-3 py-2 text-xs">
+                      {row.brandRaw ?? "—"}
+                    </td>
+                    <td className="text-muted-foreground px-3 py-2 text-xs">
+                      {row.cost !== undefined ? `$${row.cost.toFixed(2)}` : "—"}
+                    </td>
+                    <td className="px-3 py-2">
+                      {row.errors.length > 0 && (
+                        <div className="space-y-0.5">
+                          {row.errors.map((err, eIdx) => (
+                            <p
+                              key={eIdx}
+                              className={`text-xs ${
+                                err.severity === "error"
+                                  ? "text-red-600 dark:text-red-400"
+                                  : err.severity === "warning"
+                                    ? "text-amber-600 dark:text-amber-400"
+                                    : "text-blue-600 dark:text-blue-400"
+                              }`}
+                            >
+                              {err.message}
+                            </p>
+                          ))}
+                        </div>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+              {paddingBottom > 0 && (
+                <tr>
+                  <td colSpan={8} style={{ height: `${paddingBottom}px` }} />
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

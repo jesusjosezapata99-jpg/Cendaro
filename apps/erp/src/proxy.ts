@@ -163,27 +163,6 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  // ── MFA AAL2 Enforcement ─────────────────────────────────────────────
-  //
-  // If the user has MFA factors enrolled but hasn't completed the MFA
-  // challenge in this session, they are at aal1 (password-only).
-  // Force them to complete the MFA challenge before accessing the app.
-  //
-  // This prevents bypassing MFA by:
-  //   1. Logging in (password → aal1)
-  //   2. Navigating directly to /dashboard without completing /login/mfa
-  //
-  const { data: aalData } =
-    await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-
-  if (aalData) {
-    const { currentLevel, nextLevel } = aalData;
-    // User has MFA factors but session hasn't been upgraded to aal2
-    if (nextLevel === "aal2" && currentLevel !== "aal2") {
-      return NextResponse.redirect(new URL("/login/mfa", request.url));
-    }
-  }
-
   // ── Idle Session Timeout ──────────────────────────────────────────────
   //
   // Track last activity timestamp in a cookie. If the user has been

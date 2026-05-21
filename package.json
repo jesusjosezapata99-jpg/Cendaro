@@ -12,7 +12,8 @@
     "db:push": "turbo -F @cendaro/db push",
     "db:studio": "turbo -F @cendaro/db studio",
     "db:generate": "turbo -F @cendaro/db generate",
-    "dev": "turbo watch dev --continue",
+    "dev": "start /b graphify watch . & turbo watch dev --continue",
+    "dev:graph": "graphify watch .",
     "dev:erp": "turbo watch dev -F @cendaro/erp...",
     "format": "turbo run format --continue -- --cache --cache-location .cache/.prettiercache",
     "format:fix": "turbo run format --continue -- --write --cache --cache-location .cache/.prettiercache",
@@ -35,6 +36,7 @@
     "jiti": "^2.6.1",
     "lint-staged": "^16.1.0",
     "prettier": "catalog:",
+    "tsx": "^4.22.3",
     "turbo": "^2.8.14",
     "typescript": "catalog:"
   },

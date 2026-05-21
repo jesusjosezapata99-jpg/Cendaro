@@ -7,7 +7,8 @@
  * Supports Replace/Adjust mode (validatedRows) and Initialize mode (initializeRows).
  * PRD: FEATURE_PRD_INVENTORY_IMPORT.md §15, §20 (ValidationReady)
  */
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 
 import type { ImportMode, ValidatedRow } from "@cendaro/api";
 
@@ -139,6 +140,8 @@ export function ValidationPreview({
 }: ValidationPreviewProps) {
   const [filter, setFilter] = useState<FilterTab>("all");
 
+  const parentRef = useRef<HTMLDivElement>(null);
+
   const isInitialize = mode === "initialize" && initializeRows;
 
   // Unified row list for filtering
@@ -151,6 +154,24 @@ export function ValidationPreview({
     if (filter === "all") return allRows;
     return allRows.filter((r) => r.status === filter);
   }, [allRows, filter]);
+
+  const rowVirtualizer = useVirtualizer({
+    count: filteredRows.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 44,
+    overscan: 10,
+  });
+
+  const virtualRows = rowVirtualizer.getVirtualItems();
+  const totalSize = rowVirtualizer.getTotalSize();
+
+  const firstRow = virtualRows[0];
+  const lastRow = virtualRows[virtualRows.length - 1];
+
+  const paddingTop = firstRow ? firstRow.start : 0;
+  const paddingBottom = lastRow ? totalSize - lastRow.end : 0;
+
+  const colSpanCount = isInitialize ? 9 : mode === "replace" ? 7 : 8;
 
   const hasValidRows = stats.valid > 0 || stats.warnings > 0;
   const allErrors = stats.valid === 0 && stats.warnings === 0;
@@ -273,7 +294,7 @@ export function ValidationPreview({
 
       {/* ── Table ── */}
       <div className="border-border bg-card overflow-hidden rounded-xl border">
-        <div className="max-h-[400px] overflow-auto">
+        <div ref={parentRef} className="max-h-[400px] overflow-auto">
           <table className="w-full text-sm">
             <thead className="bg-muted/50 sticky top-0 z-10">
               <tr className="border-border border-b text-left">
@@ -334,108 +355,130 @@ export function ValidationPreview({
               </tr>
             </thead>
             <tbody>
-              {filteredRows.map((row, i) => (
-                <tr
-                  key={i}
-                  className={`border-border hover:bg-muted/30 border-b transition-colors ${STATUS_ROW_COLORS[row.status]}`}
-                >
-                  <td className="text-muted-foreground px-3 py-2.5 font-mono text-xs">
-                    {row.rowNumber}
-                  </td>
-                  <td className="text-foreground px-3 py-2.5 font-mono text-xs font-medium">
-                    {row.sku}
-                  </td>
-                  {isInitialize ? (
-                    <>
-                      <td className="px-3 py-2.5 text-sm">
-                        {(row as InitializeValidatedRow).brand}
-                      </td>
-                      <td className="px-3 py-2.5 text-sm">
-                        {(row as InitializeValidatedRow).productName}
-                      </td>
-                      <td className="px-3 py-2.5 text-right font-mono">
-                        {(row as InitializeValidatedRow).bultos}
-                      </td>
-                      <td className="px-3 py-2.5 text-sm">
-                        {(row as InitializeValidatedRow).presentacion}
-                      </td>
-                      <td className="text-foreground px-3 py-2.5 text-right font-mono font-bold">
-                        {row.status !== "error"
-                          ? (row as InitializeValidatedRow).totalUnits
-                          : "—"}
-                      </td>
-                    </>
-                  ) : (
-                    <>
-                      <td className="px-3 py-2.5">
-                        {(row as ValidatedRow).productName ?? "—"}
-                      </td>
-                      <td className="px-3 py-2.5 text-right font-mono">
-                        {(row as ValidatedRow).productId
-                          ? (row as ValidatedRow).currentQuantity
-                          : "—"}
-                      </td>
-                      {mode === "replace" ? (
+              {paddingTop > 0 && (
+                <tr>
+                  <td
+                    colSpan={colSpanCount}
+                    style={{ height: `${paddingTop}px` }}
+                  />
+                </tr>
+              )}
+              {virtualRows.map((virtualRow) => {
+                const row = filteredRows[virtualRow.index];
+                if (!row) return null;
+                return (
+                  <tr
+                    key={virtualRow.key}
+                    ref={rowVirtualizer.measureElement}
+                    data-index={virtualRow.index}
+                    className={`border-border hover:bg-muted/30 border-b transition-colors ${STATUS_ROW_COLORS[row.status]}`}
+                  >
+                    <td className="text-muted-foreground px-3 py-2.5 font-mono text-xs">
+                      {row.rowNumber}
+                    </td>
+                    <td className="text-foreground px-3 py-2.5 font-mono text-xs font-medium">
+                      {row.sku}
+                    </td>
+                    {isInitialize ? (
+                      <>
+                        <td className="px-3 py-2.5 text-sm">
+                          {(row as InitializeValidatedRow).brand}
+                        </td>
+                        <td className="px-3 py-2.5 text-sm">
+                          {(row as InitializeValidatedRow).productName}
+                        </td>
+                        <td className="px-3 py-2.5 text-right font-mono">
+                          {(row as InitializeValidatedRow).bultos}
+                        </td>
+                        <td className="px-3 py-2.5 text-sm">
+                          {(row as InitializeValidatedRow).presentacion}
+                        </td>
                         <td className="text-foreground px-3 py-2.5 text-right font-mono font-bold">
                           {row.status !== "error"
-                            ? (row as ValidatedRow).quantity
+                            ? (row as InitializeValidatedRow).totalUnits
                             : "—"}
                         </td>
-                      ) : (
-                        <>
-                          <td
-                            className={`px-3 py-2.5 text-right font-mono font-bold ${
-                              (row as ValidatedRow).quantity > 0
-                                ? "text-emerald-600"
-                                : (row as ValidatedRow).quantity < 0
-                                  ? "text-red-600"
-                                  : ""
-                            }`}
-                          >
-                            {row.status !== "error"
-                              ? `${(row as ValidatedRow).quantity > 0 ? "+" : ""}${(row as ValidatedRow).quantity}`
-                              : "—"}
-                          </td>
+                      </>
+                    ) : (
+                      <>
+                        <td className="px-3 py-2.5">
+                          {(row as ValidatedRow).productName ?? "—"}
+                        </td>
+                        <td className="px-3 py-2.5 text-right font-mono">
+                          {(row as ValidatedRow).productId
+                            ? (row as ValidatedRow).currentQuantity
+                            : "—"}
+                        </td>
+                        {mode === "replace" ? (
                           <td className="text-foreground px-3 py-2.5 text-right font-mono font-bold">
                             {row.status !== "error"
-                              ? (row as ValidatedRow).currentQuantity +
-                                (row as ValidatedRow).quantity
+                              ? (row as ValidatedRow).quantity
                               : "—"}
                           </td>
-                        </>
-                      )}
-                    </>
-                  )}
-                  <td className="px-3 py-2.5 text-center">
-                    <span
-                      className={`inline-block rounded-full px-2 py-0.5 text-xs font-semibold ${STATUS_COLORS[row.status]}`}
-                    >
-                      {row.status === "valid"
-                        ? "✅"
-                        : row.status === "warning"
-                          ? "⚠️"
-                          : "❌"}
-                    </span>
-                  </td>
-                  {/* ── Message cell — full text, no truncation ── */}
-                  <td className="min-w-[220px] px-3 py-2.5">
-                    {row.message ? (
-                      <div
-                        className={`flex items-start gap-1.5 ${MESSAGE_STYLES[row.status].textColor}`}
-                      >
-                        <span className="material-symbols-outlined mt-0.5 shrink-0 text-sm">
-                          {MESSAGE_STYLES[row.status].icon}
-                        </span>
-                        <span className="text-xs leading-relaxed wrap-break-word whitespace-normal">
-                          {row.message}
-                        </span>
-                      </div>
-                    ) : (
-                      <span className="text-muted-foreground text-xs">—</span>
+                        ) : (
+                          <>
+                            <td
+                              className={`px-3 py-2.5 text-right font-mono font-bold ${
+                                (row as ValidatedRow).quantity > 0
+                                  ? "text-emerald-600"
+                                  : (row as ValidatedRow).quantity < 0
+                                    ? "text-red-600"
+                                    : ""
+                              }`}
+                            >
+                              {row.status !== "error"
+                                ? `${(row as ValidatedRow).quantity > 0 ? "+" : ""}${(row as ValidatedRow).quantity}`
+                                : "—"}
+                            </td>
+                            <td className="text-foreground px-3 py-2.5 text-right font-mono font-bold">
+                              {row.status !== "error"
+                                ? (row as ValidatedRow).currentQuantity +
+                                  (row as ValidatedRow).quantity
+                                : "—"}
+                            </td>
+                          </>
+                        )}
+                      </>
                     )}
-                  </td>
+                    <td className="px-3 py-2.5 text-center">
+                      <span
+                        className={`inline-block rounded-full px-2 py-0.5 text-xs font-semibold ${STATUS_COLORS[row.status]}`}
+                      >
+                        {row.status === "valid"
+                          ? "✅"
+                          : row.status === "warning"
+                            ? "⚠️"
+                            : "❌"}
+                      </span>
+                    </td>
+                    {/* ── Message cell — full text, no truncation ── */}
+                    <td className="min-w-[220px] px-3 py-2.5">
+                      {row.message ? (
+                        <div
+                          className={`flex items-start gap-1.5 ${MESSAGE_STYLES[row.status].textColor}`}
+                        >
+                          <span className="material-symbols-outlined mt-0.5 shrink-0 text-sm">
+                            {MESSAGE_STYLES[row.status].icon}
+                          </span>
+                          <span className="text-xs leading-relaxed wrap-break-word whitespace-normal">
+                            {row.message}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground text-xs">—</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+              {paddingBottom > 0 && (
+                <tr>
+                  <td
+                    colSpan={colSpanCount}
+                    style={{ height: `${paddingBottom}px` }}
+                  />
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
         </div>
