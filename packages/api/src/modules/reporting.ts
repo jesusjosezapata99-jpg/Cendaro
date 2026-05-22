@@ -9,11 +9,11 @@ import { z } from "zod/v4";
 
 import { Payment, SalesOrder, StockLedger } from "@cendaro/db/schema";
 
-import { createTRPCRouter, workspaceProcedure } from "../trpc";
+import { createTRPCRouter, workspaceReadProcedure } from "../trpc";
 
 export const reportingRouter = createTRPCRouter({
   // ─── Sales summary by date range ──────────────
-  salesSummary: workspaceProcedure
+  salesSummary: workspaceReadProcedure
     .input(
       z.object({
         from: z.string().datetime(),
@@ -36,7 +36,7 @@ export const reportingRouter = createTRPCRouter({
     }),
 
   // ─── Sales by channel ─────────────────────────
-  salesByChannel: workspaceProcedure
+  salesByChannel: workspaceReadProcedure
     .input(
       z.object({
         from: z.string().datetime(),
@@ -58,7 +58,7 @@ export const reportingRouter = createTRPCRouter({
     }),
 
   // ─── Payment method breakdown ─────────────────
-  paymentMethods: workspaceProcedure
+  paymentMethods: workspaceReadProcedure
     .input(
       z.object({
         from: z.string().datetime(),
@@ -80,7 +80,7 @@ export const reportingRouter = createTRPCRouter({
     }),
 
   // ─── Inventory valuation ──────────────────────
-  inventoryValuation: workspaceProcedure.query(async ({ ctx }) => {
+  inventoryValuation: workspaceReadProcedure.query(async ({ ctx }) => {
     return ctx.db
       .select({
         warehouseId: StockLedger.warehouseId,
@@ -92,7 +92,7 @@ export const reportingRouter = createTRPCRouter({
   }),
 
   // ─── Top selling products ─────────────────────
-  topProducts: workspaceProcedure
+  topProducts: workspaceReadProcedure
     .input(
       z.object({
         from: z.string().datetime(),

@@ -21,7 +21,11 @@ import {
   StockMovement,
 } from "@cendaro/db/schema";
 
-import { createTRPCRouter, workspaceProcedure } from "../trpc";
+import {
+  createTRPCRouter,
+  workspaceProcedure,
+  workspaceReadProcedure,
+} from "../trpc";
 import { logAudit } from "./audit";
 
 // ── Zod Schemas (PRD §10) ────────────────────────
@@ -944,7 +948,7 @@ export const catalogImportRouter = createTRPCRouter({
    *
    * RBAC: any authenticated user (PRD §4)
    */
-  dryRun: workspaceProcedure
+  dryRun: workspaceReadProcedure
     .input(z.object({ sessionId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       const [session] = await ctx.db
@@ -1285,7 +1289,7 @@ export const catalogImportRouter = createTRPCRouter({
    *
    * RBAC: any authenticated user (PRD §4)
    */
-  getSession: workspaceProcedure
+  getSession: workspaceReadProcedure
     .input(z.object({ sessionId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       const [session] = await ctx.db

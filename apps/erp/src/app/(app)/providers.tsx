@@ -7,7 +7,7 @@ import { WorkspaceAutoResolver } from "~/components/workspace-auto-resolver";
 import { WorkspaceProvider } from "~/hooks/use-workspace";
 import { TRPCProvider } from "~/trpc/client";
 
-function PageSkeleton() {
+function _PageSkeleton() {
   return (
     <div className="flex h-full items-center justify-center p-8">
       <div className="flex flex-col items-center gap-3">
@@ -32,16 +32,12 @@ export function Providers({
       {dehydratedState ? (
         <HydrationBoundary state={dehydratedState}>
           <WorkspaceProvider initialWorkspaceId={initialWorkspaceId}>
-            <WorkspaceAutoResolver fallback={<PageSkeleton />}>
-              {children}
-            </WorkspaceAutoResolver>
+            <WorkspaceAutoResolver>{children}</WorkspaceAutoResolver>
           </WorkspaceProvider>
         </HydrationBoundary>
       ) : (
         <WorkspaceProvider initialWorkspaceId={initialWorkspaceId}>
-          <WorkspaceAutoResolver fallback={<PageSkeleton />}>
-            {children}
-          </WorkspaceAutoResolver>
+          <WorkspaceAutoResolver>{children}</WorkspaceAutoResolver>
         </WorkspaceProvider>
       )}
     </TRPCProvider>

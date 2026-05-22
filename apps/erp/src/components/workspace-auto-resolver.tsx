@@ -16,10 +16,8 @@ import { useTRPC } from "~/trpc/client";
 
 export function WorkspaceAutoResolver({
   children,
-  fallback,
 }: {
   children: React.ReactNode;
-  fallback?: React.ReactNode;
 }) {
   const { switchWorkspace, isReady } = useWorkspace();
   const trpc = useTRPC();
@@ -48,10 +46,8 @@ export function WorkspaceAutoResolver({
     }
   }, [workspaces, isReady, switchWorkspace]);
 
-  // Gate: wait until workspace is resolved before rendering children
-  if (!isReady) {
-    return <>{fallback ?? null}</>;
-  }
-
+  // Resolution happens via useEffect — always render children immediately.
+  // The shell (sidebar + topbar) renders without waiting for workspace.
+  // Only workspace-scoped content in AppShell gates on isReady.
   return <>{children}</>;
 }

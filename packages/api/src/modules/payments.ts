@@ -15,13 +15,17 @@ import {
   SalesOrder,
 } from "@cendaro/db/schema";
 
-import { createTRPCRouter, workspaceProcedure } from "../trpc";
+import {
+  createTRPCRouter,
+  workspaceProcedure,
+  workspaceReadProcedure,
+} from "../trpc";
 import { logAudit } from "./audit";
 
 export const paymentsRouter = createTRPCRouter({
   // ─── Payments ──────────────────────────────────
 
-  list: workspaceProcedure
+  list: workspaceReadProcedure
     .input(
       z.object({
         limit: z.number().int().min(1).max(100).default(50),
@@ -104,7 +108,7 @@ export const paymentsRouter = createTRPCRouter({
 
   // ─── Cash Closure ────────────────────────────────
 
-  listClosures: workspaceProcedure.query(async ({ ctx }) => {
+  listClosures: workspaceReadProcedure.query(async ({ ctx }) => {
     return ctx.db
       .select({
         id: CashClosure.id,

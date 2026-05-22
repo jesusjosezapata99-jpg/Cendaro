@@ -96,7 +96,7 @@ export default function InventoryClient() {
   const [searchTerm, setSearchTerm] = useState("");
   const tableScrollRef = useRef<HTMLDivElement>(null);
 
-  const items = (products ?? []) as StockItem[];
+  const items = useMemo(() => (products ?? []) as StockItem[], [products]);
   const filtered = useMemo(
     () =>
       items.filter((item) => {

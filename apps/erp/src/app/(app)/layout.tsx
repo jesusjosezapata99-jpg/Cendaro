@@ -12,7 +12,7 @@ async function WorkspaceLoader({ children }: { children: React.ReactNode }) {
   const cookieStore = await cookies();
   const workspaceId = cookieStore.get(WORKSPACE_COOKIE)?.value;
 
-  // SSR prefetch shell data so sidebar + topbar render instantly
+  // SSR prefetch shell data so sidebar + topbar + rates render instantly
   const queryClient = getQueryClient();
   try {
     await Promise.all([
@@ -23,6 +23,13 @@ async function WorkspaceLoader({ children }: { children: React.ReactNode }) {
       queryClient.prefetchQuery({
         queryKey: [["workspace", "list"], { type: "query" }],
         queryFn: () => api.workspace.list(),
+      }),
+      queryClient.prefetchQuery({
+        queryKey: [
+          ["pricing", "latestRates"],
+          { input: undefined, type: "query" },
+        ],
+        queryFn: () => api.pricing.latestRates(),
       }),
     ]);
   } catch {

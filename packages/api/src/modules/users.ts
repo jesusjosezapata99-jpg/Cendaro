@@ -19,12 +19,13 @@ import {
   createTRPCRouter,
   protectedProcedure,
   workspaceProcedure,
+  workspaceReadProcedure,
 } from "../trpc";
 import { logAudit } from "./audit";
 
 export const usersRouter = createTRPCRouter({
   /** List all users (admin, owner, supervisor) */
-  list: workspaceProcedure.query(async ({ ctx }) => {
+  list: workspaceReadProcedure.query(async ({ ctx }) => {
     return ctx.db
       .select({
         id: UserProfile.id,

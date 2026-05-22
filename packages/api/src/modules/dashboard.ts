@@ -17,7 +17,11 @@ import {
 } from "@cendaro/db/schema";
 
 import type { createTRPCContext } from "../trpc";
-import { createTRPCRouter, workspaceProcedure } from "../trpc";
+import {
+  createTRPCRouter,
+  workspaceProcedure,
+  workspaceReadProcedure,
+} from "../trpc";
 import { logAudit } from "./audit";
 
 // ── Short-lived dashboard cache (30s TTL) ──────────
@@ -117,7 +121,7 @@ async function computeSalesSummary(ctx: Context) {
 export const dashboardRouter = createTRPCRouter({
   // ─── KPI Summary (PRD §22) ──────────────────
 
-  salesSummary: workspaceProcedure.query(async ({ ctx }) => {
+  salesSummary: workspaceReadProcedure.query(async ({ ctx }) => {
     const cacheKey = ctx.workspace.workspaceId;
     const cached = dashboardCache.get(cacheKey);
     if (cached && Date.now() < cached.expiry) {
@@ -132,7 +136,7 @@ export const dashboardRouter = createTRPCRouter({
     return result;
   }),
 
-  latestClosures: workspaceProcedure
+  latestClosures: workspaceReadProcedure
     .input(z.object({ limit: z.number().int().min(1).max(7).default(5) }))
     .query(async ({ ctx, input }) => {
       return ctx.db
@@ -153,7 +157,7 @@ export const dashboardRouter = createTRPCRouter({
 
   // ─── System Alerts (PRD §23) ─────────────────
 
-  listAlerts: workspaceProcedure
+  listAlerts: workspaceReadProcedure
     .input(
       z.object({
         alertType: z.enum(alertTypeEnum.enumValues).optional(),
@@ -190,7 +194,7 @@ export const dashboardRouter = createTRPCRouter({
       return query.orderBy(desc(SystemAlert.createdAt)).limit(input.limit);
     }),
 
-  activeAlertCount: workspaceProcedure.query(async ({ ctx }) => {
+  activeAlertCount: workspaceReadProcedure.query(async ({ ctx }) => {
     const [result] = await ctx.db
       .select({ count: count(SystemAlert.id) })
       .from(SystemAlert)

@@ -21,6 +21,7 @@ import {
   createTRPCRouter,
   protectedProcedure,
   workspaceProcedure,
+  workspaceReadProcedure,
 } from "../trpc";
 
 // ── Plan defaults (sync with erpModuleEnum in schema.ts) ──────────
@@ -130,7 +131,7 @@ export const workspaceRouter = createTRPCRouter({
    * Get current workspace details + modules + quota.
    * Requires workspace context (SET LOCAL already applied).
    */
-  current: workspaceProcedure.query(async ({ ctx }) => {
+  current: workspaceReadProcedure.query(async ({ ctx }) => {
     const ws = ctx.workspace;
 
     const [workspace] = await ctx.db
@@ -277,7 +278,7 @@ export const workspaceRouter = createTRPCRouter({
   /**
    * List workspace members with profile info.
    */
-  members: workspaceProcedure.query(async ({ ctx }) => {
+  members: workspaceReadProcedure.query(async ({ ctx }) => {
     const ws = ctx.workspace;
 
     const rows = await ctx.db

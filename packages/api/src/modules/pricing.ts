@@ -15,14 +15,18 @@ import {
   RepricingEvent,
 } from "@cendaro/db/schema";
 
-import { createTRPCRouter, workspaceProcedure } from "../trpc";
+import {
+  createTRPCRouter,
+  workspaceProcedure,
+  workspaceReadProcedure,
+} from "../trpc";
 import { logAudit } from "./audit";
 
 export const pricingRouter = createTRPCRouter({
   // ─── Exchange Rates (PRD §12.3) ──────────────
 
   /** Get latest rate for each type */
-  latestRates: workspaceProcedure.query(async ({ ctx }) => {
+  latestRates: workspaceReadProcedure.query(async ({ ctx }) => {
     const allRates = await ctx.db
       .select({
         id: ExchangeRate.id,
@@ -46,7 +50,7 @@ export const pricingRouter = createTRPCRouter({
   }),
 
   /** Get rate history */
-  rateHistory: workspaceProcedure
+  rateHistory: workspaceReadProcedure
     .input(
       z.object({
         rateType: z.enum(rateTypeEnum.enumValues).optional(),
@@ -126,7 +130,7 @@ export const pricingRouter = createTRPCRouter({
 
   // ─── Currency Calculator (PRD §12.7) ─────────
 
-  convert: workspaceProcedure
+  convert: workspaceReadProcedure
     .input(
       z.object({
         amount: z.number().nonnegative(),
@@ -176,7 +180,7 @@ export const pricingRouter = createTRPCRouter({
 
   // ─── Price History (PRD §12.8) ───────────────
 
-  priceHistory: workspaceProcedure
+  priceHistory: workspaceReadProcedure
     .input(
       z.object({
         productId: z.string().uuid().optional(),
@@ -205,7 +209,7 @@ export const pricingRouter = createTRPCRouter({
 
   // ─── Repricing Events ────────────────────────
 
-  listRepricingEvents: workspaceProcedure
+  listRepricingEvents: workspaceReadProcedure
     .input(
       z.object({
         limit: z.number().int().min(1).max(50).default(20),
