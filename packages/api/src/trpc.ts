@@ -75,6 +75,26 @@ export function invalidatePermissionCache(): void {
 }
 
 // ──────────────────────────────────────────────
+// 1b. PER-REQUEST MEMBERSHIP CACHE
+// Caches is_workspace_member() + workspace plan lookups so that
+// multiple workspaceProcedure calls in the same batch share the result.
+// ──────────────────────────────────────────────
+
+const membershipCache = new Map<
+  string,
+  CacheEntry<{
+    memberId: string;
+    role: WorkspaceMembership["role"];
+    plan: WorkspaceMembership["plan"];
+  }>
+>();
+const MEMBERSHIP_CACHE_TTL = 60 * 1000; // 1 minute
+
+function getMembershipKey(userId: string, workspaceId: string): string {
+  return `${userId}:${workspaceId}`;
+}
+
+// ──────────────────────────────────────────────
 // 1. CONTEXT
 // ──────────────────────────────────────────────
 
@@ -330,35 +350,65 @@ export const workspaceProcedure = protectedProcedure.use(
       });
     }
 
-    // Validate membership (runs as postgres, before SET LOCAL)
-    const memberRows = await ctx.db.execute<{
-      member_id: string;
-      member_role: string;
-      member_status: string;
-    }>(
-      sql`SELECT * FROM is_workspace_member(${ctx.user.id}::uuid, ${ctx.workspaceId}::uuid)`,
-    );
+    // Check membership cache first (deduplicates lookups across batch calls)
+    const cacheKey = getMembershipKey(ctx.user.id, ctx.workspaceId);
+    const cachedEntry = membershipCache.get(cacheKey);
+    const now = Date.now();
 
-    const member = memberRows[0];
-    if (!member) {
-      throw new TRPCError({
-        code: "FORBIDDEN",
-        message: "No eres miembro activo de este workspace",
+    let memberId: string;
+    let memberRole: WorkspaceMembership["role"];
+    let workspacePlan: WorkspaceMembership["plan"];
+
+    if (cachedEntry && cachedEntry.expiry > now) {
+      memberId = cachedEntry.value.memberId;
+      memberRole = cachedEntry.value.role;
+      workspacePlan = cachedEntry.value.plan;
+    } else {
+      // Validate membership (runs as postgres, before SET LOCAL)
+      const memberRows = await ctx.db.execute<{
+        member_id: string;
+        member_role: string;
+        member_status: string;
+      }>(
+        sql`SELECT * FROM is_workspace_member(${ctx.user.id}::uuid, ${ctx.workspaceId}::uuid)`,
+      );
+
+      const member = memberRows[0];
+      if (!member) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "No eres miembro activo de este workspace",
+        });
+      }
+
+      // Get workspace plan
+      const [ws] = await ctx.db
+        .select({ plan: Workspace.plan })
+        .from(Workspace)
+        .where(eq(Workspace.id, ctx.workspaceId))
+        .limit(1);
+
+      memberId = member.member_id;
+      memberRole = member.member_role as WorkspaceMembership["role"];
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
+      workspacePlan = (ws?.plan ?? "starter") as WorkspaceMembership["plan"];
+
+      // Cache for subsequent calls in this request batch
+      membershipCache.set(cacheKey, {
+        value: {
+          memberId,
+          role: memberRole,
+          plan: workspacePlan,
+        },
+        expiry: now + MEMBERSHIP_CACHE_TTL,
       });
     }
 
-    // Get workspace plan
-    const [ws] = await ctx.db
-      .select({ plan: Workspace.plan })
-      .from(Workspace)
-      .where(eq(Workspace.id, ctx.workspaceId))
-      .limit(1);
-
     const workspace: WorkspaceMembership = {
       workspaceId: ctx.workspaceId,
-      memberId: member.member_id,
-      role: member.member_role as WorkspaceMembership["role"],
-      plan: ws?.plan ?? "starter",
+      memberId,
+      role: memberRole,
+      plan: workspacePlan,
     };
 
     // Execute inside transaction with SET LOCAL for RLS enforcement

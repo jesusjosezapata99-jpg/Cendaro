@@ -19,7 +19,7 @@ const RATE_META: Record<
     label: string;
     unit: string;
     icon: string;
-    isMaterial?: boolean;
+    isMaterial: boolean;
     color: string;
   }
 > = {
@@ -27,12 +27,14 @@ const RATE_META: Record<
     label: "Tasa BCV",
     unit: "Bs/USD",
     icon: "🏛️",
+    isMaterial: false,
     color: "border-blue-500/40",
   },
   parallel: {
     label: "Paralelo (USDT)",
     unit: "Bs/USDT",
     icon: "💱",
+    isMaterial: false,
     color: "border-amber-500/40",
   },
   rmb_usd: {
@@ -127,6 +129,7 @@ export default function RatesPage() {
         label: r.rateType,
         unit: "",
         icon: "🔄",
+        isMaterial: false,
         color: "border-border",
       };
       // Find previous rate in history for delta

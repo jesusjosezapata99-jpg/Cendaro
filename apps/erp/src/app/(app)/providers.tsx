@@ -1,5 +1,8 @@
 "use client";
 
+import type { DehydratedState } from "@tanstack/react-query";
+import { HydrationBoundary } from "@tanstack/react-query";
+
 import { WorkspaceAutoResolver } from "~/components/workspace-auto-resolver";
 import { WorkspaceProvider } from "~/hooks/use-workspace";
 import { TRPCProvider } from "~/trpc/client";
@@ -18,17 +21,29 @@ function PageSkeleton() {
 export function Providers({
   children,
   initialWorkspaceId,
+  dehydratedState,
 }: {
   children: React.ReactNode;
   initialWorkspaceId?: string;
+  dehydratedState?: DehydratedState;
 }) {
   return (
     <TRPCProvider>
-      <WorkspaceProvider initialWorkspaceId={initialWorkspaceId}>
-        <WorkspaceAutoResolver fallback={<PageSkeleton />}>
-          {children}
-        </WorkspaceAutoResolver>
-      </WorkspaceProvider>
+      {dehydratedState ? (
+        <HydrationBoundary state={dehydratedState}>
+          <WorkspaceProvider initialWorkspaceId={initialWorkspaceId}>
+            <WorkspaceAutoResolver fallback={<PageSkeleton />}>
+              {children}
+            </WorkspaceAutoResolver>
+          </WorkspaceProvider>
+        </HydrationBoundary>
+      ) : (
+        <WorkspaceProvider initialWorkspaceId={initialWorkspaceId}>
+          <WorkspaceAutoResolver fallback={<PageSkeleton />}>
+            {children}
+          </WorkspaceAutoResolver>
+        </WorkspaceProvider>
+      )}
     </TRPCProvider>
   );
 }

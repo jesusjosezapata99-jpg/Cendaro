@@ -23,9 +23,7 @@ export const pricingRouter = createTRPCRouter({
 
   /** Get latest rate for each type */
   latestRates: workspaceProcedure.query(async ({ ctx }) => {
-    // Use SQL DISTINCT ON to get only the latest rate per type
-    // instead of loading ALL rows and filtering in JS
-    const rates = await ctx.db
+    const allRates = await ctx.db
       .select({
         id: ExchangeRate.id,
         rateType: ExchangeRate.rateType,
@@ -36,14 +34,15 @@ export const pricingRouter = createTRPCRouter({
       .from(ExchangeRate)
       .orderBy(ExchangeRate.rateType, desc(ExchangeRate.createdAt));
 
-    // Return latest per type (first occurrence after ORDER BY type, created_at DESC)
-    const latestByType = new Map<string, (typeof rates)[0]>();
-    for (const rate of rates) {
-      if (!latestByType.has(rate.rateType)) {
-        latestByType.set(rate.rateType, rate);
-      }
-    }
-    return Array.from(latestByType.values());
+    // Deduplicate: keep only the latest per rateType
+    const seen = new Set<string>();
+    const latest = allRates.filter((r) => {
+      if (seen.has(r.rateType)) return false;
+      seen.add(r.rateType);
+      return true;
+    });
+
+    return latest;
   }),
 
   /** Get rate history */
