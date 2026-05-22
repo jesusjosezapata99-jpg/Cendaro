@@ -72,6 +72,7 @@ function setCachedPermission(key: string, value: boolean): void {
 
 export function invalidatePermissionCache(): void {
   permissionCache.clear();
+  membershipCache.clear();
 }
 
 // ──────────────────────────────────────────────
@@ -89,6 +90,7 @@ const membershipCache = new Map<
   }>
 >();
 const MEMBERSHIP_CACHE_TTL = 60 * 1000; // 1 minute
+const MEMBERSHIP_CACHE_MAX = 500;
 
 function getMembershipKey(userId: string, workspaceId: string): string {
   return `${userId}:${workspaceId}`;
@@ -355,14 +357,21 @@ export const workspaceProcedure = protectedProcedure.use(
     const cachedEntry = membershipCache.get(cacheKey);
     const now = Date.now();
 
+    // Clean up expired entry on read
+    if (cachedEntry && cachedEntry.expiry <= now) {
+      membershipCache.delete(cacheKey);
+    }
+    const freshEntry =
+      (cachedEntry?.expiry ?? 0 > now) ? cachedEntry : undefined;
+
     let memberId: string;
     let memberRole: WorkspaceMembership["role"];
     let workspacePlan: WorkspaceMembership["plan"];
 
-    if (cachedEntry && cachedEntry.expiry > now) {
-      memberId = cachedEntry.value.memberId;
-      memberRole = cachedEntry.value.role;
-      workspacePlan = cachedEntry.value.plan;
+    if (freshEntry) {
+      memberId = freshEntry.value.memberId;
+      memberRole = freshEntry.value.role;
+      workspacePlan = freshEntry.value.plan;
     } else {
       // Validate membership (runs as postgres, before SET LOCAL)
       const memberRows = await ctx.db.execute<{
@@ -394,6 +403,10 @@ export const workspaceProcedure = protectedProcedure.use(
       workspacePlan = (ws?.plan ?? "starter") as WorkspaceMembership["plan"];
 
       // Cache for subsequent calls in this request batch
+      if (membershipCache.size >= MEMBERSHIP_CACHE_MAX) {
+        const oldest = membershipCache.keys().next().value;
+        if (oldest) membershipCache.delete(oldest);
+      }
       membershipCache.set(cacheKey, {
         value: {
           memberId,
