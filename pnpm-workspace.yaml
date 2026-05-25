@@ -15,7 +15,7 @@ catalog:
   drizzle-kit: ^0.31.9
   drizzle-orm: ^0.45.1
   eslint: ^9.39.4
-  prettier: ^3.8.1
+  prettier: ^3.8.3
   tailwindcss: ^4.2.1
   typescript: ^5.9.3
   zod: ^4.3.6
