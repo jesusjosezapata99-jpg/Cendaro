@@ -3,6 +3,7 @@ import { Inter, Playfair_Display } from "next/font/google";
 import { Toaster } from "sonner";
 
 import { ThemeProvider } from "~/components/theme-provider";
+import { env } from "~/env";
 
 import "./globals.css";
 
@@ -20,6 +21,10 @@ const playfair = Playfair_Display({
 });
 
 export const metadata: Metadata = {
+  // Canonical URL for OG/Twitter images. VERCEL_URL is injected by Vercel at build time.
+  metadataBase: new URL(
+    env.VERCEL_URL ? `https://${env.VERCEL_URL}` : "http://localhost:3000",
+  ),
   title: "Cendaro",
   description:
     "Sistema ERP Omnicanal para gestión de inventarios, ventas, precios y operaciones",
