@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 
 import { Sidebar } from "~/components/sidebar";
 import { TopBar } from "~/components/top-bar";
@@ -20,7 +20,14 @@ function PageSkeleton() {
 function WorkspaceGate({ children }: { children: React.ReactNode }) {
   const { isReady } = useWorkspace();
 
-  if (!isReady) {
+  // Hydration guard: the workspace id resolves client-side (cookie/localStorage
+  // via WorkspaceAutoResolver) but is absent during SSR, so `isReady` diverges
+  // on the first client render. Gate on mount so the first client render
+  // matches the server output; React then reuses the server HTML.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
+  if (!mounted || !isReady) {
     return (
       <div className="flex h-full items-center justify-center p-8">
         <div className="flex flex-col items-center gap-3">
