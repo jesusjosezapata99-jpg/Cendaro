@@ -8,7 +8,6 @@ import { TRPCError } from "@trpc/server";
 import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
-import type { memberStatusEnum } from "@cendaro/db/schema";
 import {
   UserProfile,
   Workspace,
@@ -378,7 +377,7 @@ export const workspaceRouter = createTRPCRouter({
       const [updated] = await ctx.db
         .update(WorkspaceMember)
         .set({
-          status: "removed" as (typeof memberStatusEnum.enumValues)[number],
+          status: "removed",
         })
         .where(
           and(

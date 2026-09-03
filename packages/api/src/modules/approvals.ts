@@ -7,7 +7,6 @@
 import { desc, eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
-import type { approvalStatusEnum } from "@cendaro/db/schema";
 import { Approval, approvalTypeEnum, Signature } from "@cendaro/db/schema";
 
 import { createTRPCRouter, workspaceProcedure } from "../trpc";
@@ -153,7 +152,7 @@ export const approvalsRouter = createTRPCRouter({
       const [updated] = await ctx.db
         .update(Approval)
         .set({
-          status: "approved" as (typeof approvalStatusEnum.enumValues)[number],
+          status: "approved",
           resolvedBy: ctx.user.id,
           resolvedAt: new Date(),
           reason: input.reason,
@@ -195,7 +194,7 @@ export const approvalsRouter = createTRPCRouter({
       const [updated] = await ctx.db
         .update(Approval)
         .set({
-          status: "rejected" as (typeof approvalStatusEnum.enumValues)[number],
+          status: "rejected",
           resolvedBy: ctx.user.id,
           resolvedAt: new Date(),
           reason: input.reason,

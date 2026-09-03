@@ -203,12 +203,7 @@ export function CreateProductDialog({ open, onClose }: Props) {
           <Field label="Estado">
             <Select
               value={form.status}
-              onChange={(e) =>
-                set(
-                  "status",
-                  e.target.value as "draft" | "active" | "discontinued",
-                )
-              }
+              onChange={(e) => set("status", e.target.value)}
             >
               <option value="draft">Borrador</option>
               <option value="active">Activo</option>

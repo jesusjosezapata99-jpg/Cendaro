@@ -55,17 +55,9 @@ export function TransferStockDialog({ open, onClose }: Props) {
     transfer.mutate({
       productId: form.productId,
       fromChannel: form.fromChannel as
-        | "store"
-        | "mercadolibre"
-        | "vendors"
-        | "whatsapp"
-        | "instagram",
+        "store" | "mercadolibre" | "vendors" | "whatsapp" | "instagram",
       toChannel: form.toChannel as
-        | "store"
-        | "mercadolibre"
-        | "vendors"
-        | "whatsapp"
-        | "instagram",
+        "store" | "mercadolibre" | "vendors" | "whatsapp" | "instagram",
       quantity: parseInt(form.quantity, 10),
     });
   };

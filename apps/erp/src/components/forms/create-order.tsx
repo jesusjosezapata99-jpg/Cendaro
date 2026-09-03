@@ -197,11 +197,7 @@ export function CreateOrderDialog({ open, onClose }: Props) {
     create.mutate({
       customerId: customerId || undefined,
       channel: channel as
-        | "store"
-        | "mercadolibre"
-        | "vendors"
-        | "whatsapp"
-        | "instagram",
+        "store" | "mercadolibre" | "vendors" | "whatsapp" | "instagram",
       notes: notes || undefined,
       items: lines.map((l) => ({
         productId: l.productId,

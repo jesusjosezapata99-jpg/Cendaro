@@ -59,7 +59,7 @@ export default function RootLayout({
           content="black-translucent"
         />
         <meta name="apple-mobile-web-app-title" content="Cendaro" />
-        <link rel="apple-touch-icon" href="/favicon.ico" />
+        <link rel="apple-touch-icon" href="/cendaro-logo.png" />
         {/* dns-prefetch + preconnect for Google Fonts CDN */}
         <link rel="dns-prefetch" href="https://fonts.googleapis.com" />
         <link

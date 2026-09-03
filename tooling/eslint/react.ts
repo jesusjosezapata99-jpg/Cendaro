@@ -1,3 +1,5 @@
+import type { FixupPluginDefinition } from "@eslint/compat";
+import { fixupPluginRules } from "@eslint/compat";
 import reactPlugin from "eslint-plugin-react";
 import hooksPlugin from "eslint-plugin-react-hooks";
 import { defineConfig } from "eslint/config";
@@ -5,15 +7,18 @@ import { defineConfig } from "eslint/config";
 export const reactConfig = defineConfig({
   files: ["**/*.ts", "**/*.tsx"],
   plugins: {
-    react: reactPlugin,
-    "react-hooks": hooksPlugin,
+    react: fixupPluginRules(reactPlugin),
+    "react-hooks": fixupPluginRules(
+      hooksPlugin as unknown as FixupPluginDefinition,
+    ),
   },
   rules: {
     /* eslint-disable @typescript-eslint/no-unnecessary-condition */
     ...reactPlugin.configs.flat?.recommended?.rules,
     ...reactPlugin.configs.flat?.["jsx-runtime"]?.rules,
     /* eslint-enable @typescript-eslint/no-unnecessary-condition */
-    ...hooksPlugin.configs.recommended.rules,
+    "react-hooks/rules-of-hooks": "error",
+    "react-hooks/exhaustive-deps": "warn",
   },
   languageOptions: {
     globals: {

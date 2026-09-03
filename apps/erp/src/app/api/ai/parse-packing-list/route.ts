@@ -236,7 +236,7 @@ function postProcessMatching(
   return items.map((item) => {
     let bestMatch: CatalogProduct | null = null;
     let bestSim = 0;
-    let matchType: MatchedItem["match_type"] = "ai_only";
+    let matchType: MatchedItem["match_type"];
 
     // 1. Try exact SKU match
     if (item.sku_hint) {
@@ -790,7 +790,7 @@ export async function POST(request: NextRequest) {
             fileName: `image_${idx}`,
             mimeType: "image/jpeg",
             _url: url, // Store URL for vision pipeline
-          })) as (ExtractedImage & { _url?: string })[];
+          }));
       }
       // Note: body.images (legacy base64) is intentionally ignored in chunked mode
     } else {

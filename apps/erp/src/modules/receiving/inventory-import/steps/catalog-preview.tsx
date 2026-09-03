@@ -31,11 +31,7 @@ interface CatalogPreviewProps {
 // ── Component ────────────────────────────────────
 
 type CatalogFilter =
-  | "all"
-  | "newBrands"
-  | "existingBrands"
-  | "newProducts"
-  | "existingProducts";
+  "all" | "newBrands" | "existingBrands" | "newProducts" | "existingProducts";
 
 export function CatalogPreview({
   initializeRows,

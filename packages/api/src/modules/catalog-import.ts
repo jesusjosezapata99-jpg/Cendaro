@@ -208,7 +208,7 @@ export const catalogImportRouter = createTRPCRouter({
             importSessionId: session.id,
             rowIndex: i + batchIdx,
             status: "pending" as const,
-            rawData: row as unknown as Record<string, unknown>,
+            rawData: row,
           })),
         );
       }

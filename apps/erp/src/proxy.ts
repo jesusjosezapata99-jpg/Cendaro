@@ -5,7 +5,7 @@ import { createSupabaseMiddlewareClient } from "@cendaro/auth/middleware";
 
 import { env } from "~/env";
 
-const PUBLIC_ROUTES_EXACT = ["/"];
+const PUBLIC_ROUTES_EXACT = ["/", "/opengraph-image"];
 const PUBLIC_ROUTES_PREFIX = ["/login", "/api/auth"];
 
 /**

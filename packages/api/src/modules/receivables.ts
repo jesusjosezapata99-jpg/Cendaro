@@ -7,7 +7,6 @@
 import { desc, eq, sql } from "drizzle-orm";
 import { z } from "zod/v4";
 
-import type { installmentStatusEnum } from "@cendaro/db/schema";
 import {
   AccountReceivable,
   ArInstallment,
@@ -119,7 +118,7 @@ export const receivablesRouter = createTRPCRouter({
       const [updated] = await ctx.db
         .update(ArInstallment)
         .set({
-          status: "paid" as (typeof installmentStatusEnum.enumValues)[number],
+          status: "paid",
           paidAt: new Date(),
         })
         .where(eq(ArInstallment.id, input.installmentId))

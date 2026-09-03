@@ -43,8 +43,8 @@ export async function logAudit(db: Db, user: UserWithMeta, entry: AuditEntry) {
     action: entry.action,
     entity: entry.entity,
     entityId: entry.entityId,
-    oldValue: entry.oldValue as Record<string, unknown> | null,
-    newValue: entry.newValue as Record<string, unknown> | null,
+    oldValue: entry.oldValue,
+    newValue: entry.newValue,
     metadata: entry.metadata ?? null,
     correlationId: entry.correlationId,
   });

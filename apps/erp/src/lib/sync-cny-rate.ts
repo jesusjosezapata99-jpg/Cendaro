@@ -7,8 +7,7 @@
  */
 export async function maybeSyncCnyRate(opts: {
   latestRates:
-    | { rateType: string; rate: number; createdAt: Date | null }[]
-    | undefined;
+    { rateType: string; rate: number; createdAt: Date | null }[] | undefined;
   setRate: (input: {
     rateType: "rmb_usd";
     rate: number;

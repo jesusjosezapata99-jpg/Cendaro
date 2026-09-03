@@ -2,7 +2,7 @@
   "name": "cendaro",
   "private": true,
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=22.0.0"
   },
   "packageManager": "pnpm@10.30.3",
   "scripts": {
@@ -34,7 +34,7 @@
     "eslint": "catalog:",
     "husky": "^9.1.7",
     "jiti": "^2.7.0",
-    "lint-staged": "^16.1.0",
+    "lint-staged": "^17.4.1",
     "prettier": "catalog:",
     "tsx": "^4.23.13",
     "turbo": "^2.10.12",
@@ -62,7 +62,8 @@
       "lodash": "^4.18.0",
       "ws": "^8.21.0",
       "js-yaml": "^4.3.1",
-      "@humanfs/node": "^0.16.8"
+      "@humanfs/node": "^0.16.8",
+      "vite": "^7.3.5"
     }
   },
   "license": "AGPL-3.0",

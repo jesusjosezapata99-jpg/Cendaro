@@ -35,6 +35,7 @@
     "eslint": "catalog:",
     "prettier": "catalog:",
     "typescript": "catalog:",
+    "vite": "^7.3.5",
     "vitest": "^4.1.11"
   },
   "prettier": "@cendaro/prettier-config",

@@ -215,11 +215,7 @@ export default function CreateProductPage() {
         ? parseInt(sticky.boxesPerBulk, 10)
         : undefined,
       sellingUnit: sticky.sellingUnit as
-        | "unit"
-        | "box"
-        | "dozen"
-        | "half_dozen"
-        | "bulk",
+        "unit" | "box" | "dozen" | "half_dozen" | "bulk",
       status: sticky.status,
     });
   };
@@ -602,12 +598,7 @@ export default function CreateProductPage() {
               <Field label="Estado del Producto">
                 <select
                   value={sticky.status}
-                  onChange={(e) =>
-                    setStickyField(
-                      "status",
-                      e.target.value as "draft" | "active" | "discontinued",
-                    )
-                  }
+                  onChange={(e) => setStickyField("status", e.target.value)}
                   className={inputBase}
                 >
                   <option value="draft">Borrador</option>
