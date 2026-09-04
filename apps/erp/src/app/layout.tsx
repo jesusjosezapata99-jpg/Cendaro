@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, Playfair_Display } from "next/font/google";
+import localFont from "next/font/local";
 import { Toaster } from "sonner";
 
 import { ThemeProvider } from "~/components/theme-provider";
@@ -18,6 +19,29 @@ const playfair = Playfair_Display({
   display: "swap",
   variable: "--font-serif",
   weight: ["400", "500", "600"],
+});
+
+/**
+ * Material Symbols — self-hosted subset (~11 KB).
+ *
+ * Generated with the official Google Fonts subsetter:
+ *   https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined
+ *     :opsz,wght,FILL,GRAD@24,400,0,0&icon_names=<100 sorted ligatures>
+ *
+ * Axes are pinned to Google's defaults (opsz 24, wght 400, FILL 0, GRAD 0)
+ * because the app never varies them — this shrinks the font from the full
+ * variable file (295 KB over CDN) to ~11 KB, served same-origin with preload
+ * (no render-blocking third-party request, critical on Venezuelan 3G).
+ * `display: block` keeps ligature text invisible during the brief swap window.
+ */
+const materialSymbols = localFont({
+  src: "./fonts/material-symbols-subset.woff2",
+  weight: "400",
+  style: "normal",
+  display: "block",
+  variable: "--font-material-symbols",
+  adjustFontFallback: false,
+  fallback: ["sans-serif"],
 });
 
 export const metadata: Metadata = {
@@ -60,23 +84,6 @@ export default function RootLayout({
         />
         <meta name="apple-mobile-web-app-title" content="Cendaro" />
         <link rel="apple-touch-icon" href="/cendaro-logo.png" />
-        {/* dns-prefetch + preconnect for Google Fonts CDN */}
-        <link rel="dns-prefetch" href="https://fonts.googleapis.com" />
-        <link
-          rel="preconnect"
-          href="https://fonts.gstatic.com"
-          crossOrigin="anonymous"
-        />
-        {/* Material Symbols — preloaded to eliminate FOUI */}
-        <link
-          rel="preload"
-          as="style"
-          href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap"
-        />
-        <link
-          rel="stylesheet"
-          href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap"
-        />
         {/* One-time migration: clear stale "light" default so next-themes re-detects system preference.
              Safe to remove after all existing users have revisited (e.g. 2026-Q2). */}
         <script
@@ -86,7 +93,7 @@ export default function RootLayout({
         />
       </head>
       <body
-        className={`${inter.variable} ${playfair.variable} bg-background text-foreground font-sans antialiased`}
+        className={`${inter.variable} ${playfair.variable} ${materialSymbols.variable} bg-background text-foreground font-sans antialiased`}
       >
         <ThemeProvider>{children}</ThemeProvider>
         <Toaster richColors position="top-right" />

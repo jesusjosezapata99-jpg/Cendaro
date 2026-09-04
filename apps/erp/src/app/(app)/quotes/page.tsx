@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
 
 import { getQueryClient } from "~/trpc/query-client";
-import { api } from "~/trpc/server";
+import { trpc } from "~/trpc/server";
 import AppLoading from "../loading";
 import QuotesClient from "./client";
 
@@ -33,10 +33,9 @@ async function QuotesPrefetch() {
   const queryClient = getQueryClient();
 
   try {
-    await queryClient.prefetchQuery({
-      queryKey: [["quotes", "list"], { input: { limit: 50 }, type: "query" }],
-      queryFn: () => api.quotes.list({ limit: 50 }),
-    });
+    await queryClient.prefetchQuery(
+      trpc.quotes.list.queryOptions({ limit: 50 }),
+    );
   } catch {
     // Prefetch failure is non-critical
   }

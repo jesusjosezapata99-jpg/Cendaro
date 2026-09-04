@@ -100,7 +100,7 @@ export default function OrdersClient() {
         </div>
         <button
           onClick={() => setShowCreate(true)}
-          className="bg-primary text-primary-foreground hover:bg-primary/90 flex min-h-[44px] w-full items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-bold transition-colors sm:w-auto"
+          className="bg-primary text-primary-foreground hover:bg-primary/90 flex min-h-11 w-full items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-bold transition-colors sm:w-auto"
         >
           <span className="material-symbols-outlined text-lg">add</span>
           Nueva Orden
@@ -177,7 +177,7 @@ export default function OrdersClient() {
           <button
             key={s}
             onClick={() => setStatusFilter(s)}
-            className={`min-h-[36px] shrink-0 rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${
+            className={`min-h-9 shrink-0 rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${
               statusFilter === s
                 ? "bg-primary text-primary-foreground"
                 : "bg-secondary text-muted-foreground hover:bg-accent"

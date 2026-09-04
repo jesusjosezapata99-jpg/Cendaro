@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
 
 import { getQueryClient } from "~/trpc/query-client";
-import { api } from "~/trpc/server";
+import { trpc } from "~/trpc/server";
 import AppLoading from "../loading";
 import DashboardClient from "./client";
 
@@ -37,23 +37,14 @@ async function DashboardPrefetch() {
 
   // Prefetch in parallel — wrapped in try/catch so build doesn't fail
   // when env vars are unavailable (e.g. during static analysis)
+  // Shared queryOptions — same queryKey as the client hooks (options proxy)
   try {
     await Promise.all([
-      queryClient.prefetchQuery({
-        queryKey: [["dashboard", "salesSummary"], { type: "query" }],
-        queryFn: () => api.dashboard.salesSummary(),
-      }),
-      queryClient.prefetchQuery({
-        queryKey: [
-          ["dashboard", "latestClosures"],
-          { input: { limit: 5 }, type: "query" },
-        ],
-        queryFn: () => api.dashboard.latestClosures({ limit: 5 }),
-      }),
-      queryClient.prefetchQuery({
-        queryKey: [["dashboard", "activeAlertCount"], { type: "query" }],
-        queryFn: () => api.dashboard.activeAlertCount(),
-      }),
+      queryClient.prefetchQuery(trpc.dashboard.salesSummary.queryOptions()),
+      queryClient.prefetchQuery(
+        trpc.dashboard.latestClosures.queryOptions({ limit: 5 }),
+      ),
+      queryClient.prefetchQuery(trpc.dashboard.activeAlertCount.queryOptions()),
     ]);
   } catch {
     // Prefetch failure is non-critical — client will fetch on hydration

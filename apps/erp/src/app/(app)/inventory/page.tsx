@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
 
 import { getQueryClient } from "~/trpc/query-client";
-import { api } from "~/trpc/server";
+import { trpc } from "~/trpc/server";
 import AppLoading from "../loading";
 import InventoryClient from "./client";
 
@@ -35,28 +35,11 @@ async function InventoryPrefetch() {
   const queryClient = getQueryClient();
 
   try {
+    // Shared queryOptions — same queryKey as the client hooks (options proxy)
     await Promise.all([
-      queryClient.prefetchQuery({
-        queryKey: [
-          ["inventory", "stockOverview"],
-          { input: {}, type: "query" },
-        ],
-        queryFn: () => api.inventory.stockOverview({}),
-      }),
-      queryClient.prefetchQuery({
-        queryKey: [
-          ["inventory", "channelSummary"],
-          { input: {}, type: "query" },
-        ],
-        queryFn: () => api.inventory.channelSummary(),
-      }),
-      queryClient.prefetchQuery({
-        queryKey: [
-          ["inventory", "listWarehouses"],
-          { input: {}, type: "query" },
-        ],
-        queryFn: () => api.inventory.listWarehouses(),
-      }),
+      queryClient.prefetchQuery(trpc.inventory.stockOverview.queryOptions({})),
+      queryClient.prefetchQuery(trpc.inventory.channelSummary.queryOptions()),
+      queryClient.prefetchQuery(trpc.inventory.listWarehouses.queryOptions()),
     ]);
   } catch {
     // Prefetch failure is non-critical — client will fetch on hydration

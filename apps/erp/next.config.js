@@ -34,8 +34,8 @@ const config = {
   async headers() {
     // Content-Security-Policy directives:
     //   script-src 'unsafe-inline' — required by Next.js for inline hydration
-    //   style-src  fonts.googleapis.com — Google Fonts CSS
-    //   font-src   fonts.gstatic.com — Google Fonts static assets
+    //   style-src  'unsafe-inline' — Tailwind + Next inline styles. All fonts
+    //              are self-hosted via next/font (no external font CDNs).
     //   img-src    *.supabase.co — product images in Supabase Storage
     //              blob: data: — AI image previews in the packing-list pipeline
     //   connect-src — Supabase API, Groq AI, Sentry telemetry, exchange-rate APIs
@@ -43,8 +43,8 @@ const config = {
     const ContentSecurityPolicy = [
       "default-src 'self'",
       "script-src 'self' 'unsafe-inline'",
-      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-      "font-src 'self' https://fonts.gstatic.com",
+      "style-src 'self' 'unsafe-inline'",
+      "font-src 'self'",
       "img-src 'self' data: blob: https://*.supabase.co",
       "media-src 'self'",
       "object-src 'none'",

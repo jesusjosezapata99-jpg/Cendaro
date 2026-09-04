@@ -68,7 +68,7 @@ export default function CatalogClient() {
         <div className="flex w-full gap-2 sm:w-auto">
           <Link
             href="/catalog/import"
-            className="border-border hover:bg-muted/50 flex min-h-[44px] flex-1 items-center justify-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition-colors sm:flex-initial"
+            className="border-border hover:bg-muted/50 flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition-colors sm:flex-initial"
           >
             <span className="material-symbols-outlined text-lg">
               upload_file
@@ -77,7 +77,7 @@ export default function CatalogClient() {
           </Link>
           <Link
             href="/catalog/new"
-            className="bg-primary text-primary-foreground hover:bg-primary/90 flex min-h-[44px] flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors sm:flex-initial"
+            className="bg-primary text-primary-foreground hover:bg-primary/90 flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors sm:flex-initial"
           >
             <span className="material-symbols-outlined text-lg">add</span>
             Nuevo Producto
@@ -136,7 +136,7 @@ export default function CatalogClient() {
             setSearch(e.target.value);
             setPage(0);
           }}
-          className="border-border bg-card text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-ring/20 min-h-[44px] flex-1 rounded-lg border px-4 py-2.5 text-sm transition-colors outline-none focus:ring-2"
+          className="border-border bg-card text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-ring/20 min-h-11 flex-1 rounded-lg border px-4 py-2.5 text-sm transition-colors outline-none focus:ring-2"
         />
         <select
           value={statusFilter}
@@ -144,7 +144,7 @@ export default function CatalogClient() {
             setStatusFilter(e.target.value);
             setPage(0);
           }}
-          className="border-border bg-card text-foreground focus:border-primary focus:ring-ring/20 min-h-[44px] rounded-lg border px-3 py-2.5 text-sm outline-none focus:ring-2"
+          className="border-border bg-card text-foreground focus:border-primary focus:ring-ring/20 min-h-11 rounded-lg border px-3 py-2.5 text-sm outline-none focus:ring-2"
         >
           <option value="all">Todos los estados</option>
           <option value="active">Activos</option>
@@ -292,17 +292,17 @@ export default function CatalogClient() {
           <button
             onClick={() => setPage((p) => Math.max(0, p - 1))}
             disabled={page === 0}
-            className="bg-secondary text-muted-foreground hover:bg-accent min-h-[36px] rounded px-3 py-1 transition-colors disabled:opacity-50"
+            className="bg-secondary text-muted-foreground hover:bg-accent min-h-9 rounded px-3 py-1 transition-colors disabled:opacity-50"
           >
             ← Anterior
           </button>
-          <span className="bg-primary text-primary-foreground flex min-h-[36px] items-center rounded px-3 py-1">
+          <span className="bg-primary text-primary-foreground flex min-h-9 items-center rounded px-3 py-1">
             {page + 1}
           </span>
           <button
             onClick={() => setPage((p) => (p + 1 < totalPages ? p + 1 : p))}
             disabled={page + 1 >= totalPages}
-            className="bg-secondary text-muted-foreground hover:bg-accent min-h-[36px] rounded px-3 py-1 transition-colors disabled:opacity-50"
+            className="bg-secondary text-muted-foreground hover:bg-accent min-h-9 rounded px-3 py-1 transition-colors disabled:opacity-50"
           >
             Siguiente →
           </button>

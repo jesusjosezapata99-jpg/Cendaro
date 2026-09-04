@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
 
 import { getQueryClient } from "~/trpc/query-client";
-import { api } from "~/trpc/server";
+import { trpc } from "~/trpc/server";
 import AppLoading from "../loading";
 import CatalogClient from "./client";
 
@@ -32,13 +32,9 @@ async function CatalogPrefetch() {
   const queryClient = getQueryClient();
 
   try {
-    await queryClient.prefetchQuery({
-      queryKey: [
-        ["catalog", "listProducts"],
-        { input: { limit: 25, offset: 0 }, type: "query" },
-      ],
-      queryFn: () => api.catalog.listProducts({ limit: 25, offset: 0 }),
-    });
+    await queryClient.prefetchQuery(
+      trpc.catalog.listProducts.queryOptions({ limit: 25, offset: 0 }),
+    );
   } catch {
     // Prefetch failure is non-critical — client will fetch on hydration
   }

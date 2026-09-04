@@ -57,14 +57,13 @@ export function WorkspaceProvider({
   initialWorkspaceId?: string;
 }) {
   const [workspaceId, setWorkspaceId] = useState<string | null>(() => {
-    // SSR-safe: only read storage on client
+    // SSR-safe: only read storage on client.
+    // Cookie first — the server already rendered from this exact cookie, so
+    // the first client render always matches the SSR output (no hydration
+    // mismatch, no artificial loading gate). localStorage stays in sync as a
+    // mirror but must not drive the initial state.
     if (typeof window === "undefined") return initialWorkspaceId ?? null;
-    return (
-      localStorage.getItem(STORAGE_KEY) ??
-      readWorkspaceCookie() ??
-      initialWorkspaceId ??
-      null
-    );
+    return readWorkspaceCookie() ?? initialWorkspaceId ?? null;
   });
 
   // Sync to localStorage + cookie when workspace changes
