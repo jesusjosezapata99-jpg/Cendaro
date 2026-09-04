@@ -62,25 +62,30 @@ export function ListPageSkeleton() {
 }
 
 /**
- * Suspense fallback shaped like the dashboard (6 KPI cards, two panels,
- * full-width closures table).
+ * Suspense fallback shaped like the dashboard (PageHeader + BCV chip,
+ * 6 StatCards, two panels, full-width closures table).
+ * Mirrors StatCard: p-4, label row with icon chip, value line.
  */
 export function DashboardSkeleton() {
   return (
     <Delayed>
       <div className="animate-in fade-in space-y-6 p-4 duration-200 lg:p-8">
         <div className="space-y-2">
-          <Skeleton className="h-7 w-56" />
+          <Skeleton className="h-8 w-56" />
           <Skeleton className="h-4 w-48" />
+          <Skeleton className="mt-1 h-5 w-40 rounded-full" />
         </div>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
           {Array.from({ length: 6 }).map((_, i) => (
             <div
               key={i}
-              className="border-border bg-card rounded-xl border p-3"
+              className="bg-card flex flex-col gap-2 rounded-xl border p-4"
             >
-              <Skeleton className="mb-2 h-3 w-16" />
-              <Skeleton className="h-6 w-14" />
+              <div className="flex items-center justify-between">
+                <Skeleton className="h-3 w-16" />
+                <Skeleton className="size-7 rounded-lg" />
+              </div>
+              <Skeleton className="h-7 w-14" />
             </div>
           ))}
         </div>
@@ -88,7 +93,7 @@ export function DashboardSkeleton() {
           {Array.from({ length: 2 }).map((_, i) => (
             <div
               key={i}
-              className="border-border bg-card rounded-xl border p-5"
+              className="border-border bg-card rounded-xl border p-6"
             >
               <Skeleton className="mb-4 h-4 w-40" />
               <div className="space-y-3">
@@ -99,7 +104,7 @@ export function DashboardSkeleton() {
             </div>
           ))}
         </div>
-        <div className="border-border bg-card rounded-xl border p-5">
+        <div className="border-border bg-card rounded-xl border p-6">
           <Skeleton className="mb-4 h-4 w-48" />
           {Array.from({ length: 3 }).map((_, i) => (
             <Skeleton key={i} className="mb-3 h-10 w-full" />
