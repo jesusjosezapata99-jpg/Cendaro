@@ -192,7 +192,7 @@ export default function DashboardClient() {
               <Link
                 key={item.label}
                 href={item.href}
-                className="border-border hover:bg-accent/30 hover:border-primary/30 flex min-h-[44px] cursor-pointer items-center justify-between rounded-lg border p-3 transition-colors"
+                className="border-border hover:bg-accent/30 hover:border-primary/30 flex min-h-11 cursor-pointer items-center justify-between rounded-lg border p-3 transition-colors"
               >
                 <span className="text-foreground flex items-center gap-2 text-sm">
                   <span className="material-symbols-outlined text-muted-foreground text-lg">
@@ -219,7 +219,7 @@ export default function DashboardClient() {
             Estado del Sistema
           </h3>
           <div className="space-y-3">
-            <div className="border-border flex min-h-[44px] items-center justify-between rounded-lg border p-3">
+            <div className="border-border flex min-h-11 items-center justify-between rounded-lg border p-3">
               <span className="text-foreground flex items-center gap-2 text-sm">
                 <span className="material-symbols-outlined text-muted-foreground text-lg">
                   database
@@ -230,7 +230,7 @@ export default function DashboardClient() {
                 Conectado
               </span>
             </div>
-            <div className="border-border flex min-h-[44px] items-center justify-between rounded-lg border p-3">
+            <div className="border-border flex min-h-11 items-center justify-between rounded-lg border p-3">
               <span className="text-foreground flex items-center gap-2 text-sm">
                 <span className="material-symbols-outlined text-muted-foreground text-lg">
                   api
@@ -243,7 +243,7 @@ export default function DashboardClient() {
             </div>
             <Link
               href="/alerts"
-              className="border-border hover:bg-accent/30 hover:border-primary/30 flex min-h-[44px] cursor-pointer items-center justify-between rounded-lg border p-3 transition-colors"
+              className="border-border hover:bg-accent/30 hover:border-primary/30 flex min-h-11 cursor-pointer items-center justify-between rounded-lg border p-3 transition-colors"
             >
               <span className="text-foreground flex items-center gap-2 text-sm">
                 <span className="material-symbols-outlined text-muted-foreground text-lg">
@@ -277,7 +277,7 @@ export default function DashboardClient() {
             </div>
           ) : closures && closures.length > 0 ? (
             <div className="mobile-scroll-x overflow-hidden rounded-lg">
-              <table className="w-full min-w-[500px] text-left text-sm">
+              <table className="w-full min-w-125 text-left text-sm">
                 <thead>
                   <tr className="text-muted-foreground text-[10px] font-bold tracking-widest uppercase">
                     <th className="py-2 pr-4">Fecha</th>
