@@ -1,9 +1,9 @@
 import { Suspense } from "react";
 import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
 
+import { ListPageSkeleton } from "~/components/skeleton";
 import { getQueryClient } from "~/trpc/query-client";
 import { trpc } from "~/trpc/server";
-import AppLoading from "../loading";
 import AccountsReceivableClient from "./client";
 
 /**
@@ -20,7 +20,7 @@ export const instant = false;
  */
 export default function AccountsReceivablePage() {
   return (
-    <Suspense fallback={<AppLoading />}>
+    <Suspense fallback={<ListPageSkeleton />}>
       <AccountsReceivablePrefetch />
     </Suspense>
   );

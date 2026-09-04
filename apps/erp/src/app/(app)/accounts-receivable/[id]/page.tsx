@@ -1,9 +1,9 @@
 import { Suspense } from "react";
 import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
 
+import { DetailSkeleton } from "~/components/skeleton";
 import { getQueryClient } from "~/trpc/query-client";
 import { trpc } from "~/trpc/server";
-import AppLoading from "../../loading";
 import ArDetailClient from "./client";
 
 /**
@@ -26,7 +26,7 @@ export default async function AccountReceivableDetailPage({
 }) {
   const { id } = await params;
   return (
-    <Suspense fallback={<AppLoading />}>
+    <Suspense fallback={<DetailSkeleton />}>
       <ArDetailPrefetch id={id} />
     </Suspense>
   );

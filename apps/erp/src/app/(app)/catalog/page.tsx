@@ -1,9 +1,9 @@
 import { Suspense } from "react";
 import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
 
+import { ListPageSkeleton } from "~/components/skeleton";
 import { getQueryClient } from "~/trpc/query-client";
 import { trpc } from "~/trpc/server";
-import AppLoading from "../loading";
 import CatalogClient from "./client";
 
 /**
@@ -22,7 +22,7 @@ export const instant = false;
  */
 export default function CatalogPage() {
   return (
-    <Suspense fallback={<AppLoading />}>
+    <Suspense fallback={<ListPageSkeleton />}>
       <CatalogPrefetch />
     </Suspense>
   );

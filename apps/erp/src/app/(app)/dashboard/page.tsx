@@ -1,9 +1,9 @@
 import { Suspense } from "react";
 import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
 
+import { DashboardSkeleton } from "~/components/skeleton";
 import { getQueryClient } from "~/trpc/query-client";
 import { trpc } from "~/trpc/server";
-import AppLoading from "../loading";
 import DashboardClient from "./client";
 
 /**
@@ -26,7 +26,7 @@ export const instant = false;
  */
 export default function DashboardPage() {
   return (
-    <Suspense fallback={<AppLoading />}>
+    <Suspense fallback={<DashboardSkeleton />}>
       <DashboardPrefetch />
     </Suspense>
   );

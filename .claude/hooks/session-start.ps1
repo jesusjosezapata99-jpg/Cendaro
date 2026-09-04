@@ -40,11 +40,19 @@ if (Test-Path $reportPath) {
         $summaryText = $summaryText.Substring(0, 3000)
     }
 
+    [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+
     $msg = "[graphify] Architecture knowledge graph loaded. " + $summaryText
 
-    # Build output — ConvertTo-Json handles all escaping
-    $output = @{ reason = $msg }
-    $output | ConvertTo-Json -Depth 3
+    # Build output — supports both legacy reason and official hookSpecificOutput schema
+    $output = @{
+        reason = $msg
+        hookSpecificOutput = @{
+            hookEventName = "SessionStart"
+            additionalContext = $msg
+        }
+    }
+    $output | ConvertTo-Json -Depth 4
     exit 0
 }
 

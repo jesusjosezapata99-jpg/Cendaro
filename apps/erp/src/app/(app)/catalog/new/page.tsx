@@ -1,9 +1,9 @@
 import { Suspense } from "react";
 import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
 
+import { DetailSkeleton } from "~/components/skeleton";
 import { getQueryClient } from "~/trpc/query-client";
 import { trpc } from "~/trpc/server";
-import AppLoading from "../../loading";
 import CreateProductPage from "./create-product-page";
 
 /**
@@ -21,7 +21,7 @@ export const instant = false;
  */
 export default function NewProductPage() {
   return (
-    <Suspense fallback={<AppLoading />}>
+    <Suspense fallback={<DetailSkeleton />}>
       <NewProductPrefetch />
     </Suspense>
   );
