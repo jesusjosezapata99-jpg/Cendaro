@@ -142,12 +142,13 @@ export async function proxy(request: NextRequest) {
     supabaseKey,
   );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // getClaims() verifies the JWT locally via cached JWKS (asymmetric signing
+  // keys) — no network round-trip to Supabase Auth on every navigation.
+  // Only identity is needed here, so the claims payload suffices.
+  const { data } = await supabase.auth.getClaims();
 
   // Redirect unauthenticated users to login (page routes only)
-  if (!user) {
+  if (!data?.claims) {
     const loginUrl = new URL("/login", request.url);
 
     // Only embed the redirect param if the destination is on the allowlist.

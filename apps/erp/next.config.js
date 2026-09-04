@@ -27,6 +27,10 @@ const config = {
       "superjson",
       "zod",
     ],
+    // Persist the Turbopack dev cache across dev-server restarts —
+    // cold starts reuse the compiled graph instead of recompiling.
+    // Next.js 16 option; production builds are unaffected.
+    turbopackFileSystemCacheForDev: true,
   },
   /** Sharp uses native binaries — must not be bundled */
   serverExternalPackages: ["sharp"],

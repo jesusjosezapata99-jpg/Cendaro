@@ -55,7 +55,30 @@ export default function PaymentsPage() {
 
   const validate = useMutation(
     trpc.sales.validatePayment.mutationOptions({
-      onSuccess: () => {
+      // Optimistic UI: mark the payment as validated the moment the user
+      // clicks — on 3G, feedback is instant instead of a spinner round-trip.
+      // The cache is rolled back if the server rejects the validation.
+      onMutate: async ({ id }) => {
+        const listKey = trpc.sales.listPayments.queryKey({ limit: 50 });
+        await qc.cancelQueries({ queryKey: listKey });
+        const previous = qc.getQueryData(listKey);
+        if (previous) {
+          qc.setQueryData(
+            listKey,
+            previous.map((p) =>
+              p.id === id ? { ...p, isValidated: true } : p,
+            ),
+          );
+        }
+        return { previous, listKey };
+      },
+      onError: (_error, _variables, context) => {
+        if (context?.previous) {
+          qc.setQueryData(context.listKey, context.previous);
+        }
+      },
+      // Always reconcile with the server truth (also after errors)
+      onSettled: () => {
         void qc.invalidateQueries({ queryKey: [["sales"]] });
       },
     }),

@@ -14,8 +14,13 @@ import { cache } from "react";
 import { cookies, headers } from "next/headers";
 import { createTRPCOptionsProxy } from "@trpc/tanstack-react-query";
 
-import type { AppRouter } from "@cendaro/api";
-import { appRouter, createCaller, createTRPCContext } from "@cendaro/api";
+import type { AppRouter, AuthenticatedUser } from "@cendaro/api";
+import {
+  appRouter,
+  createCaller,
+  createTRPCContext,
+  mapClaimsToUser,
+} from "@cendaro/api";
 import { createSupabaseServerClient } from "@cendaro/auth/server";
 
 import { env } from "~/env";
@@ -40,21 +45,22 @@ const createContext = cache(async () => {
     heads.set("x-workspace-id", wsId);
   }
 
-  let user = null;
+  let user: AuthenticatedUser | null = null;
   if (supabaseUrl && supabaseKey) {
     const supabase = createSupabaseServerClient(
       cookieStore,
       supabaseUrl,
       supabaseKey,
     );
-    const { data } = await supabase.auth.getUser();
-    user = data.user;
+    // getClaims() verifies the JWT locally via cached JWKS (asymmetric
+    // signing keys) — no network round-trip to Supabase Auth per request.
+    const { data } = await supabase.auth.getClaims();
+    user = mapClaimsToUser(data?.claims);
   }
 
   return createTRPCContext({
     headers: heads,
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any
-    user: user as any,
+    user,
   });
 });
 

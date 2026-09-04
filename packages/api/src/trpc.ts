@@ -4,7 +4,6 @@
  * Defines the tRPC context (DB + user), public/protected procedures,
  * and RBAC-aware procedure helpers.
  */
-import type { User } from "@supabase/supabase-js";
 import { initTRPC, TRPCError } from "@trpc/server";
 import { and, eq, sql } from "drizzle-orm";
 import superjson from "superjson";
@@ -104,6 +103,41 @@ export interface UserMeta {
   role: (typeof userRoleEnum.enumValues)[number];
 }
 
+/**
+ * Minimal authenticated-identity shape — the only fields the API layer
+ * consumes (RBAC reads user_metadata.role; audit reads id/email).
+ * Populated from locally-verified JWT claims (supabase.auth.getClaims)
+ * instead of a full getUser() network round-trip per request.
+ *
+ * Trade-off (accepted): user_metadata changes propagate on token refresh
+ * (~1h) instead of immediately; workspace-level RBAC still resolves fresh
+ * from the DB via is_workspace_member().
+ */
+export interface AuthenticatedUser {
+  id: string;
+  email?: string | null;
+  user_metadata?: UserMeta;
+}
+
+/**
+ * Maps verified access-token claims to AuthenticatedUser.
+ * Returns null when the token carries no subject (unauthenticated).
+ */
+export function mapClaimsToUser(
+  claims: Record<string, unknown> | null | undefined,
+): AuthenticatedUser | null {
+  if (!claims) return null;
+  const sub = typeof claims.sub === "string" ? claims.sub : undefined;
+  if (!sub) return null;
+  const meta = claims.user_metadata;
+  return {
+    id: sub,
+    email: typeof claims.email === "string" ? claims.email : null,
+    user_metadata:
+      meta && typeof meta === "object" ? (meta as UserMeta) : undefined,
+  };
+}
+
 /** Workspace-scoped membership context attached by workspaceProcedure */
 export interface WorkspaceMembership {
   workspaceId: string;
@@ -114,13 +148,13 @@ export interface WorkspaceMembership {
 
 export const createTRPCContext = (opts: {
   headers: Headers;
-  user: (User & { user_metadata?: UserMeta }) | null;
+  user: AuthenticatedUser | null;
 }) => {
   const requestId = opts.headers.get("x-request-id") ?? generateRequestId();
   const workspaceId = opts.headers.get("x-workspace-id") ?? null;
 
   // Create a request-scoped logger with user context
-  const userRole = (opts.user?.user_metadata as UserMeta | undefined)?.role;
+  const userRole = opts.user?.user_metadata?.role;
   const log: ILogger = logger.child({
     requestId,
     userId: opts.user?.id,
@@ -250,7 +284,7 @@ export function roleRestrictedProcedure(
   allowedRoles: (typeof userRoleEnum.enumValues)[number][],
 ) {
   return protectedProcedure.use(({ ctx, next }) => {
-    const userRole = (ctx.user.user_metadata as UserMeta | undefined)?.role;
+    const userRole = ctx.user.user_metadata?.role;
     if (!userRole || !allowedRoles.includes(userRole)) {
       throw new TRPCError({
         code: "FORBIDDEN",
@@ -275,7 +309,7 @@ export function permissionProcedure(
   action: (typeof permissionActionEnum.enumValues)[number],
 ) {
   return protectedProcedure.use(async ({ ctx, next }) => {
-    const userRole = (ctx.user.user_metadata as UserMeta | undefined)?.role;
+    const userRole = ctx.user.user_metadata?.role;
     if (!userRole) {
       throw new TRPCError({
         code: "FORBIDDEN",
@@ -382,14 +416,23 @@ async function resolveWorkspaceMembership(
     };
   }
 
-  // Validate membership (runs as postgres, before SET LOCAL)
-  const memberRows = await ctx.db.execute<{
-    member_id: string;
-    member_role: string;
-    member_status: string;
-  }>(
-    sql`SELECT * FROM is_workspace_member(${ctx.user.id}::uuid, ${ctx.workspaceId}::uuid)`,
-  );
+  // Validate membership (runs as postgres, before SET LOCAL) and fetch the
+  // workspace plan — independent lookups, so they run in parallel instead
+  // of paying two sequential round-trips on cache misses.
+  const [memberRows, wsRows] = await Promise.all([
+    ctx.db.execute<{
+      member_id: string;
+      member_role: string;
+      member_status: string;
+    }>(
+      sql`SELECT * FROM is_workspace_member(${ctx.user.id}::uuid, ${ctx.workspaceId}::uuid)`,
+    ),
+    ctx.db
+      .select({ plan: Workspace.plan })
+      .from(Workspace)
+      .where(eq(Workspace.id, ctx.workspaceId))
+      .limit(1),
+  ]);
 
   const member = memberRows[0];
   if (!member) {
@@ -399,17 +442,11 @@ async function resolveWorkspaceMembership(
     });
   }
 
-  // Get workspace plan
-  const [ws] = await ctx.db
-    .select({ plan: Workspace.plan })
-    .from(Workspace)
-    .where(eq(Workspace.id, ctx.workspaceId))
-    .limit(1);
-
   const memberId = member.member_id;
   const memberRole = member.member_role as WorkspaceMembership["role"];
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
-  const workspacePlan = (ws?.plan ?? "starter") as WorkspaceMembership["plan"];
+  const workspacePlan = (wsRows[0]?.plan ??
+    "starter") as WorkspaceMembership["plan"];
 
   // Cache for subsequent calls in this request batch
   if (membershipCache.size >= MEMBERSHIP_CACHE_MAX) {
