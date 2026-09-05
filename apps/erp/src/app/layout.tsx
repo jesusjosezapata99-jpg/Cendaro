@@ -1,17 +1,29 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, Playfair_Display } from "next/font/google";
+import { Geist, Geist_Mono, Playfair_Display } from "next/font/google";
 import localFont from "next/font/local";
 import { Toaster } from "sonner";
 
+import { MotionProvider } from "~/components/motion-provider";
 import { ThemeProvider } from "~/components/theme-provider";
 import { env } from "~/env";
 
 import "./globals.css";
 
-const inter = Inter({
+/**
+ * Geist Sans + Geist Mono — the technical UI identity (Linear/Vercel-grade).
+ * Self-hosted at build time via next/font (zero CDN requests). Geist Mono
+ * pairs 1:1 with Sans and ships tabular figures for aligned numerics.
+ */
+const geistSans = Geist({
   subsets: ["latin"],
   display: "swap",
-  variable: "--font-sans",
+  variable: "--font-geist-sans",
+});
+
+const geistMono = Geist_Mono({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-geist-mono",
 });
 
 const playfair = Playfair_Display({
@@ -22,15 +34,19 @@ const playfair = Playfair_Display({
 });
 
 /**
- * Material Symbols — self-hosted subset (~11 KB).
+ * Material Symbols — self-hosted subset (~14 KB).
  *
  * Generated with the official Google Fonts subsetter:
  *   https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined
- *     :opsz,wght,FILL,GRAD@24,400,0,0&icon_names=<100 sorted ligatures>
+ *     :opsz,wght,FILL,GRAD@24,400,0,0&icon_names=<136 sorted ligatures>
+ *
+ * Icon list: ./fonts/material-symbols-subset.txt (validated against the
+ * official Material Symbols codepoints file). If a new ligature is used in
+ * code, regenerate the subset — missing names render as literal text.
  *
  * Axes are pinned to Google's defaults (opsz 24, wght 400, FILL 0, GRAD 0)
  * because the app never varies them — this shrinks the font from the full
- * variable file (295 KB over CDN) to ~11 KB, served same-origin with preload
+ * variable file (295 KB over CDN) to ~14 KB, served same-origin with preload
  * (no render-blocking third-party request, critical on Venezuelan 3G).
  * `display: block` keeps ligature text invisible during the brief swap window.
  */
@@ -84,18 +100,13 @@ export default function RootLayout({
         />
         <meta name="apple-mobile-web-app-title" content="Cendaro" />
         <link rel="apple-touch-icon" href="/cendaro-logo.png" />
-        {/* One-time migration: clear stale "light" default so next-themes re-detects system preference.
-             Safe to remove after all existing users have revisited (e.g. 2026-Q2). */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `try{var k="cendaro-theme",v=localStorage.getItem(k);if(v==='"light"'||v==="light")localStorage.removeItem(k)}catch(e){}`,
-          }}
-        />
       </head>
       <body
-        className={`${inter.variable} ${playfair.variable} ${materialSymbols.variable} bg-background text-foreground font-sans antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} ${playfair.variable} ${materialSymbols.variable} bg-background text-foreground font-sans antialiased`}
       >
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider>
+          <MotionProvider>{children}</MotionProvider>
+        </ThemeProvider>
         <Toaster richColors position="top-right" />
       </body>
     </html>

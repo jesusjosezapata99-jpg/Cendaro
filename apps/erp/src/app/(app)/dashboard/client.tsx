@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useQueries } from "@tanstack/react-query";
 
@@ -18,6 +19,7 @@ import {
   TableRow,
 } from "@cendaro/ui";
 
+import type { ClosureSalesPoint } from "./charts";
 import type { StatTone } from "~/components/stat-card";
 import { EmptyState } from "~/components/empty-state";
 import { PageHeader } from "~/components/page-header";
@@ -27,6 +29,29 @@ import { StatusBadge } from "~/components/status-badge";
 import { useVesRates } from "~/hooks/use-bcv-rate";
 import { formatDualCurrency } from "~/lib/format-currency";
 import { useTRPC } from "~/trpc/client";
+
+/**
+ * Charts hydrate lazily after first paint (ssr: false) — the recharts chunk
+ * never competes with LCP, and the h-64 slots below reserve the space so
+ * layout shift stays at zero.
+ */
+const SalesPerClosureChart = dynamic(
+  () => import("./charts").then((m) => m.SalesPerClosureChart),
+  { ssr: false, loading: () => <ChartPlaceholder /> },
+);
+const CollectionsDonutChart = dynamic(
+  () => import("./charts").then((m) => m.CollectionsDonutChart),
+  { ssr: false, loading: () => <ChartPlaceholder /> },
+);
+
+/** Height-reserved chart placeholder — prevents CLS while the chunk loads. */
+function ChartPlaceholder() {
+  return (
+    <div className="flex h-full items-center justify-center">
+      <Skeleton className="h-full w-full rounded-lg" />
+    </div>
+  );
+}
 
 interface Kpi {
   label: string;
@@ -49,7 +74,7 @@ interface SummaryRow {
 
 /** Shared row style for in-card navigable rows. */
 const rowClasses =
-  "border-border hover:bg-accent/50 hover:border-primary/30 focus-visible:border-ring focus-visible:ring-ring/50 flex min-h-11 items-center justify-between gap-3 rounded-lg border p-3 outline-none transition-colors duration-200";
+  "border-border-subtle hover:bg-accent/50 hover:border-primary/30 focus-visible:border-ring focus-visible:ring-ring/50 flex min-h-11 items-center justify-between gap-3 rounded-lg border p-3 outline-none transition-all duration-200 active:scale-[0.99] motion-reduce:active:scale-100";
 
 export default function DashboardClient() {
   const trpc = useTRPC();
@@ -78,7 +103,7 @@ export default function DashboardClient() {
 
   const kpis: Kpi[] = [
     {
-      label: "Órdenes Totales",
+      label: "Órdenes",
       value: summary?.orders.total ?? 0,
       icon: "receipt_long",
       tone: "primary",
@@ -109,7 +134,7 @@ export default function DashboardClient() {
       href: "/payments",
     },
     {
-      label: "CxC Pendiente",
+      label: "Por Cobrar",
       value: receivable.usd,
       sub: receivable.bs || undefined,
       icon: "account_balance_wallet",
@@ -154,6 +179,14 @@ export default function DashboardClient() {
     },
   ];
 
+  const closureSales: ClosureSalesPoint[] = (closures ?? []).map((c) => ({
+    label: new Date(c.closureDate).toLocaleDateString("es-VE", {
+      day: "numeric",
+      month: "short",
+    }),
+    sales: Number(c.totalSales),
+  }));
+
   return (
     <div className="animate-in fade-in slide-in-from-bottom-1 space-y-6 p-4 duration-200 lg:p-8">
       <PageHeader
@@ -173,7 +206,7 @@ export default function DashboardClient() {
           ? Array.from({ length: 6 }).map((_, i) => (
               <div
                 key={i}
-                className="bg-card flex flex-col gap-2 rounded-xl border p-4"
+                className="border-border-subtle surface-card flex flex-col gap-2 rounded-xl border p-4"
               >
                 <div className="flex items-center justify-between">
                   <Skeleton className="h-3 w-20" />
@@ -216,6 +249,39 @@ export default function DashboardClient() {
           )}
         </div>
       )}
+
+      {/* Analytics — lazily hydrated charts, height reserved (CLS 0) */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-muted-foreground text-sm font-medium">
+              Ventas por Cierre
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Últimos cierres de caja
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="h-64">
+            <SalesPerClosureChart data={closureSales} />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-muted-foreground text-sm font-medium">
+              Cobranza
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Cobrado vs por cobrar (período actual)
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="h-64">
+            <CollectionsDonutChart
+              collected={summary?.orders.paid ?? 0}
+              outstanding={summary?.accountsReceivable.debt ?? 0}
+            />
+          </CardContent>
+        </Card>
+      </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Summary — real counts and collected money */}
@@ -267,7 +333,7 @@ export default function DashboardClient() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="border-border flex min-h-11 items-center justify-between gap-3 rounded-lg border p-3">
+            <div className="border-border-subtle flex min-h-11 items-center justify-between gap-3 rounded-lg border p-3">
               <span className="text-foreground flex items-center gap-2 text-sm">
                 <span className="material-symbols-outlined text-muted-foreground text-lg">
                   attach_money
@@ -287,7 +353,7 @@ export default function DashboardClient() {
                 </span>
               )}
             </div>
-            <div className="border-border flex min-h-11 items-center justify-between gap-3 rounded-lg border p-3">
+            <div className="border-border-subtle flex min-h-11 items-center justify-between gap-3 rounded-lg border p-3">
               <span className="text-foreground flex items-center gap-2 text-sm">
                 <span className="material-symbols-outlined text-muted-foreground text-lg">
                   credit_card
@@ -304,7 +370,7 @@ export default function DashboardClient() {
                 </span>
               )}
             </div>
-            <div className="border-border flex min-h-11 items-center justify-between gap-3 rounded-lg border p-3">
+            <div className="border-border-subtle flex min-h-11 items-center justify-between gap-3 rounded-lg border p-3">
               <span className="text-foreground flex items-center gap-2 text-sm">
                 <span className="material-symbols-outlined text-muted-foreground text-lg">
                   trending_up

@@ -4,6 +4,21 @@ import { useState } from "react";
 import dynamic from "next/dynamic";
 import { useQuery } from "@tanstack/react-query";
 
+import {
+  Button,
+  Input,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@cendaro/ui";
+
+import { EmptyState } from "~/components/empty-state";
+import { PageHeader } from "~/components/page-header";
+import { Skeleton } from "~/components/skeleton";
+import { StatusBadge } from "~/components/status-badge";
 import { useTRPC } from "~/trpc/client";
 
 const CreateSupplierDialog = dynamic(
@@ -14,16 +29,7 @@ const CreateSupplierDialog = dynamic(
   { ssr: false },
 );
 
-function Skeleton({ className = "" }: { className?: string }) {
-  return <div className={`bg-muted animate-pulse rounded-lg ${className}`} />;
-}
-
-const COUNTRY_FLAGS: Record<string, string> = {
-  CN: "🇨🇳",
-  VE: "🇻🇪",
-  US: "🇺🇸",
-  CO: "🇨🇴",
-};
+const cellPx = "px-4 py-3";
 
 export default function SuppliersPage() {
   const trpc = useTRPC();
@@ -41,100 +47,123 @@ export default function SuppliersPage() {
   );
 
   return (
-    <div className="space-y-6 p-4 lg:p-8">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-foreground text-2xl font-black tracking-tight">
-            Proveedores
-          </h1>
-          <p className="text-muted-foreground text-sm">
-            {suppliers?.length ?? 0} proveedores registrados
-          </p>
-        </div>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="bg-primary text-primary-foreground hover:bg-primary/90 flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors"
-        >
-          <span className="material-symbols-outlined text-lg">add</span> Nuevo
-          Proveedor
-        </button>
-      </div>
+    <div className="animate-in fade-in slide-in-from-bottom-1 space-y-6 p-4 duration-200 lg:p-8">
+      <PageHeader
+        title="Proveedores"
+        description={`${(suppliers?.length ?? 0).toLocaleString("es-VE")} proveedores registrados`}
+        actions={
+          <Button onClick={() => setShowCreate(true)} className="min-h-11">
+            <span className="material-symbols-outlined text-lg">add</span>
+            Nuevo Proveedor
+          </Button>
+        }
+      />
 
       <CreateSupplierDialog
         open={showCreate}
         onClose={() => setShowCreate(false)}
       />
 
-      <input
-        type="text"
-        placeholder="Buscar proveedor o contacto..."
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        className="border-border bg-card text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-ring/20 w-full rounded-lg border px-4 py-2.5 text-sm outline-none focus:ring-2"
-      />
+      {/* Search */}
+      <div className="relative">
+        <span
+          aria-hidden
+          className="material-symbols-outlined text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-base"
+        >
+          search
+        </span>
+        <Input
+          type="text"
+          placeholder="Buscar proveedor o contacto..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="min-h-11 pl-10"
+        />
+      </div>
 
       {isLoading ? (
         <div className="space-y-2">
           {Array.from({ length: 5 }).map((_, i) => (
-            <Skeleton key={i} className="h-14 w-full" />
+            <Skeleton key={i} className="h-14 w-full rounded-xl" />
           ))}
         </div>
       ) : (
-        <div className="border-border bg-card overflow-hidden rounded-xl border">
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr className="border-border text-muted-foreground border-b text-xs uppercase">
-                <th className="px-4 py-3 font-medium">Proveedor</th>
-                <th className="px-4 py-3 font-medium">País</th>
-                <th className="px-4 py-3 font-medium">Contacto</th>
-                <th className="px-4 py-3 font-medium">Email</th>
-                <th className="px-4 py-3 font-medium">Estado</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((supplier) => (
-                <tr
-                  key={supplier.id}
-                  className="border-border hover:bg-accent/50 border-b transition-colors"
+        <div className="border-border-subtle surface-card gap-0 overflow-hidden rounded-xl border py-0">
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead
+                  className={`text-muted-foreground ${cellPx} text-xs font-medium tracking-widest uppercase`}
                 >
-                  <td className="text-foreground px-4 py-3 font-medium">
+                  Proveedor
+                </TableHead>
+                <TableHead
+                  className={`text-muted-foreground ${cellPx} text-xs font-medium tracking-widest uppercase`}
+                >
+                  País
+                </TableHead>
+                <TableHead
+                  className={`text-muted-foreground ${cellPx} text-xs font-medium tracking-widest uppercase`}
+                >
+                  Contacto
+                </TableHead>
+                <TableHead
+                  className={`text-muted-foreground ${cellPx} text-xs font-medium tracking-widest uppercase`}
+                >
+                  Email
+                </TableHead>
+                <TableHead
+                  className={`text-muted-foreground ${cellPx} text-xs font-medium tracking-widest uppercase`}
+                >
+                  Estado
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filtered.map((supplier) => (
+                <TableRow key={supplier.id}>
+                  <TableCell
+                    className={`text-foreground ${cellPx} font-medium`}
+                  >
                     {supplier.name}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className="flex items-center gap-1.5 text-sm">
-                      <span>{COUNTRY_FLAGS[supplier.country] ?? "🌐"}</span>
-                      <span className="text-muted-foreground">
-                        {supplier.country}
-                      </span>
+                  </TableCell>
+                  <TableCell className={cellPx}>
+                    <span className="border-border-subtle bg-muted/50 text-muted-foreground inline-flex items-center rounded-md border px-2 py-0.5 font-mono text-xs font-medium tracking-wider">
+                      {supplier.country}
                     </span>
-                  </td>
-                  <td className="text-muted-foreground px-4 py-3">
+                  </TableCell>
+                  <TableCell
+                    className={`text-muted-foreground ${cellPx} text-sm`}
+                  >
                     {supplier.contactName ?? "—"}
-                  </td>
-                  <td className="text-muted-foreground px-4 py-3">
+                  </TableCell>
+                  <TableCell
+                    className={`text-muted-foreground ${cellPx} text-sm`}
+                  >
                     {supplier.contactEmail ?? "—"}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${supplier.status === "active" ? "bg-emerald-500/20 text-emerald-400" : "bg-red-500/20 text-red-400"}`}
+                  </TableCell>
+                  <TableCell className={cellPx}>
+                    <StatusBadge
+                      tone={
+                        supplier.status === "active" ? "success" : "neutral"
+                      }
                     >
                       {supplier.status === "active" ? "Activo" : "Inactivo"}
-                    </span>
-                  </td>
-                </tr>
+                    </StatusBadge>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       )}
 
       {filtered.length === 0 && !isLoading && (
-        <div className="border-border bg-card text-muted-foreground flex flex-col items-center justify-center rounded-xl border py-12">
-          <span className="material-symbols-outlined mb-2 text-3xl">
-            local_shipping
-          </span>
-          <p className="text-sm">No se encontraron proveedores</p>
-        </div>
+        <EmptyState
+          icon="local_shipping"
+          title="No se encontraron proveedores"
+          description="Ajusta la búsqueda o registra un nuevo proveedor para empezar."
+        />
       )}
     </div>
   );

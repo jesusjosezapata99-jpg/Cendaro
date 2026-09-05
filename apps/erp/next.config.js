@@ -36,27 +36,32 @@ const config = {
   serverExternalPackages: ["sharp"],
   /** HTTP cache and security headers for API routes */
   async headers() {
+    const isDev = process.env.NODE_ENV !== "production";
+
     // Content-Security-Policy directives:
     //   script-src 'unsafe-inline' — required by Next.js for inline hydration
+    //   script-src 'unsafe-eval' — required by React 19 / Turbopack in development mode for
+    //              sourcemap decoding, stack trace reconstruction, and Fast Refresh
     //   style-src  'unsafe-inline' — Tailwind + Next inline styles. All fonts
     //              are self-hosted via next/font (no external font CDNs).
     //   img-src    *.supabase.co — product images in Supabase Storage
     //              blob: data: — AI image previews in the packing-list pipeline
-    //   connect-src — Supabase API, Groq AI, Sentry telemetry, exchange-rate APIs
+    //   connect-src ws: wss: (dev) — Turbopack HMR / Fast Refresh WebSocket connections
+    //   connect-src (all) — Supabase API, Groq AI, Sentry telemetry, exchange-rate APIs
     //   frame-ancestors 'none' — clickjacking prevention (CSP-level, supplements X-Frame-Options)
     const ContentSecurityPolicy = [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline'",
+      `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
       "style-src 'self' 'unsafe-inline'",
       "font-src 'self'",
       "img-src 'self' data: blob: https://*.supabase.co",
       "media-src 'self'",
       "object-src 'none'",
       "frame-ancestors 'none'",
-      "connect-src 'self' https://*.supabase.co https://api.groq.com https://ve.dolarapi.com https://api.frankfurter.dev https://v6.exchangerate-api.com https://*.sentry.io",
+      `connect-src 'self'${isDev ? " ws: wss:" : ""} https://*.supabase.co https://api.groq.com https://ve.dolarapi.com https://api.frankfurter.dev https://v6.exchangerate-api.com https://*.sentry.io`,
       "base-uri 'self'",
       "form-action 'self'",
-      "upgrade-insecure-requests",
+      ...(isDev ? [] : ["upgrade-insecure-requests"]),
     ].join("; ");
 
     return [
@@ -70,10 +75,14 @@ const config = {
             key: "Permissions-Policy",
             value: "camera=(), microphone=(), geolocation=(), payment=()",
           },
-          {
-            key: "Strict-Transport-Security",
-            value: "max-age=31536000; includeSubDomains; preload",
-          },
+          ...(isDev
+            ? []
+            : [
+                {
+                  key: "Strict-Transport-Security",
+                  value: "max-age=31536000; includeSubDomains; preload",
+                },
+              ]),
           {
             key: "Content-Security-Policy",
             value: ContentSecurityPolicy,

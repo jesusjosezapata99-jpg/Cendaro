@@ -5,6 +5,14 @@ import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 
+import { Button, Input } from "@cendaro/ui";
+
+import type { StatusTone } from "~/components/status-badge";
+import { EmptyState } from "~/components/empty-state";
+import { PageHeader } from "~/components/page-header";
+import { Skeleton } from "~/components/skeleton";
+import { StatCard } from "~/components/stat-card";
+import { StatusBadge } from "~/components/status-badge";
 import { useTRPC } from "~/trpc/client";
 
 const TransferStockDialog = lazy(() =>
@@ -18,42 +26,38 @@ const CycleCountDialog = lazy(() =>
   })),
 );
 
-function Skeleton({ className = "" }: { className?: string }) {
-  return <div className={`bg-muted animate-pulse rounded-lg ${className}`} />;
-}
-
+/** Sales channels → system chart tokens (zero hardcodes). */
 const CHANNELS = [
-  { key: "store", label: "Tienda", icon: "store", color: "text-blue-500" },
+  {
+    key: "store",
+    label: "Tienda",
+    icon: "store",
+    tone: "bg-chart-1/15 text-chart-1",
+  },
   {
     key: "mercadolibre",
     label: "ML",
     icon: "shopping_cart",
-    color: "text-amber-500",
+    tone: "bg-chart-2/15 text-chart-2",
   },
   {
     key: "vendors",
     label: "Vendedores",
     icon: "group",
-    color: "text-cyan-500",
+    tone: "bg-chart-3/15 text-chart-3",
   },
 ];
 
-const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
-  in_stock: {
-    label: "En Stock",
-    color:
-      "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300",
-  },
-  low_stock: {
-    label: "Stock Bajo",
-    color:
-      "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
-  },
-  out_of_stock: {
-    label: "Sin Stock",
-    color: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300",
-  },
+/** Stock level → semantic token chip (single source of truth). */
+const STATUS_CONFIG: Record<string, { label: string; tone: StatusTone }> = {
+  in_stock: { label: "En Stock", tone: "success" },
+  low_stock: { label: "Stock Bajo", tone: "warning" },
+  out_of_stock: { label: "Sin Stock", tone: "destructive" },
 };
+
+/** Shared cell padding + fixed column widths (keeps the split tables aligned). */
+const cellPx = "px-4 py-3";
+const colWidths = ["w-40", "", "w-28", "w-24", "w-20", "w-20", "w-28"];
 
 interface StockItem {
   id: string;
@@ -139,38 +143,34 @@ export default function InventoryClient() {
   });
 
   return (
-    <div className="space-y-6 p-4 lg:p-8">
-      {/* Header — stacks vertically on mobile */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-foreground text-2xl font-black tracking-tight">
-            Inventario
-          </h1>
-          <p className="text-muted-foreground mt-1 text-sm">
-            Control multicanal de stock
-          </p>
-        </div>
-        <div className="flex w-full gap-2 sm:w-auto">
-          <button
-            onClick={() => setShowTransfer(true)}
-            className="bg-secondary text-foreground hover:bg-accent flex min-h-[44px] flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors sm:flex-initial"
-          >
-            <span className="material-symbols-outlined text-lg">
-              swap_horiz
-            </span>
-            <span>Transferir</span>
-          </button>
-          <button
-            onClick={() => setShowCycle(true)}
-            className="bg-primary text-primary-foreground hover:bg-primary/90 flex min-h-[44px] flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-bold transition-colors sm:flex-initial"
-          >
-            <span className="material-symbols-outlined text-lg">
-              fact_check
-            </span>
-            <span>Conteo</span>
-          </button>
-        </div>
-      </div>
+    <div className="animate-in fade-in slide-in-from-bottom-1 space-y-6 p-4 duration-200 lg:p-8">
+      <PageHeader
+        title="Inventario"
+        description="Control multicanal de stock"
+        actions={
+          <div className="flex w-full gap-2 sm:w-auto">
+            <Button
+              variant="secondary"
+              onClick={() => setShowTransfer(true)}
+              className="min-h-11 flex-1 sm:flex-initial"
+            >
+              <span className="material-symbols-outlined text-lg">
+                swap_horiz
+              </span>
+              Transferir
+            </Button>
+            <Button
+              onClick={() => setShowCycle(true)}
+              className="min-h-11 flex-1 sm:flex-initial"
+            >
+              <span className="material-symbols-outlined text-lg">
+                fact_check
+              </span>
+              Conteo
+            </Button>
+          </div>
+        }
+      />
 
       <Suspense>
         <TransferStockDialog
@@ -185,49 +185,29 @@ export default function InventoryClient() {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {[
-          {
-            label: "Stock Total",
-            value: isLoading ? "—" : totalStock.toLocaleString(),
-            icon: "inventory_2",
-            accent: "border-blue-500/40",
-          },
-          {
-            label: "Productos",
-            value: isLoading ? "—" : items.length,
-            icon: "category",
-            accent: "border-emerald-500/40",
-          },
-          {
-            label: "Bajo Stock",
-            value: isLoading ? "—" : lowStockCount,
-            icon: "trending_down",
-            accent: "border-amber-500/40",
-          },
-          {
-            label: "Sin Stock",
-            value: isLoading ? "—" : outOfStockCount,
-            icon: "error",
-            accent: "border-red-500/40",
-          },
-        ].map((stat) => (
-          <div
-            key={stat.label}
-            className={`rounded-xl border-l-4 ${stat.accent} bg-card border-border border p-3`}
-          >
-            <div className="flex items-center gap-1.5">
-              <span className="material-symbols-outlined text-muted-foreground text-lg">
-                {stat.icon}
-              </span>
-              <span className="text-muted-foreground text-[10px] font-bold tracking-widest uppercase">
-                {stat.label}
-              </span>
-            </div>
-            <p className="text-foreground mt-1 text-lg font-bold">
-              {stat.value}
-            </p>
-          </div>
-        ))}
+        <StatCard
+          label="Stock Total"
+          value={isLoading ? "—" : totalStock.toLocaleString("es-VE")}
+          icon="inventory_2"
+          tone="primary"
+        />
+        <StatCard
+          label="Productos"
+          value={isLoading ? "—" : items.length.toLocaleString("es-VE")}
+          icon="category"
+        />
+        <StatCard
+          label="Bajo Stock"
+          value={isLoading ? "—" : lowStockCount.toLocaleString("es-VE")}
+          icon="trending_down"
+          tone="warning"
+        />
+        <StatCard
+          label="Sin Stock"
+          value={isLoading ? "—" : outOfStockCount.toLocaleString("es-VE")}
+          icon="error"
+          tone="destructive"
+        />
       </div>
 
       {/* Channel Stock — horizontal scrollable on mobile */}
@@ -239,19 +219,20 @@ export default function InventoryClient() {
           return (
             <div
               key={ch.key}
-              className="border-border bg-card flex min-w-[160px] shrink-0 items-center gap-3 rounded-xl border p-4"
+              className="border-border-subtle surface-card flex min-w-40 shrink-0 items-center gap-3 rounded-xl border p-4"
             >
               <span
-                className={`material-symbols-outlined text-2xl ${ch.color}`}
+                aria-hidden
+                className={`material-symbols-outlined flex size-10 shrink-0 items-center justify-center rounded-lg text-xl ${ch.tone}`}
               >
                 {ch.icon}
               </span>
-              <div>
-                <p className="text-muted-foreground text-[10px] font-bold uppercase">
+              <div className="min-w-0">
+                <p className="text-muted-foreground text-xs font-medium tracking-wider uppercase">
                   {ch.label}
                 </p>
-                <p className="text-foreground text-lg font-bold">
-                  {chData?.stock ?? 0}
+                <p className="text-foreground font-mono text-lg font-semibold tabular-nums">
+                  {(chData?.stock ?? 0).toLocaleString("es-VE")}
                 </p>
               </div>
             </div>
@@ -266,14 +247,21 @@ export default function InventoryClient() {
             <Link
               key={w.id}
               href={`/inventory/warehouse/${w.id}`}
-              className="border-border bg-card hover:border-primary/30 flex min-w-[180px] shrink-0 items-center gap-3 rounded-xl border p-4 transition-colors"
+              className="border-border-subtle surface-card hover:border-primary/30 flex min-w-45 shrink-0 items-center gap-3 rounded-xl border p-4 transition-colors"
             >
-              <span className="material-symbols-outlined text-muted-foreground text-2xl">
+              <span
+                aria-hidden
+                className="bg-secondary text-muted-foreground material-symbols-outlined flex size-10 shrink-0 items-center justify-center rounded-lg text-xl"
+              >
                 warehouse
               </span>
-              <div>
-                <p className="text-foreground text-sm font-bold">{w.name}</p>
-                <p className="text-muted-foreground text-xs">{w.location}</p>
+              <div className="min-w-0">
+                <p className="text-foreground truncate text-sm font-semibold">
+                  {w.name}
+                </p>
+                <p className="text-muted-foreground truncate text-xs">
+                  {w.location}
+                </p>
               </div>
             </Link>
           ))}
@@ -282,22 +270,30 @@ export default function InventoryClient() {
 
       {/* Search + Filter */}
       <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-        <input
-          type="text"
-          placeholder="Buscar producto..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="border-border bg-card text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-ring/20 min-h-[44px] flex-1 rounded-lg border px-4 py-2.5 text-sm transition-colors outline-none focus:ring-2"
-        />
+        <div className="relative flex-1">
+          <span
+            aria-hidden
+            className="material-symbols-outlined text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-base"
+          >
+            search
+          </span>
+          <Input
+            type="text"
+            placeholder="Buscar producto..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="min-h-11 pl-10"
+          />
+        </div>
         <div className="mobile-scroll-x flex gap-2 pb-1">
           {["all", "in_stock", "low_stock", "out_of_stock"].map((s) => (
             <button
               key={s}
               onClick={() => setStatusFilter(s)}
-              className={`min-h-[36px] shrink-0 rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${
+              className={`min-h-9 shrink-0 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
                 statusFilter === s
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-secondary text-muted-foreground hover:bg-accent"
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-border-subtle text-muted-foreground hover:bg-accent/50 hover:text-foreground"
               }`}
             >
               {s === "all" ? "Todos" : (STATUS_CONFIG[s]?.label ?? s)}
@@ -310,93 +306,91 @@ export default function InventoryClient() {
       <div className="space-y-3 md:hidden">
         {isLoading
           ? Array.from({ length: 4 }).map((_, i) => (
-              <Skeleton key={i} className="h-24 w-full" />
+              <div
+                key={i}
+                className="border-border-subtle surface-card rounded-xl border p-4"
+              >
+                <Skeleton className="h-5 w-3/4" />
+                <Skeleton className="mt-2 h-4 w-24" />
+              </div>
             ))
           : filtered.map((item) => {
-              const stockStatus = getStockStatus(item);
-              const statusCfg = STATUS_CONFIG[stockStatus] ?? {
-                label: stockStatus,
-                color: "",
+              const statusCfg = STATUS_CONFIG[getStockStatus(item)] ?? {
+                label: item.status,
+                tone: "neutral" as StatusTone,
               };
               return (
                 <div
                   key={item.id}
-                  className="border-border bg-card rounded-xl border p-4"
+                  className="border-border-subtle surface-card rounded-xl border p-4"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
                       <p className="text-foreground truncate font-medium">
                         {item.name}
                       </p>
-                      <p className="text-muted-foreground mt-0.5 font-mono text-xs">
+                      <p className="text-muted-foreground mt-0.5 font-mono text-xs tabular-nums">
                         {item.sku}
                       </p>
                     </div>
-                    <span
-                      className={`shrink-0 rounded-full px-2.5 py-0.5 text-[10px] font-bold ${statusCfg.color}`}
-                    >
+                    <StatusBadge tone={statusCfg.tone}>
                       {statusCfg.label}
-                    </span>
+                    </StatusBadge>
                   </div>
                   <div className="mt-3 grid grid-cols-4 gap-2 text-center">
-                    <div>
-                      <p className="text-muted-foreground text-[10px] font-bold uppercase">
-                        Total
-                      </p>
-                      <p className="text-foreground font-mono text-sm font-bold">
-                        {item.totalStock}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground text-[10px] font-bold uppercase">
-                        Tienda
-                      </p>
-                      <p className="text-foreground font-mono text-sm">
-                        {item.storeStock}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground text-[10px] font-bold uppercase">
-                        ML
-                      </p>
-                      <p className="text-foreground font-mono text-sm">
-                        {item.mlStock}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground text-[10px] font-bold uppercase">
-                        Vend.
-                      </p>
-                      <p className="text-foreground font-mono text-sm">
-                        {item.vendorStock}
-                      </p>
-                    </div>
+                    {[
+                      { l: "Total", v: item.totalStock, strong: true },
+                      { l: "Tienda", v: item.storeStock, strong: false },
+                      { l: "ML", v: item.mlStock, strong: false },
+                      { l: "Vend.", v: item.vendorStock, strong: false },
+                    ].map((c) => (
+                      <div key={c.l}>
+                        <p className="text-muted-foreground text-xs font-medium tracking-wider uppercase">
+                          {c.l}
+                        </p>
+                        <p
+                          className={`text-foreground mt-0.5 font-mono text-sm tabular-nums ${c.strong ? "font-semibold" : ""}`}
+                        >
+                          {c.v.toLocaleString("es-VE")}
+                        </p>
+                      </div>
+                    ))}
                   </div>
                 </div>
               );
             })}
         {!isLoading && filtered.length === 0 && (
-          <div className="text-muted-foreground flex flex-col items-center py-12 text-center">
-            <span className="material-symbols-outlined mb-2 text-3xl">
-              inventory_2
-            </span>
-            No se encontraron items
-          </div>
+          <EmptyState
+            icon="inventory_2"
+            title="No se encontraron items"
+            description="Ajusta la búsqueda o el filtro de stock e inténtalo de nuevo."
+          />
         )}
       </div>
 
       {/* ── Desktop: Virtual Table View ───────────────── */}
-      <div className="border-border bg-card hidden overflow-hidden rounded-xl border md:block">
-        <table className="w-full text-left text-sm">
+      <div className="border-border-subtle surface-card hidden gap-0 overflow-hidden rounded-xl border py-0 md:block">
+        <table className="w-full table-fixed text-left text-sm">
           <thead>
-            <tr className="border-border text-muted-foreground border-b text-[10px] font-bold tracking-widest uppercase">
-              <th className="px-4 py-3">SKU</th>
-              <th className="px-4 py-3">Producto</th>
-              <th className="px-4 py-3 text-center">Estado</th>
-              <th className="px-4 py-3 text-right">Total</th>
-              <th className="px-4 py-3 text-right">Tienda</th>
-              <th className="px-4 py-3 text-right">ML</th>
-              <th className="px-4 py-3 text-right">Vendedores</th>
+            <tr className="border-border-subtle border-b">
+              {[
+                "SKU",
+                "Producto",
+                "Estado",
+                "Total",
+                "Tienda",
+                "ML",
+                "Vendedores",
+              ].map((h, j) => (
+                <th
+                  key={h}
+                  className={`text-muted-foreground ${cellPx} ${colWidths[j]} text-xs font-medium tracking-widest uppercase ${
+                    j >= 3 ? "text-right" : j === 2 ? "text-center" : ""
+                  }`}
+                >
+                  {h}
+                </th>
+              ))}
             </tr>
           </thead>
         </table>
@@ -404,17 +398,17 @@ export default function InventoryClient() {
           ref={tableScrollRef}
           style={{ height: "min(600px, 70vh)", overflow: "auto" }}
         >
-          <table className="w-full text-left text-sm">
+          <table className="w-full table-fixed text-left text-sm">
             <tbody>
               {isLoading ? (
                 Array.from({ length: 5 }).map((_, i) => (
                   <tr
                     key={i}
-                    className="border-border border-b"
+                    className="border-border-subtle border-b"
                     style={{ height: "49px" }}
                   >
                     {Array.from({ length: 7 }).map((_, j) => (
-                      <td key={j} className="px-4 py-3">
+                      <td key={j} className={cellPx}>
                         <Skeleton className="h-5 w-16" />
                       </td>
                     ))}
@@ -425,42 +419,51 @@ export default function InventoryClient() {
                   {virtualizer.getVirtualItems().map((virtualRow) => {
                     const item = filtered[virtualRow.index];
                     if (!item) return null;
-                    const stockStatus = getStockStatus(item);
-                    const statusCfg = STATUS_CONFIG[stockStatus] ?? {
-                      label: stockStatus,
-                      color: "",
+                    const statusCfg = STATUS_CONFIG[getStockStatus(item)] ?? {
+                      label: item.status,
+                      tone: "neutral" as StatusTone,
                     };
                     return (
                       <tr
                         key={item.id}
                         data-index={virtualRow.index}
                         ref={virtualizer.measureElement}
-                        className="border-border hover:bg-accent/50 border-b transition-colors"
+                        className="border-border-subtle hover:bg-accent/50 border-b transition-colors"
                       >
-                        <td className="text-muted-foreground px-4 py-3 font-mono text-xs">
+                        <td
+                          className={`text-muted-foreground ${cellPx} ${colWidths[0]} truncate font-mono text-xs tabular-nums`}
+                        >
                           {item.sku}
                         </td>
-                        <td className="text-foreground px-4 py-3 font-medium">
+                        <td
+                          className={`text-foreground ${cellPx} truncate font-medium`}
+                        >
                           {item.name}
                         </td>
-                        <td className="px-4 py-3 text-center">
-                          <span
-                            className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold ${statusCfg.color}`}
-                          >
+                        <td className={`${cellPx} ${colWidths[2]} text-center`}>
+                          <StatusBadge tone={statusCfg.tone}>
                             {statusCfg.label}
-                          </span>
+                          </StatusBadge>
                         </td>
-                        <td className="text-foreground px-4 py-3 text-right font-mono font-bold">
-                          {item.totalStock}
+                        <td
+                          className={`text-foreground ${cellPx} ${colWidths[3]} text-right font-mono font-semibold tabular-nums`}
+                        >
+                          {item.totalStock.toLocaleString("es-VE")}
                         </td>
-                        <td className="text-muted-foreground px-4 py-3 text-right font-mono">
-                          {item.storeStock}
+                        <td
+                          className={`text-muted-foreground ${cellPx} ${colWidths[4]} text-right font-mono text-sm tabular-nums`}
+                        >
+                          {item.storeStock.toLocaleString("es-VE")}
                         </td>
-                        <td className="text-muted-foreground px-4 py-3 text-right font-mono">
-                          {item.mlStock}
+                        <td
+                          className={`text-muted-foreground ${cellPx} ${colWidths[5]} text-right font-mono text-sm tabular-nums`}
+                        >
+                          {item.mlStock.toLocaleString("es-VE")}
                         </td>
-                        <td className="text-muted-foreground px-4 py-3 text-right font-mono">
-                          {item.vendorStock}
+                        <td
+                          className={`text-muted-foreground ${cellPx} ${colWidths[6]} text-right font-mono text-sm tabular-nums`}
+                        >
+                          {item.vendorStock.toLocaleString("es-VE")}
                         </td>
                       </tr>
                     );
@@ -468,15 +471,13 @@ export default function InventoryClient() {
                 </>
               )}
               {!isLoading && filtered.length === 0 && (
-                <tr>
-                  <td
-                    colSpan={7}
-                    className="text-muted-foreground px-4 py-12 text-center"
-                  >
-                    <span className="material-symbols-outlined mb-2 block text-3xl">
-                      inventory_2
-                    </span>
-                    No se encontraron items
+                <tr className="hover:bg-transparent">
+                  <td colSpan={7} className="px-4 py-6">
+                    <EmptyState
+                      icon="inventory_2"
+                      title="No se encontraron items"
+                      description="Ajusta la búsqueda o el filtro de stock e inténtalo de nuevo."
+                    />
                   </td>
                 </tr>
               )}

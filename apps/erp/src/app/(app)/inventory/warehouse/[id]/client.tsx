@@ -6,28 +6,40 @@ import { useParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
+import {
+  Button,
+  Input,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@cendaro/ui";
+
+import type { StatusTone } from "~/components/status-badge";
+import { EmptyState } from "~/components/empty-state";
+import { Skeleton } from "~/components/skeleton";
+import { StatCard } from "~/components/stat-card";
+import { StatusBadge } from "~/components/status-badge";
 import { useTRPC } from "~/trpc/client";
 
-/* ── Reusable primitives ──────────────────────── */
-
-const badgeColors: Record<string, string> = {
-  physical: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
-  transit:
-    "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300",
-  virtual:
-    "bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300",
+/** Warehouse type → semantic token chip. */
+const TYPE_CONFIG: Record<string, { label: string; tone: StatusTone }> = {
+  physical: { label: "Físico", tone: "primary" },
+  transit: { label: "En Tránsito", tone: "warning" },
+  virtual: { label: "Virtual", tone: "neutral" },
 };
 
-const statusColors: Record<string, string> = {
-  active: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30",
-  draft: "bg-gray-100 text-gray-600 dark:bg-gray-800",
-  discontinued: "bg-red-100 text-red-700 dark:bg-red-900/30",
+/** Product status → semantic token chip (mirrors the catalog). */
+const STATUS_CONFIG: Record<string, { label: string; tone: StatusTone }> = {
+  active: { label: "Activo", tone: "success" },
+  draft: { label: "Borrador", tone: "warning" },
+  discontinued: { label: "Descontinuado", tone: "destructive" },
 };
 
-const inputBase =
-  "w-full min-h-[36px] rounded-lg border border-border bg-card px-3 py-1.5 text-sm text-foreground outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-ring/20";
-
-/* ── Component ────────────────────────────────── */
+/** Shared cell padding for the stock table. */
+const cellPx = "px-4 py-3";
 
 export default function WarehouseDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -76,12 +88,12 @@ export default function WarehouseDetailPage() {
   /* Loading */
   if (loadingWarehouse) {
     return (
-      <div className="space-y-6 p-4 lg:p-8">
-        <div className="bg-muted h-6 w-48 animate-pulse rounded" />
-        <div className="bg-muted h-10 w-80 animate-pulse rounded" />
+      <div className="animate-in fade-in space-y-6 p-4 duration-200 lg:p-8">
+        <Skeleton className="h-8 w-64" />
+        <Skeleton className="h-40 w-full rounded-xl" />
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="bg-muted h-24 animate-pulse rounded-xl" />
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-24 rounded-xl" />
           ))}
         </div>
       </div>
@@ -90,23 +102,28 @@ export default function WarehouseDetailPage() {
 
   if (!warehouse) {
     return (
-      <div className="flex flex-col items-center justify-center gap-4 p-8">
-        <span className="material-symbols-outlined text-muted-foreground text-5xl">
-          warehouse
-        </span>
-        <p className="text-muted-foreground text-lg">Almacén no encontrado</p>
-        <Link
-          href="/inventory"
-          className="text-primary text-sm font-medium hover:underline"
-        >
-          ← Volver a Inventario
-        </Link>
+      <div className="p-4 lg:p-8">
+        <EmptyState
+          icon="warehouse"
+          title="Almacén no encontrado"
+          description="El almacén que buscas no existe o fue eliminado."
+          action={
+            <Button variant="outline" asChild>
+              <Link href="/inventory">Volver a Inventario</Link>
+            </Button>
+          }
+        />
       </div>
     );
   }
 
+  const typeCfg = TYPE_CONFIG[warehouse.type] ?? {
+    label: warehouse.type,
+    tone: "neutral" as StatusTone,
+  };
+
   return (
-    <div className="space-y-6 p-4 lg:p-8">
+    <div className="animate-in fade-in slide-in-from-bottom-1 space-y-6 p-4 duration-200 lg:p-8">
       {/* Breadcrumb */}
       <div className="text-muted-foreground flex items-center gap-2 text-sm">
         <Link
@@ -115,252 +132,275 @@ export default function WarehouseDetailPage() {
         >
           Inventario
         </Link>
-        <span className="material-symbols-outlined text-base">
+        <span aria-hidden className="material-symbols-outlined text-base">
           chevron_right
         </span>
         <span className="text-foreground font-medium">{warehouse.name}</span>
       </div>
 
       {/* Header */}
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-foreground text-2xl font-black tracking-tight">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0 space-y-1">
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-foreground text-2xl font-semibold tracking-tight">
               {warehouse.name}
             </h1>
-            <span
-              className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${badgeColors[warehouse.type] ?? "bg-gray-100 text-gray-700"}`}
-            >
-              {warehouse.type}
-            </span>
+            <StatusBadge tone={typeCfg.tone}>{typeCfg.label}</StatusBadge>
             {!warehouse.isActive && (
-              <span className="rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-semibold text-red-700 dark:bg-red-900/30">
-                Inactivo
-              </span>
+              <StatusBadge tone="destructive">Inactivo</StatusBadge>
             )}
           </div>
           {warehouse.location && (
-            <p className="text-muted-foreground mt-1 text-sm">
-              <span className="material-symbols-outlined mr-1 align-middle text-sm">
+            <p className="text-muted-foreground flex items-center gap-1 text-sm">
+              <span aria-hidden className="material-symbols-outlined text-base">
                 location_on
               </span>
               {warehouse.location}
             </p>
           )}
         </div>
-        <Link
-          href={`/inventory/warehouse/${id}/import`}
-          className="bg-primary hover:bg-primary/90 inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors"
-        >
-          <span className="material-symbols-outlined text-lg">upload_file</span>
-          Importar Inventario
-        </Link>
+        <Button asChild className="min-h-11 shrink-0">
+          <Link href={`/inventory/warehouse/${id}/import`}>
+            <span className="material-symbols-outlined text-lg">
+              upload_file
+            </span>
+            Importar Inventario
+          </Link>
+        </Button>
       </div>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        {[
-          {
-            label: "Productos",
-            value: warehouse.totalProducts,
-            icon: "inventory_2",
-            color: "text-blue-600 dark:text-blue-400",
-          },
-          {
-            label: "Stock Total",
-            value: warehouse.totalStock.toLocaleString(),
-            icon: "stacks",
-            color: "text-emerald-600 dark:text-emerald-400",
-          },
-          {
-            label: "Stock Bajo (≤5)",
-            value: warehouse.lowStockCount,
-            icon: "warning",
-            color: "text-amber-600 dark:text-amber-400",
-          },
-          {
-            label: "Bloqueados",
-            value: warehouse.lockedCount,
-            icon: "lock",
-            color: "text-red-600 dark:text-red-400",
-          },
-        ].map((kpi) => (
-          <div
-            key={kpi.label}
-            className="border-border bg-card rounded-xl border p-4 shadow-sm"
-          >
-            <div className="flex items-center gap-2">
-              <span
-                className={`material-symbols-outlined text-xl ${kpi.color}`}
-              >
-                {kpi.icon}
-              </span>
-              <span className="text-muted-foreground text-xs font-medium">
-                {kpi.label}
-              </span>
-            </div>
-            <p className="text-foreground mt-2 text-2xl font-black">
-              {kpi.value}
-            </p>
-          </div>
-        ))}
+        <StatCard
+          label="Productos"
+          value={warehouse.totalProducts.toLocaleString("es-VE")}
+          icon="inventory_2"
+          tone="primary"
+        />
+        <StatCard
+          label="Stock Total"
+          value={warehouse.totalStock.toLocaleString("es-VE")}
+          icon="stacks"
+          tone="success"
+        />
+        <StatCard
+          label="Stock Bajo (≤5)"
+          value={warehouse.lowStockCount.toLocaleString("es-VE")}
+          icon="warning"
+          tone="warning"
+        />
+        <StatCard
+          label="Bloqueados"
+          value={warehouse.lockedCount.toLocaleString("es-VE")}
+          icon="lock"
+          tone="destructive"
+        />
       </div>
 
       {/* Search */}
       <div className="relative max-w-sm">
-        <span className="material-symbols-outlined text-muted-foreground absolute top-1/2 left-3 -translate-y-1/2 text-lg">
+        <span
+          aria-hidden
+          className="material-symbols-outlined text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-base"
+        >
           search
         </span>
-        <input
+        <Input
+          type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Buscar por nombre o SKU..."
-          className={`${inputBase} pl-10`}
+          className="min-h-11 pl-10"
         />
       </div>
 
       {/* Stock Table */}
-      <section className="border-border bg-card overflow-hidden rounded-xl border shadow-sm">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-border bg-muted/50 border-b text-left">
-                <th className="text-muted-foreground px-4 py-3 font-semibold">
-                  Producto
-                </th>
-                <th className="text-muted-foreground px-4 py-3 font-semibold">
-                  SKU
-                </th>
-                <th className="text-muted-foreground px-4 py-3 text-center font-semibold">
-                  Estado
-                </th>
-                <th className="text-muted-foreground px-4 py-3 text-right font-semibold">
-                  Cantidad
-                </th>
-                <th className="text-muted-foreground px-4 py-3 text-center font-semibold">
-                  Bloqueado
-                </th>
-                <th className="text-muted-foreground px-4 py-3 text-right font-semibold">
-                  Acciones
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {loadingStock ? (
-                Array.from({ length: 5 }).map((_, i) => (
-                  <tr key={i} className="border-border border-b">
-                    {Array.from({ length: 6 }).map((_, j) => (
-                      <td key={j} className="px-4 py-3">
-                        <div className="bg-muted h-4 animate-pulse rounded" />
-                      </td>
-                    ))}
-                  </tr>
-                ))
-              ) : !stock?.length ? (
-                <tr>
-                  <td
-                    colSpan={6}
-                    className="text-muted-foreground px-4 py-8 text-center"
-                  >
-                    No hay productos en este almacén
-                  </td>
-                </tr>
-              ) : (
-                stock.map((item) => (
-                  <tr
-                    key={item.id}
-                    className="border-border hover:bg-muted/30 border-b transition-colors"
-                  >
-                    <td className="px-4 py-3">
+      <div className="border-border-subtle surface-card gap-0 overflow-hidden rounded-xl border py-0">
+        <Table>
+          <TableHeader>
+            <TableRow className="hover:bg-transparent">
+              <TableHead
+                className={`text-muted-foreground ${cellPx} text-xs font-medium tracking-widest uppercase`}
+              >
+                Producto
+              </TableHead>
+              <TableHead
+                className={`text-muted-foreground ${cellPx} text-xs font-medium tracking-widest uppercase`}
+              >
+                SKU
+              </TableHead>
+              <TableHead
+                className={`text-muted-foreground ${cellPx} text-center text-xs font-medium tracking-widest uppercase`}
+              >
+                Estado
+              </TableHead>
+              <TableHead
+                className={`text-muted-foreground ${cellPx} text-right text-xs font-medium tracking-widest uppercase`}
+              >
+                Cantidad
+              </TableHead>
+              <TableHead
+                className={`text-muted-foreground ${cellPx} text-center text-xs font-medium tracking-widest uppercase`}
+              >
+                Bloqueado
+              </TableHead>
+              <TableHead
+                className={`text-muted-foreground ${cellPx} text-right text-xs font-medium tracking-widest uppercase`}
+              >
+                Acciones
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {loadingStock ? (
+              Array.from({ length: 5 }).map((_, i) => (
+                <TableRow key={i}>
+                  {Array.from({ length: 6 }).map((_, j) => (
+                    <TableCell key={j} className={cellPx}>
+                      <Skeleton className="h-5 w-16" />
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))
+            ) : !stock?.length ? (
+              <TableRow className="hover:bg-transparent">
+                <TableCell colSpan={6} className="px-4 py-6">
+                  <EmptyState
+                    icon="inventory_2"
+                    title="No hay productos en este almacén"
+                    description="Importa inventario o transfiere stock para empezar a gestionarlo."
+                    action={
+                      <Button variant="outline" asChild>
+                        <Link href={`/inventory/warehouse/${id}/import`}>
+                          Importar Inventario
+                        </Link>
+                      </Button>
+                    }
+                  />
+                </TableCell>
+              </TableRow>
+            ) : (
+              stock.map((item) => {
+                const statusCfg = STATUS_CONFIG[item.productStatus] ?? {
+                  label: item.productStatus,
+                  tone: "neutral" as StatusTone,
+                };
+                return (
+                  <TableRow key={item.id}>
+                    <TableCell className={cellPx}>
                       <Link
                         href={`/catalog/${item.productId}`}
-                        className="text-foreground font-medium hover:underline"
+                        className="text-foreground hover:text-primary font-medium transition-colors"
                       >
                         {item.productName}
                       </Link>
-                    </td>
-                    <td className="text-muted-foreground px-4 py-3 font-mono text-xs">
+                    </TableCell>
+                    <TableCell
+                      className={`text-muted-foreground ${cellPx} font-mono text-xs tabular-nums`}
+                    >
                       {item.productSku}
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      <span
-                        className={`rounded-full px-2 py-0.5 text-xs font-semibold ${statusColors[item.productStatus] ?? ""}`}
-                      >
-                        {item.productStatus}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-right">
+                    </TableCell>
+                    <TableCell className={`${cellPx} text-center`}>
+                      <StatusBadge tone={statusCfg.tone}>
+                        {statusCfg.label}
+                      </StatusBadge>
+                    </TableCell>
+                    <TableCell className={`${cellPx} text-right`}>
                       {editingId === item.id ? (
-                        <div className="flex items-center justify-end gap-2">
+                        <div className="flex items-center justify-end gap-1">
                           <input
                             type="number"
                             min={0}
                             value={editQty}
                             onChange={(e) => setEditQty(e.target.value)}
                             autoFocus
-                            className="w-20 rounded border px-2 py-1 text-right text-sm"
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") submitEdit(item.id);
-                              if (e.key === "Escape") setEditingId(null);
-                            }}
+                            aria-label="Nueva cantidad"
+                            className="border-border-subtle focus-visible:border-ring focus-visible:ring-ring/50 h-8 w-20 rounded-md border bg-transparent px-2 text-right font-mono text-sm tabular-nums outline-none focus-visible:ring-2"
                           />
-                          <button
+                          <Button
+                            variant="ghost"
+                            size="icon"
                             onClick={() => submitEdit(item.id)}
                             disabled={updateQty.isPending}
-                            className="text-primary hover:text-primary/80"
+                            className="text-primary hover:text-primary/80 size-8"
                           >
-                            <span className="material-symbols-outlined text-lg">
+                            <span
+                              aria-hidden
+                              className="material-symbols-outlined text-lg"
+                            >
                               check
                             </span>
-                          </button>
-                          <button
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
                             onClick={() => setEditingId(null)}
-                            className="text-muted-foreground hover:text-foreground"
+                            className="text-muted-foreground hover:text-foreground size-8"
                           >
-                            <span className="material-symbols-outlined text-lg">
+                            <span
+                              aria-hidden
+                              className="material-symbols-outlined text-lg"
+                            >
                               close
                             </span>
-                          </button>
+                          </Button>
                         </div>
                       ) : (
                         <span
-                          className={`font-bold ${item.quantity <= 5 && item.quantity > 0 ? "text-amber-600 dark:text-amber-400" : item.quantity === 0 ? "text-red-600 dark:text-red-400" : "text-foreground"}`}
+                          className={`font-mono font-semibold tabular-nums ${
+                            item.quantity === 0
+                              ? "text-destructive-soft"
+                              : item.quantity <= 5
+                                ? "text-warning-soft"
+                                : "text-foreground"
+                          }`}
                         >
-                          {item.quantity.toLocaleString()}
+                          {item.quantity.toLocaleString("es-VE")}
                         </span>
                       )}
-                    </td>
-                    <td className="px-4 py-3 text-center">
+                    </TableCell>
+                    <TableCell className={`${cellPx} text-center`}>
                       {item.isLocked ? (
-                        <span className="material-symbols-outlined text-lg text-red-500">
+                        <span
+                          aria-label="Stock bloqueado"
+                          className="material-symbols-outlined text-destructive text-lg"
+                        >
                           lock
                         </span>
                       ) : (
-                        <span className="material-symbols-outlined text-muted-foreground text-lg">
+                        <span
+                          aria-label="Stock desbloqueado"
+                          className="material-symbols-outlined text-muted-foreground/50 text-lg"
+                        >
                           lock_open
                         </span>
                       )}
-                    </td>
-                    <td className="px-4 py-3 text-right">
+                    </TableCell>
+                    <TableCell className={`${cellPx} text-right`}>
                       {editingId !== item.id && (
-                        <button
+                        <Button
+                          variant="ghost"
+                          size="icon"
                           onClick={() => startEdit(item.id, item.quantity)}
-                          className="text-muted-foreground hover:text-foreground transition-colors"
-                          title="Editar cantidad"
+                          className="text-muted-foreground hover:text-foreground size-8"
+                          aria-label="Editar cantidad"
                         >
-                          <span className="material-symbols-outlined text-lg">
+                          <span
+                            aria-hidden
+                            className="material-symbols-outlined text-lg"
+                          >
                             edit
                           </span>
-                        </button>
+                        </Button>
                       )}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
+                    </TableCell>
+                  </TableRow>
+                );
+              })
+            )}
+          </TableBody>
+        </Table>
+      </div>
     </div>
   );
 }

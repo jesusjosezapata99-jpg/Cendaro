@@ -191,7 +191,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       {/* Sidebar panel */}
       <aside
         className={cn(
-          "border-sidebar-border bg-sidebar text-sidebar-foreground fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r transition-transform duration-300 ease-out lg:static lg:z-auto lg:translate-x-0",
+          "border-sidebar-border glass-sidebar text-sidebar-foreground fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r transition-transform duration-300 ease-out lg:static lg:z-auto lg:translate-x-0",
           /* iOS safe-area: pad left for landscape notch */
           "safe-pl",
           open ? "translate-x-0" : "-translate-x-full",
