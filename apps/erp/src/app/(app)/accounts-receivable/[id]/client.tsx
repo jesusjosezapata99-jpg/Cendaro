@@ -1,53 +1,103 @@
 "use client";
 
+import { useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 
+import { Button } from "@cendaro/ui";
+
+import type { StatusTone } from "~/components/status-badge";
+import { EmptyState } from "~/components/empty-state";
+import { RoleGuard } from "~/components/role-guard";
+import { StatCard } from "~/components/stat-card";
+import { StatusBadge } from "~/components/status-badge";
+import { useBcvRate } from "~/hooks/use-bcv-rate";
+import { formatDualCurrency } from "~/lib/format-currency";
 import { useTRPC } from "~/trpc/client";
 
-function Skeleton({ className = "" }: { className?: string }) {
-  return <div className={`bg-muted animate-pulse rounded-lg ${className}`} />;
-}
+const RecordArPaymentDialog = dynamic(
+  () =>
+    import("~/components/forms/record-ar-payment").then((m) => ({
+      default: m.RecordArPaymentDialog,
+    })),
+  { ssr: false },
+);
 
-const STATUS_MAP: Record<string, { label: string; class: string }> = {
+const STATUS_CONFIG: Record<
+  string,
+  { label: string; tone: StatusTone; icon: string }
+> = {
   pending: {
     label: "Pendiente",
-    class:
-      "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
+    tone: "warning",
+    icon: "schedule",
   },
   partial: {
-    label: "Pago Parcial",
-    class: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-primary",
+    label: "Abono Parcial",
+    tone: "primary",
+    icon: "payments",
   },
   paid: {
-    label: "Pagado",
-    class:
-      "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300",
+    label: "Pagada",
+    tone: "success",
+    icon: "check_circle",
   },
   overdue: {
-    label: "Vencido",
-    class: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300",
+    label: "Vencida",
+    tone: "destructive",
+    icon: "warning",
+  },
+  written_off: {
+    label: "Castigada",
+    tone: "neutral",
+    icon: "error_outline",
   },
 };
 
-export default function ARDetailPage() {
+export default function ArDetailClient() {
   const params = useParams();
   const id = params.id as string;
   const trpc = useTRPC();
+  const bcv = useBcvRate();
+
+  const [showPayment, setShowPayment] = useState(false);
 
   const { data: entry, isLoading } = useQuery(
     trpc.vendor.arById.queryOptions({ id }),
   );
 
+  const daysToDue = useMemo(() => {
+    if (!entry?.dueDate) return 0;
+    const now = new Date();
+    return Math.ceil(
+      (new Date(entry.dueDate).getTime() - now.getTime()) /
+        (1000 * 60 * 60 * 24),
+    );
+  }, [entry?.dueDate]);
+
+  const daysOverdue = useMemo(() => {
+    if (!entry?.dueDate) return 0;
+    const now = new Date();
+    const diff = Math.floor(
+      (now.getTime() - new Date(entry.dueDate).getTime()) /
+        (1000 * 60 * 60 * 24),
+    );
+    return diff > 0 ? diff : 0;
+  }, [entry?.dueDate]);
+
   if (isLoading) {
     return (
       <div className="space-y-6 p-4 lg:p-8">
-        <Skeleton className="h-8 w-64" />
-        <Skeleton className="h-32 w-full" />
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <div className="bg-muted h-6 w-48 animate-pulse rounded-lg" />
+        <div className="border-border-subtle surface-card h-40 animate-pulse rounded-xl border" />
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-20" />
+            <div
+              key={i}
+              className="border-border-subtle surface-card h-28 animate-pulse rounded-xl border"
+            />
           ))}
         </div>
       </div>
@@ -56,174 +106,273 @@ export default function ARDetailPage() {
 
   if (!entry) {
     return (
-      <div className="text-muted-foreground flex flex-col items-center justify-center p-12">
-        <span className="material-symbols-outlined mb-3 text-5xl">
-          credit_card_off
-        </span>
-        <p className="text-lg font-medium">Cuenta por cobrar no encontrada</p>
-        <Link
-          href="/accounts-receivable"
-          className="text-primary mt-4 text-sm hover:underline"
-        >
-          ← Volver a CxC
-        </Link>
-      </div>
-    );
-  }
-
-  const st = STATUS_MAP[entry.status] ?? { label: entry.status, class: "" };
-  const paidPercent =
-    entry.totalAmount > 0
-      ? (Number(entry.paidAmount) / Number(entry.totalAmount)) * 100
-      : 0;
-  const daysTodue = Math.ceil(
-    (new Date(entry.dueDate).getTime() - Date.now()) / 86400000,
-  );
-
-  return (
-    <div className="space-y-6 p-4 lg:p-8">
-      {/* Breadcrumb */}
-      <div className="flex flex-wrap items-center justify-between gap-4">
+      <div className="space-y-6 p-4 lg:p-8">
         <div className="text-muted-foreground flex items-center gap-2 text-sm">
           <Link
             href="/accounts-receivable"
             className="hover:text-foreground transition-colors"
           >
-            CxC
+            Cuentas por Cobrar
           </Link>
           <span className="material-symbols-outlined text-base">
             chevron_right
           </span>
-          <span className="text-foreground font-medium">
-            {entry.id.slice(0, 8)}…
+          <span className="text-foreground font-mono text-xs font-medium">
+            {id.slice(0, 8)}…
           </span>
         </div>
+        <EmptyState
+          icon="credit_card_off"
+          title="Cuenta por cobrar no encontrada"
+          description="El registro solicitado no existe o no se tienen permisos para visualizarlo."
+          action={
+            <Link
+              href="/accounts-receivable"
+              className="text-primary text-xs font-medium hover:underline"
+            >
+              ← Volver a Cuentas por Cobrar
+            </Link>
+          }
+        />
+      </div>
+    );
+  }
+
+  const isOverdue =
+    entry.status === "overdue" ||
+    (entry.balance > 0 && daysOverdue > 0 && entry.status !== "paid");
+  const effectiveStatus = isOverdue ? "overdue" : entry.status;
+  const cfg = STATUS_CONFIG[effectiveStatus] ?? {
+    label: effectiveStatus,
+    tone: "neutral" as StatusTone,
+    icon: "receipt_long",
+  };
+
+  const totalAmount = Number(entry.totalAmount);
+  const paidAmount = Number(entry.paidAmount);
+  const balance = Number(entry.balance);
+  const paidPercent =
+    totalAmount > 0 ? Math.min(100, (paidAmount / totalAmount) * 100) : 0;
+
+  return (
+    <div className="animate-in fade-in slide-in-from-bottom-1 space-y-6 p-4 duration-200 lg:p-8">
+      {/* Breadcrumb Navigation */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="text-muted-foreground flex items-center gap-2 text-sm">
+          <Link
+            href="/accounts-receivable"
+            className="hover:text-foreground flex items-center gap-1 transition-colors"
+          >
+            <span className="material-symbols-outlined text-base">
+              arrow_back
+            </span>
+            Cuentas por Cobrar
+          </Link>
+          <span className="material-symbols-outlined text-base">
+            chevron_right
+          </span>
+          <span className="text-foreground font-mono text-xs font-semibold">
+            #{entry.id.slice(0, 8)}
+          </span>
+        </div>
+
+        {balance > 0 && (
+          <RoleGuard allow={["owner", "admin", "supervisor", "employee"]}>
+            <Button
+              onClick={() => setShowPayment(true)}
+              className="min-h-11 flex-1 sm:flex-initial"
+            >
+              <span className="material-symbols-outlined text-lg">
+                payments
+              </span>
+              Registrar Abono
+            </Button>
+          </RoleGuard>
+        )}
       </div>
 
-      {/* Header */}
-      <div className="border-border bg-card rounded-xl border p-6 shadow-sm">
+      {/* Header Account Card */}
+      <div className="border-border-subtle surface-card rounded-xl border p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="space-y-2">
             <div className="flex items-center gap-3">
-              <h1 className="text-xl font-bold tracking-tight">
+              <h1 className="text-foreground font-mono text-xl font-bold tracking-tight">
                 CxC #{entry.id.slice(0, 8)}
               </h1>
-              <span
-                className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${st.class}`}
-              >
-                {st.label}
-              </span>
+              <StatusBadge tone={cfg.tone}>{cfg.label}</StatusBadge>
             </div>
-            <div className="text-muted-foreground flex flex-wrap gap-x-6 gap-y-1 text-sm">
+
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-1.5 text-xs">
               {entry.customerName && (
-                <span>
-                  Cliente:{" "}
+                <div>
+                  <span className="text-muted-foreground mr-1">Cliente:</span>
                   <Link
                     href={`/customers/${entry.customerId}`}
                     className="text-primary font-semibold hover:underline"
                   >
                     {entry.customerName}
                   </Link>
-                </span>
+                </div>
               )}
               {entry.customerIdentification && (
-                <span>
-                  RIF:{" "}
-                  <strong className="text-foreground">
+                <div>
+                  <span className="text-muted-foreground mr-1">
+                    RIF / Cédula:
+                  </span>
+                  <span className="text-foreground font-mono font-medium">
                     {entry.customerIdentification}
-                  </strong>
-                </span>
+                  </span>
+                </div>
               )}
               {entry.orderId && (
-                <span>
-                  Pedido:{" "}
+                <div>
+                  <span className="text-muted-foreground mr-1">
+                    Pedido Vinculado:
+                  </span>
                   <Link
                     href={`/orders/${entry.orderId}`}
-                    className="text-primary font-semibold hover:underline"
+                    className="text-primary font-mono hover:underline"
                   >
                     {entry.orderId.slice(0, 8)}…
                   </Link>
-                </span>
+                </div>
               )}
+              <div>
+                <span className="text-muted-foreground mr-1">
+                  Fecha Emisión:
+                </span>
+                <span className="text-foreground font-mono tabular-nums">
+                  {new Date(entry.createdAt).toLocaleDateString("es-VE")}
+                </span>
+              </div>
             </div>
           </div>
+
           <div className="text-right">
-            <p className="text-2xl font-bold">
-              ${Number(entry.balance).toFixed(2)}
+            <p className="text-muted-foreground text-[10px] font-medium tracking-wider uppercase">
+              Saldo Pendiente
             </p>
-            <p className="text-muted-foreground text-xs">saldo pendiente</p>
+            <p
+              className={`font-mono text-2xl font-bold tabular-nums ${
+                balance > 0 ? "text-primary" : "text-emerald-500"
+              }`}
+            >
+              ${balance.toFixed(2)}
+            </p>
+            {bcv.rate > 0 && balance > 0 && (
+              <p className="text-muted-foreground font-mono text-xs tabular-nums">
+                {formatDualCurrency(balance, bcv.rate).bs}
+              </p>
+            )}
           </div>
         </div>
       </div>
 
-      {/* KPIs */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        {[
-          {
-            label: "Monto Original",
-            value: `$${Number(entry.totalAmount).toFixed(2)}`,
-            icon: "receipt_long",
-          },
-          {
-            label: "Pagado",
-            value: `$${Number(entry.paidAmount).toFixed(2)}`,
-            icon: "check_circle",
-          },
-          {
-            label: "Saldo",
-            value: `$${Number(entry.balance).toFixed(2)}`,
-            icon: "account_balance_wallet",
-          },
-          {
-            label: "Vence",
-            value: daysTodue > 0 ? `${daysTodue} días` : "Vencido",
-            icon: daysTodue > 0 ? "schedule" : "warning",
-          },
-        ].map((stat) => (
-          <div
-            key={stat.label}
-            className="border-border bg-card rounded-xl border p-4 shadow-sm"
-          >
-            <div className="flex items-center gap-2">
-              <span className="material-symbols-outlined text-muted-foreground text-lg">
-                {stat.icon}
-              </span>
-              <span className="text-muted-foreground text-[10px] font-bold tracking-widest uppercase">
-                {stat.label}
-              </span>
-            </div>
-            <p className="mt-1 text-xl font-bold">{stat.value}</p>
-          </div>
-        ))}
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+        <StatCard
+          label="Monto Original"
+          value={formatDualCurrency(totalAmount, bcv.rate).usd}
+          sub={
+            bcv.rate > 0
+              ? formatDualCurrency(totalAmount, bcv.rate).bs
+              : undefined
+          }
+          icon="receipt_long"
+        />
+        <StatCard
+          label="Total Cobrado"
+          value={formatDualCurrency(paidAmount, bcv.rate).usd}
+          sub={
+            bcv.rate > 0
+              ? formatDualCurrency(paidAmount, bcv.rate).bs
+              : undefined
+          }
+          icon="check_circle"
+          tone="success"
+        />
+        <StatCard
+          label="Saldo Restante"
+          value={formatDualCurrency(balance, bcv.rate).usd}
+          sub={
+            bcv.rate > 0 ? formatDualCurrency(balance, bcv.rate).bs : undefined
+          }
+          icon="payments"
+          tone={balance > 0 ? "primary" : "default"}
+        />
+        <StatCard
+          label="Vencimiento"
+          value={
+            entry.status === "paid"
+              ? "Liquidada"
+              : daysOverdue > 0
+                ? `${daysOverdue} días de mora`
+                : `${daysToDue} días restantes`
+          }
+          sub={`Plazo: ${new Date(entry.dueDate).toLocaleDateString("es-VE")}`}
+          icon={daysOverdue > 0 ? "warning" : "schedule"}
+          tone={
+            entry.status === "paid"
+              ? "success"
+              : daysOverdue > 0
+                ? "destructive"
+                : daysToDue <= 7
+                  ? "warning"
+                  : "default"
+          }
+        />
       </div>
 
-      {/* Progress bar */}
-      <div className="border-border bg-card rounded-xl border p-6 shadow-sm">
-        <div className="mb-2 flex items-center justify-between text-sm">
-          <span className="text-muted-foreground">Progreso de cobro</span>
-          <span className="font-bold">{paidPercent.toFixed(1)}%</span>
+      {/* Collection Progress Card */}
+      <div className="border-border-subtle surface-card rounded-xl border p-5">
+        <div className="flex items-center justify-between text-xs">
+          <span className="text-muted-foreground font-medium">
+            Progreso de Cobranza
+          </span>
+          <span className="text-foreground font-mono font-bold tabular-nums">
+            {paidPercent.toFixed(1)}%
+          </span>
         </div>
-        <div className="bg-muted h-3 w-full overflow-hidden rounded-full">
+        <div className="bg-muted mt-2 h-2.5 w-full overflow-hidden rounded-full">
           <div
-            className="bg-primary h-full rounded-full transition-all"
-            style={{ width: `${Math.min(paidPercent, 100)}%` }}
+            className="bg-primary h-full rounded-full transition-all duration-500"
+            style={{ width: `${paidPercent}%` }}
           />
         </div>
         <div className="text-muted-foreground mt-2 flex items-center justify-between text-xs">
-          <span>Cobrado: ${Number(entry.paidAmount).toFixed(2)}</span>
-          <span>Total: ${Number(entry.totalAmount).toFixed(2)}</span>
+          <span className="font-mono tabular-nums">
+            Cobrado: ${paidAmount.toFixed(2)}
+          </span>
+          <span className="font-mono tabular-nums">
+            Total: ${totalAmount.toFixed(2)}
+          </span>
         </div>
       </div>
 
-      {/* Notes */}
+      {/* Notes / Terms Card */}
       {entry.notes && (
-        <div className="border-border bg-card rounded-xl border p-6 shadow-sm">
-          <h2 className="text-muted-foreground mb-2 text-sm font-bold tracking-widest uppercase">
-            Notas
+        <div className="border-border-subtle surface-card rounded-xl border p-5">
+          <h2 className="text-muted-foreground mb-2 text-xs font-semibold tracking-wider uppercase">
+            Notas y Términos Comerciales
           </h2>
-          <p className="text-foreground text-sm">{entry.notes}</p>
+          <p className="text-foreground text-sm leading-relaxed">
+            {entry.notes}
+          </p>
         </div>
       )}
+
+      {/* Modal for recording payment */}
+      <RecordArPaymentDialog
+        open={showPayment}
+        onClose={() => setShowPayment(false)}
+        receivable={{
+          id: entry.id,
+          balance,
+          totalAmount,
+          customerName: entry.customerName ?? undefined,
+          orderId: entry.orderId,
+        }}
+      />
     </div>
   );
 }

@@ -1,65 +1,85 @@
 "use client";
 
+import { useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { Button } from "@cendaro/ui";
+
+import type { StatusTone } from "~/components/status-badge";
+import { EmptyState } from "~/components/empty-state";
+import { PageHeader } from "~/components/page-header";
+import { RoleGuard } from "~/components/role-guard";
+import { Skeleton } from "~/components/skeleton";
+import { StatCard } from "~/components/stat-card";
+import { StatusBadge } from "~/components/status-badge";
 import { useBcvRate } from "~/hooks/use-bcv-rate";
 import { formatDualCurrency } from "~/lib/format-currency";
 import { useTRPC } from "~/trpc/client";
 
-function Skeleton({ className = "" }: { className?: string }) {
-  return <div className={`bg-muted animate-pulse rounded-lg ${className}`} />;
+const RegisterPaymentDialog = dynamic(
+  () =>
+    import("~/components/forms/register-payment").then((m) => ({
+      default: m.RegisterPaymentDialog,
+    })),
+  { ssr: false },
+);
+
+interface MethodMeta {
+  label: string;
+  icon: string;
+  tone: StatusTone;
 }
 
-const METHOD_CONFIG: Record<
-  string,
-  { label: string; icon: string; color: string }
-> = {
+const METHOD_CONFIG: Record<string, MethodMeta> = {
   mobile_payment: {
     label: "Pago Móvil",
     icon: "smartphone",
-    color: "bg-blue-500/20 text-primary",
+    tone: "primary",
   },
   transfer: {
     label: "Transferencia",
     icon: "account_balance",
-    color: "bg-violet-500/20 text-violet-400",
+    tone: "primary",
   },
   cash: {
     label: "Efectivo",
     icon: "payments",
-    color: "bg-emerald-500/20 text-emerald-400",
+    tone: "success",
   },
   pos_terminal: {
     label: "Punto de Venta",
     icon: "credit_card",
-    color: "bg-cyan-500/20 text-cyan-400",
+    tone: "neutral",
   },
   zelle: {
     label: "Zelle",
-    icon: "⚡",
-    color: "bg-amber-500/20 text-amber-400",
-  },
-  binance: {
-    label: "Binance",
-    icon: "currency_bitcoin",
-    color: "bg-yellow-500/20 text-yellow-400",
+    icon: "bolt",
+    tone: "warning",
   },
 };
 
-export default function PaymentsPage() {
+const cellPx = "px-4 py-3";
+
+export default function PaymentsClient() {
   const trpc = useTRPC();
   const qc = useQueryClient();
+  const bcv = useBcvRate();
+
+  const [statusFilter, setStatusFilter] = useState<
+    "all" | "pending" | "validated"
+  >("all");
+  const [methodFilter, setMethodFilter] = useState<string>("all");
+  const [showRegister, setShowRegister] = useState(false);
+
   const { data: payments, isLoading } = useQuery(
-    trpc.sales.listPayments.queryOptions({ limit: 50 }),
+    trpc.sales.listPayments.queryOptions({ limit: 100 }),
   );
 
   const validate = useMutation(
     trpc.sales.validatePayment.mutationOptions({
-      // Optimistic UI: mark the payment as validated the moment the user
-      // clicks — on 3G, feedback is instant instead of a spinner round-trip.
-      // The cache is rolled back if the server rejects the validation.
       onMutate: async ({ id }) => {
-        const listKey = trpc.sales.listPayments.queryKey({ limit: 50 });
+        const listKey = trpc.sales.listPayments.queryKey({ limit: 100 });
         await qc.cancelQueries({ queryKey: listKey });
         const previous = qc.getQueryData(listKey);
         if (previous) {
@@ -77,209 +97,468 @@ export default function PaymentsPage() {
           qc.setQueryData(context.listKey, context.previous);
         }
       },
-      // Always reconcile with the server truth (also after errors)
       onSettled: () => {
         void qc.invalidateQueries({ queryKey: [["sales"]] });
+        void qc.invalidateQueries({ queryKey: [["payments"]] });
+        void qc.invalidateQueries({ queryKey: [["dashboard"]] });
       },
     }),
   );
 
-  const items = payments ?? [];
-  const totalCollected = items.reduce((s, p) => s + p.amount, 0);
-  const bcv = useBcvRate();
-  const pendingValidation = items.filter((p) => !p.isValidated).length;
-  const validatedCount = items.filter((p) => p.isValidated).length;
+  const rawItems = useMemo(() => payments ?? [], [payments]);
 
-  // Method breakdown
-  const methodGroups = items.reduce<
-    Record<string, { count: number; total: number }>
-  >((acc, p) => {
-    const key = p.method;
-    acc[key] ??= { count: 0, total: 0 };
-    acc[key].count++;
-    acc[key].total += p.amount;
-    return acc;
-  }, {});
+  // Overall metrics across all loaded payments
+  const totalCollected = useMemo(
+    () => rawItems.reduce((s, p) => s + Number(p.amount), 0),
+    [rawItems],
+  );
+  const validatedCount = useMemo(
+    () => rawItems.filter((p) => p.isValidated).length,
+    [rawItems],
+  );
+  const pendingValidation = useMemo(
+    () => rawItems.filter((p) => !p.isValidated).length,
+    [rawItems],
+  );
+
+  // Method breakdown metrics
+  const methodGroups = useMemo(() => {
+    return rawItems.reduce<Record<string, { count: number; total: number }>>(
+      (acc, p) => {
+        const key = p.method;
+        acc[key] ??= { count: 0, total: 0 };
+        acc[key].count++;
+        acc[key].total += Number(p.amount);
+        return acc;
+      },
+      {},
+    );
+  }, [rawItems]);
+
+  // Filtered view
+  const filteredItems = useMemo(() => {
+    return rawItems.filter((p) => {
+      if (statusFilter === "pending" && p.isValidated) return false;
+      if (statusFilter === "validated" && !p.isValidated) return false;
+      if (methodFilter !== "all" && p.method !== methodFilter) return false;
+      return true;
+    });
+  }, [rawItems, statusFilter, methodFilter]);
 
   return (
-    <div className="space-y-6 p-4 lg:p-8">
-      <div>
-        <h1 className="text-foreground text-2xl font-black tracking-tight">
-          Pagos
-        </h1>
-        <p className="text-muted-foreground text-sm">
-          Registro y validación de pagos
-        </p>
+    <div className="animate-in fade-in slide-in-from-bottom-1 space-y-6 p-4 duration-200 lg:p-8">
+      <PageHeader
+        title="Pagos"
+        description="Gestión, registro y conciliación de cobros comerciales"
+        actions={
+          <RoleGuard allow={["owner", "admin", "supervisor", "employee"]}>
+            <Button
+              onClick={() => setShowRegister(true)}
+              className="min-h-11 flex-1 sm:flex-initial"
+            >
+              <span className="material-symbols-outlined text-lg">add</span>
+              Registrar Pago
+            </Button>
+          </RoleGuard>
+        }
+      />
+
+      <RegisterPaymentDialog
+        open={showRegister}
+        onClose={() => setShowRegister(false)}
+      />
+
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+        <StatCard
+          label="Total Cobrado"
+          value={
+            isLoading ? "—" : formatDualCurrency(totalCollected, bcv.rate).usd
+          }
+          sub={
+            isLoading
+              ? undefined
+              : formatDualCurrency(totalCollected, bcv.rate).bs
+          }
+          icon="payments"
+          tone="primary"
+        />
+        <StatCard
+          label="Transacciones"
+          value={isLoading ? "—" : rawItems.length.toLocaleString("es-VE")}
+          icon="receipt_long"
+        />
+        <StatCard
+          label="Validados"
+          value={isLoading ? "—" : validatedCount.toLocaleString("es-VE")}
+          icon="check_circle"
+          tone="success"
+        />
+        <StatCard
+          label="Por Validar"
+          value={isLoading ? "—" : pendingValidation.toLocaleString("es-VE")}
+          icon="pending"
+          tone={pendingValidation > 0 ? "warning" : "default"}
+        />
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
-        {[
-          {
-            label: "Total Cobrado",
-            value: formatDualCurrency(totalCollected, bcv.rate).usd,
-            sub: formatDualCurrency(totalCollected, bcv.rate).bs,
-            icon: "attach_money",
-            accent: "border-emerald-500/40",
-          },
-          {
-            label: "Pagos Registrados",
-            value: items.length,
-            icon: "receipt_long",
-            accent: "border-blue-500/40",
-          },
-          {
-            label: "Validados",
-            value: validatedCount,
-            icon: "check_circle",
-            accent: "border-cyan-500/40",
-          },
-          {
-            label: "Sin Validar",
-            value: pendingValidation,
-            icon: "pending",
-            accent: "border-amber-500/40",
-          },
-        ].map((stat) => (
-          <div
-            key={stat.label}
-            className={`rounded-xl border-l-4 ${stat.accent} bg-card border-border border p-4`}
-          >
-            <div className="flex items-center gap-2">
-              <span className="material-symbols-outlined text-muted-foreground text-lg">
-                {stat.icon}
-              </span>
-              <span className="text-muted-foreground text-xs">
-                {stat.label}
-              </span>
-            </div>
-            <p className="text-foreground mt-1 text-2xl font-black tracking-tight">
-              {stat.value}
-            </p>
-            {"sub" in stat && stat.sub && (
-              <p className="text-muted-foreground text-xs">{stat.sub}</p>
-            )}
-          </div>
-        ))}
-      </div>
-
-      {/* Payment method breakdown */}
+      {/* Payment Method Breakdown Cards */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
         {Object.entries(METHOD_CONFIG).map(([key, cfg]) => {
           const group = methodGroups[key];
+          const isSelected = methodFilter === key;
+          const groupTotal = group?.total ?? 0;
           return (
-            <div
+            <button
               key={key}
-              className="border-border bg-card rounded-lg border p-3"
+              type="button"
+              onClick={() =>
+                setMethodFilter((curr) => (curr === key ? "all" : key))
+              }
+              className={`border-border-subtle surface-card hover:border-primary/40 block rounded-xl border p-3.5 text-left transition-all ${
+                isSelected ? "border-primary ring-primary/20 ring-2" : ""
+              }`}
             >
-              <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-muted-foreground text-xl">
-                  {cfg.icon}
-                </span>
-                <span className="text-muted-foreground text-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground text-xs font-medium">
                   {cfg.label}
                 </span>
+                <span className="material-symbols-outlined text-muted-foreground text-lg">
+                  {cfg.icon}
+                </span>
               </div>
-              <p className="text-foreground mt-1 font-mono text-lg font-bold">
+              <p className="text-foreground mt-2 font-mono text-xl font-bold tabular-nums">
                 {group?.count ?? 0}
               </p>
-              <p className="text-muted-foreground text-xs">
-                ${(group?.total ?? 0).toFixed(2)}
-                {bcv.rate > 0 && (
-                  <span className="ml-1 text-[10px]">
-                    {formatDualCurrency(group?.total ?? 0, bcv.rate).bs}
-                  </span>
+              <div className="mt-1">
+                <p className="text-muted-foreground font-mono text-xs tabular-nums">
+                  ${groupTotal.toFixed(2)}
+                </p>
+                {bcv.rate > 0 && groupTotal > 0 && (
+                  <p className="text-muted-foreground/80 font-mono text-[10px] tabular-nums">
+                    {formatDualCurrency(groupTotal, bcv.rate).bs}
+                  </p>
                 )}
-              </p>
-            </div>
+              </div>
+            </button>
           );
         })}
       </div>
 
-      {/* Payments Table */}
-      {isLoading ? (
-        <div className="space-y-2">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <Skeleton key={i} className="h-12 w-full" />
-          ))}
-        </div>
-      ) : (
-        <div className="border-border bg-card overflow-hidden rounded-xl border">
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr className="border-border text-muted-foreground border-b text-xs uppercase">
-                <th className="px-4 py-3 font-medium">Método</th>
-                <th className="px-4 py-3 text-right font-medium">Monto</th>
-                <th className="px-4 py-3 font-medium">Referencia</th>
-                <th className="px-4 py-3 font-medium">Pagador</th>
-                <th className="px-4 py-3 text-center font-medium">Validado</th>
-                <th className="px-4 py-3 font-medium">Fecha</th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((p) => {
-                const cfg = METHOD_CONFIG[p.method] ?? {
-                  label: p.method,
-                  icon: "payment",
-                  color: "bg-secondary text-foreground",
-                };
-                return (
-                  <tr
-                    key={p.id}
-                    className="border-border hover:bg-accent/50 border-b transition-colors"
-                  >
-                    <td className="px-4 py-3">
+      {/* Filter Chips */}
+      <div className="mobile-scroll-x flex gap-2 pb-1">
+        {[
+          { id: "all", label: "Todos los Estados" },
+          { id: "pending", label: "Por Validar" },
+          { id: "validated", label: "Validados" },
+        ].map((f) => (
+          <button
+            key={f.id}
+            onClick={() =>
+              setStatusFilter(f.id as "all" | "pending" | "validated")
+            }
+            className={`min-h-9 shrink-0 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+              statusFilter === f.id
+                ? "border-primary bg-primary text-primary-foreground"
+                : "border-border-subtle text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+            }`}
+          >
+            {f.label}
+          </button>
+        ))}
+
+        <div className="bg-border-subtle my-auto h-4 w-px shrink-0" />
+
+        <button
+          onClick={() => setMethodFilter("all")}
+          className={`min-h-9 shrink-0 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+            methodFilter === "all"
+              ? "border-primary bg-primary text-primary-foreground"
+              : "border-border-subtle text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+          }`}
+        >
+          Todos los Métodos
+        </button>
+        {Object.entries(METHOD_CONFIG).map(([key, cfg]) => (
+          <button
+            key={key}
+            onClick={() => setMethodFilter(key)}
+            className={`min-h-9 shrink-0 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+              methodFilter === key
+                ? "border-primary bg-primary text-primary-foreground"
+                : "border-border-subtle text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+            }`}
+          >
+            {cfg.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Mobile: Card View ─────────────────────── */}
+      <div className="space-y-3 md:hidden">
+        {isLoading
+          ? Array.from({ length: 4 }).map((_, i) => (
+              <div
+                key={i}
+                className="border-border-subtle surface-card rounded-xl border p-4"
+              >
+                <Skeleton className="h-5 w-3/4" />
+                <Skeleton className="mt-2 h-4 w-24" />
+              </div>
+            ))
+          : filteredItems.map((p) => {
+              const cfg = METHOD_CONFIG[p.method] ?? {
+                label: p.method,
+                icon: "payments",
+                tone: "neutral" as StatusTone,
+              };
+              const amountNum = Number(p.amount);
+              return (
+                <div
+                  key={p.id}
+                  className="border-border-subtle surface-card rounded-xl border p-4"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
                       <span
-                        className={`rounded-full px-2 py-0.5 text-xs font-medium ${cfg.color}`}
+                        aria-hidden
+                        className="material-symbols-outlined text-muted-foreground text-lg"
                       >
-                        {cfg.label}
+                        {cfg.icon}
                       </span>
-                    </td>
-                    <td className="text-foreground px-4 py-3 text-right font-mono font-bold">
-                      ${p.amount.toFixed(2)}
+                      <StatusBadge tone={cfg.tone}>{cfg.label}</StatusBadge>
+                    </div>
+                    {p.isValidated ? (
+                      <StatusBadge tone="success">Validado</StatusBadge>
+                    ) : (
+                      <StatusBadge tone="warning">Por Validar</StatusBadge>
+                    )}
+                  </div>
+
+                  <div className="mt-3 flex items-center justify-between">
+                    <div>
+                      <p className="text-muted-foreground text-xs font-medium tracking-wider uppercase">
+                        Monto
+                      </p>
+                      <p className="text-foreground font-mono text-base font-bold tabular-nums">
+                        ${amountNum.toFixed(2)}
+                      </p>
                       {bcv.rate > 0 && (
-                        <span className="text-muted-foreground ml-1 text-[10px] font-normal">
-                          {formatDualCurrency(p.amount, bcv.rate).bs}
+                        <p className="text-muted-foreground font-mono text-xs tabular-nums">
+                          {formatDualCurrency(amountNum, bcv.rate).bs}
+                        </p>
+                      )}
+                    </div>
+                    {p.reference && (
+                      <div className="text-right">
+                        <p className="text-muted-foreground text-xs font-medium tracking-wider uppercase">
+                          Referencia
+                        </p>
+                        <p className="text-foreground font-mono text-xs font-semibold tabular-nums">
+                          {p.reference}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {(p.payerName ?? p.bankName) && (
+                    <div className="border-border-subtle mt-3 flex items-center justify-between border-t pt-2 text-xs">
+                      <span className="text-muted-foreground truncate">
+                        {p.payerName ?? "—"}
+                      </span>
+                      {p.bankName && (
+                        <span className="text-muted-foreground shrink-0 font-medium">
+                          {p.bankName}
                         </span>
                       )}
-                    </td>
-                    <td className="text-muted-foreground px-4 py-3 font-mono text-xs">
-                      {p.reference ?? "—"}
-                    </td>
-                    <td className="text-muted-foreground px-4 py-3">
-                      {p.payerName ?? "—"}
-                    </td>
-                    <td className="px-4 py-3 text-center">
-                      {p.isValidated ? (
-                        <span className="text-emerald-400">✅</span>
-                      ) : (
-                        <button
-                          onClick={() => validate.mutate({ id: p.id })}
-                          disabled={validate.isPending}
-                          className="rounded bg-amber-600/20 px-2 py-0.5 text-xs text-amber-400 transition-colors hover:bg-amber-600/40 disabled:opacity-50"
-                        >
-                          {validate.isPending ? "..." : "Validar"}
-                        </button>
-                      )}
-                    </td>
-                    <td className="text-muted-foreground px-4 py-3 font-mono text-xs">
-                      {new Date(p.createdAt).toLocaleString()}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
+                    </div>
+                  )}
 
-      {items.length === 0 && !isLoading && (
-        <div className="border-border bg-card text-muted-foreground flex flex-col items-center justify-center rounded-xl border py-12">
-          <span className="material-symbols-outlined mb-2 text-3xl">
-            payments
-          </span>
-          <p className="text-sm">No hay pagos registrados</p>
-        </div>
-      )}
+                  <div className="mt-3 flex items-center justify-between">
+                    <p className="text-muted-foreground font-mono text-xs tabular-nums">
+                      {new Date(p.createdAt).toLocaleDateString("es-VE")}
+                    </p>
+                    {!p.isValidated && (
+                      <RoleGuard
+                        allow={["owner", "admin", "supervisor", "employee"]}
+                      >
+                        <button
+                          type="button"
+                          disabled={validate.isPending}
+                          onClick={() => validate.mutate({ id: p.id })}
+                          className="bg-primary text-primary-foreground hover:bg-primary/90 min-h-9 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors disabled:opacity-50"
+                        >
+                          Validar
+                        </button>
+                      </RoleGuard>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+
+        {!isLoading && filteredItems.length === 0 && (
+          <EmptyState
+            icon="payments"
+            title="No se encontraron pagos"
+            description="Ajusta los filtros seleccionados o registra un nuevo cobro comercial."
+          />
+        )}
+      </div>
+
+      {/* ── Desktop: Table View ───────────────────── */}
+      <div className="border-border-subtle surface-card hidden gap-0 overflow-hidden rounded-xl border py-0 md:block">
+        <table className="w-full text-left text-sm">
+          <thead>
+            <tr className="border-border-subtle border-b">
+              <th
+                className={`text-muted-foreground ${cellPx} text-xs font-medium tracking-widest uppercase`}
+              >
+                Método
+              </th>
+              <th
+                className={`text-muted-foreground ${cellPx} text-right text-xs font-medium tracking-widest uppercase`}
+              >
+                Monto
+              </th>
+              <th
+                className={`text-muted-foreground ${cellPx} text-xs font-medium tracking-widest uppercase`}
+              >
+                Referencia
+              </th>
+              <th
+                className={`text-muted-foreground ${cellPx} text-xs font-medium tracking-widest uppercase`}
+              >
+                Pagador / Banco
+              </th>
+              <th
+                className={`text-muted-foreground ${cellPx} text-center text-xs font-medium tracking-widest uppercase`}
+              >
+                Estado
+              </th>
+              <th
+                className={`text-muted-foreground ${cellPx} text-xs font-medium tracking-widest uppercase`}
+              >
+                Fecha
+              </th>
+              <th
+                className={`text-muted-foreground ${cellPx} text-right text-xs font-medium tracking-widest uppercase`}
+              >
+                Acción
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {isLoading
+              ? Array.from({ length: 5 }).map((_, i) => (
+                  <tr key={i} className="border-border-subtle border-b">
+                    {Array.from({ length: 7 }).map((_, j) => (
+                      <td key={j} className={cellPx}>
+                        <Skeleton className="h-5 w-16" />
+                      </td>
+                    ))}
+                  </tr>
+                ))
+              : filteredItems.map((p) => {
+                  const cfg = METHOD_CONFIG[p.method] ?? {
+                    label: p.method,
+                    icon: "payments",
+                    tone: "neutral" as StatusTone,
+                  };
+                  const amountNum = Number(p.amount);
+                  return (
+                    <tr
+                      key={p.id}
+                      className="border-border-subtle hover:bg-accent/50 border-b transition-colors"
+                    >
+                      <td className={cellPx}>
+                        <div className="flex items-center gap-2">
+                          <span
+                            aria-hidden
+                            className="material-symbols-outlined text-muted-foreground text-lg"
+                          >
+                            {cfg.icon}
+                          </span>
+                          <span className="text-foreground text-xs font-medium">
+                            {cfg.label}
+                          </span>
+                        </div>
+                      </td>
+                      <td
+                        className={`text-foreground ${cellPx} text-right font-mono font-semibold tabular-nums`}
+                      >
+                        ${amountNum.toFixed(2)}
+                        {bcv.rate > 0 && (
+                          <span className="text-muted-foreground ml-1 text-xs font-normal tabular-nums">
+                            {formatDualCurrency(amountNum, bcv.rate).bs}
+                          </span>
+                        )}
+                      </td>
+                      <td
+                        className={`text-muted-foreground ${cellPx} font-mono text-xs tabular-nums`}
+                      >
+                        {p.reference ?? "—"}
+                      </td>
+                      <td className={cellPx}>
+                        <p className="text-foreground text-xs font-medium">
+                          {p.payerName ?? "—"}
+                        </p>
+                        {p.bankName && (
+                          <p className="text-muted-foreground text-[10px]">
+                            {p.bankName}
+                          </p>
+                        )}
+                      </td>
+                      <td className={`${cellPx} text-center`}>
+                        {p.isValidated ? (
+                          <StatusBadge tone="success">Validado</StatusBadge>
+                        ) : (
+                          <StatusBadge tone="warning">Por Validar</StatusBadge>
+                        )}
+                      </td>
+                      <td
+                        className={`text-muted-foreground ${cellPx} font-mono text-xs tabular-nums`}
+                      >
+                        {new Date(p.createdAt).toLocaleString("es-VE")}
+                      </td>
+                      <td className={`${cellPx} text-right`}>
+                        {p.isValidated ? (
+                          <span className="font-mono text-xs text-emerald-500 tabular-nums">
+                            Conciliado
+                          </span>
+                        ) : (
+                          <RoleGuard
+                            allow={["owner", "admin", "supervisor", "employee"]}
+                          >
+                            <button
+                              type="button"
+                              disabled={validate.isPending}
+                              onClick={() => validate.mutate({ id: p.id })}
+                              className="border-border-subtle hover:border-primary hover:text-primary min-h-8 rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-50"
+                            >
+                              Validar
+                            </button>
+                          </RoleGuard>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+
+            {!isLoading && filteredItems.length === 0 && (
+              <tr className="hover:bg-transparent">
+                <td colSpan={7} className="px-4 py-6">
+                  <EmptyState
+                    icon="payments"
+                    title="No se encontraron pagos"
+                    description="Ajusta los filtros seleccionados o registra un nuevo cobro comercial."
+                  />
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

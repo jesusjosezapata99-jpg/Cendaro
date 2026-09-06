@@ -1,121 +1,128 @@
 "use client";
 
 import { useState } from "react";
+import dynamic from "next/dynamic";
+import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 
+import { Button } from "@cendaro/ui";
+
+import type { StatusTone } from "~/components/status-badge";
+import { EmptyState } from "~/components/empty-state";
+import { PageHeader } from "~/components/page-header";
+import { Skeleton } from "~/components/skeleton";
+import { StatCard } from "~/components/stat-card";
+import { StatusBadge } from "~/components/status-badge";
 import { useBcvRate } from "~/hooks/use-bcv-rate";
 import { formatDualCurrency } from "~/lib/format-currency";
 import { useTRPC } from "~/trpc/client";
 
-const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
-  draft: {
-    label: "Borrador",
-    color:
-      "bg-slate-100 dark:bg-slate-500/20 text-slate-600 dark:text-slate-400",
-  },
-  sent: {
-    label: "Enviada",
-    color: "bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400",
-  },
-  accepted: {
-    label: "Aceptada",
-    color:
-      "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400",
-  },
-  rejected: {
-    label: "Rechazada",
-    color: "bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-400",
-  },
-  expired: {
-    label: "Expirada",
-    color:
-      "bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400",
-  },
-  converted: {
-    label: "Convertida",
-    color:
-      "bg-purple-100 dark:bg-purple-500/20 text-purple-600 dark:text-purple-400",
-  },
+const CreateQuoteDialog = dynamic(
+  () =>
+    import("~/components/forms/create-quote").then((m) => ({
+      default: m.CreateQuoteDialog,
+    })),
+  { ssr: false },
+);
+
+/** Quote status → semantic token chip (single source of truth). */
+const STATUS_CONFIG: Record<string, { label: string; tone: StatusTone }> = {
+  draft: { label: "Borrador", tone: "neutral" },
+  sent: { label: "Enviada", tone: "primary" },
+  accepted: { label: "Aceptada", tone: "success" },
+  rejected: { label: "Rechazada", tone: "destructive" },
+  expired: { label: "Expirada", tone: "warning" },
+  converted: { label: "Convertida", tone: "success" },
 };
 
-function Skeleton({ className = "" }: { className?: string }) {
-  return <div className={`bg-muted animate-pulse rounded-lg ${className}`} />;
-}
+const CHANNEL_ICONS: Record<string, string> = {
+  store: "store",
+  mercadolibre: "shopping_cart",
+  vendors: "local_shipping",
+  whatsapp: "chat",
+  instagram: "photo_camera",
+};
+
+/** Shared cell padding for the quotes table. */
+const cellPx = "px-4 py-3";
 
 export default function QuotesClient() {
   const trpc = useTRPC();
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [showCreate, setShowCreate] = useState(false);
 
   const { data: quotes, isLoading } = useQuery(
-    trpc.quotes.list.queryOptions({ limit: 50 }),
+    trpc.quotes.list.queryOptions({
+      limit: 50,
+      status:
+        statusFilter !== "all"
+          ? (statusFilter as
+              | "draft"
+              | "sent"
+              | "accepted"
+              | "rejected"
+              | "expired"
+              | "converted")
+          : undefined,
+    }),
   );
 
   const list = quotes ?? [];
   const bcv = useBcvRate();
+  const totalMonto = list.reduce((s, q) => s + Number(q.total), 0);
+  const aceptadasCount = list.filter(
+    (q) => q.status === "accepted" || q.status === "converted",
+  ).length;
 
   return (
-    <div className="space-y-6 p-4 lg:p-8">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-foreground text-2xl font-black tracking-tight">
-            Cotizaciones
-          </h1>
-          <p className="text-muted-foreground mt-1 text-sm">
-            Gestiona cotizaciones y conviértelas en órdenes de venta
-          </p>
-        </div>
-        <button className="bg-primary text-primary-foreground hover:bg-primary/90 flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-bold transition-colors">
-          <span className="material-symbols-outlined text-lg">add</span>
-          Nueva Cotización
-        </button>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        {[
-          {
-            label: "Cotizaciones",
-            value: isLoading ? "—" : list.length,
-            icon: "request_quote",
-            accent: "border-blue-500/40",
-          },
-          {
-            label: "Aceptadas",
-            value: isLoading
-              ? "—"
-              : list.filter((q) => q.status === "accepted").length,
-            icon: "check_circle",
-            accent: "border-emerald-500/40",
-          },
-          {
-            label: "Pendientes",
-            value: isLoading
-              ? "—"
-              : list.filter((q) => q.status === "sent" || q.status === "draft")
-                  .length,
-            icon: "pending",
-            accent: "border-amber-500/40",
-          },
-        ].map((stat) => (
-          <div
-            key={stat.label}
-            className={`rounded-xl border-l-4 ${stat.accent} bg-card border-border border p-4`}
-          >
-            <div className="flex items-center gap-2">
-              <span className="material-symbols-outlined text-muted-foreground text-lg">
-                {stat.icon}
-              </span>
-              <span className="text-muted-foreground text-[10px] font-bold tracking-widest uppercase">
-                {stat.label}
-              </span>
-            </div>
-            <p className="text-foreground mt-1 text-2xl font-bold">
-              {stat.value}
-            </p>
+    <div className="animate-in fade-in slide-in-from-bottom-1 space-y-6 p-4 duration-200 lg:p-8">
+      <PageHeader
+        title="Cotizaciones"
+        description="Gestión de propuestas comerciales y presupuestos"
+        actions={
+          <div className="flex w-full gap-2 sm:w-auto">
+            <Button
+              onClick={() => setShowCreate(true)}
+              className="min-h-11 flex-1 sm:flex-initial"
+            >
+              <span className="material-symbols-outlined text-lg">add</span>
+              Nueva Cotización
+            </Button>
           </div>
-        ))}
+        }
+      />
+
+      <CreateQuoteDialog
+        open={showCreate}
+        onClose={() => setShowCreate(false)}
+      />
+
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <StatCard
+          label="Cotizaciones"
+          value={isLoading ? "—" : list.length.toLocaleString("es-VE")}
+          icon="request_quote"
+        />
+        <StatCard
+          label="Total Cotizado"
+          value={isLoading ? "—" : formatDualCurrency(totalMonto, bcv.rate).usd}
+          sub={
+            isLoading ? undefined : formatDualCurrency(totalMonto, bcv.rate).bs
+          }
+          icon="payments"
+          tone="primary"
+        />
+        <StatCard
+          label="Aceptadas / Conv."
+          value={isLoading ? "—" : aceptadasCount.toLocaleString("es-VE")}
+          icon="check_circle"
+          tone="success"
+        />
       </div>
 
-      <div className="flex flex-wrap gap-2">
+      {/* Filter chips — wraps on mobile */}
+      <div className="mobile-scroll-x flex gap-2 pb-1">
         {[
           "all",
           "draft",
@@ -128,10 +135,10 @@ export default function QuotesClient() {
           <button
             key={s}
             onClick={() => setStatusFilter(s)}
-            className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${
+            className={`min-h-9 shrink-0 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
               statusFilter === s
-                ? "bg-primary text-primary-foreground"
-                : "bg-secondary text-muted-foreground hover:bg-accent"
+                ? "border-primary bg-primary text-primary-foreground"
+                : "border-border-subtle text-muted-foreground hover:bg-accent/50 hover:text-foreground"
             }`}
           >
             {s === "all" ? "Todos" : (STATUS_CONFIG[s]?.label ?? s)}
@@ -139,98 +146,206 @@ export default function QuotesClient() {
         ))}
       </div>
 
-      <div className="border-border bg-card overflow-hidden rounded-xl border">
+      {/* ── Mobile: Card View ─────────────────────── */}
+      <div className="space-y-3 md:hidden">
+        {isLoading
+          ? Array.from({ length: 4 }).map((_, i) => (
+              <div
+                key={i}
+                className="border-border-subtle surface-card rounded-xl border p-4"
+              >
+                <Skeleton className="h-5 w-3/4" />
+                <Skeleton className="mt-2 h-4 w-24" />
+              </div>
+            ))
+          : list.map((quote) => {
+              const statusCfg = STATUS_CONFIG[quote.status] ?? {
+                label: quote.status,
+                tone: "neutral" as StatusTone,
+              };
+              return (
+                <Link
+                  key={quote.id}
+                  href={`/quotes/${quote.id}`}
+                  className="border-border-subtle surface-card hover:border-primary/30 block rounded-xl border p-4 transition-colors"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <span
+                        aria-hidden
+                        className="material-symbols-outlined text-muted-foreground text-lg"
+                        title={quote.channel}
+                      >
+                        {CHANNEL_ICONS[quote.channel] ?? "request_quote"}
+                      </span>
+                      <span className="text-primary font-mono text-sm font-semibold tabular-nums">
+                        {quote.quoteNumber}
+                      </span>
+                    </div>
+                    <StatusBadge tone={statusCfg.tone}>
+                      {statusCfg.label}
+                    </StatusBadge>
+                  </div>
+                  <div className="mt-3 flex items-center justify-between">
+                    <div>
+                      <p className="text-muted-foreground text-xs font-medium tracking-wider uppercase">
+                        Total
+                      </p>
+                      <p className="text-foreground font-mono font-semibold tabular-nums">
+                        ${Number(quote.total).toFixed(2)}
+                      </p>
+                      {bcv.rate > 0 && (
+                        <p className="text-muted-foreground text-xs">
+                          {formatDualCurrency(Number(quote.total), bcv.rate).bs}
+                        </p>
+                      )}
+                    </div>
+                    {quote.validUntil && (
+                      <div className="text-right">
+                        <p className="text-muted-foreground text-xs font-medium tracking-wider uppercase">
+                          Válida hasta
+                        </p>
+                        <p className="text-muted-foreground font-mono text-xs tabular-nums">
+                          {new Date(quote.validUntil).toLocaleDateString(
+                            "es-VE",
+                          )}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-muted-foreground mt-2 font-mono text-xs tabular-nums">
+                    {new Date(quote.createdAt).toLocaleString("es-VE")}
+                  </p>
+                </Link>
+              );
+            })}
+        {!isLoading && list.length === 0 && (
+          <EmptyState
+            icon="request_quote"
+            title="No se encontraron cotizaciones"
+            description="Ajusta el filtro de estado o crea una nueva cotización para comenzar."
+          />
+        )}
+      </div>
+
+      {/* ── Desktop: Table View ───────────────────── */}
+      <div className="border-border-subtle surface-card hidden gap-0 overflow-hidden rounded-xl border py-0 md:block">
         <table className="w-full text-left text-sm">
           <thead>
-            <tr className="border-border text-muted-foreground border-b text-[10px] font-bold tracking-widest uppercase">
-              <th className="px-4 py-3">Cotización</th>
-              <th className="px-4 py-3">Cliente</th>
-              <th className="px-4 py-3 text-center">Estado</th>
-              <th className="px-4 py-3 text-right">Total</th>
-              <th className="px-4 py-3">Válida hasta</th>
+            <tr className="border-border-subtle border-b">
+              <th
+                className={`text-muted-foreground ${cellPx} text-xs font-medium tracking-widest uppercase`}
+              >
+                Cotización
+              </th>
+              <th
+                className={`text-muted-foreground ${cellPx} text-xs font-medium tracking-widest uppercase`}
+              >
+                Canal
+              </th>
+              <th
+                className={`text-muted-foreground ${cellPx} text-center text-xs font-medium tracking-widest uppercase`}
+              >
+                Estado
+              </th>
+              <th
+                className={`text-muted-foreground ${cellPx} text-right text-xs font-medium tracking-widest uppercase`}
+              >
+                Total
+              </th>
+              <th
+                className={`text-muted-foreground ${cellPx} text-xs font-medium tracking-widest uppercase`}
+              >
+                Válida hasta
+              </th>
+              <th
+                className={`text-muted-foreground ${cellPx} text-xs font-medium tracking-widest uppercase`}
+              >
+                Fecha
+              </th>
             </tr>
           </thead>
           <tbody>
             {isLoading
               ? Array.from({ length: 5 }).map((_, i) => (
-                  <tr key={i} className="border-border border-b">
-                    <td className="px-4 py-3">
-                      <Skeleton className="h-5 w-24" />
-                    </td>
-                    <td className="px-4 py-3">
-                      <Skeleton className="h-5 w-28" />
-                    </td>
-                    <td className="px-4 py-3">
-                      <Skeleton className="mx-auto h-5 w-20" />
-                    </td>
-                    <td className="px-4 py-3">
-                      <Skeleton className="ml-auto h-5 w-20" />
-                    </td>
-                    <td className="px-4 py-3">
-                      <Skeleton className="h-5 w-24" />
-                    </td>
+                  <tr key={i} className="border-border-subtle border-b">
+                    {Array.from({ length: 6 }).map((_, j) => (
+                      <td key={j} className={cellPx}>
+                        <Skeleton className="h-5 w-16" />
+                      </td>
+                    ))}
                   </tr>
                 ))
-              : list
-                  .filter(
-                    (q) => statusFilter === "all" || q.status === statusFilter,
-                  )
-                  .map((quote) => {
-                    const cfg = STATUS_CONFIG[quote.status] ?? {
-                      label: quote.status,
-                      color: "",
-                    };
-                    return (
-                      <tr
-                        key={quote.id}
-                        className="border-border hover:bg-accent/50 border-b transition-colors"
-                      >
-                        <td className="text-primary px-4 py-3 font-mono text-xs font-bold">
+              : list.map((quote) => {
+                  const statusCfg = STATUS_CONFIG[quote.status] ?? {
+                    label: quote.status,
+                    tone: "neutral" as StatusTone,
+                  };
+                  return (
+                    <tr
+                      key={quote.id}
+                      className="border-border-subtle hover:bg-accent/50 border-b transition-colors"
+                    >
+                      <td className={cellPx}>
+                        <Link
+                          href={`/quotes/${quote.id}`}
+                          className="text-primary font-mono text-xs font-semibold tabular-nums hover:underline"
+                        >
                           {quote.quoteNumber}
-                        </td>
-                        <td className="text-foreground px-4 py-3">
-                          {quote.customerId ?? "—"}
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <span
-                            className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold ${cfg.color}`}
-                          >
-                            {cfg.label}
+                        </Link>
+                      </td>
+                      <td className={cellPx}>
+                        <span
+                          aria-hidden
+                          className="material-symbols-outlined text-muted-foreground text-lg"
+                          title={quote.channel}
+                        >
+                          {CHANNEL_ICONS[quote.channel] ?? "request_quote"}
+                        </span>
+                      </td>
+                      <td className={`${cellPx} text-center`}>
+                        <StatusBadge tone={statusCfg.tone}>
+                          {statusCfg.label}
+                        </StatusBadge>
+                      </td>
+                      <td
+                        className={`text-foreground ${cellPx} text-right font-mono font-semibold tabular-nums`}
+                      >
+                        ${Number(quote.total).toFixed(2)}
+                        {bcv.rate > 0 && (
+                          <span className="text-muted-foreground ml-1 text-xs font-normal tabular-nums">
+                            {
+                              formatDualCurrency(Number(quote.total), bcv.rate)
+                                .bs
+                            }
                           </span>
-                        </td>
-                        <td className="text-foreground px-4 py-3 text-right font-mono font-bold">
-                          ${Number(quote.total).toFixed(2)}
-                          {bcv.rate > 0 && (
-                            <span className="text-muted-foreground ml-1 text-[10px] font-normal">
-                              {
-                                formatDualCurrency(
-                                  Number(quote.total),
-                                  bcv.rate,
-                                ).bs
-                              }
-                            </span>
-                          )}
-                        </td>
-                        <td className="text-muted-foreground px-4 py-3 font-mono text-xs">
-                          {quote.validUntil
-                            ? new Date(quote.validUntil).toLocaleDateString(
-                                "es-VE",
-                              )
-                            : "—"}
-                        </td>
-                      </tr>
-                    );
-                  })}
+                        )}
+                      </td>
+                      <td
+                        className={`text-muted-foreground ${cellPx} font-mono text-xs tabular-nums`}
+                      >
+                        {quote.validUntil
+                          ? new Date(quote.validUntil).toLocaleDateString(
+                              "es-VE",
+                            )
+                          : "—"}
+                      </td>
+                      <td
+                        className={`text-muted-foreground ${cellPx} font-mono text-xs tabular-nums`}
+                      >
+                        {new Date(quote.createdAt).toLocaleString("es-VE")}
+                      </td>
+                    </tr>
+                  );
+                })}
             {!isLoading && list.length === 0 && (
-              <tr>
-                <td
-                  colSpan={5}
-                  className="text-muted-foreground px-4 py-12 text-center"
-                >
-                  <span className="material-symbols-outlined mb-2 block text-3xl">
-                    description
-                  </span>
-                  No hay cotizaciones
+              <tr className="hover:bg-transparent">
+                <td colSpan={6} className="px-4 py-6">
+                  <EmptyState
+                    icon="request_quote"
+                    title="No se encontraron cotizaciones"
+                    description="Ajusta el filtro de estado o crea una nueva cotización para comenzar."
+                  />
                 </td>
               </tr>
             )}

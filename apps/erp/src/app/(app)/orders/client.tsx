@@ -27,11 +27,14 @@ const CreateOrderDialog = dynamic(
 
 /** Order status → semantic token chip (single source of truth). */
 const STATUS_CONFIG: Record<string, { label: string; tone: StatusTone }> = {
+  draft: { label: "Borrador", tone: "neutral" },
   pending: { label: "Pendiente", tone: "warning" },
+  pending_confirmation: { label: "Por Confirmar", tone: "warning" },
   confirmed: { label: "Confirmado", tone: "primary" },
   prepared: { label: "Preparado", tone: "primary" },
   dispatched: { label: "Despachado", tone: "primary" },
   delivered: { label: "Entregado", tone: "success" },
+  invoiced: { label: "Facturado", tone: "primary" },
   cancelled: { label: "Anulado", tone: "destructive" },
   returned: { label: "Devuelto", tone: "neutral" },
 };
@@ -58,12 +61,16 @@ export default function OrdersClient() {
       status:
         statusFilter !== "all"
           ? (statusFilter as
+              | "draft"
               | "pending"
+              | "pending_confirmation"
               | "confirmed"
               | "prepared"
               | "dispatched"
               | "delivered"
-              | "cancelled")
+              | "invoiced"
+              | "cancelled"
+              | "returned")
           : undefined,
     }),
   );
@@ -140,6 +147,7 @@ export default function OrdersClient() {
           "prepared",
           "dispatched",
           "delivered",
+          "invoiced",
           "cancelled",
         ].map((s) => (
           <button

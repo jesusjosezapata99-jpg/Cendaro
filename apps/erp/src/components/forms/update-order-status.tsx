@@ -36,6 +36,7 @@ export function UpdateOrderStatusDialog({
     { value: "prepared", label: "Preparado" },
     { value: "dispatched", label: "Despachado" },
     { value: "delivered", label: "Entregado" },
+    { value: "invoiced", label: "Facturado" },
     { value: "cancelled", label: "Anulado" },
     { value: "returned", label: "Devuelto" },
   ];
@@ -53,6 +54,7 @@ export function UpdateOrderStatusDialog({
               | "prepared"
               | "dispatched"
               | "delivered"
+              | "invoiced"
               | "cancelled"
               | "returned",
           });

@@ -1,10 +1,10 @@
 import { Suspense } from "react";
 import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
 
-import { ListPageSkeleton } from "~/components/skeleton";
+import { DetailSkeleton } from "~/components/skeleton";
 import { getQueryClient } from "~/trpc/query-client";
 import { trpc } from "~/trpc/server";
-import AccountsReceivableClient from "./client";
+import QuoteDetailClient from "./client";
 
 /**
  * Opt out of Next's dev-only instant-navigation validation: this segment's
@@ -15,34 +15,35 @@ import AccountsReceivableClient from "./client";
 export const instant = false;
 
 /**
- * Accounts Receivable — Server Component with SSR Prefetch
- * Shared queryOptions — same queryKey as the client hooks (options proxy).
+ * Quote Detail — Server Component with SSR Prefetch
+ * The client component reads the id via useParams(); the server prefetches
+ * with the same input so the cache is warm on hydration.
  */
-export default function AccountsReceivablePage() {
+export default async function QuoteDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
   return (
-    <Suspense fallback={<ListPageSkeleton />}>
-      <AccountsReceivablePrefetch />
+    <Suspense fallback={<DetailSkeleton />}>
+      <QuoteDetailPrefetch id={id} />
     </Suspense>
   );
 }
 
-async function AccountsReceivablePrefetch() {
+async function QuoteDetailPrefetch({ id }: { id: string }) {
   const queryClient = getQueryClient();
 
   try {
-    await Promise.all([
-      queryClient.prefetchQuery(trpc.vendor.listAR.queryOptions({})),
-      queryClient.prefetchQuery(
-        trpc.sales.listCustomers.queryOptions({ limit: 100 }),
-      ),
-    ]);
+    await queryClient.prefetchQuery(trpc.quotes.byId.queryOptions({ id }));
   } catch {
     // Prefetch failure is non-critical — client will fetch on hydration
   }
 
   return (
     <HydrationBoundary state={dehydrate(queryClient)}>
-      <AccountsReceivableClient />
+      <QuoteDetailClient />
     </HydrationBoundary>
   );
 }

@@ -79,3 +79,27 @@ TypeError: fetch failed
   }
 }
 ⚠ Fast Refresh had to perform a full reload due to a runtime error.
+[browser] Uncaught Error: You have rendered a `motion` component within a `LazyMotion` component. This will break tree shaking. Import and render a `m` component instead.. For more information and steps for solving, visit https://motion.dev/troubleshooting/lazy-strict-mode
+    at Hero (src/app/_components/landing/hero.tsx:39:7)
+    at LandingPage (src\app\page.tsx:91:9)
+  37 |
+  38 |       {/* Trust badge */}
+> 39 |       <motion.div
+     |       ^
+  40 |         className="border-primary/20 bg-primary/5 mb-6 inline-flex items-center gap-2 rounded-full border px-4 py-1.5"
+  41 |         initial={{ opacity: 0, y: 16, filter: "blur(10px)" }}
+  42 |         animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+TypeError: fetch failed
+    at ignore-listed frames {
+  [cause]: Error [ConnectTimeoutError]: Connect Timeout Error (attempted addresses: 188.114.97.5:443, 188.114.96.5:443, timeout: 10000ms)
+      at ignore-listed frames {
+    code: 'UND_ERR_CONNECT_TIMEOUT'
+  }
+}
+TypeError: fetch failed
+    at ignore-listed frames {
+  [cause]: Error [ConnectTimeoutError]: Connect Timeout Error (attempted addresses: 188.114.97.5:443, 188.114.96.5:443, timeout: 10000ms)
+      at ignore-listed frames {
+    code: 'UND_ERR_CONNECT_TIMEOUT'
+  }
+}
