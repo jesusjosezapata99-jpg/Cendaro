@@ -1,8 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import type { StatusTone } from "~/components/status-badge";
+import { EmptyState } from "~/components/empty-state";
+import { PageHeader } from "~/components/page-header";
+import { StatCard } from "~/components/stat-card";
+import { StatusBadge } from "~/components/status-badge";
 import { useTRPC } from "~/trpc/client";
 
 function Skeleton({ className = "" }: { className?: string }) {
@@ -11,67 +16,67 @@ function Skeleton({ className = "" }: { className?: string }) {
 
 const TYPE_CONFIG: Record<
   string,
-  { label: string; icon: string; color: string }
+  { label: string; icon: string; tone: StatusTone }
 > = {
   low_stock: {
     label: "Stock Bajo",
     icon: "inventory_2",
-    color:
-      "bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400",
+    tone: "warning",
   },
   inventory_diff: {
     label: "Dif. Inventario",
     icon: "balance",
-    color: "bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-400",
+    tone: "destructive",
   },
   product_blocked: {
     label: "Producto Bloqueado",
     icon: "block",
-    color: "bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-400",
+    tone: "destructive",
   },
   rate_change: {
     label: "Cambio Tasa",
     icon: "trending_up",
-    color: "bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400",
+    tone: "primary",
   },
   vendor_under_target: {
     label: "Vendedor Bajo Meta",
     icon: "trending_down",
-    color:
-      "bg-violet-100 dark:bg-violet-500/20 text-violet-600 dark:text-violet-400",
+    tone: "warning",
   },
   order_late: {
     label: "Pedido Atrasado",
     icon: "schedule",
-    color:
-      "bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400",
+    tone: "warning",
   },
   ml_failure: {
     label: "Falla ML",
     icon: "error_outline",
-    color: "bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-400",
+    tone: "destructive",
   },
   ar_overdue: {
     label: "CxC Vencida",
     icon: "credit_card_off",
-    color: "bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-400",
+    tone: "destructive",
   },
 };
 
-const SEVERITY_BD: Record<string, string> = {
-  high: "border-l-red-500",
-  medium: "border-l-amber-500",
-  low: "border-l-blue-500",
-  info: "border-l-cyan-500",
+const SEVERITY_BORDER: Record<string, string> = {
+  high: "border-l-destructive",
+  medium: "border-l-warning",
+  low: "border-l-primary",
+  info: "border-l-muted-foreground",
 };
 
 export default function AlertsPage() {
   const trpc = useTRPC();
-  const { data: alerts, isLoading } = useQuery(
-    trpc.dashboard.listAlerts.queryOptions({ limit: 100 }),
-  );
-  const [filter, setFilter] = useState<string>("active");
   const qc = useQueryClient();
+  const [filter, setFilter] = useState<string>("active");
+
+  const {
+    data: alerts,
+    isLoading,
+    refetch,
+  } = useQuery(trpc.dashboard.listAlerts.queryOptions({ limit: 100 }));
 
   const dismiss = useMutation(
     trpc.dashboard.dismissAlert.mutationOptions({
@@ -81,192 +86,275 @@ export default function AlertsPage() {
     }),
   );
 
-  const items = alerts ?? [];
+  const items = useMemo(() => alerts ?? [], [alerts]);
 
-  const filtered = items.filter((a) => {
-    if (filter === "active") return !a.isDismissed;
-    if (filter === "dismissed") return a.isDismissed;
-    return a.alertType === filter;
-  });
+  const activeCount = useMemo(
+    () => items.filter((a) => !a.isDismissed).length,
+    [items],
+  );
+  const highCount = useMemo(
+    () => items.filter((a) => !a.isDismissed && a.severity === "high").length,
+    [items],
+  );
+  const dismissedCount = useMemo(
+    () => items.filter((a) => a.isDismissed).length,
+    [items],
+  );
+  const activeTypes = useMemo(
+    () =>
+      new Set(items.filter((a) => !a.isDismissed).map((a) => a.alertType)).size,
+    [items],
+  );
 
-  const activeCount = items.filter((a) => !a.isDismissed).length;
-  const highCount = items.filter(
-    (a) => !a.isDismissed && a.severity === "high",
-  ).length;
-  const activeTypes = new Set(
-    items.filter((a) => !a.isDismissed).map((a) => a.alertType),
-  ).size;
+  const filtered = useMemo(() => {
+    return items.filter((a) => {
+      if (filter === "active") return !a.isDismissed;
+      if (filter === "dismissed") return a.isDismissed;
+      return a.alertType === filter;
+    });
+  }, [items, filter]);
 
   return (
     <div className="space-y-6 p-4 lg:p-8">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-foreground text-2xl font-black tracking-tight">
-            Alertas del Sistema
-          </h1>
-          <p className="text-muted-foreground mt-1 text-sm">
-            Monitoreo y respuesta
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {activeCount > 0 && (
-            <span className="rounded-full bg-red-100 px-3 py-1 text-sm font-bold text-red-600 dark:bg-red-500/20 dark:text-red-400">
-              {activeCount} activa{activeCount > 1 ? "s" : ""}
-            </span>
-          )}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        {[
-          {
-            label: "Alertas Activas",
-            value: activeCount,
-            icon: "notifications_active",
-            accent: "border-amber-500/40",
-          },
-          {
-            label: "Alta Prioridad",
-            value: highCount,
-            icon: "priority_high",
-            accent: "border-red-500/40",
-          },
-          {
-            label: "Tipos Activos",
-            value: activeTypes,
-            icon: "category",
-            accent: "border-blue-500/40",
-          },
-        ].map((stat) => (
-          <div
-            key={stat.label}
-            className={`rounded-xl border-l-4 ${stat.accent} bg-card border-border border p-4`}
-          >
-            <div className="flex items-center gap-2">
-              <span className="material-symbols-outlined text-muted-foreground text-lg">
-                {stat.icon}
-              </span>
-              <span className="text-muted-foreground text-[10px] font-bold tracking-widest uppercase">
-                {stat.label}
-              </span>
-            </div>
-            <p className="text-foreground mt-1 text-2xl font-bold">
-              {stat.value}
-            </p>
-          </div>
-        ))}
-      </div>
-
-      <div className="flex flex-wrap gap-2">
-        {["active", "dismissed", ...Object.keys(TYPE_CONFIG)].map((f) => (
+      {/* Header */}
+      <PageHeader
+        title="Centro de Alertas & Notificaciones Operativas"
+        description="Monitoreo y respuesta temprana ante anomalías de inventario, tasas cambiarias y riesgos comerciales"
+        actions={
           <button
-            key={f}
-            onClick={() => setFilter(f)}
-            className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${
-              filter === f
-                ? "bg-primary text-primary-foreground"
-                : "bg-secondary text-muted-foreground hover:bg-accent"
-            }`}
+            type="button"
+            onClick={() => void refetch()}
+            className="border-border bg-secondary text-foreground hover:bg-accent flex items-center gap-2 rounded-lg border px-3.5 py-2 text-xs font-semibold shadow-xs transition-colors"
           >
-            {f === "active" ? (
-              <>
-                <span className="material-symbols-outlined text-sm">
-                  notifications
-                </span>{" "}
-                Activas ({activeCount})
-              </>
-            ) : f === "dismissed" ? (
-              <>
-                <span className="material-symbols-outlined text-sm">
-                  check_circle
-                </span>{" "}
-                Descartadas
-              </>
-            ) : (
-              <>
-                <span className="material-symbols-outlined text-sm">
-                  {TYPE_CONFIG[f]?.icon}
-                </span>{" "}
-                {TYPE_CONFIG[f]?.label}
-              </>
-            )}
+            <span className="material-symbols-outlined text-sm">refresh</span>
+            Actualizar
           </button>
-        ))}
+        }
+      />
+
+      {/* 4 StatCards */}
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <StatCard
+          label="Alertas Activas"
+          value={isLoading ? "—" : activeCount}
+          icon="notifications_active"
+          tone={activeCount > 0 ? "warning" : "default"}
+          sub={activeCount > 0 ? "Requieren atención" : "Sin incidentes"}
+        />
+        <StatCard
+          label="Alta Prioridad"
+          value={isLoading ? "—" : highCount}
+          icon="priority_high"
+          tone={highCount > 0 ? "destructive" : "success"}
+          sub="Impacto operativo directo"
+        />
+        <StatCard
+          label="Resueltas / Archivadas"
+          value={isLoading ? "—" : dismissedCount}
+          icon="check_circle"
+          tone="success"
+          sub="Descartadas por operadores"
+        />
+        <StatCard
+          label="Categorías Activas"
+          value={isLoading ? "—" : activeTypes}
+          icon="category"
+          tone="default"
+          sub="Tipos de eventos detectados"
+        />
       </div>
 
+      {/* Filter Tabs */}
+      <div className="mobile-scroll-x flex items-center gap-2 pb-1">
+        <button
+          type="button"
+          onClick={() => setFilter("active")}
+          className={`flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+            filter === "active"
+              ? "bg-primary text-primary-foreground font-semibold"
+              : "border-border bg-card text-muted-foreground hover:bg-accent hover:text-foreground border"
+          }`}
+        >
+          <span className="material-symbols-outlined text-sm">
+            notifications
+          </span>
+          Activas
+          <span className="bg-background/20 py-0.2 ml-1 rounded-full px-1.5 font-mono text-[10px]">
+            {activeCount}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setFilter("dismissed")}
+          className={`flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+            filter === "dismissed"
+              ? "bg-primary text-primary-foreground font-semibold"
+              : "border-border bg-card text-muted-foreground hover:bg-accent hover:text-foreground border"
+          }`}
+        >
+          <span className="material-symbols-outlined text-sm">
+            check_circle
+          </span>
+          Descartadas
+          <span className="bg-background/20 py-0.2 ml-1 rounded-full px-1.5 font-mono text-[10px]">
+            {dismissedCount}
+          </span>
+        </button>
+
+        {Object.keys(TYPE_CONFIG).map((key) => {
+          const cfg = TYPE_CONFIG[key];
+          if (!cfg) return null;
+          const count = items.filter(
+            (a) => !a.isDismissed && a.alertType === key,
+          ).length;
+
+          return (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setFilter(key)}
+              className={`flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                filter === key
+                  ? "bg-primary text-primary-foreground font-semibold"
+                  : "border-border bg-card text-muted-foreground hover:bg-accent hover:text-foreground border"
+              }`}
+            >
+              <span className="material-symbols-outlined text-sm">
+                {cfg.icon}
+              </span>
+              {cfg.label}
+              {count > 0 ? (
+                <span className="bg-warning/20 text-warning-soft py-0.2 ml-1 rounded-full px-1.5 font-mono text-[10px]">
+                  {count}
+                </span>
+              ) : null}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Alerts List */}
       {isLoading ? (
-        <div className="space-y-2">
+        <div className="space-y-3">
           {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-20 w-full" />
+            <Skeleton key={i} className="h-24 w-full" />
           ))}
         </div>
+      ) : filtered.length === 0 ? (
+        <div className="surface-card">
+          <EmptyState
+            icon="notifications"
+            title="Sin alertas en esta categoría"
+            description={
+              filter === "active"
+                ? "No hay alertas operativas pendientes de resolver en este momento."
+                : "No se registran eventos correspondientes al filtro seleccionado."
+            }
+          />
+        </div>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-3">
           {filtered.map((alert) => {
             const typeCfg = TYPE_CONFIG[alert.alertType] ?? {
               label: alert.alertType,
               icon: "info",
-              color: "",
+              tone: "neutral" as StatusTone,
             };
             const severityBorder =
-              SEVERITY_BD[alert.severity] ?? "border-l-border";
+              SEVERITY_BORDER[alert.severity] ?? "border-l-border";
+
             return (
               <div
                 key={alert.id}
-                className={`rounded-xl border border-l-4 ${severityBorder} ${
-                  alert.isDismissed
-                    ? "border-border/20 bg-card/50 opacity-60"
-                    : "border-border bg-card"
-                } p-4 transition-all`}
+                className={`surface-card border-l-4 ${severityBorder} p-4 transition-all ${
+                  alert.isDismissed ? "bg-muted/20 opacity-60" : ""
+                }`}
               >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex items-start gap-3">
-                    <span className="material-symbols-outlined text-muted-foreground mt-0.5 text-lg">
-                      {typeCfg.icon}
-                    </span>
-                    <div>
-                      <div className="flex items-center gap-2">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="flex min-w-0 items-start gap-3">
+                    <div className="bg-muted text-muted-foreground mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg">
+                      <span className="material-symbols-outlined text-base">
+                        {typeCfg.icon}
+                      </span>
+                    </div>
+
+                    <div className="min-w-0 space-y-1">
+                      <div className="flex flex-wrap items-center gap-2">
                         <h3
-                          className={`text-sm font-medium ${alert.isDismissed ? "text-muted-foreground line-through" : "text-foreground"}`}
+                          className={`truncate text-sm font-semibold ${
+                            alert.isDismissed
+                              ? "text-muted-foreground line-through"
+                              : "text-foreground"
+                          }`}
                         >
                           {alert.title}
                         </h3>
-                        <span
-                          className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${typeCfg.color}`}
-                        >
+                        <StatusBadge tone={typeCfg.tone}>
                           {typeCfg.label}
+                        </StatusBadge>
+                        <span className="bg-secondary text-muted-foreground rounded px-1.5 py-0.5 font-mono text-[10px] tracking-wider uppercase">
+                          {alert.severity}
                         </span>
                       </div>
+
                       <p
-                        className={`mt-1 text-xs ${alert.isDismissed ? "text-muted-foreground/50" : "text-muted-foreground"}`}
+                        className={`text-xs leading-relaxed ${
+                          alert.isDismissed
+                            ? "text-muted-foreground/60"
+                            : "text-muted-foreground"
+                        }`}
                       >
                         {alert.message}
                       </p>
-                      <p className="text-muted-foreground mt-1 text-[10px]">
-                        {new Date(alert.createdAt).toLocaleString()}
-                      </p>
+
+                      <div className="text-muted-foreground flex items-center gap-2 pt-1 font-mono text-[11px] tabular-nums">
+                        <span className="material-symbols-outlined text-xs">
+                          schedule
+                        </span>
+                        <time>
+                          {new Date(alert.createdAt).toLocaleString("es-VE", {
+                            day: "2-digit",
+                            month: "2-digit",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </time>
+                      </div>
                     </div>
                   </div>
+
                   {!alert.isDismissed && (
-                    <button
-                      onClick={() => dismiss.mutate({ id: alert.id })}
-                      disabled={dismiss.isPending}
-                      className="border-border bg-secondary text-muted-foreground hover:bg-accent hover:text-foreground shrink-0 rounded-lg border px-3 py-1.5 text-xs font-bold transition-colors disabled:opacity-50"
-                    >
-                      {dismiss.isPending ? "..." : "Descartar"}
-                    </button>
+                    <div className="flex justify-end pt-2 sm:shrink-0 sm:pt-0">
+                      <button
+                        type="button"
+                        onClick={() => dismiss.mutate({ id: alert.id })}
+                        disabled={dismiss.isPending}
+                        className="border-border bg-secondary text-foreground hover:bg-accent flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold shadow-xs transition-colors disabled:opacity-50"
+                      >
+                        {dismiss.isPending ? (
+                          <>
+                            <span className="material-symbols-outlined animate-spin text-sm">
+                              progress_activity
+                            </span>
+                            Descartando...
+                          </>
+                        ) : (
+                          <>
+                            <span className="material-symbols-outlined text-sm">
+                              check
+                            </span>
+                            Descartar
+                          </>
+                        )}
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>
             );
           })}
-          {filtered.length === 0 && (
-            <div className="border-border bg-card rounded-xl border p-8 text-center">
-              <p className="text-muted-foreground">
-                No hay alertas en esta categoría
-              </p>
-            </div>
-          )}
         </div>
       )}
     </div>

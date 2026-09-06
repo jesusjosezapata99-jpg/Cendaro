@@ -9,14 +9,14 @@
 
 ## Estructura de Fases
 
-| Fase         | Módulos                                                      | Foco Principal                                                                                                                         |
-| :----------- | :----------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------- |
-| **Parte 9**  | `/containers`, `/containers/[id]`                            | ✅ **Completado & Verificado (10/10)** — Importaciones, costeo FOB/CIF dual BCV, packing list IA sin emojis, workflow de transiciones. |
-| **Parte 10** | `/customers`, `/customers/[id]`, `/vendors`, `/vendors/[id]` | Directorio de clientes con exposición crediticia, portal de comisiones a vendedores y liquidaciones.                                   |
-| **Parte 11** | `/invoices`, `/delivery-notes`                               | Activación reactiva de stubs estáticos conectando órdenes de venta con emisión de comprobantes y despacho.                             |
-| **Parte 12** | `/marketplace`, `/whatsapp`                                  | Mercado Libre B2B y CRM de ventas asistidas vía WhatsApp sin emojis, con deep-links interactivos.                                      |
-| **Parte 13** | `/audit`, `/alerts`, `/users`, `/settings`                   | Gobernanza, log de auditoría inmutable, centro de alertas operativas, gestión de roles y configuración de workspace.                   |
-| **Parte 14** | `/pos`, Auditoría Total Monorepo                             | Terminal de punto de venta rápido para mostrador (POS), escaneo de código de barras, multi-pago y auditoría de paridad global.         |
+| Fase         | Módulos                                     | Foco Principal                                                                                                                                                                                        |
+| :----------- | :------------------------------------------ | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Parte 9**  | `/containers`, `/containers/[id]`           | ✅ **Completado & Verificado (10/10)** — Importaciones, costeo FOB/CIF dual BCV, packing list IA sin emojis, workflow de transiciones.                                                                |
+| **Parte 10** | `/customers`, `/customers/[id]`, `/vendors` | ✅ **Completado & Verificado (10/10)** — Directorio de clientes con exposición crediticia, ficha de cliente con links directos a llamada y WhatsApp, liquidación de comisiones a vendedores.          |
+| **Parte 11** | `/invoices`, `/delivery-notes`              | ✅ **Completado & Verificado (10/10)** — Activación reactiva conectando órdenes de venta con emisión de comprobantes proforma y guías de despacho con 3 firmas.                                       |
+| **Parte 12** | `/marketplace`, `/whatsapp`                 | ✅ **Completado & Verificado (10/10)** — Mercado Libre B2B y CRM de ventas asistidas vía WhatsApp sin emojis, con deep-links interactivos y modal de sincronización.                                  |
+| **Parte 13** | `/audit`, `/alerts`, `/users`, `/settings`  | ✅ **Completado & Verificado (10/10)** — Gobernanza, log de auditoría forense con modal JSON diff, centro de alertas, roles RBAC y configuración de organización.                                     |
+| **Parte 14** | `/pos`, Auditoría Total Monorepo            | ✅ **Completado & Verificado (10/10)** — Terminal de punto de venta rápido para mostrador (POS), escaneo de código de barras, multi-pago, comprobante térmico y auditoría de paridad global monorepo. |
 
 ---
 

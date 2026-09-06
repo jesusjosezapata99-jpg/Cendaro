@@ -273,7 +273,7 @@ export function CreateQuoteDialog({ open, onClose }: Props) {
           </p>
           {lines.length > 0 && (
             <div className="border-border-subtle surface-card mobile-scroll-x mb-3 overflow-hidden rounded-lg border">
-              <table className="w-full min-w-[500px] text-left text-xs">
+              <table className="w-full min-w-125 text-left text-xs">
                 <thead>
                   <tr className="border-border-subtle text-muted-foreground border-b text-[10px] tracking-widest uppercase">
                     <th className="px-3 py-2">Ref.</th>
@@ -294,7 +294,7 @@ export function CreateQuoteDialog({ open, onClose }: Props) {
                       <td className="text-primary px-3 py-2 font-mono font-bold">
                         {line.productRef}
                       </td>
-                      <td className="text-foreground max-w-[200px] truncate px-3 py-2">
+                      <td className="text-foreground max-w-50 truncate px-3 py-2">
                         {line.productName}
                       </td>
                       <td className="text-foreground px-3 py-2 text-right font-mono tabular-nums">

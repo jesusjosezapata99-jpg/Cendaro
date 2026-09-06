@@ -558,7 +558,7 @@ export default function RatesClient() {
                       <span className="font-mono tabular-nums">
                         {new Date(entry.createdAt).toLocaleString("es-VE")}
                       </span>
-                      <span className="max-w-[150px] truncate">
+                      <span className="max-w-37.5 truncate">
                         {entry.source ?? "—"}
                       </span>
                     </div>
