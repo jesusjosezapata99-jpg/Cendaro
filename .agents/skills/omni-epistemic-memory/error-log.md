@@ -1,7 +1,7 @@
 ---
-version: "3.3"
-last-audit: "2026-09-03"
-entries: 13
+version: "3.4"
+last-audit: "2026-09-07"
+entries: 14
 shared-by: ["Gemini/Antigravity"]
 ---
 
@@ -35,6 +35,7 @@ This file is the **single source of truth** for error history. Every entry makes
 | 18  | NEVER use dynamic segment configurations (e.g. `export const dynamic = "force-dynamic"`) when `cacheComponents` is enabled globally                                      | Next.js 16 routes      |
 | 19  | NEVER use dynamic runtime constructors (e.g. `new Date()`) inside static Server Components to avoid prerendering failure                                                 | Next.js 16 rendering   |
 | 20  | Wrap legacy ESLint plugins with `fixupPluginRules` under ESLint 10 and pin discrete hook rules (`rules-of-hooks`, `exhaustive-deps`)                                     | ESLint v10 migration   |
+| 21  | Do not type-assert `(as T)` when the expression already has type `T` (flags `@typescript-eslint/no-unnecessary-type-assertion` in CI)                                    | TypeScript / ESLint    |
 
 ## Entry Template
 
@@ -184,16 +185,26 @@ This file is the **single source of truth** for error history. Every entry makes
 - **Severity**: Major
 - **Recurrence**: 1st
 
+### [2026-09-07] GitHub Actions CI: Unnecessary Type Assertions in @cendaro/api Users Router
+
+- **Error**: GitHub Actions CI failed during `pnpm lint` in `@cendaro/api` on `packages/api/src/modules/users.ts:81` and `128` with `@typescript-eslint/no-unnecessary-type-assertion`: "This assertion is unnecessary since it does not change the type of the expression".
+- **Root Cause**: `ctx.user` in `workspaceProcedure` is typed as `AuthenticatedUser`, where `user_metadata?: UserMeta;` is already explicitly defined. Casting `(ctx.user.user_metadata as UserMeta | undefined)?.role` is a redundant type assertion. In local environments with cached eslint results (`--cache`), this was skipped, but fresh CI runs without cache caught it.
+- **Fix**: Removed `as UserMeta | undefined` type assertions on lines 81 and 128, accessing `ctx.user.user_metadata?.role` directly, and removed unused `import type { UserMeta } from "../trpc";`.
+- **Prevention**: Never add manual type assertions when the base type already provides the interface. Always run uncached lint validation (`eslint --no-cache` or test without `.eslintcache`) before pushing.
+- **Workspace**: `@cendaro/api` (`packages/api/src/modules/users.ts`)
+- **Severity**: Minor (CI Blocking)
+- **Recurrence**: 1st
+
 ---
 
 ## Statistics
 
 | Metric                    | Value                        |
 | ------------------------- | ---------------------------- |
-| **Total entries**         | 13                           |
+| **Total entries**         | 14                           |
 | **Critical**              | 5                            |
 | **Major**                 | 7                            |
-| **Minor**                 | 1                            |
-| **Most common workspace** | Root monorepo (7/13 entries) |
-| **Date of last entry**    | 2026-09-03                   |
-| **Quick Reference rules** | 20                           |
+| **Minor**                 | 2                            |
+| **Most common workspace** | Root monorepo (7/14 entries) |
+| **Date of last entry**    | 2026-09-07                   |
+| **Quick Reference rules** | 21                           |
