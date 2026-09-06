@@ -23,6 +23,12 @@ if (-not $command) {
     exit 0
 }
 
+# Absolute project isolation - block any operation mentioning Svartx or its project ID
+if ($command -match 'xlgyogcaflsmmwpcuiwk' -or $command -match '(?i)\bsvartx\b') {
+    Write-Error "CRITICAL SECURITY BLOCK: Target project violation! This workspace belongs to Cendaro (ljwoptpaxazqmnhdczsb). All operations against Svartx (xlgyogcaflsmmwpcuiwk) are strictly forbidden."
+    exit 2
+}
+
 # SQL write operations pattern (case-insensitive)
 $writePattern = '\b(INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|TRUNCATE|REPLACE|MERGE|GRANT|REVOKE)\b'
 
