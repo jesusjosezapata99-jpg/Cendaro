@@ -4,12 +4,10 @@
  * Utility to write immutable audit log entries.
  * Used by all tRPC mutations for traceability (PRD §24).
  */
-import type { User } from "@supabase/supabase-js";
-
 import type { userRoleEnum } from "@cendaro/db/schema";
 import { AuditLog } from "@cendaro/db/schema";
 
-import type { createTRPCContext } from "../trpc";
+import type { AuthenticatedUser, createTRPCContext } from "../trpc";
 
 type Db = ReturnType<typeof createTRPCContext>["db"];
 
@@ -24,7 +22,7 @@ interface AuditEntry {
 }
 
 type UserWithMeta =
-  | (User & {
+  | (AuthenticatedUser & {
       user_metadata?: {
         role?: (typeof userRoleEnum.enumValues)[number];
         full_name?: string;
@@ -43,8 +41,8 @@ export async function logAudit(db: Db, user: UserWithMeta, entry: AuditEntry) {
     action: entry.action,
     entity: entry.entity,
     entityId: entry.entityId,
-    oldValue: entry.oldValue as Record<string, unknown> | null,
-    newValue: entry.newValue as Record<string, unknown> | null,
+    oldValue: entry.oldValue,
+    newValue: entry.newValue,
     metadata: entry.metadata ?? null,
     correlationId: entry.correlationId,
   });

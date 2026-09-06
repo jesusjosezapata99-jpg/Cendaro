@@ -1,0 +1,13 @@
+[mcp_servers.supabase]
+command = "npx"
+args = [
+    "-y",
+    "@supabase/mcp-server-supabase@latest",
+    "--read-only",
+    "--project-ref",
+    "ljwoptpaxazqmnhdczsb",
+]
+
+[mcp_servers.supabase.env]
+# Replace with your Supabase personal access token
+SUPABASE_ACCESS_TOKEN = "your-supabase-personal-access-token"

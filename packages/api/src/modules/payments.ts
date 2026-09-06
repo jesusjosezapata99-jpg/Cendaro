@@ -7,7 +7,6 @@
 import { desc, eq, sql } from "drizzle-orm";
 import { z } from "zod/v4";
 
-import type { closureStatusEnum } from "@cendaro/db/schema";
 import {
   CashClosure,
   Payment,
@@ -15,13 +14,17 @@ import {
   SalesOrder,
 } from "@cendaro/db/schema";
 
-import { createTRPCRouter, workspaceProcedure } from "../trpc";
+import {
+  createTRPCRouter,
+  workspaceProcedure,
+  workspaceReadProcedure,
+} from "../trpc";
 import { logAudit } from "./audit";
 
 export const paymentsRouter = createTRPCRouter({
   // ─── Payments ──────────────────────────────────
 
-  list: workspaceProcedure
+  list: workspaceReadProcedure
     .input(
       z.object({
         limit: z.number().int().min(1).max(100).default(50),
@@ -104,7 +107,7 @@ export const paymentsRouter = createTRPCRouter({
 
   // ─── Cash Closure ────────────────────────────────
 
-  listClosures: workspaceProcedure.query(async ({ ctx }) => {
+  listClosures: workspaceReadProcedure.query(async ({ ctx }) => {
     return ctx.db
       .select({
         id: CashClosure.id,
@@ -171,7 +174,7 @@ export const paymentsRouter = createTRPCRouter({
       const [updated] = await ctx.db
         .update(CashClosure)
         .set({
-          status: "reviewed" as (typeof closureStatusEnum.enumValues)[number],
+          status: "reviewed",
           reviewedBy: ctx.user.id,
         })
         .where(eq(CashClosure.id, input.id))

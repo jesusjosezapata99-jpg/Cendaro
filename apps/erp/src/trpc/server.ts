@@ -1,17 +1,30 @@
 /**
- * Cendaro — tRPC Server-Side Caller
+ * Cendaro — tRPC Server-Side Proxy
  *
- * Creates a tRPC caller for use in React Server Components
- * and Server Actions. No HTTP round-trip — calls procedures directly.
+ * Official tRPC v11 pattern (`createTRPCOptionsProxy`) for React Server
+ * Components: `trpc.<procedure>.queryOptions(input)` generates the SAME
+ * queryKey the client hooks use, so an SSR prefetch always hits the client
+ * cache on hydration — no hand-written queryKey duplication (a single
+ * typo'd key today = cache miss + double fetch).
+ *
+ * The proxy calls the router directly (no HTTP round-trip). A direct
+ * caller (`api`) is also kept for server actions / non-hook call sites.
  */
 import { cache } from "react";
 import { cookies, headers } from "next/headers";
+import { createTRPCOptionsProxy } from "@trpc/tanstack-react-query";
 
-import type { AppRouter } from "@cendaro/api";
-import { createCaller, createTRPCContext } from "@cendaro/api";
+import type { AppRouter, AuthenticatedUser } from "@cendaro/api";
+import {
+  appRouter,
+  createCaller,
+  createTRPCContext,
+  mapClaimsToUser,
+} from "@cendaro/api";
 import { createSupabaseServerClient } from "@cendaro/auth/server";
 
 import { env } from "~/env";
+import { getQueryClient } from "./query-client";
 
 /**
  * Create a cached tRPC context for the current request.
@@ -32,24 +45,32 @@ const createContext = cache(async () => {
     heads.set("x-workspace-id", wsId);
   }
 
-  let user = null;
+  let user: AuthenticatedUser | null = null;
   if (supabaseUrl && supabaseKey) {
     const supabase = createSupabaseServerClient(
       cookieStore,
       supabaseUrl,
       supabaseKey,
     );
-    const { data } = await supabase.auth.getUser();
-    user = data.user;
+    // getClaims() verifies the JWT locally via cached JWKS (asymmetric
+    // signing keys) — no network round-trip to Supabase Auth per request.
+    const { data } = await supabase.auth.getClaims();
+    user = mapClaimsToUser(data?.claims);
   }
 
   return createTRPCContext({
     headers: heads,
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any
-    user: user as any,
+    user,
   });
 });
 
+export const trpc = createTRPCOptionsProxy({
+  router: appRouter,
+  ctx: () => createContext(),
+  queryClient: getQueryClient,
+});
+
+// Direct caller kept for server actions / non-hook call sites
 const caller = createCaller(createContext);
 export { caller as api };
 export type { AppRouter };

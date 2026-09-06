@@ -14,17 +14,17 @@ import { z } from "zod/v4";
 
 import { UserProfile, userRoleEnum, userStatusEnum } from "@cendaro/db/schema";
 
-import type { UserMeta } from "../trpc";
 import {
   createTRPCRouter,
   protectedProcedure,
   workspaceProcedure,
+  workspaceReadProcedure,
 } from "../trpc";
 import { logAudit } from "./audit";
 
 export const usersRouter = createTRPCRouter({
   /** List all users (admin, owner, supervisor) */
-  list: workspaceProcedure.query(async ({ ctx }) => {
+  list: workspaceReadProcedure.query(async ({ ctx }) => {
     return ctx.db
       .select({
         id: UserProfile.id,
@@ -77,7 +77,7 @@ export const usersRouter = createTRPCRouter({
     )
     .mutation(async ({ ctx, input }) => {
       // Owner-protection: only owner can create another owner
-      const callerRole = (ctx.user.user_metadata as UserMeta | undefined)?.role;
+      const callerRole = ctx.user.user_metadata?.role;
       if (input.role === "owner" && callerRole !== "owner") {
         throw new (await import("@trpc/server")).TRPCError({
           code: "FORBIDDEN",
@@ -124,7 +124,7 @@ export const usersRouter = createTRPCRouter({
     )
     .mutation(async ({ ctx, input }) => {
       const { id, ...updates } = input;
-      const callerRole = (ctx.user.user_metadata as UserMeta | undefined)?.role;
+      const callerRole = ctx.user.user_metadata?.role;
 
       // Get target user's current profile
       const [targetProfile] = await ctx.db

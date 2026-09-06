@@ -1,15 +1,80 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useQueries } from "@tanstack/react-query";
 
-import { useBcvRate } from "~/hooks/use-bcv-rate";
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@cendaro/ui";
+
+import type { ClosureSalesPoint } from "./charts";
+import type { StatTone } from "~/components/stat-card";
+import { EmptyState } from "~/components/empty-state";
+import { PageHeader } from "~/components/page-header";
+import { Skeleton } from "~/components/skeleton";
+import { StatCard } from "~/components/stat-card";
+import { StatusBadge } from "~/components/status-badge";
+import { useVesRates } from "~/hooks/use-bcv-rate";
 import { formatDualCurrency } from "~/lib/format-currency";
 import { useTRPC } from "~/trpc/client";
 
-function Skeleton({ className = "" }: { className?: string }) {
-  return <div className={`bg-muted animate-pulse rounded-lg ${className}`} />;
+/**
+ * Charts hydrate lazily after first paint (ssr: false) — the recharts chunk
+ * never competes with LCP, and the h-64 slots below reserve the space so
+ * layout shift stays at zero.
+ */
+const SalesPerClosureChart = dynamic(
+  () => import("./charts").then((m) => m.SalesPerClosureChart),
+  { ssr: false, loading: () => <ChartPlaceholder /> },
+);
+const CollectionsDonutChart = dynamic(
+  () => import("./charts").then((m) => m.CollectionsDonutChart),
+  { ssr: false, loading: () => <ChartPlaceholder /> },
+);
+
+/** Height-reserved chart placeholder — prevents CLS while the chunk loads. */
+function ChartPlaceholder() {
+  return (
+    <div className="flex h-full items-center justify-center">
+      <Skeleton className="h-full w-full rounded-lg" />
+    </div>
+  );
 }
+
+interface Kpi {
+  label: string;
+  value: string | number;
+  sub?: string;
+  icon: string;
+  tone: StatTone;
+  href: string;
+}
+
+interface SummaryRow {
+  label: string;
+  icon: string;
+  href: string;
+  value: string | number;
+  /** "success" tints the value with the success token (money in). */
+  valueTone?: "default" | "success";
+  sub?: string;
+}
+
+/** Shared row style for in-card navigable rows. */
+const rowClasses =
+  "border-border-subtle hover:bg-accent/50 hover:border-primary/30 focus-visible:border-ring focus-visible:ring-ring/50 flex min-h-11 items-center justify-between gap-3 rounded-lg border p-3 outline-none transition-all duration-200 active:scale-[0.99] motion-reduce:active:scale-100";
 
 export default function DashboardClient() {
   const trpc = useTRPC();
@@ -24,74 +89,116 @@ export default function DashboardClient() {
   const { data: closures, isLoading: closuresLoading } = closuresResult;
   const { data: alertCount } = alertResult;
 
-  const bcv = useBcvRate();
+  const ves = useVesRates();
+  const bcv = ves.oficial;
+  const revenue = formatDualCurrency(summary?.orders.revenue ?? 0, bcv.rate);
+  const collected = formatDualCurrency(
+    summary?.payments.collected ?? 0,
+    bcv.rate,
+  );
+  const receivable = formatDualCurrency(
+    summary?.accountsReceivable.debt ?? 0,
+    bcv.rate,
+  );
 
-  const kpis = [
+  const kpis: Kpi[] = [
     {
-      label: "Órdenes Totales",
+      label: "Órdenes",
       value: summary?.orders.total ?? 0,
       icon: "receipt_long",
-      accent: "border-emerald-500/40",
+      tone: "primary",
       href: "/orders",
     },
     {
       label: "Ingresos",
-      value: formatDualCurrency(summary?.orders.revenue ?? 0, bcv.rate).usd,
-      sub: formatDualCurrency(summary?.orders.revenue ?? 0, bcv.rate).bs,
+      value: revenue.usd,
+      sub: revenue.bs || undefined,
       icon: "payments",
-      accent: "border-blue-500/40",
+      tone: "primary",
       href: "/orders",
     },
     {
       label: "Cobrado",
       value: formatDualCurrency(summary?.orders.paid ?? 0, bcv.rate).usd,
-      sub: formatDualCurrency(summary?.orders.paid ?? 0, bcv.rate).bs,
+      sub:
+        formatDualCurrency(summary?.orders.paid ?? 0, bcv.rate).bs || undefined,
       icon: "trending_up",
-      accent: "border-violet-500/40",
+      tone: "success",
       href: "/payments",
     },
     {
       label: "Pagos",
       value: summary?.payments.total ?? 0,
       icon: "credit_card",
-      accent: "border-cyan-500/40",
+      tone: "default",
       href: "/payments",
     },
     {
-      label: "CxC Pendiente",
-      value: formatDualCurrency(summary?.accountsReceivable.debt ?? 0, bcv.rate)
-        .usd,
-      sub: formatDualCurrency(summary?.accountsReceivable.debt ?? 0, bcv.rate)
-        .bs,
+      label: "Por Cobrar",
+      value: receivable.usd,
+      sub: receivable.bs || undefined,
       icon: "account_balance_wallet",
-      accent: "border-amber-500/40",
+      tone: "warning",
       href: "/accounts-receivable",
     },
     {
       label: "Alertas",
       value: alertCount ?? 0,
       icon: "notifications_active",
-      accent: (alertCount ?? 0) > 0 ? "border-red-500/40" : "border-border",
+      tone: (alertCount ?? 0) > 0 ? "destructive" : "default",
       href: "/alerts",
     },
   ];
 
+  const summaryRows: SummaryRow[] = [
+    {
+      label: "Órdenes",
+      value: summary?.orders.total ?? 0,
+      icon: "receipt_long",
+      href: "/orders",
+    },
+    {
+      label: "Pagos Procesados",
+      value: summary?.payments.total ?? 0,
+      icon: "credit_card",
+      href: "/payments",
+    },
+    {
+      label: "CxC Abiertas",
+      value: summary?.accountsReceivable.total ?? 0,
+      icon: "assignment",
+      href: "/accounts-receivable",
+    },
+    {
+      label: "Total Recaudado",
+      value: collected.usd,
+      sub: collected.bs || undefined,
+      valueTone: "success",
+      icon: "attach_money",
+      href: "/cash-closure",
+    },
+  ];
+
+  const closureSales: ClosureSalesPoint[] = (closures ?? []).map((c) => ({
+    label: new Date(c.closureDate).toLocaleDateString("es-VE", {
+      day: "numeric",
+      month: "short",
+    }),
+    sales: Number(c.totalSales),
+  }));
+
   return (
-    <div className="space-y-6 p-4 lg:p-8">
-      <div>
-        <h1 className="text-foreground text-2xl font-black tracking-tight">
-          Dashboard Ejecutivo
-        </h1>
-        <p className="text-muted-foreground mt-1 text-sm">
-          Visibilidad operativa completa
-        </p>
-        {bcv.rate > 0 && (
-          <span className="mt-1 inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-bold text-emerald-600 dark:text-emerald-400">
-            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" />
-            BCV: {bcv.rate.toFixed(2)} Bs/$ ({bcv.date})
-          </span>
-        )}
-      </div>
+    <div className="animate-in fade-in slide-in-from-bottom-1 space-y-6 p-4 duration-200 lg:p-8">
+      <PageHeader
+        title="Dashboard Ejecutivo"
+        description="Visibilidad operativa completa"
+      >
+        {bcv.rate > 0 ? (
+          <StatusBadge tone="success" className="mt-2 [&>span]:animate-pulse">
+            BCV: {bcv.rate.toFixed(2)} Bs/$ · {bcv.date}
+          </StatusBadge>
+        ) : null}
+      </PageHeader>
 
       {/* Primary KPIs — 2 cols on mobile, 3 on sm, 6 on lg */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
@@ -99,246 +206,294 @@ export default function DashboardClient() {
           ? Array.from({ length: 6 }).map((_, i) => (
               <div
                 key={i}
-                className="border-border bg-card rounded-xl border p-3"
+                className="border-border-subtle surface-card flex flex-col gap-2 rounded-xl border p-4"
               >
-                <Skeleton className="mb-2 h-3 w-20" />
-                <Skeleton className="h-6 w-16" />
+                <div className="flex items-center justify-between">
+                  <Skeleton className="h-3 w-20" />
+                  <Skeleton className="size-7 rounded-lg" />
+                </div>
+                <Skeleton className="h-7 w-16" />
               </div>
             ))
           : kpis.map((stat) => (
-              <Link
+              <StatCard
                 key={stat.label}
+                label={stat.label}
+                value={stat.value}
+                sub={stat.sub}
+                icon={stat.icon}
+                tone={stat.tone}
                 href={stat.href}
-                className={`rounded-xl border-l-4 ${stat.accent} bg-card border-border hover:border-primary/40 hover:bg-accent/30 cursor-pointer border p-3 transition-colors`}
-              >
-                <div className="flex items-center gap-1.5">
-                  <span className="material-symbols-outlined text-muted-foreground text-lg">
-                    {stat.icon}
-                  </span>
-                  <span className="text-muted-foreground text-[10px] font-bold tracking-widest uppercase">
-                    {stat.label}
-                  </span>
-                </div>
-                <p className="text-foreground mt-1 text-lg font-bold">
-                  {stat.value}
-                </p>
-                {"sub" in stat && stat.sub && (
-                  <p className="text-muted-foreground text-[10px] font-medium">
-                    {stat.sub}
-                  </p>
-                )}
-              </Link>
+              />
             ))}
       </div>
 
       {/* Alert strip — horizontally scrollable on mobile */}
       {(alertCount ?? 0) > 0 && (
         <div className="mobile-scroll-x flex gap-3">
-          <div className="shrink-0 rounded-lg border border-red-300 bg-red-100 px-4 py-2 text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-400">
-            <span className="text-xs font-medium">Alertas activas: </span>
-            <span className="text-sm font-bold">{alertCount}</span>
-          </div>
+          <StatusBadge
+            tone="destructive"
+            dot={false}
+            className="shrink-0 px-3 py-1.5"
+          >
+            Alertas activas · {alertCount}
+          </StatusBadge>
           {(summary?.accountsReceivable.debt ?? 0) > 0 && (
-            <div className="shrink-0 rounded-lg border border-amber-300 bg-amber-100 px-4 py-2 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-400">
-              <span className="text-xs font-medium">CxC Pendiente: </span>
-              <span className="text-sm font-bold">
-                ${(summary?.accountsReceivable.debt ?? 0).toFixed(0)}
-              </span>
-            </div>
+            <StatusBadge
+              tone="warning"
+              dot={false}
+              className="shrink-0 px-3 py-1.5"
+            >
+              CxC Pendiente · ${receivable.usd.replace("$", "")}
+            </StatusBadge>
           )}
         </div>
       )}
 
+      {/* Analytics — lazily hydrated charts, height reserved (CLS 0) */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {/* Summary Cards */}
-        <div className="border-border bg-card rounded-xl border p-5">
-          <h3 className="text-muted-foreground mb-4 text-sm font-semibold">
-            Resumen de Operaciones
-          </h3>
-          <div className="space-y-3">
-            {[
-              {
-                label: "Órdenes",
-                value: summary?.orders.total ?? 0,
-                icon: "receipt_long",
-                href: "/orders",
-              },
-              {
-                label: "Pagos Procesados",
-                value: summary?.payments.total ?? 0,
-                icon: "credit_card",
-                href: "/payments",
-              },
-              {
-                label: "CxC Abiertas",
-                value: summary?.accountsReceivable.total ?? 0,
-                icon: "assignment",
-                href: "/accounts-receivable",
-              },
-              {
-                label: "Total Recaudado",
-                value: formatDualCurrency(
-                  summary?.payments.collected ?? 0,
-                  bcv.rate,
-                ).usd,
-                sub: formatDualCurrency(
-                  summary?.payments.collected ?? 0,
-                  bcv.rate,
-                ).bs,
-                icon: "attach_money",
-                href: "/cash-closure",
-              },
-            ].map((item) => (
-              <Link
-                key={item.label}
-                href={item.href}
-                className="border-border hover:bg-accent/30 hover:border-primary/30 flex min-h-[44px] cursor-pointer items-center justify-between rounded-lg border p-3 transition-colors"
-              >
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-muted-foreground text-sm font-medium">
+              Ventas por Cierre
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Últimos cierres de caja
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="h-64">
+            <SalesPerClosureChart data={closureSales} />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-muted-foreground text-sm font-medium">
+              Cobranza
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Cobrado vs por cobrar (período actual)
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="h-64">
+            <CollectionsDonutChart
+              collected={summary?.orders.paid ?? 0}
+              outstanding={summary?.accountsReceivable.debt ?? 0}
+            />
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        {/* Summary — real counts and collected money */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-muted-foreground text-sm font-medium">
+              Resumen de Operaciones
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Cifras del período actual
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {summaryRows.map((item) => (
+              <Link key={item.label} href={item.href} className={rowClasses}>
                 <span className="text-foreground flex items-center gap-2 text-sm">
                   <span className="material-symbols-outlined text-muted-foreground text-lg">
                     {item.icon}
                   </span>
                   {item.label}
                 </span>
-                <span className="font-mono text-sm font-bold text-emerald-600 dark:text-emerald-400">
+                <span
+                  className={`font-mono text-sm font-semibold tabular-nums ${
+                    item.valueTone === "success"
+                      ? "text-success-soft"
+                      : "text-foreground"
+                  }`}
+                >
                   {item.value}
-                  {"sub" in item && item.sub && (
-                    <span className="text-muted-foreground ml-2 text-[10px] font-normal">
+                  {item.sub ? (
+                    <span className="text-muted-foreground ml-2 text-xs font-normal">
                       {item.sub}
                     </span>
-                  )}
+                  ) : null}
                 </span>
               </Link>
             ))}
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
-        {/* Quick Stats */}
-        <div className="border-border bg-card rounded-xl border p-5">
-          <h3 className="text-muted-foreground mb-4 text-sm font-semibold">
-            Estado del Sistema
-          </h3>
-          <div className="space-y-3">
-            <div className="border-border flex min-h-[44px] items-center justify-between rounded-lg border p-3">
+        {/* Exchange rates — live data (same fetch, zero extra requests) */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-muted-foreground text-sm font-medium">
+              Tasas de Cambio
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Referencias para operaciones en divisas
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="border-border-subtle flex min-h-11 items-center justify-between gap-3 rounded-lg border p-3">
               <span className="text-foreground flex items-center gap-2 text-sm">
                 <span className="material-symbols-outlined text-muted-foreground text-lg">
-                  database
+                  attach_money
                 </span>
-                Supabase
+                BCV Oficial
+                {bcv.date ? (
+                  <span className="text-muted-foreground text-xs">
+                    {bcv.date}
+                  </span>
+                ) : null}
               </span>
-              <span className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
-                Conectado
-              </span>
+              {bcv.isLoading ? (
+                <Skeleton className="h-5 w-24" />
+              ) : (
+                <span className="text-foreground font-mono text-sm font-semibold tabular-nums">
+                  {bcv.rate > 0 ? `Bs ${bcv.rate.toFixed(2)}` : "—"}
+                </span>
+              )}
             </div>
-            <div className="border-border flex min-h-[44px] items-center justify-between rounded-lg border p-3">
+            <div className="border-border-subtle flex min-h-11 items-center justify-between gap-3 rounded-lg border p-3">
               <span className="text-foreground flex items-center gap-2 text-sm">
                 <span className="material-symbols-outlined text-muted-foreground text-lg">
-                  api
+                  credit_card
                 </span>
-                tRPC API
+                Paralelo (USDT)
               </span>
-              <span className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
-                Online
-              </span>
+              {bcv.isLoading ? (
+                <Skeleton className="h-5 w-24" />
+              ) : (
+                <span className="text-foreground font-mono text-sm font-semibold tabular-nums">
+                  {ves.paralelo.rate > 0
+                    ? `Bs ${ves.paralelo.rate.toFixed(2)}`
+                    : "—"}
+                </span>
+              )}
             </div>
-            <Link
-              href="/alerts"
-              className="border-border hover:bg-accent/30 hover:border-primary/30 flex min-h-[44px] cursor-pointer items-center justify-between rounded-lg border p-3 transition-colors"
-            >
+            <div className="border-border-subtle flex min-h-11 items-center justify-between gap-3 rounded-lg border p-3">
+              <span className="text-foreground flex items-center gap-2 text-sm">
+                <span className="material-symbols-outlined text-muted-foreground text-lg">
+                  trending_up
+                </span>
+                Brecha
+              </span>
+              {bcv.isLoading ? (
+                <Skeleton className="h-5 w-16" />
+              ) : (
+                <span className="text-warning-soft font-mono text-sm font-semibold tabular-nums">
+                  {ves.spread.percentage !== 0
+                    ? `${ves.spread.percentage.toFixed(1)}%`
+                    : "—"}
+                </span>
+              )}
+            </div>
+            <Link href="/alerts" className={rowClasses}>
               <span className="text-foreground flex items-center gap-2 text-sm">
                 <span className="material-symbols-outlined text-muted-foreground text-lg">
                   notifications_active
                 </span>
                 Alertas Activas
               </span>
-              <span
-                className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-                  (alertCount ?? 0) > 0
-                    ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
-                    : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
-                }`}
+              <StatusBadge
+                tone={(alertCount ?? 0) > 0 ? "destructive" : "success"}
+                dot={false}
               >
                 {alertCount ?? 0}
-              </span>
+              </StatusBadge>
             </Link>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
 
-        {/* Cash Closures — horizontal scroll wrapper for mobile table */}
-        <div className="border-border bg-card rounded-xl border p-5 lg:col-span-2">
-          <h3 className="text-muted-foreground mb-4 text-sm font-semibold">
-            Cierres de Caja Recientes
-          </h3>
-          {closuresLoading ? (
-            <div className="space-y-3">
-              {Array.from({ length: 3 }).map((_, i) => (
-                <Skeleton key={i} className="h-10 w-full" />
-              ))}
-            </div>
-          ) : closures && closures.length > 0 ? (
-            <div className="mobile-scroll-x overflow-hidden rounded-lg">
-              <table className="w-full min-w-[500px] text-left text-sm">
-                <thead>
-                  <tr className="text-muted-foreground text-[10px] font-bold tracking-widest uppercase">
-                    <th className="py-2 pr-4">Fecha</th>
-                    <th className="py-2 pr-4 text-right">Ventas</th>
-                    <th className="py-2 pr-4 text-right">Efectivo</th>
-                    <th className="py-2 pr-4 text-right">Digital</th>
-                    <th className="py-2 text-right">Discrepancia</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {closures.map((c) => (
-                    <tr key={c.id} className="border-border border-t">
-                      <td className="text-foreground py-2.5 pr-4 font-medium">
-                        {new Date(c.closureDate).toLocaleDateString("es-VE")}
-                      </td>
-                      <td className="text-foreground py-2.5 pr-4 text-right font-mono">
-                        ${Number(c.totalSales).toFixed(2)}
-                      </td>
-                      <td className="py-2.5 pr-4 text-right font-mono text-emerald-600 dark:text-emerald-400">
-                        ${Number(c.totalCash).toFixed(2)}
-                      </td>
-                      <td className="text-primary py-2.5 pr-4 text-right font-mono">
-                        ${Number(c.totalDigital).toFixed(2)}
-                      </td>
-                      <td
-                        className={`py-2.5 text-right font-mono font-bold ${
-                          Number(c.actualTotal ?? 0) -
-                            Number(c.expectedTotal ?? 0) ===
-                          0
-                            ? "text-emerald-600 dark:text-emerald-400"
-                            : Number(c.actualTotal ?? 0) -
-                                  Number(c.expectedTotal ?? 0) <
-                                0
-                              ? "text-red-600 dark:text-red-400"
-                              : "text-amber-600 dark:text-amber-400"
-                        }`}
-                      >
-                        {Number(c.actualTotal ?? 0) -
-                          Number(c.expectedTotal ?? 0) >=
-                        0
-                          ? "+"
-                          : ""}
-                        {(
-                          Number(c.actualTotal ?? 0) -
-                          Number(c.expectedTotal ?? 0)
-                        ).toFixed(2)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div className="text-muted-foreground flex flex-col items-center justify-center py-8">
-              <span className="material-symbols-outlined mb-2 text-3xl">
-                lock_clock
-              </span>
-              <p className="text-sm">No hay cierres de caja registrados</p>
-            </div>
-          )}
-        </div>
+        {/* Cash Closures — full-width table */}
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle className="text-muted-foreground text-sm font-medium">
+              Cierres de Caja Recientes
+            </CardTitle>
+            <CardAction>
+              <Link
+                href="/cash-closure"
+                className="text-primary hover:text-primary/80 inline-flex items-center gap-1 text-sm font-medium transition-colors"
+              >
+                Ver todos
+                <span className="material-symbols-outlined text-base">
+                  arrow_forward
+                </span>
+              </Link>
+            </CardAction>
+          </CardHeader>
+          <CardContent>
+            {closuresLoading ? (
+              <div className="space-y-3">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <Skeleton key={i} className="h-10 w-full" />
+                ))}
+              </div>
+            ) : closures && closures.length > 0 ? (
+              <Table className="min-w-125">
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="text-muted-foreground h-9 px-3 text-xs font-medium tracking-widest uppercase">
+                      Fecha
+                    </TableHead>
+                    <TableHead className="text-muted-foreground h-9 px-3 text-right text-xs font-medium tracking-widest uppercase">
+                      Ventas
+                    </TableHead>
+                    <TableHead className="text-muted-foreground h-9 px-3 text-right text-xs font-medium tracking-widest uppercase">
+                      Efectivo
+                    </TableHead>
+                    <TableHead className="text-muted-foreground h-9 px-3 text-right text-xs font-medium tracking-widest uppercase">
+                      Digital
+                    </TableHead>
+                    <TableHead className="text-muted-foreground h-9 px-3 text-right text-xs font-medium tracking-widest uppercase">
+                      Discrepancia
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {closures.map((c) => {
+                    const diff =
+                      Number(c.actualTotal ?? 0) - Number(c.expectedTotal ?? 0);
+                    return (
+                      <TableRow key={c.id}>
+                        <TableCell className="text-foreground px-3 py-2.5 font-medium">
+                          {new Date(c.closureDate).toLocaleDateString("es-VE")}
+                        </TableCell>
+                        <TableCell className="px-3 py-2.5 text-right font-mono tabular-nums">
+                          ${Number(c.totalSales).toFixed(2)}
+                        </TableCell>
+                        <TableCell className="text-success-soft px-3 py-2.5 text-right font-mono tabular-nums">
+                          ${Number(c.totalCash).toFixed(2)}
+                        </TableCell>
+                        <TableCell className="text-primary px-3 py-2.5 text-right font-mono tabular-nums">
+                          ${Number(c.totalDigital).toFixed(2)}
+                        </TableCell>
+                        <TableCell
+                          className={`px-3 py-2.5 text-right font-mono font-semibold tabular-nums ${
+                            diff === 0
+                              ? "text-success-soft"
+                              : diff < 0
+                                ? "text-destructive-soft"
+                                : "text-warning-soft"
+                          }`}
+                        >
+                          {diff >= 0 ? "+" : ""}
+                          {diff.toFixed(2)}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            ) : (
+              <EmptyState
+                icon="lock_clock"
+                title="No hay cierres de caja registrados"
+                description="Los cierres de caja recientes aparecerán aquí."
+              />
+            )}
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

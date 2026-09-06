@@ -4,29 +4,40 @@ import { useState } from "react";
 import Link from "next/link";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
+import {
+  Button,
+  Input,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@cendaro/ui";
+
+import type { StatusTone } from "~/components/status-badge";
+import { EmptyState } from "~/components/empty-state";
+import { PageHeader } from "~/components/page-header";
+import { Skeleton } from "~/components/skeleton";
+import { StatCard } from "~/components/stat-card";
+import { StatusBadge } from "~/components/status-badge";
 import { useDebounce } from "~/hooks/use-debounce";
 import { useTRPC } from "~/trpc/client";
 
-function Skeleton({ className = "" }: { className?: string }) {
-  return <div className={`bg-muted animate-pulse rounded-lg ${className}`} />;
-}
-
-const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
-  active: {
-    label: "Activo",
-    color:
-      "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300",
-  },
-  draft: {
-    label: "Borrador",
-    color:
-      "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
-  },
-  discontinued: {
-    label: "Descontinuado",
-    color: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300",
-  },
+/** Business status → semantic token chip (single source of truth). */
+const STATUS_CONFIG: Record<string, { label: string; tone: StatusTone }> = {
+  active: { label: "Activo", tone: "success" },
+  draft: { label: "Borrador", tone: "warning" },
+  discontinued: { label: "Descontinuado", tone: "destructive" },
 };
+
+/** Shared cell padding for the catalog table. */
+const cellPx = "px-4 py-3";
 
 export default function CatalogClient() {
   const trpc = useTRPC();
@@ -54,136 +65,125 @@ export default function CatalogClient() {
   const totalPages = Math.ceil(total / limit);
 
   return (
-    <div className="space-y-6 p-4 lg:p-8">
-      {/* Header — stacks vertically on mobile */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-foreground text-2xl font-black tracking-tight">
-            Catálogo de Productos
-          </h1>
-          <p className="text-muted-foreground text-sm">
-            Gestiona tu catálogo de {total.toLocaleString()} referencias
-          </p>
-        </div>
-        <div className="flex w-full gap-2 sm:w-auto">
-          <Link
-            href="/catalog/import"
-            className="border-border hover:bg-muted/50 flex min-h-[44px] flex-1 items-center justify-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium transition-colors sm:flex-initial"
-          >
-            <span className="material-symbols-outlined text-lg">
-              upload_file
-            </span>
-            Importar Catálogo
-          </Link>
-          <Link
-            href="/catalog/new"
-            className="bg-primary text-primary-foreground hover:bg-primary/90 flex min-h-[44px] flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors sm:flex-initial"
-          >
-            <span className="material-symbols-outlined text-lg">add</span>
-            Nuevo Producto
-          </Link>
-        </div>
-      </div>
+    <div className="animate-in fade-in slide-in-from-bottom-1 space-y-6 p-4 duration-200 lg:p-8">
+      <PageHeader
+        title="Catálogo de Productos"
+        description={`Gestiona tu catálogo de ${total.toLocaleString("es-VE")} referencias`}
+        actions={
+          <>
+            <Button variant="outline" asChild className="min-h-11">
+              <Link href="/catalog/import">
+                <span className="material-symbols-outlined text-lg">
+                  upload_file
+                </span>
+                Importar
+              </Link>
+            </Button>
+            <Button asChild className="min-h-11">
+              <Link href="/catalog/new">
+                <span className="material-symbols-outlined text-lg">add</span>
+                Nuevo Producto
+              </Link>
+            </Button>
+          </>
+        }
+      />
 
       {/* Stats */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        {[
-          {
-            label: "Total Productos",
-            value: total,
-            icon: "inventory_2",
-            accent: "border-blue-500/40",
-          },
-          {
-            label: "Mostrando",
-            value: products.length,
-            icon: "visibility",
-            accent: "border-emerald-500/40",
-          },
-          {
-            label: "Página",
-            value: `${page + 1} / ${Math.max(totalPages, 1)}`,
-            icon: "auto_stories",
-            accent: "border-amber-500/40",
-          },
-        ].map((stat) => (
-          <div
-            key={stat.label}
-            className={`rounded-xl border-l-4 ${stat.accent} bg-card border-border border p-4`}
-          >
-            <div className="flex items-center gap-2">
-              <span className="material-symbols-outlined text-muted-foreground text-lg">
-                {stat.icon}
-              </span>
-              <span className="text-muted-foreground text-[10px] font-bold tracking-widest uppercase">
-                {stat.label}
-              </span>
-            </div>
-            <p className="text-foreground mt-1 text-2xl font-black tracking-tight">
-              {isLoading ? "—" : stat.value}
-            </p>
-          </div>
-        ))}
+        <StatCard
+          label="Total Productos"
+          value={isLoading ? "—" : total.toLocaleString("es-VE")}
+          icon="inventory_2"
+          tone="primary"
+        />
+        <StatCard
+          label="Mostrando"
+          value={isLoading ? "—" : products.length}
+          icon="visibility"
+          tone="success"
+        />
+        <StatCard
+          label="Página"
+          value={`${page + 1} / ${Math.max(totalPages, 1)}`}
+          icon="auto_stories"
+        />
       </div>
 
       {/* Filters */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-        <input
-          type="text"
-          placeholder="Buscar por nombre o referencia..."
-          value={search}
-          onChange={(e) => {
-            setSearch(e.target.value);
-            setPage(0);
-          }}
-          className="border-border bg-card text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-ring/20 min-h-[44px] flex-1 rounded-lg border px-4 py-2.5 text-sm transition-colors outline-none focus:ring-2"
-        />
-        <select
+      <div className="flex flex-col gap-3 sm:flex-row">
+        <div className="relative flex-1">
+          <span
+            aria-hidden
+            className="material-symbols-outlined text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-base"
+          >
+            search
+          </span>
+          <Input
+            type="text"
+            placeholder="Buscar por nombre o referencia..."
+            value={search}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(0);
+            }}
+            className="min-h-11 pl-10"
+          />
+        </div>
+        <Select
           value={statusFilter}
-          onChange={(e) => {
-            setStatusFilter(e.target.value);
+          onValueChange={(v) => {
+            setStatusFilter(v);
             setPage(0);
           }}
-          className="border-border bg-card text-foreground focus:border-primary focus:ring-ring/20 min-h-[44px] rounded-lg border px-3 py-2.5 text-sm outline-none focus:ring-2"
         >
-          <option value="all">Todos los estados</option>
-          <option value="active">Activos</option>
-          <option value="draft">Borradores</option>
-          <option value="discontinued">Descontinuados</option>
-        </select>
+          <SelectTrigger className="h-11 w-full sm:w-48">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos los estados</SelectItem>
+            <SelectItem value="active">Activos</SelectItem>
+            <SelectItem value="draft">Borradores</SelectItem>
+            <SelectItem value="discontinued">Descontinuados</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       {/* ── Mobile: Card View ─────────────────────── */}
       <div className="space-y-3 md:hidden">
         {isLoading
           ? Array.from({ length: 4 }).map((_, i) => (
-              <Skeleton key={i} className="h-20 w-full" />
+              <div
+                key={i}
+                className="border-border-subtle surface-card rounded-xl border p-4"
+              >
+                <Skeleton className="h-5 w-3/4" />
+                <Skeleton className="mt-2 h-4 w-24" />
+              </div>
             ))
           : products.map((product) => {
               const statusCfg = STATUS_CONFIG[product.status] ?? {
                 label: product.status,
-                color: "",
+                tone: "neutral" as StatusTone,
               };
               return (
                 <Link
                   key={product.id}
                   href={`/catalog/${product.id}`}
-                  className="border-border bg-card hover:border-primary/30 block rounded-xl border p-4 transition-colors"
+                  className="border-border-subtle surface-card hover:border-primary/30 focus-visible:border-ring focus-visible:ring-ring/50 block rounded-xl border p-4 transition-all duration-200 outline-none active:scale-[0.99] motion-reduce:active:scale-100"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
                       <p className="text-foreground truncate font-medium">
                         {product.name}
                       </p>
-                      <p className="text-muted-foreground mt-0.5 font-mono text-xs">
+                      <p className="text-muted-foreground mt-0.5 font-mono text-xs tabular-nums">
                         {product.sku}
                       </p>
                     </div>
-                    <span
-                      className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-medium ${statusCfg.color}`}
-                    >
+                    <StatusBadge tone={statusCfg.tone}>
                       {statusCfg.label}
-                    </span>
+                    </StatusBadge>
                   </div>
                   <p className="text-muted-foreground mt-2 text-xs">
                     {new Date(product.createdAt).toLocaleDateString("es-VE")}
@@ -192,120 +192,148 @@ export default function CatalogClient() {
               );
             })}
         {!isLoading && products.length === 0 && (
-          <div className="text-muted-foreground flex flex-col items-center py-12 text-center">
-            <span className="material-symbols-outlined mb-2 text-3xl">
-              search_off
-            </span>
-            No se encontraron productos
-          </div>
+          <EmptyState
+            icon="search_off"
+            title="No se encontraron productos"
+            description="Ajusta la búsqueda o el filtro de estado e inténtalo de nuevo."
+          />
         )}
       </div>
 
       {/* ── Desktop: Table View ───────────────────── */}
-      <div className="border-border bg-card hidden overflow-hidden rounded-xl border md:block">
-        <table className="w-full text-left text-sm">
-          <thead>
-            <tr className="border-border text-muted-foreground border-b text-xs uppercase">
-              <th className="px-4 py-3 font-medium">Referencia</th>
-              <th className="px-4 py-3 font-medium">Producto</th>
-              <th className="px-4 py-3 font-medium">Estado</th>
-              <th className="px-4 py-3 font-medium">Creado</th>
-            </tr>
-          </thead>
-          <tbody>
+      <div className="border-border-subtle surface-card hidden gap-0 overflow-hidden rounded-xl border py-0 md:block">
+        <Table>
+          <TableHeader>
+            <TableRow className="hover:bg-transparent">
+              <TableHead
+                className={`text-muted-foreground ${cellPx} text-xs font-medium tracking-widest uppercase`}
+              >
+                Referencia
+              </TableHead>
+              <TableHead
+                className={`text-muted-foreground ${cellPx} text-xs font-medium tracking-widest uppercase`}
+              >
+                Producto
+              </TableHead>
+              <TableHead
+                className={`text-muted-foreground ${cellPx} text-xs font-medium tracking-widest uppercase`}
+              >
+                Estado
+              </TableHead>
+              <TableHead
+                className={`text-muted-foreground ${cellPx} text-xs font-medium tracking-widest uppercase`}
+              >
+                Creado
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {isLoading
               ? Array.from({ length: 5 }).map((_, i) => (
-                  <tr key={i} className="border-border border-b">
-                    <td className="px-4 py-3">
+                  <TableRow key={i}>
+                    <TableCell className={cellPx}>
                       <Skeleton className="h-5 w-20" />
-                    </td>
-                    <td className="px-4 py-3">
+                    </TableCell>
+                    <TableCell className={cellPx}>
                       <Skeleton className="h-5 w-48" />
-                    </td>
-                    <td className="px-4 py-3">
+                    </TableCell>
+                    <TableCell className={cellPx}>
                       <Skeleton className="h-5 w-20" />
-                    </td>
-                    <td className="px-4 py-3">
+                    </TableCell>
+                    <TableCell className={cellPx}>
                       <Skeleton className="h-5 w-24" />
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))
               : products.map((product) => {
                   const statusCfg = STATUS_CONFIG[product.status] ?? {
                     label: product.status,
-                    color: "",
+                    tone: "neutral" as StatusTone,
                   };
                   return (
-                    <tr
-                      key={product.id}
-                      className="border-border hover:bg-accent/50 border-b transition-colors"
-                    >
-                      <td className="text-muted-foreground px-4 py-3 font-mono text-xs">
+                    <TableRow key={product.id}>
+                      <TableCell
+                        className={`text-muted-foreground ${cellPx} font-mono text-xs tabular-nums`}
+                      >
                         {product.sku}
-                      </td>
-                      <td className="px-4 py-3">
+                      </TableCell>
+                      <TableCell className={cellPx}>
                         <Link
                           href={`/catalog/${product.id}`}
                           className="text-foreground hover:text-primary font-medium transition-colors"
                         >
                           {product.name}
                         </Link>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span
-                          className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${statusCfg.color}`}
-                        >
+                      </TableCell>
+                      <TableCell className={cellPx}>
+                        <StatusBadge tone={statusCfg.tone}>
                           {statusCfg.label}
-                        </span>
-                      </td>
-                      <td className="text-muted-foreground px-4 py-3 text-sm">
+                        </StatusBadge>
+                      </TableCell>
+                      <TableCell
+                        className={`text-muted-foreground ${cellPx} text-sm`}
+                      >
                         {new Date(product.createdAt).toLocaleDateString(
                           "es-VE",
                         )}
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   );
                 })}
             {!isLoading && products.length === 0 && (
-              <tr>
-                <td
-                  colSpan={4}
-                  className="text-muted-foreground px-4 py-12 text-center"
-                >
-                  <span className="material-symbols-outlined mb-2 block text-3xl">
-                    search_off
-                  </span>
-                  No se encontraron productos
-                </td>
-              </tr>
+              <TableRow className="hover:bg-transparent">
+                <TableCell colSpan={4} className="px-4 py-6">
+                  <EmptyState
+                    icon="search_off"
+                    title="No se encontraron productos"
+                    description="Ajusta la búsqueda o el filtro de estado e inténtalo de nuevo."
+                  />
+                </TableCell>
+              </TableRow>
             )}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
 
-      {/* Pagination — simplified on mobile */}
+      {/* Pagination */}
       <div className="text-muted-foreground flex flex-col items-center gap-3 text-xs sm:flex-row sm:justify-between">
         <p>
-          Mostrando {products.length} de {total} productos
+          Mostrando{" "}
+          <span className="text-foreground font-mono font-medium tabular-nums">
+            {products.length}
+          </span>{" "}
+          de{" "}
+          <span className="text-foreground font-mono font-medium tabular-nums">
+            {total.toLocaleString("es-VE")}
+          </span>{" "}
+          productos
         </p>
-        <div className="flex gap-1">
-          <button
+        <div className="flex items-center gap-1">
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => setPage((p) => Math.max(0, p - 1))}
             disabled={page === 0}
-            className="bg-secondary text-muted-foreground hover:bg-accent min-h-[36px] rounded px-3 py-1 transition-colors disabled:opacity-50"
           >
-            ← Anterior
-          </button>
-          <span className="bg-primary text-primary-foreground flex min-h-[36px] items-center rounded px-3 py-1">
-            {page + 1}
+            <span aria-hidden className="material-symbols-outlined text-base">
+              arrow_back
+            </span>
+            Anterior
+          </Button>
+          <span className="text-foreground px-2 font-mono text-sm font-medium tabular-nums">
+            {page + 1} / {Math.max(totalPages, 1)}
           </span>
-          <button
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => setPage((p) => (p + 1 < totalPages ? p + 1 : p))}
             disabled={page + 1 >= totalPages}
-            className="bg-secondary text-muted-foreground hover:bg-accent min-h-[36px] rounded px-3 py-1 transition-colors disabled:opacity-50"
           >
-            Siguiente →
-          </button>
+            Siguiente
+            <span aria-hidden className="material-symbols-outlined text-base">
+              arrow_forward
+            </span>
+          </Button>
         </div>
       </div>
     </div>

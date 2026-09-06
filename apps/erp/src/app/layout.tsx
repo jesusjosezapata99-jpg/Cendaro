@@ -1,16 +1,29 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, Playfair_Display } from "next/font/google";
-import Script from "next/script";
+import { Geist, Geist_Mono, Playfair_Display } from "next/font/google";
+import localFont from "next/font/local";
 import { Toaster } from "sonner";
 
+import { MotionProvider } from "~/components/motion-provider";
 import { ThemeProvider } from "~/components/theme-provider";
+import { env } from "~/env";
 
 import "./globals.css";
 
-const inter = Inter({
+/**
+ * Geist Sans + Geist Mono — the technical UI identity (Linear/Vercel-grade).
+ * Self-hosted at build time via next/font (zero CDN requests). Geist Mono
+ * pairs 1:1 with Sans and ships tabular figures for aligned numerics.
+ */
+const geistSans = Geist({
   subsets: ["latin"],
   display: "swap",
-  variable: "--font-sans",
+  variable: "--font-geist-sans",
+});
+
+const geistMono = Geist_Mono({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-geist-mono",
 });
 
 const playfair = Playfair_Display({
@@ -20,7 +33,38 @@ const playfair = Playfair_Display({
   weight: ["400", "500", "600"],
 });
 
+/**
+ * Material Symbols — self-hosted subset (~14 KB).
+ *
+ * Generated with the official Google Fonts subsetter:
+ *   https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined
+ *     :opsz,wght,FILL,GRAD@24,400,0,0&icon_names=<136 sorted ligatures>
+ *
+ * Icon list: ./fonts/material-symbols-subset.txt (validated against the
+ * official Material Symbols codepoints file). If a new ligature is used in
+ * code, regenerate the subset — missing names render as literal text.
+ *
+ * Axes are pinned to Google's defaults (opsz 24, wght 400, FILL 0, GRAD 0)
+ * because the app never varies them — this shrinks the font from the full
+ * variable file (295 KB over CDN) to ~14 KB, served same-origin with preload
+ * (no render-blocking third-party request, critical on Venezuelan 3G).
+ * `display: block` keeps ligature text invisible during the brief swap window.
+ */
+const materialSymbols = localFont({
+  src: "./fonts/material-symbols-subset.woff2",
+  weight: "400",
+  style: "normal",
+  display: "block",
+  variable: "--font-material-symbols",
+  adjustFontFallback: false,
+  fallback: ["sans-serif"],
+});
+
 export const metadata: Metadata = {
+  // Canonical URL for OG/Twitter images. VERCEL_URL is injected by Vercel at build time.
+  metadataBase: new URL(
+    env.VERCEL_URL ? `https://${env.VERCEL_URL}` : "http://localhost:3000",
+  ),
   title: "Cendaro",
   description:
     "Sistema ERP Omnicanal para gestión de inventarios, ventas, precios y operaciones",
@@ -46,7 +90,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="es" suppressHydrationWarning>
+    <html lang="es" suppressHydrationWarning data-scroll-behavior="smooth">
       <head>
         {/* iOS Standalone Web App */}
         <meta name="mobile-web-app-capable" content="yes" />
@@ -55,41 +99,15 @@ export default function RootLayout({
           content="black-translucent"
         />
         <meta name="apple-mobile-web-app-title" content="Cendaro" />
-        <link rel="apple-touch-icon" href="/favicon.ico" />
-        {/* dns-prefetch + preconnect for Google Fonts CDN */}
-        <link rel="dns-prefetch" href="https://fonts.googleapis.com" />
-        <link
-          rel="preconnect"
-          href="https://fonts.gstatic.com"
-          crossOrigin="anonymous"
-        />
-        {/* One-time migration: clear stale "light" default so next-themes re-detects system preference.
-             Safe to remove after all existing users have revisited (e.g. 2026-Q2). */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `try{var k="cendaro-theme",v=localStorage.getItem(k);if(v==='"light"'||v==="light")localStorage.removeItem(k)}catch(e){}`,
-          }}
-        />
+        <link rel="apple-touch-icon" href="/cendaro-logo.png" />
       </head>
       <body
-        className={`${inter.variable} ${playfair.variable} bg-background text-foreground font-sans antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} ${playfair.variable} ${materialSymbols.variable} bg-background text-foreground font-sans antialiased`}
       >
-        <ThemeProvider>{children}</ThemeProvider>
+        <ThemeProvider>
+          <MotionProvider>{children}</MotionProvider>
+        </ThemeProvider>
         <Toaster richColors position="top-right" />
-        <Script
-          id="material-symbols"
-          strategy="afterInteractive"
-          dangerouslySetInnerHTML={{
-            __html: `
-              (function(){
-                var l=document.createElement('link');
-                l.rel='stylesheet';
-                l.href='https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap';
-                document.head.appendChild(l);
-              })();
-            `,
-          }}
-        />
       </body>
     </html>
   );

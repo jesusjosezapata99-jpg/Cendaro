@@ -1,0 +1,203 @@
+▲ Next.js 16.3.4 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://192.168.0.188:3000
+- Environments: .env.local
+✓ Ready in 682ms
+✓ Running next.config.js took 40ms
+- Cache Components enabled
+- Experiments (use with caution):
+  · optimizePackageImports
+
+ GET /login 200 in 564ms (next.js: 143ms, proxy.ts: 209ms, application-code: 212ms)
+ GET /login 200 in 47ms (next.js: 6ms, proxy.ts: 4ms, application-code: 37ms)
+ GET / 200 in 241ms (next.js: 37ms, proxy.ts: 4ms, application-code: 200ms)
+ GET /login?redirect=%2Forders 200 in 46ms (next.js: 5ms, proxy.ts: 4ms, application-code: 36ms)
+ GET /login 200 in 56ms (next.js: 8ms, proxy.ts: 8ms, application-code: 40ms)
+ GET / 200 in 143ms (next.js: 7ms, proxy.ts: 8ms, application-code: 129ms)
+ POST /api/auth/login 200 in 1631ms (next.js: 523ms, proxy.ts: 8ms, application-code: 1100ms)
+[2m16:13:12[0m 🔍 [90mDEBUG[0m [1m→ dashboard.salesSummary[0m [2m(path=dashboard.salesSummary, user=ca8825b2…, role=owner, req=mtpw69e5…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:13:12[0m 🔍 [90mDEBUG[0m [1m→ dashboard.latestClosures[0m [2m(path=dashboard.latestClosures, user=ca8825b2…, role=owner, req=mtpw69e5…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:13:12[0m 🔍 [90mDEBUG[0m [1m→ dashboard.activeAlertCount[0m [2m(path=dashboard.activeAlertCount, user=ca8825b2…, role=owner, req=mtpw69e5…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:13:12[0m 🔍 [90mDEBUG[0m [1m→ users.me[0m [2m(path=users.me, user=ca8825b2…, role=owner, req=mtpw69e5…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:13:12[0m 🔍 [90mDEBUG[0m [1m→ workspace.list[0m [2m(path=workspace.list, user=ca8825b2…, role=owner, req=mtpw69e5…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:13:12[0m 🔍 [90mDEBUG[0m [1m→ pricing.latestRates[0m [2m(path=pricing.latestRates, user=ca8825b2…, role=owner, req=mtpw69e5…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:13:12[0m 🔍 [90mDEBUG[0m [1m→ dashboard.salesSummary[0m [2m(path=dashboard.salesSummary, user=ca8825b2…, role=owner, req=mtpw69i3…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:13:12[0m 🔍 [90mDEBUG[0m [1m→ dashboard.latestClosures[0m [2m(path=dashboard.latestClosures, user=ca8825b2…, role=owner, req=mtpw69i3…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:13:12[0m 🔍 [90mDEBUG[0m [1m→ dashboard.activeAlertCount[0m [2m(path=dashboard.activeAlertCount, user=ca8825b2…, role=owner, req=mtpw69i3…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:13:12[0m 🔍 [90mDEBUG[0m [1m→ users.me[0m [2m(path=users.me, user=ca8825b2…, role=owner, req=mtpw69i3…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:13:12[0m 🔍 [90mDEBUG[0m [1m→ workspace.list[0m [2m(path=workspace.list, user=ca8825b2…, role=owner, req=mtpw69i3…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:13:12[0m 🔍 [90mDEBUG[0m [1m→ pricing.latestRates[0m [2m(path=pricing.latestRates, user=ca8825b2…, role=owner, req=mtpw69i3…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:13:12[0m ℹ️  [36mINFO [0m [1m✓ users.me[0m [2m(path=users.me, duration=444ms, user=ca8825b2…, role=owner, req=mtpw69e5…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:13:12[0m ℹ️  [36mINFO [0m [1m✓ workspace.list[0m [2m(path=workspace.list, duration=449ms, user=ca8825b2…, role=owner, req=mtpw69e5…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:13:12[0m ℹ️  [36mINFO [0m [1m✓ workspace.list[0m [2m(path=workspace.list, duration=469ms, user=ca8825b2…, role=owner, req=mtpw69i3…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:13:12[0m ℹ️  [36mINFO [0m [1m✓ users.me[0m [2m(path=users.me, duration=472ms, user=ca8825b2…, role=owner, req=mtpw69i3…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:13:12[0m ℹ️  [36mINFO [0m [1m✓ dashboard.salesSummary[0m [2m(path=dashboard.salesSummary, duration=696ms, user=ca8825b2…, role=owner, req=mtpw69e5…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:13:12[0m ℹ️  [36mINFO [0m [1m✓ dashboard.latestClosures[0m [2m(path=dashboard.latestClosures, duration=688ms, user=ca8825b2…, role=owner, req=mtpw69e5…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:13:12[0m ℹ️  [36mINFO [0m [1m✓ dashboard.activeAlertCount[0m [2m(path=dashboard.activeAlertCount, duration=692ms, user=ca8825b2…, role=owner, req=mtpw69e5…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:13:12[0m ℹ️  [36mINFO [0m [1m✓ pricing.latestRates[0m [2m(path=pricing.latestRates, duration=722ms, user=ca8825b2…, role=owner, req=mtpw69e5…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:13:12[0m ℹ️  [36mINFO [0m [1m✓ dashboard.latestClosures[0m [2m(path=dashboard.latestClosures, duration=611ms, user=ca8825b2…, role=owner, req=mtpw69i3…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+ GET /dashboard 200 in 1831ms (next.js: 775ms, proxy.ts: 106ms, application-code: 950ms)
+[2m16:13:12[0m ℹ️  [36mINFO [0m [1m✓ dashboard.activeAlertCount[0m [2m(path=dashboard.activeAlertCount, duration=619ms, user=ca8825b2…, role=owner, req=mtpw69i3…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:13:12[0m ℹ️  [36mINFO [0m [1m✓ dashboard.salesSummary[0m [2m(path=dashboard.salesSummary, duration=633ms, user=ca8825b2…, role=owner, req=mtpw69i3…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:13:12[0m ℹ️  [36mINFO [0m [1m✓ pricing.latestRates[0m [2m(path=pricing.latestRates, duration=631ms, user=ca8825b2…, role=owner, req=mtpw69i3…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+ GET /dashboard 200 in 794ms (next.js: 12ms, proxy.ts: 62ms, application-code: 721ms)
+ GET /api/bcv-rate 200 in 312ms (next.js: 275ms, proxy.ts: 4ms, application-code: 33ms)
+[2m16:13:39[0m 🔍 [90mDEBUG[0m [1m→ sales.listOrders[0m [2m(path=sales.listOrders, user=ca8825b2…, role=owner, req=mtpw6uwz…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:13:39[0m 🔍 [90mDEBUG[0m [1m→ users.me[0m [2m(path=users.me, user=ca8825b2…, role=owner, req=mtpw6uwz…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:13:39[0m 🔍 [90mDEBUG[0m [1m→ workspace.list[0m [2m(path=workspace.list, user=ca8825b2…, role=owner, req=mtpw6uwz…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:13:39[0m 🔍 [90mDEBUG[0m [1m→ pricing.latestRates[0m [2m(path=pricing.latestRates, user=ca8825b2…, role=owner, req=mtpw6uwz…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:13:40[0m 🔍 [90mDEBUG[0m [1m✓ pricing.latestRates[0m [2m(path=pricing.latestRates, duration=33ms, user=ca8825b2…, role=owner, req=mtpw6uwz…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:13:40[0m 🔍 [90mDEBUG[0m [1m✓ users.me[0m [2m(path=users.me, duration=64ms, user=ca8825b2…, role=owner, req=mtpw6uwz…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:13:40[0m 🔍 [90mDEBUG[0m [1m✓ sales.listOrders[0m [2m(path=sales.listOrders, duration=67ms, user=ca8825b2…, role=owner, req=mtpw6uwz…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:13:40[0m 🔍 [90mDEBUG[0m [1m✓ workspace.list[0m [2m(path=workspace.list, duration=68ms, user=ca8825b2…, role=owner, req=mtpw6uwz…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+ GET /orders 200 in 1210ms (next.js: 792ms, proxy.ts: 9ms, application-code: 409ms)
+ GET /api/bcv-rate 200 in 40ms (next.js: 6ms, proxy.ts: 8ms, application-code: 25ms)
+[2m16:13:42[0m 🔍 [90mDEBUG[0m [1m→ sales.listCustomers[0m [2m(path=sales.listCustomers, user=ca8825b2…, role=owner, req=mtpw6wqg…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:13:42[0m 🔍 [90mDEBUG[0m [1m→ catalog.listProducts[0m [2m(path=catalog.listProducts, user=ca8825b2…, role=owner, req=mtpw6wqg…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:13:42[0m 🔍 [90mDEBUG[0m [1m→ dashboard.activeAlertCount[0m [2m(path=dashboard.activeAlertCount, user=ca8825b2…, role=owner, req=mtpw6wqx…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:13:42[0m ℹ️  [36mINFO [0m [1m✓ sales.listCustomers[0m [2m(path=sales.listCustomers, duration=300ms, user=ca8825b2…, role=owner, req=mtpw6wqg…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:13:42[0m ℹ️  [36mINFO [0m [1m✓ catalog.listProducts[0m [2m(path=catalog.listProducts, duration=311ms, user=ca8825b2…, role=owner, req=mtpw6wqg…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+ GET /api/trpc/sales.listCustomers,catalog.listProducts?batch=1&input=%7B%220%22%3A%7B%22json%22%3A%7B%22limit%22%3A100%7D%7D%2C%221%22%3A%7B%22json%22%3A%7B%22limit%22%3A100%7D%7D%7D 200 in 2.2s (next.js: 1686ms, proxy.ts: 12ms, application-code: 492ms)
+[2m16:13:42[0m ℹ️  [36mINFO [0m [1m✓ dashboard.activeAlertCount[0m [2m(path=dashboard.activeAlertCount, duration=341ms, user=ca8825b2…, role=owner, req=mtpw6wqx…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+ GET /api/trpc/dashboard.activeAlertCount?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 2.3s (next.js: 1787ms, proxy.ts: 6ms, application-code: 526ms)
+[2m16:14:42[0m 🔍 [90mDEBUG[0m [1m→ dashboard.activeAlertCount[0m [2m(path=dashboard.activeAlertCount, user=ca8825b2…, role=owner, req=mtpw87cr…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:14:42[0m ℹ️  [36mINFO [0m [1m✓ dashboard.activeAlertCount[0m [2m(path=dashboard.activeAlertCount, duration=249ms, user=ca8825b2…, role=owner, req=mtpw87cr…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+ GET /api/trpc/dashboard.activeAlertCount?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 298ms (next.js: 19ms, proxy.ts: 4ms, application-code: 275ms)
+[2m16:15:43[0m 🔍 [90mDEBUG[0m [1m→ dashboard.activeAlertCount[0m [2m(path=dashboard.activeAlertCount, user=ca8825b2…, role=owner, req=mtpw9hvd…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:15:43[0m ℹ️  [36mINFO [0m [1m✓ dashboard.activeAlertCount[0m [2m(path=dashboard.activeAlertCount, duration=259ms, user=ca8825b2…, role=owner, req=mtpw9hvd…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+ GET /api/trpc/dashboard.activeAlertCount?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 285ms (next.js: 11ms, proxy.ts: 4ms, application-code: 269ms)
+[2m16:16:25[0m 🔍 [90mDEBUG[0m [1m→ sales.listOrders[0m [2m(path=sales.listOrders, user=ca8825b2…, role=owner, req=mtpwaevd…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:16:25[0m 🔍 [90mDEBUG[0m [1m→ users.me[0m [2m(path=users.me, user=ca8825b2…, role=owner, req=mtpwaevd…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:16:25[0m 🔍 [90mDEBUG[0m [1m→ workspace.list[0m [2m(path=workspace.list, user=ca8825b2…, role=owner, req=mtpwaevd…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:16:25[0m 🔍 [90mDEBUG[0m [1m→ pricing.latestRates[0m [2m(path=pricing.latestRates, user=ca8825b2…, role=owner, req=mtpwaevd…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:16:26[0m ℹ️  [36mINFO [0m [1m✓ users.me[0m [2m(path=users.me, duration=242ms, user=ca8825b2…, role=owner, req=mtpwaevd…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:16:26[0m ℹ️  [36mINFO [0m [1m✓ workspace.list[0m [2m(path=workspace.list, duration=293ms, user=ca8825b2…, role=owner, req=mtpwaevd…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:16:26[0m ℹ️  [36mINFO [0m [1m✓ pricing.latestRates[0m [2m(path=pricing.latestRates, duration=318ms, user=ca8825b2…, role=owner, req=mtpwaevd…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:16:26[0m ℹ️  [36mINFO [0m [1m✓ sales.listOrders[0m [2m(path=sales.listOrders, duration=353ms, user=ca8825b2…, role=owner, req=mtpwaevd…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+ GET /orders 200 in 458ms (next.js: 15ms, proxy.ts: 9ms, application-code: 434ms)
+[2m16:16:26[0m 🔍 [90mDEBUG[0m [1m→ dashboard.activeAlertCount[0m [2m(path=dashboard.activeAlertCount, user=ca8825b2…, role=owner, req=mtpwaf98…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+ GET /api/bcv-rate 200 in 48ms (next.js: 13ms, proxy.ts: 11ms, application-code: 25ms)
+[2m16:16:26[0m 🔍 [90mDEBUG[0m [1m✓ dashboard.activeAlertCount[0m [2m(path=dashboard.activeAlertCount, duration=82ms, user=ca8825b2…, role=owner, req=mtpwaf98…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+ GET /api/trpc/dashboard.activeAlertCount?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 133ms (next.js: 20ms, proxy.ts: 7ms, application-code: 105ms)
+[2m16:16:26[0m 🔍 [90mDEBUG[0m [1m→ sales.listCustomers[0m [2m(path=sales.listCustomers, user=ca8825b2…, role=owner, req=mtpwafd7…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:16:26[0m 🔍 [90mDEBUG[0m [1m→ catalog.listProducts[0m [2m(path=catalog.listProducts, user=ca8825b2…, role=owner, req=mtpwafd7…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:16:26[0m 🔍 [90mDEBUG[0m [1m✓ sales.listCustomers[0m [2m(path=sales.listCustomers, duration=66ms, user=ca8825b2…, role=owner, req=mtpwafd7…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:16:26[0m 🔍 [90mDEBUG[0m [1m✓ catalog.listProducts[0m [2m(path=catalog.listProducts, duration=172ms, user=ca8825b2…, role=owner, req=mtpwafd7…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+ GET /api/trpc/sales.listCustomers,catalog.listProducts?batch=1&input=%7B%220%22%3A%7B%22json%22%3A%7B%22limit%22%3A100%7D%7D%2C%221%22%3A%7B%22json%22%3A%7B%22limit%22%3A100%7D%7D%7D 200 in 241ms (next.js: 18ms, proxy.ts: 12ms, application-code: 211ms)
+[2m16:17:26[0m 🔍 [90mDEBUG[0m [1m→ dashboard.activeAlertCount[0m [2m(path=dashboard.activeAlertCount, user=ca8825b2…, role=owner, req=mtpwbpne…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:17:26[0m 🔍 [90mDEBUG[0m [1m✓ dashboard.activeAlertCount[0m [2m(path=dashboard.activeAlertCount, duration=106ms, user=ca8825b2…, role=owner, req=mtpwbpne…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+ GET /api/trpc/dashboard.activeAlertCount?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 131ms (next.js: 13ms, proxy.ts: 3ms, application-code: 115ms)
+[2m16:18:07[0m 🔍 [90mDEBUG[0m [1m→ users.me[0m [2m(path=users.me, user=ca8825b2…, role=owner, req=mtpwcl9o…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:18:07[0m 🔍 [90mDEBUG[0m [1m→ workspace.list[0m [2m(path=workspace.list, user=ca8825b2…, role=owner, req=mtpwcl9o…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:18:07[0m 🔍 [90mDEBUG[0m [1m→ pricing.latestRates[0m [2m(path=pricing.latestRates, user=ca8825b2…, role=owner, req=mtpwcl9o…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:18:07[0m 🔍 [90mDEBUG[0m [1m→ sales.orderById[0m [2m(path=sales.orderById, user=ca8825b2…, role=owner, req=mtpwcl9o…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:18:07[0m ℹ️  [36mINFO [0m [1m✓ users.me[0m [2m(path=users.me, duration=266ms, user=ca8825b2…, role=owner, req=mtpwcl9o…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:18:07[0m ℹ️  [36mINFO [0m [1m✓ workspace.list[0m [2m(path=workspace.list, duration=267ms, user=ca8825b2…, role=owner, req=mtpwcl9o…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:18:07[0m ℹ️  [36mINFO [0m [1m✓ pricing.latestRates[0m [2m(path=pricing.latestRates, duration=345ms, user=ca8825b2…, role=owner, req=mtpwcl9o…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:18:07[0m ℹ️  [36mINFO [0m [1m✓ sales.orderById[0m [2m(path=sales.orderById, duration=406ms, user=ca8825b2…, role=owner, req=mtpwcl9o…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+ GET /orders/00000000-0000-4000-8000-000000000000 200 in 2.1s (next.js: 707ms, proxy.ts: 7ms, generate-params: 911ms, application-code: 523ms)
+[2m16:18:08[0m 🔍 [90mDEBUG[0m [1m→ dashboard.activeAlertCount[0m [2m(path=dashboard.activeAlertCount, user=ca8825b2…, role=owner, req=mtpwclt4…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+ GET /api/bcv-rate 200 in 24ms (next.js: 6ms, proxy.ts: 8ms, application-code: 11ms)
+[2m16:18:08[0m 🔍 [90mDEBUG[0m [1m✓ dashboard.activeAlertCount[0m [2m(path=dashboard.activeAlertCount, duration=55ms, user=ca8825b2…, role=owner, req=mtpwclt4…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+ GET /api/trpc/dashboard.activeAlertCount?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 98ms (next.js: 20ms, proxy.ts: 6ms, application-code: 72ms)
+[2m16:19:08[0m 🔍 [90mDEBUG[0m [1m→ dashboard.activeAlertCount[0m [2m(path=dashboard.activeAlertCount, user=ca8825b2…, role=owner, req=mtpwdw69…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:19:08[0m ℹ️  [36mINFO [0m [1m✓ dashboard.activeAlertCount[0m [2m(path=dashboard.activeAlertCount, duration=507ms, user=ca8825b2…, role=owner, req=mtpwdw69…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+ GET /api/trpc/dashboard.activeAlertCount?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 530ms (next.js: 10ms, proxy.ts: 3ms, application-code: 517ms)
+[2m16:20:08[0m 🔍 [90mDEBUG[0m [1m→ dashboard.activeAlertCount[0m [2m(path=dashboard.activeAlertCount, user=ca8825b2…, role=owner, req=mtpwf6vz…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:20:09[0m ℹ️  [36mINFO [0m [1m✓ dashboard.activeAlertCount[0m [2m(path=dashboard.activeAlertCount, duration=279ms, user=ca8825b2…, role=owner, req=mtpwf6vz…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+ GET /api/trpc/dashboard.activeAlertCount?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 308ms (next.js: 13ms, proxy.ts: 3ms, application-code: 293ms)
+[2m16:21:09[0m 🔍 [90mDEBUG[0m [1m→ dashboard.activeAlertCount[0m [2m(path=dashboard.activeAlertCount, user=ca8825b2…, role=owner, req=mtpwghff…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:21:09[0m ℹ️  [36mINFO [0m [1m✓ dashboard.activeAlertCount[0m [2m(path=dashboard.activeAlertCount, duration=234ms, user=ca8825b2…, role=owner, req=mtpwghff…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+ GET /api/trpc/dashboard.activeAlertCount?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 255ms (next.js: 10ms, proxy.ts: 3ms, application-code: 242ms)
+[2m16:22:09[0m 🔍 [90mDEBUG[0m [1m→ dashboard.activeAlertCount[0m [2m(path=dashboard.activeAlertCount, user=ca8825b2…, role=owner, req=mtpwhrxj…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:22:09[0m ℹ️  [36mINFO [0m [1m✓ dashboard.activeAlertCount[0m [2m(path=dashboard.activeAlertCount, duration=252ms, user=ca8825b2…, role=owner, req=mtpwhrxj…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+ GET /api/trpc/dashboard.activeAlertCount?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 279ms (next.js: 11ms, proxy.ts: 4ms, application-code: 264ms)
+[2m16:23:09[0m 🔍 [90mDEBUG[0m [1m→ dashboard.activeAlertCount[0m [2m(path=dashboard.activeAlertCount, user=ca8825b2…, role=owner, req=mtpwj2g0…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:23:09[0m ℹ️  [36mINFO [0m [1m✓ dashboard.activeAlertCount[0m [2m(path=dashboard.activeAlertCount, duration=258ms, user=ca8825b2…, role=owner, req=mtpwj2g0…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+ GET /api/trpc/dashboard.activeAlertCount?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 281ms (next.js: 10ms, proxy.ts: 3ms, application-code: 268ms)
+✓ Compiled in 728ms
+ GET / 200 in 361ms (next.js: 27ms, proxy.ts: 19ms, application-code: 315ms)
+[2m16:23:45[0m 🔍 [90mDEBUG[0m [1m→ sales.orderById[0m [2m(path=sales.orderById, user=ca8825b2…, role=owner, req=mtpwjucq…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:23:45[0m 🔍 [90mDEBUG[0m [1m→ pricing.latestRates[0m [2m(path=pricing.latestRates, user=ca8825b2…, role=owner, req=mtpwjucq…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:23:46[0m 🔍 [90mDEBUG[0m [1m→ users.me[0m [2m(path=users.me, user=ca8825b2…, role=owner, req=mtpwjujq…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:23:46[0m 🔍 [90mDEBUG[0m [1m→ workspace.list[0m [2m(path=workspace.list, user=ca8825b2…, role=owner, req=mtpwjujq…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:23:46[0m 🔍 [90mDEBUG[0m [1m→ pricing.latestRates[0m [2m(path=pricing.latestRates, user=ca8825b2…, role=owner, req=mtpwjujq…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:23:46[0m 🔍 [90mDEBUG[0m [1m→ sales.orderById[0m [2m(path=sales.orderById, user=ca8825b2…, role=owner, req=mtpwjujq…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:23:46[0m ℹ️  [36mINFO [0m [1m✓ pricing.latestRates[0m [2m(path=pricing.latestRates, duration=272ms, user=ca8825b2…, role=owner, req=mtpwjucq…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:23:46[0m ℹ️  [36mINFO [0m [1m✓ sales.orderById[0m [2m(path=sales.orderById, duration=277ms, user=ca8825b2…, role=owner, req=mtpwjucq…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+ GET /api/trpc/sales.orderById,pricing.latestRates?batch=1&input=%7B%220%22%3A%7B%22json%22%3A%7B%22id%22%3A%2200000000-0000-4000-8000-000000000000%22%7D%7D%2C%221%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 910ms (next.js: 293ms, proxy.ts: 24ms, application-code: 593ms)
+[2m16:23:46[0m ℹ️  [36mINFO [0m [1m✓ workspace.list[0m [2m(path=workspace.list, duration=300ms, user=ca8825b2…, role=owner, req=mtpwjujq…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:23:46[0m ℹ️  [36mINFO [0m [1m✓ users.me[0m [2m(path=users.me, duration=345ms, user=ca8825b2…, role=owner, req=mtpwjujq…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:23:46[0m ℹ️  [36mINFO [0m [1m✓ pricing.latestRates[0m [2m(path=pricing.latestRates, duration=376ms, user=ca8825b2…, role=owner, req=mtpwjujq…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:23:46[0m ℹ️  [36mINFO [0m [1m✓ sales.orderById[0m [2m(path=sales.orderById, duration=467ms, user=ca8825b2…, role=owner, req=mtpwjujq…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+ GET /orders/00000000-0000-4000-8000-000000000000 200 in 1354ms (next.js: 54ms, proxy.ts: 627ms, generate-params: 14ms, application-code: 660ms)
+[2m16:24:09[0m 🔍 [90mDEBUG[0m [1m→ dashboard.activeAlertCount[0m [2m(path=dashboard.activeAlertCount, user=ca8825b2…, role=owner, req=mtpwkd0y…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:24:10[0m 🔍 [90mDEBUG[0m [1m✓ dashboard.activeAlertCount[0m [2m(path=dashboard.activeAlertCount, duration=118ms, user=ca8825b2…, role=owner, req=mtpwkd0y…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+ GET /api/trpc/dashboard.activeAlertCount?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 206ms (next.js: 49ms, proxy.ts: 14ms, application-code: 143ms)
+[2m16:25:10[0m 🔍 [90mDEBUG[0m [1m→ dashboard.activeAlertCount[0m [2m(path=dashboard.activeAlertCount, user=ca8825b2…, role=owner, req=mtpwlngk…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:25:10[0m ℹ️  [36mINFO [0m [1m✓ dashboard.activeAlertCount[0m [2m(path=dashboard.activeAlertCount, duration=269ms, user=ca8825b2…, role=owner, req=mtpwlngk…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+ GET /api/trpc/dashboard.activeAlertCount?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 316ms (next.js: 20ms, proxy.ts: 10ms, application-code: 287ms)
+[2m16:26:10[0m 🔍 [90mDEBUG[0m [1m→ dashboard.activeAlertCount[0m [2m(path=dashboard.activeAlertCount, user=ca8825b2…, role=owner, req=mtpwmxzx…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:26:10[0m ℹ️  [36mINFO [0m [1m✓ dashboard.activeAlertCount[0m [2m(path=dashboard.activeAlertCount, duration=248ms, user=ca8825b2…, role=owner, req=mtpwmxzx…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+ GET /api/trpc/dashboard.activeAlertCount?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 278ms (next.js: 13ms, proxy.ts: 5ms, application-code: 260ms)
+[2m16:27:10[0m 🔍 [90mDEBUG[0m [1m→ dashboard.activeAlertCount[0m [2m(path=dashboard.activeAlertCount, user=ca8825b2…, role=owner, req=mtpwo8ij…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:27:10[0m ℹ️  [36mINFO [0m [1m✓ dashboard.activeAlertCount[0m [2m(path=dashboard.activeAlertCount, duration=251ms, user=ca8825b2…, role=owner, req=mtpwo8ij…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+ GET /api/trpc/dashboard.activeAlertCount?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 273ms (next.js: 10ms, proxy.ts: 3ms, application-code: 259ms)
+[2m16:28:11[0m 🔍 [90mDEBUG[0m [1m→ dashboard.activeAlertCount[0m [2m(path=dashboard.activeAlertCount, user=ca8825b2…, role=owner, req=mtpwpj19…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:28:11[0m ℹ️  [36mINFO [0m [1m✓ dashboard.activeAlertCount[0m [2m(path=dashboard.activeAlertCount, duration=293ms, user=ca8825b2…, role=owner, req=mtpwpj19…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+ GET /api/trpc/dashboard.activeAlertCount?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 325ms (next.js: 10ms, proxy.ts: 3ms, application-code: 311ms)
+[2m16:29:11[0m 🔍 [90mDEBUG[0m [1m→ dashboard.activeAlertCount[0m [2m(path=dashboard.activeAlertCount, user=ca8825b2…, role=owner, req=mtpwqtl7…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:29:11[0m ℹ️  [36mINFO [0m [1m✓ dashboard.activeAlertCount[0m [2m(path=dashboard.activeAlertCount, duration=499ms, user=ca8825b2…, role=owner, req=mtpwqtl7…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+ GET /api/trpc/dashboard.activeAlertCount?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 530ms (next.js: 11ms, proxy.ts: 3ms, application-code: 516ms)
+ GET /api/bcv-rate 200 in 104ms (next.js: 51ms, proxy.ts: 32ms, application-code: 21ms)
+[2m20:12:09[0m 🔍 [90mDEBUG[0m [1m→ users.me[0m [2m(path=users.me, user=ca8825b2…, role=owner, req=mtq4pk0x…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m20:12:09[0m 🔍 [90mDEBUG[0m [1m→ workspace.list[0m [2m(path=workspace.list, user=ca8825b2…, role=owner, req=mtq4pk0x…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m20:12:09[0m 🔍 [90mDEBUG[0m [1m→ pricing.latestRates[0m [2m(path=pricing.latestRates, user=ca8825b2…, role=owner, req=mtq4pk0x…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m20:12:09[0m 🔍 [90mDEBUG[0m [1m→ sales.orderById[0m [2m(path=sales.orderById, user=ca8825b2…, role=owner, req=mtq4pk0x…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m20:12:09[0m ℹ️  [36mINFO [0m [1m✓ users.me[0m [2m(path=users.me, duration=281ms, user=ca8825b2…, role=owner, req=mtq4pk0x…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m20:12:09[0m ℹ️  [36mINFO [0m [1m✓ workspace.list[0m [2m(path=workspace.list, duration=288ms, user=ca8825b2…, role=owner, req=mtq4pk0x…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m20:12:09[0m ℹ️  [36mINFO [0m [1m✓ pricing.latestRates[0m [2m(path=pricing.latestRates, duration=358ms, user=ca8825b2…, role=owner, req=mtq4pk0x…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m20:12:09[0m ℹ️  [36mINFO [0m [1m✓ sales.orderById[0m [2m(path=sales.orderById, duration=394ms, user=ca8825b2…, role=owner, req=mtq4pk0x…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+ GET /api/trpc/users.me,workspace.list,pricing.latestRates,sales.orderById?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%2C%221%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%2C%222%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%2C%223%22%3A%7B%22json%22%3A%7B%22id%22%3A%2200000000-0000-4000-8000-000000000000%22%7D%7D%7D 200 in 1251ms (next.js: 35ms, proxy.ts: 36ms, application-code: 1180ms)
+[2m20:12:11[0m 🔍 [90mDEBUG[0m [1m→ dashboard.activeAlertCount[0m [2m(path=dashboard.activeAlertCount, user=ca8825b2…, role=owner, req=mtq4plew…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m20:12:11[0m 🔍 [90mDEBUG[0m [1m✓ dashboard.activeAlertCount[0m [2m(path=dashboard.activeAlertCount, duration=82ms, user=ca8825b2…, role=owner, req=mtq4plew…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+ GET /api/trpc/dashboard.activeAlertCount?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 6.8s (next.js: 39ms, proxy.ts: 28ms, application-code: 6.7s)
+[2m20:13:11[0m 🔍 [90mDEBUG[0m [1m→ dashboard.activeAlertCount[0m [2m(path=dashboard.activeAlertCount, user=ca8825b2…, role=owner, req=mtq4qvti…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m20:13:11[0m ℹ️  [36mINFO [0m [1m✓ dashboard.activeAlertCount[0m [2m(path=dashboard.activeAlertCount, duration=335ms, user=ca8825b2…, role=owner, req=mtq4qvti…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+ GET /api/trpc/dashboard.activeAlertCount?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 382ms (next.js: 19ms, proxy.ts: 10ms, application-code: 353ms)
+[2m20:14:11[0m 🔍 [90mDEBUG[0m [1m→ dashboard.activeAlertCount[0m [2m(path=dashboard.activeAlertCount, user=ca8825b2…, role=owner, req=mtq4s6em…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m20:14:11[0m ℹ️  [36mINFO [0m [1m✓ dashboard.activeAlertCount[0m [2m(path=dashboard.activeAlertCount, duration=319ms, user=ca8825b2…, role=owner, req=mtq4s6em…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+ GET /api/trpc/dashboard.activeAlertCount?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 341ms (next.js: 10ms, proxy.ts: 4ms, application-code: 327ms)
+[2m20:15:11[0m 🔍 [90mDEBUG[0m [1m→ dashboard.activeAlertCount[0m [2m(path=dashboard.activeAlertCount, user=ca8825b2…, role=owner, req=mtq4tgzc…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m20:15:12[0m ℹ️  [36mINFO [0m [1m✓ dashboard.activeAlertCount[0m [2m(path=dashboard.activeAlertCount, duration=244ms, user=ca8825b2…, role=owner, req=mtq4tgzc…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+ GET /api/trpc/dashboard.activeAlertCount?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 275ms (next.js: 10ms, proxy.ts: 4ms, application-code: 261ms)
+[2m20:16:12[0m 🔍 [90mDEBUG[0m [1m→ dashboard.activeAlertCount[0m [2m(path=dashboard.activeAlertCount, user=ca8825b2…, role=owner, req=mtq4urhs…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m20:16:12[0m ℹ️  [36mINFO [0m [1m✓ dashboard.activeAlertCount[0m [2m(path=dashboard.activeAlertCount, duration=230ms, user=ca8825b2…, role=owner, req=mtq4urhs…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+ GET /api/trpc/dashboard.activeAlertCount?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 262ms (next.js: 11ms, proxy.ts: 3ms, application-code: 248ms)
+[2m20:17:12[0m 🔍 [90mDEBUG[0m [1m→ dashboard.activeAlertCount[0m [2m(path=dashboard.activeAlertCount, user=ca8825b2…, role=owner, req=mtq4w200…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m20:17:12[0m ℹ️  [36mINFO [0m [1m✓ dashboard.activeAlertCount[0m [2m(path=dashboard.activeAlertCount, duration=250ms, user=ca8825b2…, role=owner, req=mtq4w200…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+ GET /api/trpc/dashboard.activeAlertCount?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 274ms (next.js: 11ms, proxy.ts: 3ms, application-code: 260ms)
+[2m20:18:12[0m 🔍 [90mDEBUG[0m [1m→ dashboard.activeAlertCount[0m [2m(path=dashboard.activeAlertCount, user=ca8825b2…, role=owner, req=mtq4xcih…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m20:18:13[0m ℹ️  [36mINFO [0m [1m✓ dashboard.activeAlertCount[0m [2m(path=dashboard.activeAlertCount, duration=248ms, user=ca8825b2…, role=owner, req=mtq4xcih…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+ GET /api/trpc/dashboard.activeAlertCount?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 271ms (next.js: 11ms, proxy.ts: 3ms, application-code: 257ms)
+[2m20:19:13[0m 🔍 [90mDEBUG[0m [1m→ dashboard.activeAlertCount[0m [2m(path=dashboard.activeAlertCount, user=ca8825b2…, role=owner, req=mtq4yn19…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m20:19:13[0m ℹ️  [36mINFO [0m [1m✓ dashboard.activeAlertCount[0m [2m(path=dashboard.activeAlertCount, duration=272ms, user=ca8825b2…, role=owner, req=mtq4yn19…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+ GET /api/trpc/dashboard.activeAlertCount?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 298ms (next.js: 12ms, proxy.ts: 3ms, application-code: 283ms)
+[2m20:20:13[0m 🔍 [90mDEBUG[0m [1m→ dashboard.activeAlertCount[0m [2m(path=dashboard.activeAlertCount, user=ca8825b2…, role=owner, req=mtq4zxkn…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m20:20:13[0m ℹ️  [36mINFO [0m [1m✓ dashboard.activeAlertCount[0m [2m(path=dashboard.activeAlertCount, duration=250ms, user=ca8825b2…, role=owner, req=mtq4zxkn…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+ GET /api/trpc/dashboard.activeAlertCount?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 282ms (next.js: 10ms, proxy.ts: 4ms, application-code: 268ms)
+[2m20:21:13[0m 🔍 [90mDEBUG[0m [1m→ dashboard.activeAlertCount[0m [2m(path=dashboard.activeAlertCount, user=ca8825b2…, role=owner, req=mtq51832…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m20:21:13[0m ℹ️  [36mINFO [0m [1m✓ dashboard.activeAlertCount[0m [2m(path=dashboard.activeAlertCount, duration=285ms, user=ca8825b2…, role=owner, req=mtq51832…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+ GET /api/trpc/dashboard.activeAlertCount?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 306ms (next.js: 10ms, proxy.ts: 3ms, application-code: 293ms)
+[2m20:22:14[0m 🔍 [90mDEBUG[0m [1m→ dashboard.activeAlertCount[0m [2m(path=dashboard.activeAlertCount, user=ca8825b2…, role=owner, req=mtq52iw7…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m20:22:14[0m ℹ️  [36mINFO [0m [1m✓ dashboard.activeAlertCount[0m [2m(path=dashboard.activeAlertCount, duration=331ms, user=ca8825b2…, role=owner, req=mtq52iw7…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+ GET /api/trpc/dashboard.activeAlertCount?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 694ms (next.js: 10ms, proxy.ts: 4ms, application-code: 681ms)
+[2m20:23:14[0m 🔍 [90mDEBUG[0m [1m→ dashboard.activeAlertCount[0m [2m(path=dashboard.activeAlertCount, user=ca8825b2…, role=owner, req=mtq53thc…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m20:23:14[0m ℹ️  [36mINFO [0m [1m✓ dashboard.activeAlertCount[0m [2m(path=dashboard.activeAlertCount, duration=280ms, user=ca8825b2…, role=owner, req=mtq53thc…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+ GET /api/trpc/dashboard.activeAlertCount?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 311ms (next.js: 10ms, proxy.ts: 3ms, application-code: 298ms)
+[2m20:24:14[0m 🔍 [90mDEBUG[0m [1m→ dashboard.activeAlertCount[0m [2m(path=dashboard.activeAlertCount, user=ca8825b2…, role=owner, req=mtq5540n…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m20:24:15[0m ℹ️  [36mINFO [0m [1m✓ dashboard.activeAlertCount[0m [2m(path=dashboard.activeAlertCount, duration=249ms, user=ca8825b2…, role=owner, req=mtq5540n…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+ GET /api/trpc/dashboard.activeAlertCount?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 270ms (next.js: 10ms, proxy.ts: 3ms, application-code: 258ms)
+[2m20:25:15[0m 🔍 [90mDEBUG[0m [1m→ dashboard.activeAlertCount[0m [2m(path=dashboard.activeAlertCount, user=ca8825b2…, role=owner, req=mtq56ejl…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m20:25:15[0m ℹ️  [36mINFO [0m [1m✓ dashboard.activeAlertCount[0m [2m(path=dashboard.activeAlertCount, duration=269ms, user=ca8825b2…, role=owner, req=mtq56ejl…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+ GET /api/trpc/dashboard.activeAlertCount?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 300ms (next.js: 13ms, proxy.ts: 4ms, application-code: 283ms)

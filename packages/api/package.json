@@ -21,7 +21,7 @@
   "dependencies": {
     "@cendaro/db": "workspace:*",
     "@cendaro/validators": "workspace:*",
-    "@supabase/supabase-js": "^2.100.1",
+    "@supabase/supabase-js": "^2.114.0",
     "@trpc/server": "catalog:",
     "drizzle-orm": "catalog:",
     "superjson": "2.2.6",
@@ -35,7 +35,8 @@
     "eslint": "catalog:",
     "prettier": "catalog:",
     "typescript": "catalog:",
-    "vitest": "^4.0.18"
+    "vite": "^7.3.5",
+    "vitest": "^4.1.11"
   },
   "prettier": "@cendaro/prettier-config",
   "author": "Cendaro",

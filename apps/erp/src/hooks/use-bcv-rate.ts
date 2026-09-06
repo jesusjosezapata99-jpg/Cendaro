@@ -1,27 +1,32 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useCallback, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { useTRPC } from "~/trpc/client";
 
 // ── Types ─────────────────────────────────────
 
-interface RateInfo {
+export interface RateInfo {
   /** Exchange rate VES per 1 USD (or USDT for paralelo) */
   rate: number;
   /** Date of the rate (YYYY-MM-DD) */
   date: string;
+  /** Official readable date text (e.g. "Lunes, 07 Septiembre 2026") */
+  dateText?: string;
   /** Where the rate came from */
-  source: "dolarapi-oficial" | "dolarapi-paralelo" | "database" | "manual";
+  source: string;
   /** Whether the rate is loading */
   isLoading: boolean;
   /** Error message if any */
   error: string | null;
 }
 
-interface VesRatesResult {
+export interface VesRatesResult {
   /** Official BCV rate (Bs per 1 USD) */
   oficial: RateInfo;
+  /** Official BCV euro rate if available */
+  euro?: RateInfo | null;
   /** Parallel/USDT rate (Bs per 1 USDT) */
   paralelo: RateInfo;
   /** Spread between parallel and official */
@@ -29,39 +34,55 @@ interface VesRatesResult {
     absolute: number;
     percentage: number;
   };
+  /** Trigger manual live refresh */
+  syncRate: () => Promise<void>;
+  /** Whether manual sync is in progress */
+  isSyncing: boolean;
 }
 
 /** Shape returned by the /api/bcv-rate proxy */
 interface ProxyResponse {
-  oficial: { rate: number; date: string; source: string };
+  oficial: { rate: number; date: string; dateText?: string; source: string };
+  euro?: { rate: number; date: string; source: string } | null;
   paralelo: { rate: number; date: string; source: string };
+  spread?: { absolute: number; percentage: number };
 }
 
 // ── Backwards-compatible type (used by existing consumers) ──
 
-interface BcvRateResult {
+export interface BcvRateResult {
   /** Exchange rate VES per 1 USD */
   rate: number;
   /** Date of the rate (YYYY-MM-DD) */
   date: string;
+  /** Official readable date text (e.g. "Lunes, 07 Septiembre 2026") */
+  dateText?: string;
   /** Where the rate came from */
-  source: "dolarapi-oficial" | "dolarapi-paralelo" | "database" | "manual";
+  source: string;
   /** Whether the rate is loading */
   isLoading: boolean;
   /** Error message if any */
   error: string | null;
+  /** Manual sync trigger */
+  syncRate: () => Promise<void>;
+  /** Whether manual sync is in progress */
+  isSyncing: boolean;
 }
 
 // ── Fetch from server proxy ───────────────────
 
-async function fetchFromProxy(): Promise<ProxyResponse | null> {
+async function fetchFromProxy(
+  forceRefresh = false,
+): Promise<ProxyResponse | null> {
   try {
-    const res = await fetch("/api/bcv-rate", {
-      signal: AbortSignal.timeout(12000),
+    const url = forceRefresh ? "/api/bcv-rate?refresh=true" : "/api/bcv-rate";
+    const res = await fetch(url, {
+      signal: AbortSignal.timeout(10000),
+      cache: forceRefresh ? "no-store" : "default",
     });
     if (res.ok) {
       const data = (await res.json()) as ProxyResponse;
-      if (data.oficial.rate && data.paralelo.rate) {
+      if (data.oficial.rate) {
         return data;
       }
     }
@@ -71,20 +92,21 @@ async function fetchFromProxy(): Promise<ProxyResponse | null> {
   return null;
 }
 
-// ── Primary hook: both rates + spread ─────────
+// ── Primary hook: both rates + spread + sync ─────────
 
 /**
  * Hook that fetches both official (BCV) and parallel (USDT) exchange rates
- * from DolarAPI.com via our server proxy.
+ * directly from BCV and DolarAPI via our server proxy.
  *
  * Fallback chain:
- *   1. Server proxy → DolarAPI.com (/v1/dolares)
- *   2. Database (pricing.latestRates)
- *
- * Cached for 1 hour via React Query.
+ *   1. Direct BCV portal scraper (bcv.org.ve)
+ *   2. DolarAPI (ve.dolarapi.com)
+ *   3. Database (pricing.latestRates)
  */
 export function useVesRates(): VesRatesResult {
   const trpc = useTRPC();
+  const qc = useQueryClient();
+  const [isSyncing, setIsSyncing] = useState(false);
 
   // DB fallback: latest rates from ExchangeRate table
   const { data: dbRates } = useQuery(trpc.pricing.latestRates.queryOptions());
@@ -93,13 +115,28 @@ export function useVesRates(): VesRatesResult {
     data: apiResult,
     isLoading,
     error,
+    refetch,
   } = useQuery({
     queryKey: ["ves-rates-proxy"],
-    queryFn: fetchFromProxy,
-    staleTime: 60 * 60 * 1000, // 1 hour
-    gcTime: 2 * 60 * 60 * 1000, // 2 hours
+    queryFn: () => fetchFromProxy(false),
+    staleTime: 15 * 60 * 1000, // 15 minutes
+    gcTime: 60 * 60 * 1000, // 1 hour
     retry: 1,
   });
+
+  const syncRate = useCallback(async () => {
+    setIsSyncing(true);
+    try {
+      const fresh = await fetchFromProxy(true);
+      if (fresh) {
+        qc.setQueryData(["ves-rates-proxy"], fresh);
+      } else {
+        await refetch();
+      }
+    } finally {
+      setIsSyncing(false);
+    }
+  }, [qc, refetch]);
 
   // ── Build oficial rate ──────────────────────
 
@@ -109,7 +146,8 @@ export function useVesRates(): VesRatesResult {
     oficial = {
       rate: apiResult.oficial.rate,
       date: apiResult.oficial.date,
-      source: "dolarapi-oficial",
+      dateText: apiResult.oficial.dateText,
+      source: apiResult.oficial.source,
       isLoading: false,
       error: null,
     };
@@ -134,6 +172,17 @@ export function useVesRates(): VesRatesResult {
     }
   }
 
+  // ── Build euro rate ─────────────────────────
+  const euro: RateInfo | null = apiResult?.euro
+    ? {
+        rate: apiResult.euro.rate,
+        date: apiResult.euro.date,
+        source: apiResult.euro.source,
+        isLoading: false,
+        error: null,
+      }
+    : null;
+
   // ── Build paralelo rate ─────────────────────
 
   let paralelo: RateInfo;
@@ -142,7 +191,7 @@ export function useVesRates(): VesRatesResult {
     paralelo = {
       rate: apiResult.paralelo.rate,
       date: apiResult.paralelo.date,
-      source: "dolarapi-paralelo",
+      source: apiResult.paralelo.source,
       isLoading: false,
       error: null,
     };
@@ -171,24 +220,31 @@ export function useVesRates(): VesRatesResult {
 
   const spread = {
     absolute:
-      oficial.rate > 0 && paralelo.rate > 0 ? paralelo.rate - oficial.rate : 0,
+      apiResult?.spread?.absolute ??
+      (oficial.rate > 0 && paralelo.rate > 0
+        ? paralelo.rate - oficial.rate
+        : 0),
     percentage:
-      oficial.rate > 0 && paralelo.rate > 0
+      apiResult?.spread?.percentage ??
+      (oficial.rate > 0 && paralelo.rate > 0
         ? ((paralelo.rate - oficial.rate) / oficial.rate) * 100
-        : 0,
+        : 0),
   };
 
-  return { oficial, paralelo, spread };
+  return { oficial, euro, paralelo, spread, syncRate, isSyncing };
 }
 
 // ── Backwards-compatible hook ─────────────────
 
 /**
- * Backwards-compatible hook that returns only the official BCV rate.
- * Existing consumers (dashboard, orders, quotes, payments, etc.)
- * continue working with zero changes.
+ * Backwards-compatible hook that returns the official BCV rate
+ * along with sync trigger and readable date text.
  */
 export function useBcvRate(): BcvRateResult {
-  const { oficial } = useVesRates();
-  return oficial;
+  const { oficial, syncRate, isSyncing } = useVesRates();
+  return {
+    ...oficial,
+    syncRate,
+    isSyncing,
+  };
 }

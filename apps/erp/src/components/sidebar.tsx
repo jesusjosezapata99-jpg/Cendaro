@@ -1,11 +1,11 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 
 import type { UserRole } from "@cendaro/validators";
 import { cn } from "@cendaro/ui";
 
+import { NavLink } from "~/components/nav-link";
 import { hasRole } from "~/components/role-guard";
 import { WorkspaceSwitcher } from "~/components/workspace-switcher";
 import { useCurrentUser } from "~/hooks/use-current-user";
@@ -191,7 +191,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       {/* Sidebar panel */}
       <aside
         className={cn(
-          "border-sidebar-border bg-sidebar text-sidebar-foreground fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r transition-transform duration-300 ease-out lg:static lg:z-auto lg:translate-x-0",
+          "border-sidebar-border glass-sidebar text-sidebar-foreground fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r transition-transform duration-300 ease-out lg:static lg:z-auto lg:translate-x-0",
           /* iOS safe-area: pad left for landscape notch */
           "safe-pl",
           open ? "translate-x-0" : "-translate-x-full",
@@ -234,16 +234,10 @@ export function Sidebar({ open, onClose }: SidebarProps) {
                       pathname.startsWith(item.href + "/");
                     return (
                       <li key={item.href}>
-                        <Link
+                        <NavLink
                           href={item.href}
+                          active={isActive}
                           onClick={onClose}
-                          className={cn(
-                            /* 44px min touch target via min-h-[44px] + py-2.5 */
-                            "flex min-h-[44px] items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors",
-                            isActive
-                              ? "bg-sidebar-accent text-sidebar-accent-foreground font-semibold"
-                              : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground",
-                          )}
                         >
                           <span className="material-symbols-outlined text-xl">
                             {item.icon}
@@ -254,7 +248,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
                               {item.badge}
                             </span>
                           )}
-                        </Link>
+                        </NavLink>
                       </li>
                     );
                   })}

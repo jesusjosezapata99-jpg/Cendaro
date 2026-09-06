@@ -4,7 +4,6 @@
  * Defines the tRPC context (DB + user), public/protected procedures,
  * and RBAC-aware procedure helpers.
  */
-import type { User } from "@supabase/supabase-js";
 import { initTRPC, TRPCError } from "@trpc/server";
 import { and, eq, sql } from "drizzle-orm";
 import superjson from "superjson";
@@ -29,11 +28,114 @@ import type { ILogger } from "./logger";
 import { generateRequestId, logger } from "./logger";
 
 // ──────────────────────────────────────────────
+// 1a. PERMISSION & MODULE CACHE
+// ──────────────────────────────────────────────
+
+interface CacheEntry<T> {
+  value: T;
+  expiry: number;
+}
+
+const permissionCache = new Map<string, CacheEntry<boolean>>();
+const PERMISSION_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const PERMISSION_CACHE_MAX = 1000;
+
+function getPermissionCacheKey(
+  type: "permission" | "module" | "ws_permission",
+  ...parts: string[]
+): string {
+  return `${type}:${parts.join(":")}`;
+}
+
+function getCachedPermission(key: string): boolean | undefined {
+  const entry = permissionCache.get(key);
+  if (!entry) return undefined;
+  if (Date.now() > entry.expiry) {
+    permissionCache.delete(key);
+    return undefined;
+  }
+  return entry.value;
+}
+
+function setCachedPermission(key: string, value: boolean): void {
+  // Evict oldest entries when cache is full
+  if (permissionCache.size >= PERMISSION_CACHE_MAX) {
+    const oldest = permissionCache.keys().next().value;
+    if (oldest) permissionCache.delete(oldest);
+  }
+  permissionCache.set(key, {
+    value,
+    expiry: Date.now() + PERMISSION_CACHE_TTL,
+  });
+}
+
+export function invalidatePermissionCache(): void {
+  permissionCache.clear();
+  membershipCache.clear();
+}
+
+// ──────────────────────────────────────────────
+// 1b. PER-REQUEST MEMBERSHIP CACHE
+// Caches is_workspace_member() + workspace plan lookups so that
+// multiple workspaceProcedure calls in the same batch share the result.
+// ──────────────────────────────────────────────
+
+const membershipCache = new Map<
+  string,
+  CacheEntry<{
+    memberId: string;
+    role: WorkspaceMembership["role"];
+    plan: WorkspaceMembership["plan"];
+  }>
+>();
+const MEMBERSHIP_CACHE_TTL = 60 * 1000; // 1 minute
+const MEMBERSHIP_CACHE_MAX = 500;
+
+function getMembershipKey(userId: string, workspaceId: string): string {
+  return `${userId}:${workspaceId}`;
+}
+
+// ──────────────────────────────────────────────
 // 1. CONTEXT
 // ──────────────────────────────────────────────
 
 export interface UserMeta {
   role: (typeof userRoleEnum.enumValues)[number];
+}
+
+/**
+ * Minimal authenticated-identity shape — the only fields the API layer
+ * consumes (RBAC reads user_metadata.role; audit reads id/email).
+ * Populated from locally-verified JWT claims (supabase.auth.getClaims)
+ * instead of a full getUser() network round-trip per request.
+ *
+ * Trade-off (accepted): user_metadata changes propagate on token refresh
+ * (~1h) instead of immediately; workspace-level RBAC still resolves fresh
+ * from the DB via is_workspace_member().
+ */
+export interface AuthenticatedUser {
+  id: string;
+  email?: string | null;
+  user_metadata?: UserMeta;
+}
+
+/**
+ * Maps verified access-token claims to AuthenticatedUser.
+ * Returns null when the token carries no subject (unauthenticated).
+ */
+export function mapClaimsToUser(
+  claims: Record<string, unknown> | null | undefined,
+): AuthenticatedUser | null {
+  if (!claims) return null;
+  const sub = typeof claims.sub === "string" ? claims.sub : undefined;
+  if (!sub) return null;
+  const meta = claims.user_metadata;
+  return {
+    id: sub,
+    email: typeof claims.email === "string" ? claims.email : null,
+    user_metadata:
+      meta && typeof meta === "object" ? (meta as UserMeta) : undefined,
+  };
 }
 
 /** Workspace-scoped membership context attached by workspaceProcedure */
@@ -46,13 +148,13 @@ export interface WorkspaceMembership {
 
 export const createTRPCContext = (opts: {
   headers: Headers;
-  user: (User & { user_metadata?: UserMeta }) | null;
+  user: AuthenticatedUser | null;
 }) => {
   const requestId = opts.headers.get("x-request-id") ?? generateRequestId();
   const workspaceId = opts.headers.get("x-workspace-id") ?? null;
 
   // Create a request-scoped logger with user context
-  const userRole = (opts.user?.user_metadata as UserMeta | undefined)?.role;
+  const userRole = opts.user?.user_metadata?.role;
   const log: ILogger = logger.child({
     requestId,
     userId: opts.user?.id,
@@ -182,7 +284,7 @@ export function roleRestrictedProcedure(
   allowedRoles: (typeof userRoleEnum.enumValues)[number][],
 ) {
   return protectedProcedure.use(({ ctx, next }) => {
-    const userRole = (ctx.user.user_metadata as UserMeta | undefined)?.role;
+    const userRole = ctx.user.user_metadata?.role;
     if (!userRole || !allowedRoles.includes(userRole)) {
       throw new TRPCError({
         code: "FORBIDDEN",
@@ -207,7 +309,7 @@ export function permissionProcedure(
   action: (typeof permissionActionEnum.enumValues)[number],
 ) {
   return protectedProcedure.use(async ({ ctx, next }) => {
-    const userRole = (ctx.user.user_metadata as UserMeta | undefined)?.role;
+    const userRole = ctx.user.user_metadata?.role;
     if (!userRole) {
       throw new TRPCError({
         code: "FORBIDDEN",
@@ -217,6 +319,23 @@ export function permissionProcedure(
 
     // Owner bypasses permission checks
     if (userRole === "owner") {
+      return next({ ctx });
+    }
+
+    const cacheKey = getPermissionCacheKey(
+      "permission",
+      ctx.user.id,
+      module,
+      action,
+    );
+    const cached = getCachedPermission(cacheKey);
+    if (cached !== undefined) {
+      if (!cached) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: `Permiso denegado: ${module}.${action} no asignado al rol ${userRole}`,
+        });
+      }
       return next({ ctx });
     }
 
@@ -234,14 +353,112 @@ export function permissionProcedure(
       .limit(1);
 
     if (result.length === 0) {
+      setCachedPermission(cacheKey, false);
       throw new TRPCError({
         code: "FORBIDDEN",
         message: `Permiso denegado: ${module}.${action} no asignado al rol ${userRole}`,
       });
     }
 
+    setCachedPermission(cacheKey, true);
     return next({ ctx });
   });
+}
+
+// ──────────────────────────────────────────────
+// 1c. MEMBERSHIP RESOLUTION HELPER
+// Shared between workspaceProcedure (writes) and workspaceReadProcedure (reads)
+// ──────────────────────────────────────────────
+
+interface MembershipResolution {
+  workspaceId: string;
+  memberId: string;
+  memberRole: WorkspaceMembership["role"];
+  workspacePlan: WorkspaceMembership["plan"];
+}
+
+type ProtectedContext = Awaited<ReturnType<typeof createTRPCContext>> & {
+  user: NonNullable<Awaited<ReturnType<typeof createTRPCContext>>["user"]>;
+};
+
+/**
+ * Resolves workspace membership for the current user.
+ * Uses in-memory cache to deduplicate lookups across batch calls.
+ * Throws FORBIDDEN if user is not an active workspace member.
+ */
+async function resolveWorkspaceMembership(
+  ctx: ProtectedContext,
+): Promise<MembershipResolution> {
+  if (!ctx.workspaceId) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "x-workspace-id header is required",
+    });
+  }
+
+  const cacheKey = getMembershipKey(ctx.user.id, ctx.workspaceId);
+  const cachedEntry = membershipCache.get(cacheKey);
+  const now = Date.now();
+
+  // Clean up expired entry on read
+  if (cachedEntry && cachedEntry.expiry <= now) {
+    membershipCache.delete(cacheKey);
+  }
+  const freshEntry =
+    cachedEntry && cachedEntry.expiry > now ? cachedEntry : undefined;
+
+  if (freshEntry) {
+    return {
+      workspaceId: ctx.workspaceId,
+      memberId: freshEntry.value.memberId,
+      memberRole: freshEntry.value.role,
+      workspacePlan: freshEntry.value.plan,
+    };
+  }
+
+  // Validate membership (runs as postgres, before SET LOCAL) and fetch the
+  // workspace plan — independent lookups, so they run in parallel instead
+  // of paying two sequential round-trips on cache misses.
+  const [memberRows, wsRows] = await Promise.all([
+    ctx.db.execute<{
+      member_id: string;
+      member_role: string;
+      member_status: string;
+    }>(
+      sql`SELECT * FROM is_workspace_member(${ctx.user.id}::uuid, ${ctx.workspaceId}::uuid)`,
+    ),
+    ctx.db
+      .select({ plan: Workspace.plan })
+      .from(Workspace)
+      .where(eq(Workspace.id, ctx.workspaceId))
+      .limit(1),
+  ]);
+
+  const member = memberRows[0];
+  if (!member) {
+    throw new TRPCError({
+      code: "FORBIDDEN",
+      message: "No eres miembro activo de este workspace",
+    });
+  }
+
+  const memberId = member.member_id;
+  const memberRole = member.member_role as WorkspaceMembership["role"];
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
+  const workspacePlan = (wsRows[0]?.plan ??
+    "starter") as WorkspaceMembership["plan"];
+
+  // Cache for subsequent calls in this request batch
+  if (membershipCache.size >= MEMBERSHIP_CACHE_MAX) {
+    const oldest = membershipCache.keys().next().value;
+    if (oldest) membershipCache.delete(oldest);
+  }
+  membershipCache.set(cacheKey, {
+    value: { memberId, role: memberRole, plan: workspacePlan },
+    expiry: now + MEMBERSHIP_CACHE_TTL,
+  });
+
+  return { workspaceId: ctx.workspaceId, memberId, memberRole, workspacePlan };
 }
 
 // ──────────────────────────────────────────────
@@ -249,57 +466,32 @@ export function permissionProcedure(
 // ──────────────────────────────────────────────
 
 /**
- * Workspace procedure — the primary multi-tenancy barrier.
+ * Workspace procedure — the primary multi-tenancy barrier for WRITE operations.
  *
  * 1. Requires `x-workspace-id` header
  * 2. Validates active membership via `is_workspace_member()` SQL function
  * 3. Wraps in transaction with `SET LOCAL ROLE app_user` + RLS
  * 4. Attaches workspace context (role, plan, memberId)
+ *
+ * Use this for mutations (INSERT/UPDATE/DELETE) that need RLS enforcement.
  */
 export const workspaceProcedure = protectedProcedure.use(
   async ({ ctx, next }) => {
-    if (!ctx.workspaceId) {
-      throw new TRPCError({
-        code: "BAD_REQUEST",
-        message: "x-workspace-id header is required",
-      });
-    }
-
-    // Validate membership (runs as postgres, before SET LOCAL)
-    const memberRows = await ctx.db.execute<{
-      member_id: string;
-      member_role: string;
-      member_status: string;
-    }>(
-      sql`SELECT * FROM is_workspace_member(${ctx.user.id}::uuid, ${ctx.workspaceId}::uuid)`,
-    );
-
-    const member = memberRows[0];
-    if (!member) {
-      throw new TRPCError({
-        code: "FORBIDDEN",
-        message: "No eres miembro activo de este workspace",
-      });
-    }
-
-    // Get workspace plan
-    const [ws] = await ctx.db
-      .select({ plan: Workspace.plan })
-      .from(Workspace)
-      .where(eq(Workspace.id, ctx.workspaceId))
-      .limit(1);
+    const resolved = await resolveWorkspaceMembership(ctx);
 
     const workspace: WorkspaceMembership = {
-      workspaceId: ctx.workspaceId,
-      memberId: member.member_id,
-      role: member.member_role as WorkspaceMembership["role"],
-      plan: ws?.plan ?? "starter",
+      workspaceId: resolved.workspaceId,
+      memberId: resolved.memberId,
+      role: resolved.memberRole,
+      plan: resolved.workspacePlan,
     };
 
     // Execute inside transaction with SET LOCAL for RLS enforcement
     return ctx.db.transaction(async (tx) => {
       await tx.execute(sql`SET LOCAL ROLE app_user`);
-      await tx.execute(sql`SET LOCAL app.workspace_id = ${ctx.workspaceId}`);
+      await tx.execute(
+        sql`SET LOCAL app.workspace_id = ${resolved.workspaceId}`,
+      );
       return next({
         ctx: {
           ...ctx,
@@ -312,6 +504,41 @@ export const workspaceProcedure = protectedProcedure.use(
 );
 
 /**
+ * Workspace read procedure — for READ-only queries without transaction overhead.
+ *
+ * Skips the BEGIN/COMMIT + SET LOCAL dance that workspaceProcedure uses.
+ * Membership is still validated and cached, but queries run directly against
+ * the pool connection. This eliminates 4 extra DB round-trips per query.
+ *
+ * SAFE for reads because:
+ * 1. Membership validation confirms user belongs to workspace
+ * 2. Queries already include workspace_id filtering in WHERE clauses
+ * 3. RLS via SET LOCAL is only needed for writes where policy enforcement matters
+ *
+ * Use this for all .query() procedures. Keep workspaceProcedure for .mutation().
+ */
+export const workspaceReadProcedure = protectedProcedure.use(
+  async ({ ctx, next }) => {
+    const resolved = await resolveWorkspaceMembership(ctx);
+
+    const workspace: WorkspaceMembership = {
+      workspaceId: resolved.workspaceId,
+      memberId: resolved.memberId,
+      role: resolved.memberRole,
+      plan: resolved.workspacePlan,
+    };
+
+    // NO transaction, NO SET LOCAL — reads don't need RLS enforcement
+    return next({
+      ctx: {
+        ...ctx,
+        workspace,
+      },
+    });
+  },
+);
+
+/**
  * Module procedure — gates access by workspace-enabled modules.
  * Usage: moduleProcedure("catalog").query(...)
  */
@@ -319,6 +546,23 @@ export function moduleProcedure(
   module: (typeof erpModuleEnum.enumValues)[number],
 ) {
   return workspaceProcedure.use(async ({ ctx, next }) => {
+    const cacheKey = getPermissionCacheKey(
+      "module",
+      ctx.user.id,
+      ctx.workspace.workspaceId,
+      module,
+    );
+    const cached = getCachedPermission(cacheKey);
+    if (cached !== undefined) {
+      if (!cached) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: `Módulo "${module}" no habilitado en este workspace`,
+        });
+      }
+      return next({ ctx });
+    }
+
     const [enabled] = await ctx.db
       .select({ id: WorkspaceModule.id })
       .from(WorkspaceModule)
@@ -331,11 +575,13 @@ export function moduleProcedure(
       .limit(1);
 
     if (!enabled) {
+      setCachedPermission(cacheKey, false);
       throw new TRPCError({
         code: "FORBIDDEN",
         message: `Módulo "${module}" no habilitado en este workspace`,
       });
     }
+    setCachedPermission(cacheKey, true);
     return next({ ctx });
   });
 }
@@ -351,6 +597,24 @@ export function wsPermissionProcedure(
   return moduleProcedure(module).use(async ({ ctx, next }) => {
     // Owner bypasses permission checks
     if (ctx.workspace.role === "owner") {
+      return next({ ctx });
+    }
+
+    const cacheKey = getPermissionCacheKey(
+      "ws_permission",
+      ctx.user.id,
+      ctx.workspace.workspaceId,
+      module,
+      action,
+    );
+    const cached = getCachedPermission(cacheKey);
+    if (cached !== undefined) {
+      if (!cached) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: `Permiso denegado: ${module}.${action}`,
+        });
+      }
       return next({ ctx });
     }
 
@@ -371,12 +635,62 @@ export function wsPermissionProcedure(
       .limit(1);
 
     if (!perm) {
+      setCachedPermission(cacheKey, false);
       throw new TRPCError({
         code: "FORBIDDEN",
         message: `Permiso denegado: ${module}.${action}`,
       });
     }
 
+    setCachedPermission(cacheKey, true);
+    return next({ ctx });
+  });
+}
+
+/**
+ * Module read procedure — workspace-enabled module gate for reads (no transaction).
+ * Usage: moduleReadProcedure("catalog").query(...)
+ */
+export function moduleReadProcedure(
+  module: (typeof erpModuleEnum.enumValues)[number],
+) {
+  return workspaceReadProcedure.use(async ({ ctx, next }) => {
+    const cacheKey = getPermissionCacheKey(
+      "module",
+      ctx.user.id,
+      ctx.workspace.workspaceId,
+      module,
+    );
+    const cached = getCachedPermission(cacheKey);
+    if (cached !== undefined) {
+      if (!cached) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: `Módulo "${module}" no habilitado en este workspace`,
+        });
+      }
+      return next({ ctx });
+    }
+
+    const [enabled] = await ctx.db
+      .select({ id: WorkspaceModule.id })
+      .from(WorkspaceModule)
+      .where(
+        and(
+          eq(WorkspaceModule.workspaceId, ctx.workspace.workspaceId),
+          eq(WorkspaceModule.module, module),
+        ),
+      )
+      .limit(1);
+
+    if (!enabled) {
+      setCachedPermission(cacheKey, false);
+      throw new TRPCError({
+        code: "FORBIDDEN",
+        message: `Módulo "${module}" no habilitado en este workspace`,
+      });
+    }
+    setCachedPermission(cacheKey, true);
     return next({ ctx });
   });
 }

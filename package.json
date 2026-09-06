@@ -2,7 +2,7 @@
   "name": "cendaro",
   "private": true,
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=22.0.0"
   },
   "packageManager": "pnpm@10.30.3",
   "scripts": {
@@ -29,15 +29,15 @@
   "devDependencies": {
     "@cendaro/eslint-config": "workspace:*",
     "@cendaro/prettier-config": "workspace:*",
-    "@turbo/gen": "^2.8.14",
+    "@turbo/gen": "^2.10.12",
     "dotenv-cli": "^11.0.0",
     "eslint": "catalog:",
     "husky": "^9.1.7",
-    "jiti": "^2.6.1",
-    "lint-staged": "^16.1.0",
+    "jiti": "^2.7.0",
+    "lint-staged": "^17.4.1",
     "prettier": "catalog:",
-    "tsx": "^4.22.3",
-    "turbo": "^2.8.14",
+    "tsx": "^4.23.13",
+    "turbo": "^2.10.12",
     "typescript": "catalog:"
   },
   "lint-staged": {
@@ -54,10 +54,16 @@
       "handlebars": "^4.7.9",
       "flatted": "^3.4.2",
       "picomatch": "^4.0.4",
-      "brace-expansion": ">=4.0.0 <5.0.0 || ^5.0.5",
+      "brace-expansion": ">=5.0.7 <6.0.0",
       "yaml": "^2.8.3",
-      "tmp": "^0.2.5",
-      "esbuild": "^0.25.0"
+      "tmp": "^0.2.6",
+      "esbuild": "^0.25.0",
+      "postcss": ">=8.5.12 <9.0.0",
+      "lodash": "^4.18.0",
+      "ws": "^8.21.0",
+      "js-yaml": "^4.3.1",
+      "@humanfs/node": "^0.16.8",
+      "vite": "^7.3.5"
     }
   },
   "license": "AGPL-3.0",

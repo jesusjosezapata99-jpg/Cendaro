@@ -1,6 +1,11 @@
+/* Workspace packages resolve through node_modules symlinks, which Tailwind v4's
+   automatic source detection (base: apps/erp) never traverses — register the UI
+   package explicitly so classes used ONLY inside @cendaro/ui (card action grid,
+   dropdown variants, etc.) actually get generated. */
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "@cendaro/tailwind-config/theme";
+@source "../../../../packages/ui/src";
 
 /* ================================================================
    Landing Page — Design Tokens & Animations
@@ -90,6 +95,96 @@
 
 @custom-variant dark (&:is(.dark, .dark *));
 
+/* ================================================================
+   Premium depth system — surfaces, glass, page glow
+   ================================================================ */
+
+/* Card surface: low-contrast vertical gradient + (dark) inner top light.
+   Reads as "machined" instead of flat — the Linear/Vercel card look. */
+.surface-card {
+  background: linear-gradient(180deg, oklch(1 0 0), oklch(0.988 0.002 250));
+}
+.dark .surface-card {
+  background: linear-gradient(
+    180deg,
+    oklch(0.185 0.014 254),
+    oklch(0.172 0.014 254)
+  );
+  box-shadow: inset 0 1px 0 0 oklch(1 0 0 / 0.04);
+}
+
+/* Glass chrome — blur reserved for fixed/small surfaces (sidebar, topbar,
+   overlays). @supports fallback keeps solid backgrounds usable everywhere. */
+.glass-sidebar {
+  background-color: color-mix(in oklab, var(--sidebar) 72%, transparent);
+  -webkit-backdrop-filter: blur(20px) saturate(1.5);
+  backdrop-filter: blur(20px) saturate(1.5);
+}
+.glass-topbar {
+  background-color: color-mix(in oklab, var(--background) 60%, transparent);
+  -webkit-backdrop-filter: blur(20px) saturate(1.5);
+  backdrop-filter: blur(20px) saturate(1.5);
+}
+.glass-overlay {
+  background-color: color-mix(in oklab, var(--popover) 85%, transparent);
+  -webkit-backdrop-filter: blur(12px) saturate(1.4);
+  backdrop-filter: blur(12px) saturate(1.4);
+}
+@supports not (
+  (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))
+) {
+  .glass-sidebar {
+    background-color: var(--sidebar);
+  }
+  .glass-topbar {
+    background-color: var(--background);
+  }
+  .glass-overlay {
+    background-color: var(--popover);
+  }
+}
+
+/* Page glow (dark): one static radial paint at the top of the viewport.
+   No background-attachment: fixed — that repaints on every mobile scroll. */
+.dark body {
+  background-image: radial-gradient(
+    ellipse 90% 40% at 50% -10%,
+    oklch(0.623 0.214 262 / 0.07),
+    transparent
+  );
+  background-repeat: no-repeat;
+}
+
+/* ================================================================
+   Material Symbols — self-hosted icon font (subset, ~14 KB)
+   Subset generated via the official Google Fonts `icon_names` param
+   (136 ligatures, see fonts/material-symbols-subset.txt) with axes
+   pinned to Google defaults (24/400/0/0).
+   Rendering rules per developers.google.com/fonts/docs/material_symbols.
+   font-size intentionally omitted — set per usage with Tailwind text-*.
+   ================================================================ */
+@layer base {
+  .material-symbols-outlined {
+    font-family: var(--font-material-symbols), sans-serif;
+    font-weight: normal;
+    font-style: normal;
+    line-height: 1;
+    letter-spacing: normal;
+    text-transform: none;
+    display: inline-block;
+    white-space: nowrap;
+    word-wrap: normal;
+    direction: ltr;
+    font-feature-settings: "liga";
+    font-variation-settings:
+      "FILL" 0,
+      "wght" 400,
+      "GRAD" 0,
+      "opsz" 24;
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
 /* ── Landing Page — Dark Mode Token Overrides ── */
 .dark {
   --landing-card-border: oklch(1 0 0 / 0.06);
@@ -161,6 +256,44 @@
     textarea {
       font-size: max(16px, 1em) !important;
     }
+  }
+}
+
+/* ── Sidebar nav pending indicator (useLinkStatus debounce pattern) ── */
+/* Official Next.js pattern: start invisible, fade in only after 100 ms so
+   prefetched (instant) navigations never flash feedback while slow ones do. */
+.nav-pending {
+  margin-left: auto;
+  height: 0.375rem;
+  width: 0.375rem;
+  border-radius: 9999px;
+  background-color: currentColor;
+  opacity: 0;
+  visibility: hidden;
+}
+
+.nav-pending--active {
+  visibility: visible;
+  animation:
+    nav-pending-fade-in 200ms ease 100ms forwards,
+    nav-pending-pulse 1s ease-in-out 300ms infinite;
+}
+
+@keyframes nav-pending-fade-in {
+  to {
+    opacity: 0.7;
+  }
+}
+
+@keyframes nav-pending-pulse {
+  50% {
+    opacity: 0.15;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav-pending--active {
+    animation: nav-pending-fade-in 200ms ease 100ms forwards;
   }
 }
 

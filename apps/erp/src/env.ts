@@ -14,6 +14,10 @@ export const env = createEnv({
     EXCHANGE_RATE_API_KEY: z.string().min(1).optional(),
     MERCADOLIBRE_APP_ID: z.string().optional(),
     MERCADOLIBRE_SECRET: z.string().optional(),
+    VERCEL_URL: z
+      .string()
+      .regex(/^[a-z0-9.-]+$/)
+      .optional(),
     NODE_ENV: z
       .enum(["development", "test", "production"])
       .default("development"),

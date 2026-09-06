@@ -4,7 +4,12 @@ import { createCallerFactory } from "./trpc";
 
 export type { AppRouter } from "./root";
 export { appRouter } from "./root";
-export { createTRPCContext, createCallerFactory } from "./trpc";
+export {
+  createTRPCContext,
+  createCallerFactory,
+  mapClaimsToUser,
+} from "./trpc";
+export type { AuthenticatedUser } from "./trpc";
 export { logger } from "./logger";
 export type { ILogger, LogContext } from "./logger";
 

@@ -8,7 +8,6 @@ import { TRPCError } from "@trpc/server";
 import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
-import type { memberStatusEnum } from "@cendaro/db/schema";
 import {
   UserProfile,
   Workspace,
@@ -21,6 +20,7 @@ import {
   createTRPCRouter,
   protectedProcedure,
   workspaceProcedure,
+  workspaceReadProcedure,
 } from "../trpc";
 
 // ── Plan defaults (sync with erpModuleEnum in schema.ts) ──────────
@@ -130,7 +130,7 @@ export const workspaceRouter = createTRPCRouter({
    * Get current workspace details + modules + quota.
    * Requires workspace context (SET LOCAL already applied).
    */
-  current: workspaceProcedure.query(async ({ ctx }) => {
+  current: workspaceReadProcedure.query(async ({ ctx }) => {
     const ws = ctx.workspace;
 
     const [workspace] = await ctx.db
@@ -277,7 +277,7 @@ export const workspaceRouter = createTRPCRouter({
   /**
    * List workspace members with profile info.
    */
-  members: workspaceProcedure.query(async ({ ctx }) => {
+  members: workspaceReadProcedure.query(async ({ ctx }) => {
     const ws = ctx.workspace;
 
     const rows = await ctx.db
@@ -377,7 +377,7 @@ export const workspaceRouter = createTRPCRouter({
       const [updated] = await ctx.db
         .update(WorkspaceMember)
         .set({
-          status: "removed" as (typeof memberStatusEnum.enumValues)[number],
+          status: "removed",
         })
         .where(
           and(
