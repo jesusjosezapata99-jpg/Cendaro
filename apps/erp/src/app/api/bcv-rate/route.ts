@@ -67,11 +67,9 @@ function extractDate(iso: string): string {
 async function fetchFromBcvDirect(): Promise<BcvDirectResult | null> {
   return new Promise((resolve) => {
     try {
-      const agent = new https.Agent({ rejectUnauthorized: false });
       const req = https.get(
         "https://www.bcv.org.ve/",
         {
-          agent,
           timeout: 6500,
           headers: {
             "User-Agent":
