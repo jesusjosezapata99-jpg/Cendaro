@@ -56,22 +56,26 @@ export function WorkspaceProvider({
   children: React.ReactNode;
   initialWorkspaceId?: string;
 }) {
-  const [workspaceId, setWorkspaceId] = useState<string | null>(() => {
-    // SSR-safe: only read storage on client
-    if (typeof window === "undefined") return initialWorkspaceId ?? null;
-    return (
-      localStorage.getItem(STORAGE_KEY) ??
-      readWorkspaceCookie() ??
-      initialWorkspaceId ??
-      null
-    );
-  });
+  // Initialize state strictly from the server-provided initialWorkspaceId.
+  // Never branch on `typeof window !== 'undefined'` in initial state to prevent
+  // React 19 hydration mismatch errors.
+  const [workspaceId, setWorkspaceId] = useState<string | null>(
+    initialWorkspaceId ?? null,
+  );
 
-  // Sync to localStorage + cookie when workspace changes
+  // Sync to localStorage + cookie when workspace changes, or resolve client-side fallback
   useEffect(() => {
     if (workspaceId) {
       localStorage.setItem(STORAGE_KEY, workspaceId);
       setWorkspaceCookie(workspaceId);
+    } else {
+      // Hydration-safe fallback: if SSR rendered without an initial workspace ID
+      // (e.g. static shell prerender or first visit before cookie exchange),
+      // resolve from client cookie or localStorage after mount to prevent hydration mismatch.
+      const stored = readWorkspaceCookie() ?? localStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        setWorkspaceId(stored);
+      }
     }
   }, [workspaceId]);
 

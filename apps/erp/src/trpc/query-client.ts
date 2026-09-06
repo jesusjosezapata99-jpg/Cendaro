@@ -8,6 +8,7 @@
  * This is the SINGLE SOURCE OF TRUTH for QueryClient configuration.
  * All consumers (client.tsx, server.tsx, etc.) should import from here.
  */
+import { cache } from "react";
 import { QueryClient } from "@tanstack/react-query";
 import { TRPCClientError } from "@trpc/client";
 
@@ -48,10 +49,19 @@ let browserQueryClient: QueryClient | undefined;
  * - Server: always creates a new instance (per-request isolation)
  * - Client: reuses a singleton across renders
  */
+/**
+ * Request-stable server QueryClient (official tRPC options-proxy pattern):
+ * React `cache()` returns the SAME instance for every call within a single
+ * server render, so the options proxy, prefetch and dehydrate all share one
+ * client. Without this, each call would create a new instance and the
+ * prefetched data would never reach the HydrationBoundary.
+ */
+const requestQueryClient = cache(() => makeQueryClient());
+
 export function getQueryClient() {
   if (typeof window === "undefined") {
-    // Server: new client per request to prevent data leakage between users
-    return makeQueryClient();
+    // Server: one client per request (prevents data leakage between users)
+    return requestQueryClient();
   }
   // Client: singleton across all renders
   return (browserQueryClient ??= makeQueryClient());

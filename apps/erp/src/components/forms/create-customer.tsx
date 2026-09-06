@@ -6,19 +6,45 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Dialog, Field, FormActions, Input, Select } from "~/components/dialog";
 import { useTRPC } from "~/trpc/client";
 
+export interface CreatedCustomerResult {
+  id: string;
+  name: string;
+  legalName?: string | null;
+  identification?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  customerType?: string;
+}
+
 interface Props {
   open: boolean;
   onClose: () => void;
+  onCustomerCreated?: (customer: CreatedCustomerResult) => void;
 }
 
-export function CreateCustomerDialog({ open, onClose }: Props) {
+export function CreateCustomerDialog({
+  open,
+  onClose,
+  onCustomerCreated,
+}: Props) {
   const trpc = useTRPC();
   const qc = useQueryClient();
 
   const create = useMutation(
     trpc.sales.createCustomer.mutationOptions({
-      onSuccess: () => {
+      onSuccess: (data) => {
         void qc.invalidateQueries({ queryKey: [["sales"]] });
+        if (data) {
+          onCustomerCreated?.({
+            id: data.id,
+            name: data.name,
+            legalName: data.legalName,
+            identification: data.identification,
+            phone: data.phone,
+            email: data.email,
+            customerType: data.customerType,
+          });
+        }
         onClose();
       },
     }),

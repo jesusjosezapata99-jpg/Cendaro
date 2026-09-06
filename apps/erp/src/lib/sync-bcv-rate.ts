@@ -7,8 +7,7 @@
  */
 export async function maybeSyncVesRates(opts: {
   latestRates:
-    | { rateType: string; rate: number; createdAt: Date | null }[]
-    | undefined;
+    { rateType: string; rate: number; createdAt: Date | null }[] | undefined;
   setRate: (input: {
     rateType: "bcv" | "parallel";
     rate: number;
@@ -72,8 +71,7 @@ export async function maybeSyncVesRates(opts: {
  */
 export async function maybeSyncBcvRate(opts: {
   latestRates:
-    | { rateType: string; rate: number; createdAt: Date | null }[]
-    | undefined;
+    { rateType: string; rate: number; createdAt: Date | null }[] | undefined;
   setRate: (input: {
     rateType: "bcv";
     rate: number;

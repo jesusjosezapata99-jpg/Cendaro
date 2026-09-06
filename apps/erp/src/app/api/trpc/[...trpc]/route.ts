@@ -12,7 +12,8 @@
 import { cookies } from "next/headers";
 import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 
-import { appRouter, createTRPCContext } from "@cendaro/api";
+import type { AuthenticatedUser } from "@cendaro/api";
+import { appRouter, createTRPCContext, mapClaimsToUser } from "@cendaro/api";
 import { createSupabaseServerClient } from "@cendaro/auth/server";
 
 import { env } from "~/env";
@@ -21,7 +22,7 @@ const handler = async (req: Request) => {
   const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  let user = null;
+  let user: AuthenticatedUser | null = null;
   if (supabaseUrl && supabaseKey) {
     const cookieStore = await cookies();
     const supabase = createSupabaseServerClient(
@@ -29,8 +30,10 @@ const handler = async (req: Request) => {
       supabaseUrl,
       supabaseKey,
     );
-    const { data } = await supabase.auth.getUser();
-    user = data.user;
+    // getClaims() verifies the JWT locally via cached JWKS (asymmetric
+    // signing keys) — no network round-trip to Supabase Auth per request.
+    const { data } = await supabase.auth.getClaims();
+    user = mapClaimsToUser(data?.claims);
   }
 
   const response = await fetchRequestHandler({
@@ -40,8 +43,7 @@ const handler = async (req: Request) => {
     createContext: () =>
       createTRPCContext({
         headers: new Headers(req.headers),
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-explicit-any
-        user: user as any,
+        user,
       }),
     // Error logging is handled by the loggingMiddleware in trpc.ts
     // No need for onError here — all procedure errors are already logged

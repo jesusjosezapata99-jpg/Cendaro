@@ -54,3 +54,6 @@ graphify-out/
 # Claude secrets and ephemeral state
 .claude/mcp.json
 claude_code_implementation_plan
+
+# Codex local configuration (contains secrets)
+.codex/config.toml

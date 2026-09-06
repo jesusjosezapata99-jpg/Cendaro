@@ -16,102 +16,127 @@ import {
   SystemAlert,
 } from "@cendaro/db/schema";
 
-import { createTRPCRouter, workspaceProcedure } from "../trpc";
+import type { createTRPCContext } from "../trpc";
+import {
+  createTRPCRouter,
+  workspaceProcedure,
+  workspaceReadProcedure,
+} from "../trpc";
 import { logAudit } from "./audit";
+
+// ── Short-lived dashboard cache (30s TTL) ──────────
+const dashboardCache = new Map<string, { data: unknown; expiry: number }>();
+const DASHBOARD_CACHE_TTL = 30_000; // 30 seconds
+
+type Context = Awaited<ReturnType<typeof createTRPCContext>> & {
+  workspace: { workspaceId: string };
+};
+
+async function computeSalesSummary(ctx: Context) {
+  const safeQuery = async <T>(
+    label: string,
+    fn: () => Promise<T[]>,
+    fallback: T,
+  ): Promise<T> => {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const [row] = await fn();
+        return row ?? fallback;
+      } catch (err) {
+        if (attempt === 0) {
+          ctx.log.warn(
+            `Dashboard sub-query failed (retrying in 1s): ${label}`,
+            { module: "dashboard", attempt },
+            err,
+          );
+          await new Promise((r) => setTimeout(r, 1000));
+        } else {
+          ctx.log.error(
+            `Dashboard sub-query failed after retry: ${label}`,
+            { module: "dashboard", attempt },
+            err,
+          );
+          return fallback;
+        }
+      }
+    }
+    return fallback;
+  };
+
+  const [orderStats, paymentStats, arStats] = await Promise.all([
+    safeQuery(
+      "orders",
+      () =>
+        ctx.db
+          .select({
+            totalOrders: count(SalesOrder.id),
+            totalRevenue: sum(SalesOrder.total),
+            totalPaid: sum(SalesOrder.totalPaid),
+          })
+          .from(SalesOrder),
+      { totalOrders: 0, totalRevenue: null, totalPaid: null },
+    ),
+    safeQuery(
+      "payments",
+      () =>
+        ctx.db
+          .select({
+            totalPayments: count(Payment.id),
+            totalCollected: sum(Payment.amount),
+          })
+          .from(Payment),
+      { totalPayments: 0, totalCollected: null },
+    ),
+    safeQuery(
+      "accounts_receivable",
+      () =>
+        ctx.db
+          .select({
+            totalAR: count(AccountReceivable.id),
+            totalDebt: sum(AccountReceivable.balance),
+          })
+          .from(AccountReceivable)
+          .where(eq(AccountReceivable.status, "pending")),
+      { totalAR: 0, totalDebt: null },
+    ),
+  ]);
+
+  return {
+    orders: {
+      total: orderStats.totalOrders,
+      revenue: Number(orderStats.totalRevenue ?? 0),
+      paid: Number(orderStats.totalPaid ?? 0),
+    },
+    payments: {
+      total: paymentStats.totalPayments,
+      collected: Number(paymentStats.totalCollected ?? 0),
+    },
+    accountsReceivable: {
+      total: arStats.totalAR,
+      debt: Number(arStats.totalDebt ?? 0),
+    },
+  };
+}
 
 export const dashboardRouter = createTRPCRouter({
   // ─── KPI Summary (PRD §22) ──────────────────
 
-  salesSummary: workspaceProcedure.query(async ({ ctx }) => {
-    // Each sub-query is wrapped individually so a single table failure
-    // doesn't crash the entire dashboard endpoint (cascade prevention).
-    // Single retry with 1s delay handles Supabase cold-start connection drops.
-    const safeQuery = async <T>(
-      label: string,
-      fn: () => Promise<T[]>,
-      fallback: T,
-    ): Promise<T> => {
-      for (let attempt = 0; attempt < 2; attempt++) {
-        try {
-          const [row] = await fn();
-          return row ?? fallback;
-        } catch (err) {
-          if (attempt === 0) {
-            ctx.log.warn(
-              `Dashboard sub-query failed (retrying in 1s): ${label}`,
-              { module: "dashboard", attempt },
-              err,
-            );
-            await new Promise((r) => setTimeout(r, 1000));
-          } else {
-            ctx.log.error(
-              `Dashboard sub-query failed after retry: ${label}`,
-              { module: "dashboard", attempt },
-              err,
-            );
-            return fallback;
-          }
-        }
-      }
-      return fallback;
-    };
+  salesSummary: workspaceReadProcedure.query(async ({ ctx }) => {
+    const cacheKey = ctx.workspace.workspaceId;
+    const cached = dashboardCache.get(cacheKey);
+    if (cached && Date.now() < cached.expiry) {
+      return cached.data as Awaited<ReturnType<typeof computeSalesSummary>>;
+    }
 
-    const [orderStats, paymentStats, arStats] = await Promise.all([
-      safeQuery(
-        "orders",
-        () =>
-          ctx.db
-            .select({
-              totalOrders: count(SalesOrder.id),
-              totalRevenue: sum(SalesOrder.total),
-              totalPaid: sum(SalesOrder.totalPaid),
-            })
-            .from(SalesOrder),
-        { totalOrders: 0, totalRevenue: null, totalPaid: null },
-      ),
-      safeQuery(
-        "payments",
-        () =>
-          ctx.db
-            .select({
-              totalPayments: count(Payment.id),
-              totalCollected: sum(Payment.amount),
-            })
-            .from(Payment),
-        { totalPayments: 0, totalCollected: null },
-      ),
-      safeQuery(
-        "accounts_receivable",
-        () =>
-          ctx.db
-            .select({
-              totalAR: count(AccountReceivable.id),
-              totalDebt: sum(AccountReceivable.balance),
-            })
-            .from(AccountReceivable)
-            .where(eq(AccountReceivable.status, "pending")),
-        { totalAR: 0, totalDebt: null },
-      ),
-    ]);
-
-    return {
-      orders: {
-        total: orderStats.totalOrders,
-        revenue: Number(orderStats.totalRevenue ?? 0),
-        paid: Number(orderStats.totalPaid ?? 0),
-      },
-      payments: {
-        total: paymentStats.totalPayments,
-        collected: Number(paymentStats.totalCollected ?? 0),
-      },
-      accountsReceivable: {
-        total: arStats.totalAR,
-        debt: Number(arStats.totalDebt ?? 0),
-      },
-    };
+    const result = await computeSalesSummary(ctx);
+    dashboardCache.set(cacheKey, {
+      data: result,
+      expiry: Date.now() + DASHBOARD_CACHE_TTL,
+    });
+    return result;
   }),
 
-  latestClosures: workspaceProcedure
+  latestClosures: workspaceReadProcedure
     .input(z.object({ limit: z.number().int().min(1).max(7).default(5) }))
     .query(async ({ ctx, input }) => {
       return ctx.db
@@ -132,7 +157,7 @@ export const dashboardRouter = createTRPCRouter({
 
   // ─── System Alerts (PRD §23) ─────────────────
 
-  listAlerts: workspaceProcedure
+  listAlerts: workspaceReadProcedure
     .input(
       z.object({
         alertType: z.enum(alertTypeEnum.enumValues).optional(),
@@ -169,7 +194,7 @@ export const dashboardRouter = createTRPCRouter({
       return query.orderBy(desc(SystemAlert.createdAt)).limit(input.limit);
     }),
 
-  activeAlertCount: workspaceProcedure.query(async ({ ctx }) => {
+  activeAlertCount: workspaceReadProcedure.query(async ({ ctx }) => {
     const [result] = await ctx.db
       .select({ count: count(SystemAlert.id) })
       .from(SystemAlert)

@@ -92,7 +92,8 @@ export function Dialog({
         "fixed inset-0 m-0 max-h-dvh max-w-none rounded-none border-0",
         "open:animate-in open:slide-in-from-bottom open:duration-300",
         /* Desktop: centered modal */
-        "md:m-auto md:max-h-[85dvh] md:max-w-lg md:rounded-2xl md:border",
+        "md:m-auto md:max-h-[85dvh] md:rounded-2xl md:border",
+        !className.includes("max-w") && "md:max-w-lg",
         "md:open:slide-in-from-bottom-0 md:open:fade-in-0 md:open:zoom-in-95",
         className,
       )}
@@ -208,14 +209,14 @@ export function FormActions({
       <button
         type="button"
         onClick={onCancel}
-        className="border-border text-muted-foreground hover:bg-secondary min-h-[44px] rounded-lg border px-4 py-2.5 text-sm font-medium transition-colors"
+        className="border-border text-muted-foreground hover:bg-secondary min-h-11 rounded-lg border px-4 py-2.5 text-sm font-medium transition-colors"
       >
         Cancelar
       </button>
       <button
         type="submit"
         disabled={submitting}
-        className="bg-primary text-primary-foreground hover:bg-primary/90 flex min-h-[44px] items-center justify-center gap-2 rounded-lg px-5 py-2.5 text-sm font-bold transition-colors disabled:opacity-50"
+        className="bg-primary text-primary-foreground hover:bg-primary/90 flex min-h-11 items-center justify-center gap-2 rounded-lg px-5 py-2.5 text-sm font-bold transition-colors disabled:opacity-50"
       >
         {submitting && (
           <span className="material-symbols-outlined animate-spin text-sm">

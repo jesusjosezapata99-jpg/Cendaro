@@ -21,13 +21,17 @@ import {
   StockMovement,
 } from "@cendaro/db/schema";
 
-import { createTRPCRouter, workspaceProcedure } from "../trpc";
+import {
+  createTRPCRouter,
+  workspaceProcedure,
+  workspaceReadProcedure,
+} from "../trpc";
 import { logAudit } from "./audit";
 
 export const salesRouter = createTRPCRouter({
   // ─── Customers (PRD §17) ─────────────────────
 
-  listCustomers: workspaceProcedure
+  listCustomers: workspaceReadProcedure
     .input(
       z.object({
         limit: z.number().int().min(1).max(100).default(25),
@@ -58,7 +62,7 @@ export const salesRouter = createTRPCRouter({
         .offset(input.offset);
     }),
 
-  customerById: workspaceProcedure
+  customerById: workspaceReadProcedure
     .input(z.object({ id: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       const [customer] = await ctx.db
@@ -96,7 +100,7 @@ export const salesRouter = createTRPCRouter({
 
   // ─── Orders (PRD §14-16) ─────────────────────
 
-  listOrders: workspaceProcedure
+  listOrders: workspaceReadProcedure
     .input(
       z.object({
         limit: z.number().int().min(1).max(100).default(25),
@@ -133,7 +137,7 @@ export const salesRouter = createTRPCRouter({
         .offset(input.offset);
     }),
 
-  orderById: workspaceProcedure
+  orderById: workspaceReadProcedure
     .input(z.object({ id: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       const [order] = await ctx.db
@@ -312,7 +316,7 @@ export const salesRouter = createTRPCRouter({
 
   // ─── Payments (PRD §19) ──────────────────────
 
-  listPayments: workspaceProcedure
+  listPayments: workspaceReadProcedure
     .input(
       z.object({
         limit: z.number().int().min(1).max(100).default(50),
@@ -396,7 +400,7 @@ export const salesRouter = createTRPCRouter({
 
   // ─── Cash Closure (PRD §19.6) ────────────────
 
-  listClosures: workspaceProcedure.query(async ({ ctx }) => {
+  listClosures: workspaceReadProcedure.query(async ({ ctx }) => {
     return ctx.db
       .select({
         id: CashClosure.id,

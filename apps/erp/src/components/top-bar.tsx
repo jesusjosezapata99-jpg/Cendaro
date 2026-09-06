@@ -29,7 +29,7 @@ export function TopBar({ onToggleSidebar }: TopBarProps) {
   }, []);
 
   return (
-    <header className="border-border bg-card safe-pt flex h-14 shrink-0 items-center gap-2 border-b px-4 lg:px-6">
+    <header className="glass-topbar border-border-subtle safe-pt flex h-14 shrink-0 items-center gap-2 border-b px-4 lg:px-6">
       {/* Left: hamburger */}
       <button
         onClick={onToggleSidebar}
@@ -76,13 +76,13 @@ export function TopBar({ onToggleSidebar }: TopBarProps) {
           </button>
 
           {showUserMenu && (
-            <div className="border-border bg-card absolute top-full right-0 z-50 mt-1 w-48 overflow-hidden rounded-xl border shadow-lg">
+            <div className="glass-overlay border-border-subtle absolute top-full right-0 z-50 mt-1 w-48 overflow-hidden rounded-xl border shadow-lg">
               <button
                 onClick={() => {
                   setShowUserMenu(false);
                   router.push("/settings");
                 }}
-                className="text-foreground hover:bg-accent/50 flex min-h-[44px] w-full items-center gap-2 px-4 py-2.5 text-sm transition-colors"
+                className="text-foreground hover:bg-accent/50 flex min-h-11 w-full items-center gap-2 px-4 py-2.5 text-sm transition-colors"
               >
                 <span className="material-symbols-outlined text-muted-foreground text-base">
                   settings
@@ -94,7 +94,7 @@ export function TopBar({ onToggleSidebar }: TopBarProps) {
                   setShowUserMenu(false);
                   router.push("/audit");
                 }}
-                className="text-foreground hover:bg-accent/50 flex min-h-[44px] w-full items-center gap-2 px-4 py-2.5 text-sm transition-colors"
+                className="text-foreground hover:bg-accent/50 flex min-h-11 w-full items-center gap-2 px-4 py-2.5 text-sm transition-colors"
               >
                 <span className="material-symbols-outlined text-muted-foreground text-base">
                   history
@@ -112,7 +112,7 @@ export function TopBar({ onToggleSidebar }: TopBarProps) {
                   }
                   window.location.href = "/login";
                 }}
-                className="hover:bg-accent/50 flex min-h-[44px] w-full items-center gap-2 px-4 py-2.5 text-sm text-red-500 transition-colors"
+                className="hover:bg-accent/50 text-destructive flex min-h-11 w-full items-center gap-2 px-4 py-2.5 text-sm transition-colors"
               >
                 <span className="material-symbols-outlined text-base">
                   logout

@@ -41,6 +41,12 @@ export function WorkspaceSwitcher() {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
 
+  // Hydration guard: the workspace id resolves client-side (cookie/localStorage
+  // via WorkspaceAutoResolver) but is absent during SSR, so the first client
+  // render must match the server output before showing resolved state.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   // Fetch workspaces
   const trpc = useTRPC();
   const { data: workspaces, isLoading } = useQuery(
@@ -49,6 +55,7 @@ export function WorkspaceSwitcher() {
 
   // Current workspace
   const current = workspaces?.find((ws) => ws.id === workspaceId);
+  const isPending = isLoading || !mounted;
 
   // Auto-select first workspace if none selected
   useEffect(() => {
@@ -129,7 +136,7 @@ export function WorkspaceSwitcher() {
       >
         {/* Workspace avatar */}
         <div className="bg-primary text-primary-foreground flex size-8 shrink-0 items-center justify-center rounded-lg text-xs font-bold">
-          {isLoading ? (
+          {isPending ? (
             <span className="material-symbols-outlined animate-spin text-sm">
               progress_activity
             </span>
@@ -141,9 +148,9 @@ export function WorkspaceSwitcher() {
         {/* Name + plan */}
         <div className="min-w-0 flex-1 text-left">
           <p className="text-sidebar-foreground truncate text-sm leading-tight font-semibold">
-            {isLoading ? "Cargando…" : (current?.name ?? "Seleccionar")}
+            {isPending ? "Cargando…" : (current?.name ?? "Seleccionar")}
           </p>
-          {current && (
+          {!isPending && current && (
             <span
               className={cn(
                 "mt-0.5 inline-block rounded-full px-1.5 py-px text-[10px] font-semibold tracking-wider uppercase",
@@ -195,7 +202,7 @@ export function WorkspaceSwitcher() {
                   aria-selected={isActive}
                   onClick={() => handleSelect(ws.id)}
                   className={cn(
-                    "flex min-h-[44px] w-full items-center gap-3 rounded-md px-2 py-2",
+                    "flex min-h-11 w-full items-center gap-3 rounded-md px-2 py-2",
                     "cursor-pointer transition-colors duration-150",
                     isActive
                       ? "bg-sidebar-accent text-sidebar-accent-foreground"
@@ -253,7 +260,7 @@ export function WorkspaceSwitcher() {
                 // TODO: Navigate to workspace creation flow
               }}
               className={cn(
-                "flex min-h-[44px] w-full items-center gap-3 rounded-md px-2 py-2",
+                "flex min-h-11 w-full items-center gap-3 rounded-md px-2 py-2",
                 "text-muted-foreground cursor-pointer transition-colors duration-150",
                 "hover:bg-sidebar-accent/50 hover:text-sidebar-foreground",
                 "focus-visible:ring-primary focus-visible:ring-2 focus-visible:outline-none",

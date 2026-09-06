@@ -9,6 +9,7 @@ import { useTRPC } from "~/trpc/client";
 interface Props {
   open: boolean;
   onClose: () => void;
+  defaultChannel?: string;
 }
 
 interface OrderLine {
@@ -20,7 +21,11 @@ interface OrderLine {
   discount: number;
 }
 
-export function CreateOrderDialog({ open, onClose }: Props) {
+export function CreateOrderDialog({
+  open,
+  onClose,
+  defaultChannel = "store",
+}: Props) {
   const trpc = useTRPC();
   const qc = useQueryClient();
 
@@ -45,7 +50,7 @@ export function CreateOrderDialog({ open, onClose }: Props) {
   );
 
   const [customerId, setCustomerId] = useState("");
-  const [channel, setChannel] = useState("store");
+  const [channel, setChannel] = useState(defaultChannel);
   const [notes, setNotes] = useState("");
   const [lines, setLines] = useState<OrderLine[]>([]);
 
@@ -82,7 +87,7 @@ export function CreateOrderDialog({ open, onClose }: Props) {
   useEffect(() => {
     if (open) {
       setCustomerId("");
-      setChannel("store");
+      setChannel(defaultChannel);
       setNotes("");
       setLines([]);
       setProductSearch("");
@@ -91,7 +96,7 @@ export function CreateOrderDialog({ open, onClose }: Props) {
       setAddPrice("");
       setAddDiscount("0");
     }
-  }, [open]);
+  }, [open, defaultChannel]);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -197,11 +202,7 @@ export function CreateOrderDialog({ open, onClose }: Props) {
     create.mutate({
       customerId: customerId || undefined,
       channel: channel as
-        | "store"
-        | "mercadolibre"
-        | "vendors"
-        | "whatsapp"
-        | "instagram",
+        "store" | "mercadolibre" | "vendors" | "whatsapp" | "instagram",
       notes: notes || undefined,
       items: lines.map((l) => ({
         productId: l.productId,
@@ -258,7 +259,7 @@ export function CreateOrderDialog({ open, onClose }: Props) {
           </p>
           {lines.length > 0 && (
             <div className="border-border mobile-scroll-x mb-3 overflow-hidden rounded-lg border">
-              <table className="w-full min-w-[500px] text-left text-xs">
+              <table className="w-full min-w-125 text-left text-xs">
                 <thead>
                   <tr className="border-border text-muted-foreground border-b text-[10px] uppercase">
                     <th className="px-3 py-2">Ref.</th>
@@ -337,7 +338,7 @@ export function CreateOrderDialog({ open, onClose }: Props) {
                   }}
                   onKeyDown={handleKeyDown}
                   placeholder="Escribe la referencia, nombre o código de barras..."
-                  className="border-border bg-card text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-ring/20 min-h-[44px] w-full rounded-lg border py-2.5 pr-4 pl-10 text-sm transition-colors outline-none focus:ring-2"
+                  className="border-border bg-card text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-ring/20 min-h-11 w-full rounded-lg border py-2.5 pr-4 pl-10 text-sm transition-colors outline-none focus:ring-2"
                 />
                 {selectedProduct && (
                   <span className="material-symbols-outlined pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-lg text-emerald-400">
@@ -406,7 +407,7 @@ export function CreateOrderDialog({ open, onClose }: Props) {
                 value={addQuantity}
                 onChange={(e) => setAddQuantity(e.target.value)}
                 placeholder="Cant."
-                className="border-border bg-card text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-ring/20 min-h-[44px] w-full rounded-lg border px-4 py-2.5 text-sm transition-colors outline-none focus:ring-2"
+                className="border-border bg-card text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-ring/20 min-h-11 w-full rounded-lg border px-4 py-2.5 text-sm transition-colors outline-none focus:ring-2"
               />
               <Input
                 type="number"
@@ -426,7 +427,7 @@ export function CreateOrderDialog({ open, onClose }: Props) {
                 type="button"
                 onClick={addLine}
                 disabled={!selectedProduct || !addPrice}
-                className="bg-secondary text-muted-foreground hover:bg-accent flex min-h-[44px] items-center justify-center gap-1 rounded-lg px-3 py-2.5 text-xs font-bold transition-colors disabled:opacity-40"
+                className="bg-secondary text-muted-foreground hover:bg-accent flex min-h-11 items-center justify-center gap-1 rounded-lg px-3 py-2.5 text-xs font-bold transition-colors disabled:opacity-40"
               >
                 <span className="material-symbols-outlined text-sm">add</span>{" "}
                 Agregar

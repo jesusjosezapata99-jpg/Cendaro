@@ -6,7 +6,10 @@ import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
+import { Button, Input } from "@cendaro/ui";
+
 import { CreatableSelect } from "~/components/creatable-select";
+import { PageHeader } from "~/components/page-header";
 import { RoleGuard } from "~/components/role-guard";
 import { useVesRates } from "~/hooks/use-bcv-rate";
 import { maybeSyncVesRates } from "~/lib/sync-bcv-rate";
@@ -32,7 +35,7 @@ function Field({
       </span>
       {children}
       {hint && (
-        <span className="text-muted-foreground mt-0.5 block text-[10px]">
+        <span className="text-muted-foreground mt-0.5 block text-xs">
           {hint}
         </span>
       )}
@@ -41,7 +44,7 @@ function Field({
 }
 
 const inputBase =
-  "w-full min-h-[44px] rounded-lg border border-border bg-card px-3 py-2.5 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-ring/20";
+  "w-full min-h-11 rounded-lg border border-border-subtle bg-transparent px-3 py-2.5 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/20";
 
 /* ── Initial form state ───────────────────────── */
 
@@ -161,7 +164,7 @@ export default function CreateProductPage() {
         if (submitModeRef.current === "save-and-continue") {
           // ── Continuous workflow ──
           setCreatedCount((c) => c + 1);
-          toast.success(`✓ ${fields.name || "Producto"} creado correctamente`);
+          toast.success(`${fields.name || "Producto"} creado correctamente`);
 
           // Smart reset: clear data fields, keep sticky
           setFields(emptyFields);
@@ -215,11 +218,7 @@ export default function CreateProductPage() {
         ? parseInt(sticky.boxesPerBulk, 10)
         : undefined,
       sellingUnit: sticky.sellingUnit as
-        | "unit"
-        | "box"
-        | "dozen"
-        | "half_dozen"
-        | "bulk",
+        "unit" | "box" | "dozen" | "half_dozen" | "bulk",
       status: sticky.status,
     });
   };
@@ -253,29 +252,24 @@ export default function CreateProductPage() {
           >
             Catálogo
           </Link>
-          <span className="material-symbols-outlined text-base">
+          <span aria-hidden className="material-symbols-outlined text-base">
             chevron_right
           </span>
           <span className="text-foreground font-medium">Nuevo Producto</span>
         </div>
 
-        {/* Header */}
-        <div className="flex flex-col gap-1">
-          <h1 className="text-foreground text-2xl font-black tracking-tight">
-            Crear Nuevo Producto
-          </h1>
-          <p className="text-muted-foreground text-sm">
-            Completa los campos para registrar un producto en el catálogo.
-          </p>
-        </div>
+        <PageHeader
+          title="Crear Nuevo Producto"
+          description="Completa los campos para registrar un producto en el catálogo."
+        />
 
         {/* Session counter */}
         {createdCount > 0 && (
-          <div className="flex items-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-50 px-4 py-2.5 dark:bg-emerald-900/20">
-            <span className="material-symbols-outlined text-lg text-emerald-600 dark:text-emerald-400">
+          <div className="border-success/20 bg-success/10 flex items-center gap-2 rounded-lg border px-4 py-2.5">
+            <span className="material-symbols-outlined text-success text-lg">
               check_circle
             </span>
-            <span className="text-sm font-medium text-emerald-700 dark:text-emerald-300">
+            <span className="text-success-soft text-sm font-medium tabular-nums">
               {createdCount} producto{createdCount !== 1 ? "s" : ""} creado
               {createdCount !== 1 ? "s" : ""} en esta sesión
             </span>
@@ -284,8 +278,8 @@ export default function CreateProductPage() {
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* ── Info Básica ─────────────────────────── */}
-          <section className="border-border bg-card rounded-xl border p-6 shadow-sm">
-            <h2 className="text-muted-foreground mb-4 text-sm font-bold tracking-widest uppercase">
+          <section className="border-border-subtle surface-card rounded-xl border p-6">
+            <h2 className="text-muted-foreground mb-4 text-xs font-medium tracking-widest uppercase">
               Información Básica
             </h2>
             <div className="space-y-4">
@@ -295,42 +289,42 @@ export default function CreateProductPage() {
                   required
                   hint="Código único de referencia rápida"
                 >
-                  <input
+                  <Input
                     ref={skuRef}
                     value={fields.sku}
                     onChange={(e) => setField("sku", e.target.value)}
                     placeholder="REF-001"
                     required
                     autoFocus
-                    className={inputBase}
+                    className="min-h-11 font-mono"
                   />
                 </Field>
                 <Field label="Código de Barras" hint="EAN/UPC">
-                  <input
+                  <Input
                     value={fields.barcode}
                     onChange={(e) => setField("barcode", e.target.value)}
                     placeholder="7501234567890"
-                    className={inputBase}
+                    className="min-h-11 font-mono"
                   />
                 </Field>
               </div>
 
               <Field label="Nombre del Producto" required>
-                <input
+                <Input
                   value={fields.name}
                   onChange={(e) => setField("name", e.target.value)}
                   placeholder="Cable USB-C Premium 1.5m"
                   required
-                  className={inputBase}
+                  className="min-h-11"
                 />
               </Field>
 
               <Field label="Descripción Corta">
-                <input
+                <Input
                   value={fields.descriptionShort}
                   onChange={(e) => setField("descriptionShort", e.target.value)}
                   placeholder="Breve descripción del producto"
-                  className={inputBase}
+                  className="min-h-11"
                 />
               </Field>
 
@@ -347,8 +341,8 @@ export default function CreateProductPage() {
           </section>
 
           {/* ── Clasificación ───────────────────────── */}
-          <section className="border-border bg-card rounded-xl border p-6 shadow-sm">
-            <h2 className="text-muted-foreground mb-4 text-sm font-bold tracking-widest uppercase">
+          <section className="border-border-subtle surface-card rounded-xl border p-6">
+            <h2 className="text-muted-foreground mb-4 text-xs font-medium tracking-widest uppercase">
               Clasificación
             </h2>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -412,46 +406,46 @@ export default function CreateProductPage() {
           </section>
 
           {/* ── Logística ───────────────────────────── */}
-          <section className="border-border bg-card rounded-xl border p-6 shadow-sm">
-            <h2 className="text-muted-foreground mb-4 text-sm font-bold tracking-widest uppercase">
+          <section className="border-border-subtle surface-card rounded-xl border p-6">
+            <h2 className="text-muted-foreground mb-4 text-xs font-medium tracking-widest uppercase">
               Logística
             </h2>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <Field label="Peso (kg)">
-                <input
+                <Input
                   type="number"
                   step="0.01"
                   value={fields.weight}
                   onChange={(e) => setField("weight", e.target.value)}
                   placeholder="0.15"
-                  className={inputBase}
+                  className="min-h-11 font-mono tabular-nums"
                 />
               </Field>
               <Field label="Volumen (m³)">
-                <input
+                <Input
                   type="number"
                   step="0.001"
                   value={fields.volume}
                   onChange={(e) => setField("volume", e.target.value)}
                   placeholder="0.002"
-                  className={inputBase}
+                  className="min-h-11 font-mono tabular-nums"
                 />
               </Field>
               <Field label="URL de Imagen">
-                <input
+                <Input
                   type="url"
                   value={fields.imageUrl}
                   onChange={(e) => setField("imageUrl", e.target.value)}
                   placeholder="https://..."
-                  className={inputBase}
+                  className="min-h-11"
                 />
               </Field>
             </div>
           </section>
 
           {/* ── Configuración de Empaque ──── */}
-          <section className="border-border bg-card rounded-xl border p-6 shadow-sm">
-            <h2 className="text-muted-foreground mb-4 text-sm font-bold tracking-widest uppercase">
+          <section className="border-border-subtle surface-card rounded-xl border p-6">
+            <h2 className="text-muted-foreground mb-4 text-xs font-medium tracking-widest uppercase">
               Empaque
             </h2>
             <p className="text-muted-foreground mb-5 text-xs">
@@ -461,7 +455,7 @@ export default function CreateProductPage() {
             {/* Packaging configuration */}
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <Field label="Unidades por Caja">
-                <input
+                <Input
                   type="number"
                   min={1}
                   step={1}
@@ -470,11 +464,11 @@ export default function CreateProductPage() {
                     setStickyField("unitsPerBox", e.target.value)
                   }
                   placeholder="ej: 12"
-                  className={inputBase}
+                  className="min-h-11 font-mono tabular-nums"
                 />
               </Field>
               <Field label="Cajas por Bulto">
-                <input
+                <Input
                   type="number"
                   min={1}
                   step={1}
@@ -483,7 +477,7 @@ export default function CreateProductPage() {
                     setStickyField("boxesPerBulk", e.target.value)
                   }
                   placeholder="ej: 10"
-                  className={inputBase}
+                  className="min-h-11 font-mono tabular-nums"
                 />
               </Field>
               <Field label="Se Vende Por" required>
@@ -511,7 +505,7 @@ export default function CreateProductPage() {
                 </span>{" "}
                 1 Bulto = {sticky.boxesPerBulk} Cajas × {sticky.unitsPerBox}{" "}
                 Unidades ={" "}
-                <strong className="text-foreground">
+                <strong className="text-foreground font-mono tabular-nums">
                   {parseInt(sticky.boxesPerBulk, 10) *
                     parseInt(sticky.unitsPerBox, 10)}{" "}
                   Unidades
@@ -521,8 +515,8 @@ export default function CreateProductPage() {
           </section>
 
           {/* ── Precio ────────────────────────────────── */}
-          <section className="border-border bg-card rounded-xl border p-6 shadow-sm">
-            <h2 className="text-muted-foreground mb-4 text-sm font-bold tracking-widest uppercase">
+          <section className="border-border-subtle surface-card rounded-xl border p-6">
+            <h2 className="text-muted-foreground mb-4 text-xs font-medium tracking-widest uppercase">
               Precio
             </h2>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -531,14 +525,14 @@ export default function CreateProductPage() {
                   <span className="text-muted-foreground absolute top-1/2 left-3 -translate-y-1/2 text-sm">
                     $
                   </span>
-                  <input
+                  <Input
                     type="number"
                     step="0.01"
                     min="0"
                     value={priceUsd}
                     onChange={(e) => setPriceUsd(e.target.value)}
                     placeholder="0.00"
-                    className={`${inputBase} pl-7`}
+                    className="min-h-11 pl-7 font-mono tabular-nums"
                   />
                 </div>
               </Field>
@@ -553,7 +547,7 @@ export default function CreateProductPage() {
                 <div
                   className={`${inputBase} bg-secondary/50 flex items-center justify-between`}
                 >
-                  <span className="font-mono text-sm font-bold">
+                  <span className="font-mono text-sm font-semibold tabular-nums">
                     {ves.oficial.isLoading
                       ? "Cargando…"
                       : effectiveRate > 0
@@ -561,7 +555,7 @@ export default function CreateProductPage() {
                         : "Sin tasa"}
                   </span>
                   {effectiveRate > 0 && (
-                    <span className="rounded bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-blue-400">
+                    <span className="bg-primary/10 text-primary rounded-md px-1.5 py-0.5 text-xs font-semibold">
                       {ves.oficial.source === "dolarapi-oficial"
                         ? "DolarAPI"
                         : ves.oficial.source === "database"
@@ -575,7 +569,7 @@ export default function CreateProductPage() {
                 <div
                   className={`${inputBase} bg-secondary/50 flex items-center justify-between`}
                 >
-                  <span className="text-base font-bold">
+                  <span className="font-mono text-base font-semibold tabular-nums">
                     {priceBs > 0
                       ? `Bs ${priceBs.toLocaleString("es-VE", {
                           minimumFractionDigits: 2,
@@ -584,7 +578,7 @@ export default function CreateProductPage() {
                       : "—"}
                   </span>
                   {effectiveRate > 0 && (
-                    <span className="rounded bg-blue-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-blue-400">
+                    <span className="bg-primary/10 text-primary rounded-md px-1.5 py-0.5 text-xs font-semibold">
                       BCV Oficial
                     </span>
                   )}
@@ -594,20 +588,15 @@ export default function CreateProductPage() {
           </section>
 
           {/* ── Estado ──────────────────────────────── */}
-          <section className="border-border bg-card rounded-xl border p-6 shadow-sm">
-            <h2 className="text-muted-foreground mb-4 text-sm font-bold tracking-widest uppercase">
+          <section className="border-border-subtle surface-card rounded-xl border p-6">
+            <h2 className="text-muted-foreground mb-4 text-xs font-medium tracking-widest uppercase">
               Estado
             </h2>
             <div className="max-w-xs">
               <Field label="Estado del Producto">
                 <select
                   value={sticky.status}
-                  onChange={(e) =>
-                    setStickyField(
-                      "status",
-                      e.target.value as "draft" | "active" | "discontinued",
-                    )
-                  }
+                  onChange={(e) => setStickyField("status", e.target.value)}
                   className={inputBase}
                 >
                   <option value="draft">Borrador</option>
@@ -627,19 +616,17 @@ export default function CreateProductPage() {
 
           {/* ── Actions ─────────────────────────────── */}
           <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-end">
-            <Link
-              href="/catalog"
-              className="border-border text-muted-foreground hover:bg-secondary flex min-h-[44px] items-center justify-center rounded-lg border px-4 py-2.5 text-sm font-medium transition-colors"
-            >
-              Cancelar
-            </Link>
-            <button
+            <Button variant="outline" asChild className="min-h-11">
+              <Link href="/catalog">Cancelar</Link>
+            </Button>
+            <Button
               type="submit"
+              variant="secondary"
               disabled={create.isPending}
               onClick={() => {
                 submitModeRef.current = "save-and-continue";
               }}
-              className="bg-secondary text-foreground hover:bg-accent flex min-h-[44px] items-center justify-center gap-2 rounded-lg px-5 py-2.5 text-sm font-bold transition-colors disabled:opacity-50"
+              className="min-h-11"
             >
               {create.isPending &&
                 submitModeRef.current === "save-and-continue" && (
@@ -651,14 +638,14 @@ export default function CreateProductPage() {
                 playlist_add
               </span>
               Crear y Agregar Otro
-            </button>
-            <button
+            </Button>
+            <Button
               type="submit"
               disabled={create.isPending}
               onClick={() => {
                 submitModeRef.current = "save";
               }}
-              className="bg-primary text-primary-foreground hover:bg-primary/90 flex min-h-[44px] items-center justify-center gap-2 rounded-lg px-5 py-2.5 text-sm font-bold transition-colors disabled:opacity-50"
+              className="min-h-11"
             >
               {create.isPending && submitModeRef.current === "save" && (
                 <span className="material-symbols-outlined animate-spin text-sm">
@@ -666,7 +653,7 @@ export default function CreateProductPage() {
                 </span>
               )}
               Crear Producto
-            </button>
+            </Button>
           </div>
         </form>
       </div>

@@ -15,7 +15,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  NODE_VERSION: "20"
+  NODE_VERSION: "24"
   PNPM_VERSION: "10.30.3"
   TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
   TURBO_TEAM: ${{ vars.TURBO_TEAM }}
@@ -51,13 +51,15 @@ jobs:
 
       - name: Audit dependencies
         run: pnpm audit --prod --audit-level=high
-        continue-on-error: true
 
       - name: Typecheck
         run: pnpm typecheck
 
       - name: Lint
         run: pnpm lint
+
+      - name: Format
+        run: pnpm format
 
       - name: Build
         run: pnpm build

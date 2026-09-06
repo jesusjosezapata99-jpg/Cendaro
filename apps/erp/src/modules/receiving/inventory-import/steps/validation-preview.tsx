@@ -294,7 +294,7 @@ export function ValidationPreview({
 
       {/* ── Table ── */}
       <div className="border-border bg-card overflow-hidden rounded-xl border">
-        <div ref={parentRef} className="max-h-[400px] overflow-auto">
+        <div ref={parentRef} className="max-h-100 overflow-auto">
           <table className="w-full text-sm">
             <thead className="bg-muted/50 sticky top-0 z-10">
               <tr className="border-border border-b text-left">
@@ -349,7 +349,7 @@ export function ValidationPreview({
                 <th className="text-muted-foreground px-3 py-2.5 text-center font-semibold">
                   Estado
                 </th>
-                <th className="text-muted-foreground min-w-[220px] px-3 py-2.5 font-semibold">
+                <th className="text-muted-foreground min-w-55 px-3 py-2.5 font-semibold">
                   Mensaje
                 </th>
               </tr>
@@ -442,17 +442,19 @@ export function ValidationPreview({
                     )}
                     <td className="px-3 py-2.5 text-center">
                       <span
-                        className={`inline-block rounded-full px-2 py-0.5 text-xs font-semibold ${STATUS_COLORS[row.status]}`}
+                        className={`inline-flex items-center justify-center rounded-full p-1 text-xs font-semibold ${STATUS_COLORS[row.status]}`}
                       >
-                        {row.status === "valid"
-                          ? "✅"
-                          : row.status === "warning"
-                            ? "⚠️"
-                            : "❌"}
+                        <span className="material-symbols-outlined text-sm">
+                          {row.status === "valid"
+                            ? "check"
+                            : row.status === "warning"
+                              ? "warning"
+                              : "close"}
+                        </span>
                       </span>
                     </td>
                     {/* ── Message cell — full text, no truncation ── */}
-                    <td className="min-w-[220px] px-3 py-2.5">
+                    <td className="min-w-55 px-3 py-2.5">
                       {row.message ? (
                         <div
                           className={`flex items-start gap-1.5 ${MESSAGE_STYLES[row.status].textColor}`}

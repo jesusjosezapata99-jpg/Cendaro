@@ -59,15 +59,16 @@ pnpm ui-add       # Add shadcn/ui components
 
 > ⛔ Failure to read these files before coding constitutes a critical context failure.
 
-### graphify
+## graphify
 
-This project has an automated knowledge graph at `graphify-out/`.
+This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
 
-- Before answering architecture questions, read `graphify-out/GRAPH_REPORT.md`
-- For cross-module questions use `graphify query`, `graphify path`, `graphify explain` — not grep
-- Updates are 100% automated: a filesystem watcher runs in the background during `pnpm dev`, and Husky hooks automatically trigger `graphify update .` after commits, branch checkouts, and pull/merges. You rarely need to run `graphify update .` manually.
+Rules:
 
----
+- For codebase questions, first run `graphify query "<question>"` when graphify-out/graph.json exists. Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts. These return a scoped subgraph, usually much smaller than GRAPH_REPORT.md or raw grep output.
+- If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
+- Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
+- After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
 
 ## ⚠️ Git Guardrails (MANDATORY)
 

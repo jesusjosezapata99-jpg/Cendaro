@@ -8,6 +8,13 @@
       "~/*": ["./src/*"]
     }
   },
-  "include": ["src", "next-env.d.ts", ".next/types/**/*.ts", "*.ts", "*.js"],
+  "include": [
+    "src",
+    "next-env.d.ts",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts",
+    "*.ts",
+    "*.js"
+  ],
   "exclude": ["node_modules"]
 }

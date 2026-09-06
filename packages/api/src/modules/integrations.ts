@@ -16,13 +16,17 @@ import {
   MlOrder,
 } from "@cendaro/db/schema";
 
-import { createTRPCRouter, workspaceProcedure } from "../trpc";
+import {
+  createTRPCRouter,
+  workspaceProcedure,
+  workspaceReadProcedure,
+} from "../trpc";
 import { logAudit } from "./audit";
 
 export const integrationsRouter = createTRPCRouter({
   // ─── ML Listings (PRD §20) ───────────────────
 
-  listMlListings: workspaceProcedure
+  listMlListings: workspaceReadProcedure
     .input(
       z.object({
         status: z.enum(mlListingStatusEnum.enumValues).optional(),
@@ -82,7 +86,7 @@ export const integrationsRouter = createTRPCRouter({
 
   // ─── ML Orders (PRD §20) ────────────────────
 
-  listMlOrders: workspaceProcedure
+  listMlOrders: workspaceReadProcedure
     .input(
       z.object({
         imported: z.boolean().optional(),
@@ -129,7 +133,7 @@ export const integrationsRouter = createTRPCRouter({
 
   // ─── Integration Logs (PRD §20 alerts) ──────
 
-  listLogs: workspaceProcedure
+  listLogs: workspaceReadProcedure
     .input(
       z.object({
         source: z.string().optional(),
@@ -163,7 +167,7 @@ export const integrationsRouter = createTRPCRouter({
       return query.orderBy(desc(IntegrationLog.createdAt)).limit(input.limit);
     }),
 
-  unresolvedAlerts: workspaceProcedure.query(async ({ ctx }) => {
+  unresolvedAlerts: workspaceReadProcedure.query(async ({ ctx }) => {
     return ctx.db
       .select({
         id: IntegrationLog.id,

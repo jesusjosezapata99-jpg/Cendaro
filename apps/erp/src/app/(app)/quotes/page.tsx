@@ -1,21 +1,41 @@
+import { Suspense } from "react";
 import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
 
+import { ListPageSkeleton } from "~/components/skeleton";
 import { getQueryClient } from "~/trpc/query-client";
-import { api } from "~/trpc/server";
+import { trpc } from "~/trpc/server";
 import QuotesClient from "./client";
+
+/**
+ * Opt out of Next's dev-only instant-navigation validation: this segment's
+ * prefetch is auth-gated (Supabase session + DB), so the synthetic validation
+ * pass can never render it and reports E1286 (instant-unrendered-segment).
+ * The Suspense fallback below already provides the instant shell.
+ */
+export const instant = false;
 
 /**
  * Quotes — Server Component with SSR Prefetch
  * PRD §15: Cotizaciones pre-order obligatorias para wholesale
+ *
+ * Prefetch lives below a Suspense boundary (required by `cacheComponents`
+ * so the segment shell renders instantly — instant-unrendered-segment).
  */
-export default async function QuotesPage() {
+export default function QuotesPage() {
+  return (
+    <Suspense fallback={<ListPageSkeleton />}>
+      <QuotesPrefetch />
+    </Suspense>
+  );
+}
+
+async function QuotesPrefetch() {
   const queryClient = getQueryClient();
 
   try {
-    await queryClient.prefetchQuery({
-      queryKey: [["quotes", "list"], { input: { limit: 50 }, type: "query" }],
-      queryFn: () => api.quotes.list({ limit: 50 }),
-    });
+    await queryClient.prefetchQuery(
+      trpc.quotes.list.queryOptions({ limit: 50 }),
+    );
   } catch {
     // Prefetch failure is non-critical
   }

@@ -33,10 +33,10 @@ const createDb = () => {
     // Connection pool sizing:
     //   Pooler: higher limit since Supavisor manages backend connections
     //   Direct/local: conservative to avoid exhausting connection limits
-    max: isTransactionPooler ? 20 : 5,
+    max: isTransactionPooler ? 20 : 3,
 
-    // Idle connection cleanup — free connections back after 20s of inactivity
-    idle_timeout: 20,
+    // Idle connection cleanup — 60s balances pool reuse vs connection exhaustion
+    idle_timeout: 60,
 
     // Connection timeout — Supabase free-tier hibernates after inactivity.
     // Cold starts can take 15-25s, so we allow 30s for the initial connection.

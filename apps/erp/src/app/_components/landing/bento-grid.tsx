@@ -273,7 +273,7 @@ function MiniVisual({ type }: { type: Feature["visual"] }) {
     case "ai":
       return (
         <div className="mt-4 flex flex-wrap gap-1.5" aria-hidden="true">
-          {["✨ Limpieza", "✨ Hogar", "✨ Textil", "✨ Tech"].map((tag) => (
+          {["Limpieza", "Hogar", "Textil", "Tecnología"].map((tag) => (
             <span
               key={tag}
               className="bg-primary/10 text-primary/60 group-hover:bg-primary/20 rounded-full px-2.5 py-0.5 text-[10px] font-medium transition-colors duration-300"

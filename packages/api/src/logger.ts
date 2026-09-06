@@ -231,9 +231,13 @@ function formatPretty(entry: LogEntry): string {
     ]);
     for (const [key, value] of Object.entries(ctx)) {
       if (!handledKeys.has(key) && value !== undefined) {
-        parts.push(
-          `${key}=${typeof value === "object" ? JSON.stringify(value) : String(value as string | number | boolean)}`,
-        );
+        const strVal =
+          typeof value === "string"
+            ? value
+            : typeof value === "number" || typeof value === "boolean"
+              ? String(value)
+              : JSON.stringify(value);
+        parts.push(`${key}=${strVal}`);
       }
     }
 

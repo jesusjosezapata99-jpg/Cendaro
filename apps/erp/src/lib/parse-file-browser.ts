@@ -12,8 +12,8 @@
  *            (Groq Vision analyzes via URL reference — up to 20MB/image)
  */
 
-import JSZip from "jszip";
-import * as XLSX from "xlsx";
+// XLSX and JSZip are dynamically imported to avoid ~500KB in the main bundle.
+// They are only loaded when a user actually imports a file.
 
 // ── Types ──────────────────────────────────────────────
 export interface BrowserImage {
@@ -79,6 +79,7 @@ const MAX_CHUNK_BYTES = 2 * 1024 * 1024; // 2MB
  *   - bookImages: false → skip image extraction at workbook level
  */
 export async function parseExcelTextOnly(file: File): Promise<string[][]> {
+  const XLSX = await import("xlsx");
   const buffer = await file.arrayBuffer();
   const workbook = XLSX.read(buffer, {
     type: "array",
@@ -179,6 +180,7 @@ export async function parseAndChunkExcel(
  * This is dramatically simpler than the old base64 pipeline.
  */
 export async function extractImageBlobs(file: File): Promise<ImageBlob[]> {
+  const JSZip = (await import("jszip")).default;
   const buffer = await file.arrayBuffer();
   const zip = await JSZip.loadAsync(buffer);
   const images: ImageBlob[] = [];
@@ -237,6 +239,7 @@ export async function parseExcelInBrowser(file: File): Promise<string[][]> {
 export async function extractImagesFromXlsx(
   file: File,
 ): Promise<BrowserImage[]> {
+  const JSZip = (await import("jszip")).default;
   const buffer = await file.arrayBuffer();
   const zip = await JSZip.loadAsync(buffer);
   const images: BrowserImage[] = [];

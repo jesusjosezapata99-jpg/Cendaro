@@ -20,13 +20,17 @@ import {
   warehouseTypeEnum,
 } from "@cendaro/db/schema";
 
-import { createTRPCRouter, workspaceProcedure } from "../trpc";
+import {
+  createTRPCRouter,
+  workspaceProcedure,
+  workspaceReadProcedure,
+} from "../trpc";
 import { logAudit } from "./audit";
 
 export const inventoryRouter = createTRPCRouter({
   // ─── Warehouses ──────────────────────────────
 
-  listWarehouses: workspaceProcedure.query(async ({ ctx }) => {
+  listWarehouses: workspaceReadProcedure.query(async ({ ctx }) => {
     return ctx.db
       .select({
         id: Warehouse.id,
@@ -59,7 +63,7 @@ export const inventoryRouter = createTRPCRouter({
 
   // ─── Stock Overview (all products) ──────────
 
-  stockOverview: workspaceProcedure
+  stockOverview: workspaceReadProcedure
     .input(
       z.object({
         search: z.string().max(256).optional(),
@@ -122,7 +126,7 @@ export const inventoryRouter = createTRPCRouter({
       }));
     }),
 
-  channelSummary: workspaceProcedure.query(async ({ ctx }) => {
+  channelSummary: workspaceReadProcedure.query(async ({ ctx }) => {
     const rows = await ctx.db
       .select({
         channel: ChannelAllocation.channel,
@@ -139,7 +143,7 @@ export const inventoryRouter = createTRPCRouter({
 
   // ─── Stock Overview (single product) ────────
 
-  stockByProduct: workspaceProcedure
+  stockByProduct: workspaceReadProcedure
     .input(z.object({ productId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       const [ledger, channels] = await Promise.all([
@@ -240,7 +244,7 @@ export const inventoryRouter = createTRPCRouter({
 
   // ─── Movements ───────────────────────────────
 
-  listMovements: workspaceProcedure
+  listMovements: workspaceReadProcedure
     .input(
       z.object({
         limit: z.number().int().min(1).max(100).default(25),
@@ -278,7 +282,7 @@ export const inventoryRouter = createTRPCRouter({
 
   // ─── Warehouse Detail ───────────────────────
 
-  getWarehouseDetail: workspaceProcedure
+  getWarehouseDetail: workspaceReadProcedure
     .input(z.object({ id: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       const rows = await ctx.db.execute<{
@@ -324,7 +328,7 @@ export const inventoryRouter = createTRPCRouter({
       };
     }),
 
-  warehouseStock: workspaceProcedure
+  warehouseStock: workspaceReadProcedure
     .input(
       z.object({
         warehouseId: z.string().uuid(),
@@ -409,7 +413,7 @@ export const inventoryRouter = createTRPCRouter({
 
   // ─── Inventory Counts (PRD §9.7) ─────────────
 
-  listCounts: workspaceProcedure.query(async ({ ctx }) => {
+  listCounts: workspaceReadProcedure.query(async ({ ctx }) => {
     return ctx.db
       .select({
         id: InventoryCount.id,
@@ -476,7 +480,7 @@ export const inventoryRouter = createTRPCRouter({
 
   // ─── Count Items ─────────────────────────────
 
-  listCountItems: workspaceProcedure
+  listCountItems: workspaceReadProcedure
     .input(z.object({ countId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       const rows = await ctx.db.execute<{

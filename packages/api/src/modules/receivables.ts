@@ -7,19 +7,22 @@
 import { desc, eq, sql } from "drizzle-orm";
 import { z } from "zod/v4";
 
-import type { installmentStatusEnum } from "@cendaro/db/schema";
 import {
   AccountReceivable,
   ArInstallment,
   PaymentAllocation,
 } from "@cendaro/db/schema";
 
-import { createTRPCRouter, workspaceProcedure } from "../trpc";
+import {
+  createTRPCRouter,
+  workspaceProcedure,
+  workspaceReadProcedure,
+} from "../trpc";
 import { logAudit } from "./audit";
 
 export const receivablesRouter = createTRPCRouter({
   // ─── List all AR accounts ─────────────────────
-  list: workspaceProcedure
+  list: workspaceReadProcedure
     .input(
       z.object({
         limit: z.number().int().min(1).max(100).default(25),
@@ -43,7 +46,7 @@ export const receivablesRouter = createTRPCRouter({
     }),
 
   // ─── Get by ID with installments + allocations ─
-  byId: workspaceProcedure
+  byId: workspaceReadProcedure
     .input(z.object({ id: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       const [receivable] = await ctx.db
@@ -115,7 +118,7 @@ export const receivablesRouter = createTRPCRouter({
       const [updated] = await ctx.db
         .update(ArInstallment)
         .set({
-          status: "paid" as (typeof installmentStatusEnum.enumValues)[number],
+          status: "paid",
           paidAt: new Date(),
         })
         .where(eq(ArInstallment.id, input.installmentId))
@@ -131,7 +134,7 @@ export const receivablesRouter = createTRPCRouter({
     }),
 
   // ─── Summary stats ────────────────────────────
-  summary: workspaceProcedure.query(async ({ ctx }) => {
+  summary: workspaceReadProcedure.query(async ({ ctx }) => {
     const [stats] = await ctx.db
       .select({
         totalActive: sql<number>`count(*) filter (where ${AccountReceivable.status} = 'pending')`,

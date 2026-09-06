@@ -17,11 +17,15 @@ import {
   Product,
 } from "@cendaro/db/schema";
 
-import { createTRPCRouter, workspaceProcedure } from "../trpc";
+import {
+  createTRPCRouter,
+  workspaceProcedure,
+  workspaceReadProcedure,
+} from "../trpc";
 import { logAudit } from "./audit";
 
 export const containerRouter = createTRPCRouter({
-  list: workspaceProcedure.query(async ({ ctx }) => {
+  list: workspaceReadProcedure.query(async ({ ctx }) => {
     return ctx.db.select().from(Container).orderBy(desc(Container.createdAt));
   }),
 
@@ -143,7 +147,7 @@ export const containerRouter = createTRPCRouter({
     }),
 
   // ── AI Prompt Config ───────────────────────────────
-  getAIPromptConfig: workspaceProcedure.query(async ({ ctx }) => {
+  getAIPromptConfig: workspaceReadProcedure.query(async ({ ctx }) => {
     const [config] = await ctx.db
       .select()
       .from(AiPromptConfig)
@@ -198,7 +202,7 @@ export const containerRouter = createTRPCRouter({
     }),
 
   // ── Catalog Snapshot (for context injection) ──────
-  getCatalogSnapshot: workspaceProcedure.query(async ({ ctx }) => {
+  getCatalogSnapshot: workspaceReadProcedure.query(async ({ ctx }) => {
     const categories = await ctx.db
       .select({ id: Category.id, name: Category.name, slug: Category.slug })
       .from(Category)
@@ -395,7 +399,7 @@ export const containerRouter = createTRPCRouter({
     }),
 
   /** Get packing list items for a container (paginated for virtual scroll) */
-  getPackingListItems: workspaceProcedure
+  getPackingListItems: workspaceReadProcedure
     .input(
       z.object({
         containerId: z.string().uuid(),

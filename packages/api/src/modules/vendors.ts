@@ -16,7 +16,11 @@ import {
   VendorCommission,
 } from "@cendaro/db/schema";
 
-import { createTRPCRouter, workspaceProcedure } from "../trpc";
+import {
+  createTRPCRouter,
+  workspaceProcedure,
+  workspaceReadProcedure,
+} from "../trpc";
 import { logAudit } from "./audit";
 
 export const vendorRouter = createTRPCRouter({
@@ -71,7 +75,7 @@ export const vendorRouter = createTRPCRouter({
         .limit(input.limit);
     }),
 
-  myCustomers: workspaceProcedure.query(async ({ ctx }) => {
+  myCustomers: workspaceReadProcedure.query(async ({ ctx }) => {
     return ctx.db
       .select({
         id: Customer.id,
@@ -198,7 +202,7 @@ export const vendorRouter = createTRPCRouter({
       return row ?? null;
     }),
 
-  overdueAR: workspaceProcedure.query(async ({ ctx }) => {
+  overdueAR: workspaceReadProcedure.query(async ({ ctx }) => {
     return ctx.db
       .select({
         id: AccountReceivable.id,

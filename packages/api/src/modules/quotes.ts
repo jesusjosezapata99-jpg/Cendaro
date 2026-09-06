@@ -213,7 +213,7 @@ export const quotesRouter = createTRPCRouter({
       await ctx.db
         .update(Quote)
         .set({
-          status: "converted" as (typeof quoteStatusEnum.enumValues)[number],
+          status: "converted",
           convertedOrderId: order?.id,
           updatedAt: new Date(),
         })

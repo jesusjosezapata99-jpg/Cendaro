@@ -5,6 +5,14 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 
+import { Button } from "@cendaro/ui";
+
+import type { StatusTone } from "~/components/status-badge";
+import { EmptyState } from "~/components/empty-state";
+import { PageHeader } from "~/components/page-header";
+import { Skeleton } from "~/components/skeleton";
+import { StatCard } from "~/components/stat-card";
+import { StatusBadge } from "~/components/status-badge";
 import { useBcvRate } from "~/hooks/use-bcv-rate";
 import { formatDualCurrency } from "~/lib/format-currency";
 import { useTRPC } from "~/trpc/client";
@@ -17,39 +25,18 @@ const CreateOrderDialog = dynamic(
   { ssr: false },
 );
 
-function Skeleton({ className = "" }: { className?: string }) {
-  return <div className={`bg-muted animate-pulse rounded-lg ${className}`} />;
-}
-
-const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
-  pending: {
-    label: "Pendiente",
-    color:
-      "bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400",
-  },
-  confirmed: {
-    label: "Confirmado",
-    color: "bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400",
-  },
-  prepared: {
-    label: "Preparado",
-    color: "bg-cyan-100 dark:bg-cyan-500/20 text-cyan-600 dark:text-cyan-400",
-  },
-  dispatched: {
-    label: "Despachado",
-    color:
-      "bg-violet-100 dark:bg-violet-500/20 text-violet-600 dark:text-violet-400",
-  },
-  delivered: {
-    label: "Entregado",
-    color:
-      "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400",
-  },
-  cancelled: {
-    label: "Anulado",
-    color: "bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-400",
-  },
-  returned: { label: "Devuelto", color: "bg-secondary text-muted-foreground" },
+/** Order status → semantic token chip (single source of truth). */
+const STATUS_CONFIG: Record<string, { label: string; tone: StatusTone }> = {
+  draft: { label: "Borrador", tone: "neutral" },
+  pending: { label: "Pendiente", tone: "warning" },
+  pending_confirmation: { label: "Por Confirmar", tone: "warning" },
+  confirmed: { label: "Confirmado", tone: "primary" },
+  prepared: { label: "Preparado", tone: "primary" },
+  dispatched: { label: "Despachado", tone: "primary" },
+  delivered: { label: "Entregado", tone: "success" },
+  invoiced: { label: "Facturado", tone: "primary" },
+  cancelled: { label: "Anulado", tone: "destructive" },
+  returned: { label: "Devuelto", tone: "neutral" },
 };
 
 const CHANNEL_ICONS: Record<string, string> = {
@@ -59,6 +46,9 @@ const CHANNEL_ICONS: Record<string, string> = {
   whatsapp: "chat",
   instagram: "photo_camera",
 };
+
+/** Shared cell padding for the orders table. */
+const cellPx = "px-4 py-3";
 
 export default function OrdersClient() {
   const trpc = useTRPC();
@@ -71,12 +61,16 @@ export default function OrdersClient() {
       status:
         statusFilter !== "all"
           ? (statusFilter as
+              | "draft"
               | "pending"
+              | "pending_confirmation"
               | "confirmed"
               | "prepared"
               | "dispatched"
               | "delivered"
-              | "cancelled")
+              | "invoiced"
+              | "cancelled"
+              | "returned")
           : undefined,
     }),
   );
@@ -87,80 +81,61 @@ export default function OrdersClient() {
   const totalCobrado = list.reduce((s, o) => s + Number(o.totalPaid), 0);
 
   return (
-    <div className="space-y-6 p-4 lg:p-8">
-      {/* Header — stacks vertically on mobile */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-foreground text-2xl font-black tracking-tight">
-            Órdenes de Venta
-          </h1>
-          <p className="text-muted-foreground mt-1 text-sm">
-            Gestión de pedidos multicanal
-          </p>
-        </div>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="bg-primary text-primary-foreground hover:bg-primary/90 flex min-h-[44px] w-full items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-bold transition-colors sm:w-auto"
-        >
-          <span className="material-symbols-outlined text-lg">add</span>
-          Nueva Orden
-        </button>
-      </div>
+    <div className="animate-in fade-in slide-in-from-bottom-1 space-y-6 p-4 duration-200 lg:p-8">
+      <PageHeader
+        title="Órdenes de Venta"
+        description="Gestión de pedidos multicanal"
+        actions={
+          <div className="flex w-full gap-2 sm:w-auto">
+            <Button
+              onClick={() => setShowCreate(true)}
+              className="min-h-11 flex-1 sm:flex-initial"
+            >
+              <span className="material-symbols-outlined text-lg">add</span>
+              Nueva Orden
+            </Button>
+          </div>
+        }
+      />
 
       <CreateOrderDialog
         open={showCreate}
         onClose={() => setShowCreate(false)}
       />
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        {[
-          {
-            label: "Órdenes",
-            value: isLoading ? "—" : list.length,
-            icon: "list_alt",
-            accent: "border-blue-500/40",
-          },
-          {
-            label: "Total Ingresos",
-            value: isLoading
-              ? "—"
-              : formatDualCurrency(totalIngresos, bcv.rate).usd,
-            sub: isLoading
-              ? ""
-              : formatDualCurrency(totalIngresos, bcv.rate).bs,
-            icon: "payments",
-            accent: "border-emerald-500/40",
-          },
-          {
-            label: "Total Cobrado",
-            value: isLoading
-              ? "—"
-              : formatDualCurrency(totalCobrado, bcv.rate).usd,
-            sub: isLoading ? "" : formatDualCurrency(totalCobrado, bcv.rate).bs,
-            icon: "check_circle",
-            accent: "border-violet-500/40",
-          },
-        ].map((stat) => (
-          <div
-            key={stat.label}
-            className={`rounded-xl border-l-4 ${stat.accent} bg-card border-border border p-4`}
-          >
-            <div className="flex items-center gap-2">
-              <span className="material-symbols-outlined text-muted-foreground text-lg">
-                {stat.icon}
-              </span>
-              <span className="text-muted-foreground text-[10px] font-bold tracking-widest uppercase">
-                {stat.label}
-              </span>
-            </div>
-            <p className="text-foreground mt-1 text-2xl font-bold">
-              {stat.value}
-            </p>
-            {"sub" in stat && stat.sub && (
-              <p className="text-muted-foreground text-xs">{stat.sub}</p>
-            )}
-          </div>
-        ))}
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <StatCard
+          label="Órdenes"
+          value={isLoading ? "—" : list.length.toLocaleString("es-VE")}
+          icon="list_alt"
+        />
+        <StatCard
+          label="Total Ingresos"
+          value={
+            isLoading ? "—" : formatDualCurrency(totalIngresos, bcv.rate).usd
+          }
+          sub={
+            isLoading
+              ? undefined
+              : formatDualCurrency(totalIngresos, bcv.rate).bs
+          }
+          icon="payments"
+          tone="primary"
+        />
+        <StatCard
+          label="Total Cobrado"
+          value={
+            isLoading ? "—" : formatDualCurrency(totalCobrado, bcv.rate).usd
+          }
+          sub={
+            isLoading
+              ? undefined
+              : formatDualCurrency(totalCobrado, bcv.rate).bs
+          }
+          icon="check_circle"
+          tone="success"
+        />
       </div>
 
       {/* Filter chips — wraps on mobile */}
@@ -172,15 +147,16 @@ export default function OrdersClient() {
           "prepared",
           "dispatched",
           "delivered",
+          "invoiced",
           "cancelled",
         ].map((s) => (
           <button
             key={s}
             onClick={() => setStatusFilter(s)}
-            className={`min-h-[36px] shrink-0 rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${
+            className={`min-h-9 shrink-0 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
               statusFilter === s
-                ? "bg-primary text-primary-foreground"
-                : "bg-secondary text-muted-foreground hover:bg-accent"
+                ? "border-primary bg-primary text-primary-foreground"
+                : "border-border-subtle text-muted-foreground hover:bg-accent/50 hover:text-foreground"
             }`}
           >
             {s === "all" ? "Todos" : (STATUS_CONFIG[s]?.label ?? s)}
@@ -192,154 +168,172 @@ export default function OrdersClient() {
       <div className="space-y-3 md:hidden">
         {isLoading
           ? Array.from({ length: 4 }).map((_, i) => (
-              <Skeleton key={i} className="h-24 w-full" />
+              <div
+                key={i}
+                className="border-border-subtle surface-card rounded-xl border p-4"
+              >
+                <Skeleton className="h-5 w-3/4" />
+                <Skeleton className="mt-2 h-4 w-24" />
+              </div>
             ))
           : list.map((order) => {
               const statusCfg = STATUS_CONFIG[order.status] ?? {
                 label: order.status,
-                color: "",
+                tone: "neutral" as StatusTone,
               };
               const isPaid = Number(order.totalPaid) >= Number(order.total);
               return (
                 <Link
                   key={order.id}
                   href={`/orders/${order.id}`}
-                  className="border-border bg-card hover:border-primary/30 block rounded-xl border p-4 transition-colors"
+                  className="border-border-subtle surface-card hover:border-primary/30 block rounded-xl border p-4 transition-colors"
                 >
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2">
                       <span
+                        aria-hidden
                         className="material-symbols-outlined text-muted-foreground text-lg"
                         title={order.channel}
                       >
                         {CHANNEL_ICONS[order.channel] ?? "list_alt"}
                       </span>
-                      <span className="text-primary font-mono text-sm font-bold">
+                      <span className="text-primary font-mono text-sm font-semibold tabular-nums">
                         {order.orderNumber}
                       </span>
                     </div>
-                    <span
-                      className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold ${statusCfg.color}`}
-                    >
+                    <StatusBadge tone={statusCfg.tone}>
                       {statusCfg.label}
-                    </span>
+                    </StatusBadge>
                   </div>
                   <div className="mt-3 flex items-center justify-between">
                     <div>
-                      <p className="text-muted-foreground text-[10px] font-bold uppercase">
+                      <p className="text-muted-foreground text-xs font-medium tracking-wider uppercase">
                         Total
                       </p>
-                      <p className="text-foreground font-mono font-bold">
+                      <p className="text-foreground font-mono font-semibold tabular-nums">
                         ${Number(order.total).toFixed(2)}
                       </p>
                       {bcv.rate > 0 && (
-                        <p className="text-muted-foreground text-[10px]">
+                        <p className="text-muted-foreground text-xs">
                           {formatDualCurrency(Number(order.total), bcv.rate).bs}
                         </p>
                       )}
                     </div>
                     <div className="text-right">
-                      <p className="text-muted-foreground text-[10px] font-bold uppercase">
+                      <p className="text-muted-foreground text-xs font-medium tracking-wider uppercase">
                         Pagado
                       </p>
                       <p
-                        className={`font-mono font-bold ${isPaid ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"}`}
+                        className={`font-mono font-semibold tabular-nums ${
+                          isPaid ? "text-success-soft" : "text-warning-soft"
+                        }`}
                       >
                         ${Number(order.totalPaid).toFixed(2)}
                       </p>
                     </div>
                   </div>
-                  <p className="text-muted-foreground mt-2 font-mono text-[10px]">
+                  <p className="text-muted-foreground mt-2 font-mono text-xs tabular-nums">
                     {new Date(order.createdAt).toLocaleString("es-VE")}
                   </p>
                 </Link>
               );
             })}
         {!isLoading && list.length === 0 && (
-          <div className="text-muted-foreground flex flex-col items-center py-12 text-center">
-            <span className="material-symbols-outlined mb-2 text-3xl">
-              shopping_cart_off
-            </span>
-            No se encontraron órdenes
-          </div>
+          <EmptyState
+            icon="shopping_cart_off"
+            title="No se encontraron órdenes"
+            description="Ajusta el filtro de estado o crea una nueva orden para comenzar."
+          />
         )}
       </div>
 
       {/* ── Desktop: Table View ───────────────────── */}
-      <div className="border-border bg-card hidden overflow-hidden rounded-xl border md:block">
+      <div className="border-border-subtle surface-card hidden gap-0 overflow-hidden rounded-xl border py-0 md:block">
         <table className="w-full text-left text-sm">
           <thead>
-            <tr className="border-border text-muted-foreground border-b text-[10px] font-bold tracking-widest uppercase">
-              <th className="px-4 py-3">Orden</th>
-              <th className="px-4 py-3">Canal</th>
-              <th className="px-4 py-3 text-center">Estado</th>
-              <th className="px-4 py-3 text-right">Total</th>
-              <th className="px-4 py-3 text-right">Pagado</th>
-              <th className="px-4 py-3">Fecha</th>
+            <tr className="border-border-subtle border-b">
+              <th
+                className={`text-muted-foreground ${cellPx} text-xs font-medium tracking-widest uppercase`}
+              >
+                Orden
+              </th>
+              <th
+                className={`text-muted-foreground ${cellPx} text-xs font-medium tracking-widest uppercase`}
+              >
+                Canal
+              </th>
+              <th
+                className={`text-muted-foreground ${cellPx} text-center text-xs font-medium tracking-widest uppercase`}
+              >
+                Estado
+              </th>
+              <th
+                className={`text-muted-foreground ${cellPx} text-right text-xs font-medium tracking-widest uppercase`}
+              >
+                Total
+              </th>
+              <th
+                className={`text-muted-foreground ${cellPx} text-right text-xs font-medium tracking-widest uppercase`}
+              >
+                Pagado
+              </th>
+              <th
+                className={`text-muted-foreground ${cellPx} text-xs font-medium tracking-widest uppercase`}
+              >
+                Fecha
+              </th>
             </tr>
           </thead>
           <tbody>
             {isLoading
               ? Array.from({ length: 5 }).map((_, i) => (
-                  <tr key={i} className="border-border border-b">
-                    <td className="px-4 py-3">
-                      <Skeleton className="h-5 w-24" />
-                    </td>
-                    <td className="px-4 py-3">
-                      <Skeleton className="h-5 w-8" />
-                    </td>
-                    <td className="px-4 py-3">
-                      <Skeleton className="mx-auto h-5 w-20" />
-                    </td>
-                    <td className="px-4 py-3">
-                      <Skeleton className="ml-auto h-5 w-20" />
-                    </td>
-                    <td className="px-4 py-3">
-                      <Skeleton className="ml-auto h-5 w-20" />
-                    </td>
-                    <td className="px-4 py-3">
-                      <Skeleton className="h-5 w-28" />
-                    </td>
+                  <tr key={i} className="border-border-subtle border-b">
+                    {Array.from({ length: 6 }).map((_, j) => (
+                      <td key={j} className={cellPx}>
+                        <Skeleton className="h-5 w-16" />
+                      </td>
+                    ))}
                   </tr>
                 ))
               : list.map((order) => {
                   const statusCfg = STATUS_CONFIG[order.status] ?? {
                     label: order.status,
-                    color: "",
+                    tone: "neutral" as StatusTone,
                   };
                   const isPaid = Number(order.totalPaid) >= Number(order.total);
                   return (
                     <tr
                       key={order.id}
-                      className="border-border hover:bg-accent/50 border-b transition-colors"
+                      className="border-border-subtle hover:bg-accent/50 border-b transition-colors"
                     >
-                      <td className="px-4 py-3">
+                      <td className={cellPx}>
                         <Link
                           href={`/orders/${order.id}`}
-                          className="text-primary font-mono text-xs font-bold hover:underline"
+                          className="text-primary font-mono text-xs font-semibold tabular-nums hover:underline"
                         >
                           {order.orderNumber}
                         </Link>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className={cellPx}>
                         <span
+                          aria-hidden
                           className="material-symbols-outlined text-muted-foreground text-lg"
                           title={order.channel}
                         >
                           {CHANNEL_ICONS[order.channel] ?? "list_alt"}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-center">
-                        <span
-                          className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold ${statusCfg.color}`}
-                        >
+                      <td className={`${cellPx} text-center`}>
+                        <StatusBadge tone={statusCfg.tone}>
                           {statusCfg.label}
-                        </span>
+                        </StatusBadge>
                       </td>
-                      <td className="text-foreground px-4 py-3 text-right font-mono font-bold">
+                      <td
+                        className={`text-foreground ${cellPx} text-right font-mono font-semibold tabular-nums`}
+                      >
                         ${Number(order.total).toFixed(2)}
                         {bcv.rate > 0 && (
-                          <span className="text-muted-foreground ml-1 text-[10px] font-normal">
+                          <span className="text-muted-foreground ml-1 text-xs font-normal tabular-nums">
                             {
                               formatDualCurrency(Number(order.total), bcv.rate)
                                 .bs
@@ -347,39 +341,39 @@ export default function OrdersClient() {
                           </span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-right">
-                        <span
-                          className={`font-mono ${isPaid ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"}`}
-                        >
-                          ${Number(order.totalPaid).toFixed(2)}
-                          {bcv.rate > 0 && (
-                            <span className="text-muted-foreground ml-1 text-[10px] font-normal">
-                              {
-                                formatDualCurrency(
-                                  Number(order.totalPaid),
-                                  bcv.rate,
-                                ).bs
-                              }
-                            </span>
-                          )}
-                        </span>
+                      <td
+                        className={`${cellPx} text-right font-mono font-semibold tabular-nums ${
+                          isPaid ? "text-success-soft" : "text-warning-soft"
+                        }`}
+                      >
+                        ${Number(order.totalPaid).toFixed(2)}
+                        {bcv.rate > 0 && (
+                          <span className="text-muted-foreground ml-1 text-xs font-normal tabular-nums">
+                            {
+                              formatDualCurrency(
+                                Number(order.totalPaid),
+                                bcv.rate,
+                              ).bs
+                            }
+                          </span>
+                        )}
                       </td>
-                      <td className="text-muted-foreground px-4 py-3 font-mono text-xs">
+                      <td
+                        className={`text-muted-foreground ${cellPx} font-mono text-xs tabular-nums`}
+                      >
                         {new Date(order.createdAt).toLocaleString("es-VE")}
                       </td>
                     </tr>
                   );
                 })}
             {!isLoading && list.length === 0 && (
-              <tr>
-                <td
-                  colSpan={6}
-                  className="text-muted-foreground px-4 py-12 text-center"
-                >
-                  <span className="material-symbols-outlined mb-2 block text-3xl">
-                    shopping_cart_off
-                  </span>
-                  No se encontraron órdenes
+              <tr className="hover:bg-transparent">
+                <td colSpan={6} className="px-4 py-6">
+                  <EmptyState
+                    icon="shopping_cart_off"
+                    title="No se encontraron órdenes"
+                    description="Ajusta el filtro de estado o crea una nueva orden para comenzar."
+                  />
                 </td>
               </tr>
             )}
