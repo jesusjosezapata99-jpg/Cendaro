@@ -115,3 +115,22 @@
 [2m16:23:09[0m 🔍 [90mDEBUG[0m [1m→ dashboard.activeAlertCount[0m [2m(path=dashboard.activeAlertCount, user=ca8825b2…, role=owner, req=mtpwj2g0…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
 [2m16:23:09[0m ℹ️  [36mINFO [0m [1m✓ dashboard.activeAlertCount[0m [2m(path=dashboard.activeAlertCount, duration=258ms, user=ca8825b2…, role=owner, req=mtpwj2g0…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
  GET /api/trpc/dashboard.activeAlertCount?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 281ms (next.js: 10ms, proxy.ts: 3ms, application-code: 268ms)
+✓ Compiled in 728ms
+ GET / 200 in 361ms (next.js: 27ms, proxy.ts: 19ms, application-code: 315ms)
+[2m16:23:45[0m 🔍 [90mDEBUG[0m [1m→ sales.orderById[0m [2m(path=sales.orderById, user=ca8825b2…, role=owner, req=mtpwjucq…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:23:45[0m 🔍 [90mDEBUG[0m [1m→ pricing.latestRates[0m [2m(path=pricing.latestRates, user=ca8825b2…, role=owner, req=mtpwjucq…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:23:46[0m 🔍 [90mDEBUG[0m [1m→ users.me[0m [2m(path=users.me, user=ca8825b2…, role=owner, req=mtpwjujq…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:23:46[0m 🔍 [90mDEBUG[0m [1m→ workspace.list[0m [2m(path=workspace.list, user=ca8825b2…, role=owner, req=mtpwjujq…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:23:46[0m 🔍 [90mDEBUG[0m [1m→ pricing.latestRates[0m [2m(path=pricing.latestRates, user=ca8825b2…, role=owner, req=mtpwjujq…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:23:46[0m 🔍 [90mDEBUG[0m [1m→ sales.orderById[0m [2m(path=sales.orderById, user=ca8825b2…, role=owner, req=mtpwjujq…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:23:46[0m ℹ️  [36mINFO [0m [1m✓ pricing.latestRates[0m [2m(path=pricing.latestRates, duration=272ms, user=ca8825b2…, role=owner, req=mtpwjucq…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:23:46[0m ℹ️  [36mINFO [0m [1m✓ sales.orderById[0m [2m(path=sales.orderById, duration=277ms, user=ca8825b2…, role=owner, req=mtpwjucq…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+ GET /api/trpc/sales.orderById,pricing.latestRates?batch=1&input=%7B%220%22%3A%7B%22json%22%3A%7B%22id%22%3A%2200000000-0000-4000-8000-000000000000%22%7D%7D%2C%221%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 910ms (next.js: 293ms, proxy.ts: 24ms, application-code: 593ms)
+[2m16:23:46[0m ℹ️  [36mINFO [0m [1m✓ workspace.list[0m [2m(path=workspace.list, duration=300ms, user=ca8825b2…, role=owner, req=mtpwjujq…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:23:46[0m ℹ️  [36mINFO [0m [1m✓ users.me[0m [2m(path=users.me, duration=345ms, user=ca8825b2…, role=owner, req=mtpwjujq…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:23:46[0m ℹ️  [36mINFO [0m [1m✓ pricing.latestRates[0m [2m(path=pricing.latestRates, duration=376ms, user=ca8825b2…, role=owner, req=mtpwjujq…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:23:46[0m ℹ️  [36mINFO [0m [1m✓ sales.orderById[0m [2m(path=sales.orderById, duration=467ms, user=ca8825b2…, role=owner, req=mtpwjujq…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+ GET /orders/00000000-0000-4000-8000-000000000000 200 in 1354ms (next.js: 54ms, proxy.ts: 627ms, generate-params: 14ms, application-code: 660ms)
+[2m16:24:09[0m 🔍 [90mDEBUG[0m [1m→ dashboard.activeAlertCount[0m [2m(path=dashboard.activeAlertCount, user=ca8825b2…, role=owner, req=mtpwkd0y…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+[2m16:24:10[0m 🔍 [90mDEBUG[0m [1m✓ dashboard.activeAlertCount[0m [2m(path=dashboard.activeAlertCount, duration=118ms, user=ca8825b2…, role=owner, req=mtpwkd0y…, workspaceId=a0000000-0000-0000-0000-000000000001)[0m
+ GET /api/trpc/dashboard.activeAlertCount?batch=1&input=%7B%220%22%3A%7B%22json%22%3Anull%2C%22meta%22%3A%7B%22values%22%3A%5B%22undefined%22%5D%2C%22v%22%3A1%7D%7D%7D 200 in 206ms (next.js: 49ms, proxy.ts: 14ms, application-code: 143ms)

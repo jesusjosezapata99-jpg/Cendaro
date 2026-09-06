@@ -78,3 +78,4 @@ TypeError: fetch failed
     code: 'UND_ERR_CONNECT_TIMEOUT'
   }
 }
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
