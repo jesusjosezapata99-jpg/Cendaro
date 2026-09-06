@@ -1,9 +1,27 @@
 "use client";
 
-import { lazy, Suspense, useState } from "react";
+import { lazy, Suspense, useMemo, useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 
+import {
+  Button,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@cendaro/ui";
+
+import type { StatusTone } from "~/components/status-badge";
+import { EmptyState } from "~/components/empty-state";
+import { PageHeader } from "~/components/page-header";
+import { Skeleton } from "~/components/skeleton";
+import { StatCard } from "~/components/stat-card";
+import { StatusBadge } from "~/components/status-badge";
+import { useBcvRate } from "~/hooks/use-bcv-rate";
+import { formatDualCurrency } from "~/lib/format-currency";
 import { useTRPC } from "~/trpc/client";
 
 const CreateContainerDialog = lazy(() =>
@@ -12,198 +30,214 @@ const CreateContainerDialog = lazy(() =>
   })),
 );
 
-function Skeleton({ className = "" }: { className?: string }) {
-  return <div className={`bg-muted animate-pulse rounded-lg ${className}`} />;
-}
-
 const STATUS_CONFIG: Record<
   string,
-  { label: string; color: string; icon: string }
+  { label: string; tone: StatusTone; icon: string }
 > = {
   created: {
     label: "Creado",
-    color: "bg-secondary text-muted-foreground",
+    tone: "neutral",
     icon: "draft",
   },
   in_transit: {
     label: "En Tránsito",
-    color: "bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400",
+    tone: "primary",
     icon: "directions_boat",
   },
   received: {
     label: "Recibido",
-    color:
-      "bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400",
+    tone: "warning",
     icon: "move_to_inbox",
   },
   closed: {
     label: "Cerrado",
-    color:
-      "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400",
+    tone: "success",
     icon: "check_circle",
   },
 };
 
+const FILTER_TABS = [
+  { key: "all", label: "Todos" },
+  { key: "created", label: "Creados" },
+  { key: "in_transit", label: "En Tránsito" },
+  { key: "received", label: "Recibidos" },
+  { key: "closed", label: "Cerrados" },
+] as const;
+
 export default function ContainersPage() {
   const trpc = useTRPC();
+  const bcv = useBcvRate();
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [showCreate, setShowCreate] = useState(false);
+
   const { data: containers, isLoading } = useQuery(
     trpc.container.list.queryOptions(),
   );
 
-  const list = containers ?? [];
-  const filtered =
-    statusFilter === "all"
-      ? list
-      : list.filter((c) => c.status === statusFilter);
-  const inTransit = list.filter((c) => c.status === "in_transit").length;
-  const pending = list.filter((c) => c.status === "received").length;
-  const totalFob = list.reduce((s, c) => s + Number(c.costFob ?? 0), 0);
+  const list = useMemo(() => containers ?? [], [containers]);
+
+  const filtered = useMemo(() => {
+    if (statusFilter === "all") return list;
+    return list.filter((c) => c.status === statusFilter);
+  }, [list, statusFilter]);
+
+  const inTransit = useMemo(
+    () => list.filter((c) => c.status === "in_transit").length,
+    [list],
+  );
+
+  const received = useMemo(
+    () => list.filter((c) => c.status === "received").length,
+    [list],
+  );
+
+  const totalFob = useMemo(
+    () => list.reduce((s, c) => s + Number(c.costFob ?? 0), 0),
+    [list],
+  );
+
+  const dualFob = useMemo(
+    () => formatDualCurrency(totalFob, bcv.rate),
+    [totalFob, bcv.rate],
+  );
 
   return (
-    <>
-      <div className="space-y-6 p-4 lg:p-8">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-foreground text-2xl font-black tracking-tight">
-              Contenedores
-            </h1>
-            <p className="text-muted-foreground mt-1 text-sm">
-              Gestión de importaciones y recepción de mercancía
-            </p>
-          </div>
-          <button
-            onClick={() => setShowCreate(true)}
-            className="bg-primary text-primary-foreground hover:bg-primary/90 flex min-h-[44px] w-full items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-bold transition-colors sm:w-auto"
-          >
-            <span className="material-symbols-outlined text-lg">add</span>
-            Nuevo Contenedor
-          </button>
-        </div>
+    <div className="space-y-6 p-4 lg:p-8">
+      {/* Page Header */}
+      <PageHeader
+        title="Contenedores & Importaciones"
+        description="Gestión logística de importaciones internacionales, costeo FOB y recepción de carga"
+      >
+        <Button
+          onClick={() => setShowCreate(true)}
+          className="min-h-11 w-full gap-2 sm:w-auto"
+        >
+          <span className="material-symbols-outlined text-lg">add</span>
+          Nuevo Contenedor
+        </Button>
+      </PageHeader>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
-          {[
-            {
-              label: "Total",
-              value: isLoading ? "—" : list.length,
-              icon: "package_2",
-              accent: "border-blue-500/40",
-            },
-            {
-              label: "En Tránsito",
-              value: isLoading ? "—" : inTransit,
-              icon: "directions_boat",
-              accent: "border-cyan-500/40",
-            },
-            {
-              label: "Pendientes",
-              value: isLoading ? "—" : pending,
-              icon: "move_to_inbox",
-              accent: "border-amber-500/40",
-            },
-            {
-              label: "FOB Total",
-              value: isLoading ? "—" : `$${totalFob.toLocaleString()}`,
-              icon: "attach_money",
-              accent: "border-emerald-500/40",
-            },
-          ].map((stat) => (
-            <div
-              key={stat.label}
-              className={`rounded-xl border-l-4 ${stat.accent} bg-card border-border border p-4`}
+      {/* 4 StatCards */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard
+          label="Total Contenedores"
+          value={isLoading ? "—" : list.length}
+          icon="package_2"
+          tone="default"
+          sub="En todas las fases del flujo"
+        />
+        <StatCard
+          label="En Tránsito"
+          value={isLoading ? "—" : inTransit}
+          icon="directions_boat"
+          tone="primary"
+          sub="Carga marítima / aérea en curso"
+        />
+        <StatCard
+          label="En Puerto / Recepción"
+          value={isLoading ? "—" : received}
+          icon="move_to_inbox"
+          tone="warning"
+          sub="Pendientes por descargar o verificar"
+        />
+        <StatCard
+          label="Inversión FOB Total"
+          value={isLoading ? "—" : dualFob.usd}
+          icon="attach_money"
+          tone="success"
+          sub={`Equivalente oficial: ${dualFob.bs}`}
+        />
+      </div>
+
+      {/* Filter Tabs (Horizontal Scrollable) */}
+      <div className="mobile-scroll-x border-border-subtle flex gap-2 border-b pb-3">
+        {FILTER_TABS.map((tab) => {
+          const isActive = statusFilter === tab.key;
+          const count =
+            tab.key === "all"
+              ? list.length
+              : list.filter((c) => c.status === tab.key).length;
+
+          return (
+            <button
+              key={tab.key}
+              onClick={() => setStatusFilter(tab.key)}
+              className={`flex min-h-11 shrink-0 items-center gap-2 rounded-lg px-4 py-2 text-xs font-semibold transition-all ${
+                isActive
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "bg-surface-card text-muted-foreground hover:bg-accent hover:text-foreground border-border-subtle border"
+              }`}
             >
-              <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-muted-foreground text-lg">
-                  {stat.icon}
-                </span>
-                <span className="text-muted-foreground text-[10px] font-bold tracking-widest uppercase">
-                  {stat.label}
-                </span>
-              </div>
-              <p className="text-foreground mt-1 text-2xl font-bold">
-                {stat.value}
-              </p>
-            </div>
-          ))}
-        </div>
-
-        <div className="flex gap-2">
-          {["all", "created", "in_transit", "received", "closed"].map(
-            (status) => (
-              <button
-                key={status}
-                onClick={() => setStatusFilter(status)}
-                className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${
-                  statusFilter === status
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-secondary text-muted-foreground hover:bg-accent"
+              <span>{tab.label}</span>
+              <span
+                className={`rounded-full px-1.5 py-0.5 font-mono text-[10px] tabular-nums ${
+                  isActive
+                    ? "bg-primary-foreground/20 text-primary-foreground"
+                    : "bg-muted text-muted-foreground"
                 }`}
               >
-                {status === "all"
-                  ? "Todos"
-                  : (STATUS_CONFIG[status]?.label ?? status)}
-              </button>
-            ),
-          )}
-        </div>
+                {count}
+              </span>
+            </button>
+          );
+        })}
+      </div>
 
-        {isLoading ? (
-          <div className="space-y-3">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <Skeleton key={i} className="h-32 w-full" />
-            ))}
-          </div>
-        ) : filtered.length > 0 ? (
-          <div className="space-y-3">
+      {/* Main List Body */}
+      {isLoading ? (
+        <div className="space-y-3">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-28 w-full rounded-xl" />
+          ))}
+        </div>
+      ) : filtered.length > 0 ? (
+        <>
+          {/* Mobile Cards View (md:hidden) */}
+          <div className="space-y-3 md:hidden">
             {filtered.map((container) => {
               const cfg = STATUS_CONFIG[container.status] ?? {
                 label: container.status,
-                color: "",
+                tone: "neutral" as StatusTone,
                 icon: "draft",
               };
+              const dual = formatDualCurrency(
+                Number(container.costFob ?? 0),
+                bcv.rate,
+              );
+
               return (
                 <Link
                   key={container.id}
                   href={`/containers/${container.id}`}
-                  className="border-border bg-card hover:border-primary/30 block rounded-xl border p-5 transition-all"
+                  className="surface-card border-border-subtle hover:border-primary/40 block rounded-xl border p-4 transition-all active:scale-[0.99]"
                 >
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                      <span className="material-symbols-outlined text-muted-foreground text-2xl">
-                        {cfg.icon}
-                      </span>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="bg-primary/10 text-primary flex size-9 items-center justify-center rounded-lg">
+                        <span className="material-symbols-outlined text-lg">
+                          {cfg.icon}
+                        </span>
+                      </div>
                       <div>
-                        <h3 className="text-foreground font-mono text-lg font-bold">
+                        <p className="text-foreground font-mono text-base font-bold">
                           {container.containerNumber}
-                        </h3>
+                        </p>
+                        <p className="text-muted-foreground text-xs">
+                          {container.departureDate
+                            ? `Salida: ${new Date(container.departureDate).toLocaleDateString("es-VE")}`
+                            : "Fecha salida no definida"}
+                        </p>
                       </div>
                     </div>
-                    <span
-                      className={`rounded-full px-3 py-1 text-xs font-bold ${cfg.color}`}
-                    >
-                      {cfg.label}
-                    </span>
+                    <StatusBadge tone={cfg.tone}>{cfg.label}</StatusBadge>
                   </div>
 
-                  <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
+                  <div className="border-border-subtle/60 mt-3.5 grid grid-cols-2 gap-2 border-t pt-3 text-xs">
                     <div>
-                      <p className="text-muted-foreground text-[10px] font-bold tracking-widest uppercase">
-                        Salida
+                      <p className="text-muted-foreground text-[10px] font-semibold tracking-wider uppercase">
+                        Llegada Estimada
                       </p>
-                      <p className="text-foreground text-sm">
-                        {container.departureDate
-                          ? new Date(
-                              container.departureDate,
-                            ).toLocaleDateString("es-VE")
-                          : "—"}
-                      </p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground text-[10px] font-bold tracking-widest uppercase">
-                        Llegada Est.
-                      </p>
-                      <p className="text-foreground text-sm">
+                      <p className="text-foreground mt-0.5 font-medium">
                         {container.arrivalDate
                           ? new Date(container.arrivalDate).toLocaleDateString(
                               "es-VE",
@@ -211,41 +245,149 @@ export default function ContainersPage() {
                           : "—"}
                       </p>
                     </div>
-                    <div>
-                      <p className="text-muted-foreground text-[10px] font-bold tracking-widest uppercase">
+                    <div className="text-right">
+                      <p className="text-muted-foreground text-[10px] font-semibold tracking-wider uppercase">
                         Costo FOB
                       </p>
-                      <p className="text-foreground font-mono text-sm font-bold">
-                        ${Number(container.costFob ?? 0).toLocaleString()}
+                      <p className="text-foreground mt-0.5 font-mono font-bold tabular-nums">
+                        {dual.usd}
                       </p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground text-[10px] font-bold tracking-widest uppercase">
-                        Estado
+                      <p className="text-muted-foreground font-mono text-[10px] tabular-nums">
+                        {dual.bs}
                       </p>
-                      <p className="text-foreground text-sm">{cfg.label}</p>
                     </div>
                   </div>
                 </Link>
               );
             })}
           </div>
-        ) : (
-          <div className="text-muted-foreground flex flex-col items-center justify-center py-12">
-            <span className="material-symbols-outlined mb-2 text-4xl">
-              package_2
-            </span>
-            <p className="text-sm">No hay contenedores registrados</p>
-          </div>
-        )}
-      </div>
 
-      <Suspense>
+          {/* Desktop Table View (hidden md:block) */}
+          <div className="surface-card border-border-subtle hidden overflow-hidden rounded-xl border md:block">
+            <Table>
+              <TableHeader>
+                <TableRow className="border-border-subtle hover:bg-transparent">
+                  <TableHead className="w-14 text-center">#</TableHead>
+                  <TableHead>Contenedor</TableHead>
+                  <TableHead>Estado</TableHead>
+                  <TableHead>Salida</TableHead>
+                  <TableHead>Llegada Est.</TableHead>
+                  <TableHead className="text-right">
+                    Costo FOB (USD / Bs)
+                  </TableHead>
+                  <TableHead className="w-24 text-center">Acción</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filtered.map((container, idx) => {
+                  const cfg = STATUS_CONFIG[container.status] ?? {
+                    label: container.status,
+                    tone: "neutral" as StatusTone,
+                    icon: "draft",
+                  };
+                  const dual = formatDualCurrency(
+                    Number(container.costFob ?? 0),
+                    bcv.rate,
+                  );
+
+                  return (
+                    <TableRow
+                      key={container.id}
+                      className="border-border-subtle hover:bg-accent/40 transition-colors"
+                    >
+                      <TableCell className="text-muted-foreground text-center font-mono text-xs tabular-nums">
+                        {idx + 1}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2.5">
+                          <div className="bg-primary/10 text-primary flex size-8 shrink-0 items-center justify-center rounded-md">
+                            <span className="material-symbols-outlined text-base">
+                              {cfg.icon}
+                            </span>
+                          </div>
+                          <div>
+                            <Link
+                              href={`/containers/${container.id}`}
+                              className="text-foreground hover:text-primary font-mono text-sm font-bold transition-colors"
+                            >
+                              {container.containerNumber}
+                            </Link>
+                            {container.notes && (
+                              <p className="text-muted-foreground line-clamp-1 max-w-xs text-xs">
+                                {container.notes}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <StatusBadge tone={cfg.tone}>{cfg.label}</StatusBadge>
+                      </TableCell>
+                      <TableCell className="text-foreground text-xs">
+                        {container.departureDate
+                          ? new Date(
+                              container.departureDate,
+                            ).toLocaleDateString("es-VE")
+                          : "—"}
+                      </TableCell>
+                      <TableCell className="text-foreground text-xs">
+                        {container.arrivalDate
+                          ? new Date(container.arrivalDate).toLocaleDateString(
+                              "es-VE",
+                            )
+                          : "—"}
+                      </TableCell>
+                      <TableCell className="text-right font-mono tabular-nums">
+                        <span className="text-foreground font-bold">
+                          {dual.usd}
+                        </span>
+                        <span className="text-muted-foreground block text-[11px]">
+                          {dual.bs}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <Link
+                          href={`/containers/${container.id}`}
+                          className="border-border-subtle text-muted-foreground hover:border-primary hover:bg-primary/10 hover:text-primary inline-flex size-9 items-center justify-center rounded-lg border transition-all"
+                          title="Ver detalle de contenedor"
+                        >
+                          <span className="material-symbols-outlined text-lg">
+                            chevron_right
+                          </span>
+                        </Link>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        </>
+      ) : (
+        <EmptyState
+          icon="package_2"
+          title="No hay contenedores registrados"
+          description={
+            statusFilter === "all"
+              ? "Aún no se han registrado contenedores de importación en el sistema."
+              : `No se encontraron contenedores en estado "${STATUS_CONFIG[statusFilter]?.label ?? statusFilter}".`
+          }
+          action={
+            <Button onClick={() => setShowCreate(true)} className="gap-2">
+              <span className="material-symbols-outlined text-base">add</span>
+              Registrar Contenedor
+            </Button>
+          }
+        />
+      )}
+
+      {/* Modal create container */}
+      <Suspense fallback={null}>
         <CreateContainerDialog
           open={showCreate}
           onClose={() => setShowCreate(false)}
         />
       </Suspense>
-    </>
+    </div>
   );
 }

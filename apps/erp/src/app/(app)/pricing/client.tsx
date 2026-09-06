@@ -1,33 +1,37 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import type { StatusTone } from "~/components/status-badge";
+import { EmptyState } from "~/components/empty-state";
+import { PageHeader } from "~/components/page-header";
+import { RoleGuard } from "~/components/role-guard";
+import { Skeleton } from "~/components/skeleton";
+import { StatCard } from "~/components/stat-card";
+import { StatusBadge } from "~/components/status-badge";
 import { useTRPC } from "~/trpc/client";
 
-function Skeleton({ className = "" }: { className?: string }) {
-  return <div className={`bg-muted animate-pulse rounded-lg ${className}`} />;
+interface TriggerConfig {
+  label: string;
+  tone: StatusTone;
+  icon: string;
 }
 
-const TRIGGER_CONFIG: Record<
-  string,
-  { label: string; color: string; icon: string }
-> = {
+const TRIGGER_CONFIG: Record<string, TriggerConfig> = {
   auto: {
     label: "Automático",
-    color: "bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400",
+    tone: "primary",
     icon: "bolt",
   },
   manual: {
     label: "Manual",
-    color:
-      "bg-violet-100 dark:bg-violet-500/20 text-violet-600 dark:text-violet-400",
+    tone: "neutral",
     icon: "edit",
   },
   scheduled: {
     label: "Programado",
-    color:
-      "bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400",
+    tone: "warning",
     icon: "schedule",
   },
 };
@@ -36,27 +40,31 @@ const PRICE_TYPE_LABELS: Record<string, string> = {
   store: "Tienda",
   wholesale: "Mayor",
   vendor: "Vendedor Nacional",
-  promo: "Promo",
+  promo: "Promoción",
   special: "Especial",
 };
 
 const RATE_TYPE_LABELS: Record<string, string> = {
   bcv: "BCV",
-  parallel: "Paralela",
+  parallel: "Paralelo",
   rmb_usd: "RMB/USD",
   rmb_bs: "RMB/Bs",
 };
 
-export default function PricingPage() {
+const cellPx = "px-4 py-3";
+
+export default function PricingClient() {
   const trpc = useTRPC();
+  const qc = useQueryClient();
+
+  const [tab, setTab] = useState<"events" | "history">("events");
+
   const { data: events, isLoading: eventsLoading } = useQuery(
-    trpc.pricing.listRepricingEvents.queryOptions({ limit: 20 }),
+    trpc.pricing.listRepricingEvents.queryOptions({ limit: 50 }),
   );
   const { data: history, isLoading: historyLoading } = useQuery(
-    trpc.pricing.priceHistory.queryOptions({ limit: 50 }),
+    trpc.pricing.priceHistory.queryOptions({ limit: 100 }),
   );
-  const [tab, setTab] = useState<"events" | "history">("events");
-  const qc = useQueryClient();
 
   const approve = useMutation(
     trpc.pricing.approveRepricing.mutationOptions({
@@ -66,106 +74,103 @@ export default function PricingPage() {
     }),
   );
 
-  const eventsList = events ?? [];
-  const historyList = history ?? [];
-  const pendingApproval = eventsList.filter((e) => !e.isApproved).length;
-  const hasHighVariation = eventsList.some((e) => (e.variationPct ?? 0) >= 5);
+  const eventsList = useMemo(() => events ?? [], [events]);
+  const historyList = useMemo(() => history ?? [], [history]);
+
+  const pendingApproval = useMemo(
+    () => eventsList.filter((e) => !e.isApproved).length,
+    [eventsList],
+  );
+
+  const hasHighVariation = useMemo(
+    () => eventsList.some((e) => (e.variationPct ?? 0) >= 5 && !e.isApproved),
+    [eventsList],
+  );
+
+  const totalProductsAffected = useMemo(
+    () => eventsList.reduce((n, e) => n + e.productsAffected, 0),
+    [eventsList],
+  );
 
   return (
-    <div className="space-y-6 p-4 lg:p-8">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-foreground text-2xl font-black tracking-tight">
-            Motor de Precios
-          </h1>
-          <p className="text-muted-foreground mt-1 text-sm">
-            Repricing masivo, historial de precios y aprobaciones
-          </p>
-        </div>
-        {pendingApproval > 0 && (
-          <span className="flex items-center gap-2 rounded-lg bg-amber-100 px-4 py-2 text-sm font-bold text-amber-700 dark:bg-amber-500/20 dark:text-amber-400">
-            <span className="material-symbols-outlined text-lg">warning</span>
-            {pendingApproval} repricing pendiente de aprobación
-          </span>
-        )}
-      </div>
-
-      {hasHighVariation && (
-        <div className="rounded-xl border border-red-300 bg-red-50 p-4 dark:border-red-500/30 dark:bg-red-500/10">
-          <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-lg text-red-600 dark:text-red-400">
-              error
-            </span>
-            <div>
-              <p className="font-bold text-red-700 dark:text-red-400">
-                Alerta: Variación ≥ 5% detectada
-              </p>
-              <p className="text-xs text-red-600/70 dark:text-red-400/70">
-                Los precios se actualizaron automáticamente. Tienes 24 horas
-                para revisar/aprobar.
-              </p>
+    <div className="animate-in fade-in slide-in-from-bottom-1 space-y-6 p-4 duration-200 lg:p-8">
+      <PageHeader
+        title="Motor de Precios"
+        description="Repricing masivo, auditoría de precios y aprobaciones ejecutivas"
+        actions={
+          pendingApproval > 0 ? (
+            <div className="border-warning/30 bg-warning/10 text-warning flex items-center gap-2 rounded-xl border px-3.5 py-2 text-xs font-semibold">
+              <span className="material-symbols-outlined text-base">
+                hourglass_top
+              </span>
+              <span className="font-mono tabular-nums">{pendingApproval}</span>
+              <span>repricing pendiente{pendingApproval > 1 ? "s" : ""}</span>
             </div>
+          ) : undefined
+        }
+      />
+
+      {/* Critical Variation Alert (≥ 5% Trigger PRD §12) */}
+      {hasHighVariation && (
+        <div className="border-destructive/30 bg-destructive/10 text-destructive flex items-center gap-3 rounded-xl border p-4 text-xs">
+          <span className="material-symbols-outlined text-xl">warning</span>
+          <div>
+            <p className="font-bold">
+              Alerta de Variación Cambiaria Crítica (≥ 5% detectada)
+            </p>
+            <p className="mt-0.5 opacity-90">
+              Los precios sugeridos se recalcularon automáticamente. Se dispone
+              de una ventana de 24 horas para revisar y autorizar el impacto en
+              catálogo.
+            </p>
           </div>
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
-        {[
-          {
-            label: "Eventos de Repricing",
-            value: eventsList.length,
-            icon: "sync",
-            accent: "border-blue-500/40",
-          },
-          {
-            label: "Pendientes Aprobación",
-            value: pendingApproval,
-            icon: "hourglass_top",
-            accent: "border-amber-500/40",
-          },
-          {
-            label: "Cambios de Precio",
-            value: historyList.length,
-            icon: "trending_up",
-            accent: "border-emerald-500/40",
-          },
-          {
-            label: "Productos Afectados",
-            value: eventsList.reduce((n, e) => n + e.productsAffected, 0),
-            icon: "inventory_2",
-            accent: "border-violet-500/40",
-          },
-        ].map((stat) => (
-          <div
-            key={stat.label}
-            className={`rounded-xl border-l-4 ${stat.accent} bg-card border-border border p-4`}
-          >
-            <div className="flex items-center gap-2">
-              <span className="material-symbols-outlined text-muted-foreground text-lg">
-                {stat.icon}
-              </span>
-              <span className="text-muted-foreground text-[10px] font-bold tracking-widest uppercase">
-                {stat.label}
-              </span>
-            </div>
-            <p className="text-foreground mt-1 text-2xl font-bold">
-              {stat.value}
-            </p>
-          </div>
-        ))}
+      {/* KPI StatCards */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+        <StatCard
+          label="Eventos de Repricing"
+          value={
+            eventsLoading ? "—" : eventsList.length.toLocaleString("es-VE")
+          }
+          icon="sync"
+          tone="primary"
+        />
+        <StatCard
+          label="Pendientes Aprobación"
+          value={eventsLoading ? "—" : pendingApproval.toLocaleString("es-VE")}
+          icon="hourglass_top"
+          tone={pendingApproval > 0 ? "warning" : "default"}
+        />
+        <StatCard
+          label="Cambios de Precio"
+          value={
+            historyLoading ? "—" : historyList.length.toLocaleString("es-VE")
+          }
+          icon="trending_up"
+        />
+        <StatCard
+          label="Productos Afectados"
+          value={
+            eventsLoading ? "—" : totalProductsAffected.toLocaleString("es-VE")
+          }
+          icon="inventory_2"
+        />
       </div>
 
-      <div className="border-border flex gap-2 border-b pb-px">
+      {/* Tabs Navigation */}
+      <div className="border-border-subtle flex gap-2 border-b pb-px">
         {[
           { key: "events" as const, label: "Eventos de Repricing" },
-          { key: "history" as const, label: "Historial de Precios" },
+          { key: "history" as const, label: "Auditoría de Precios" },
         ].map((t) => (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
-            className={`rounded-t-lg px-4 py-2 text-sm font-bold transition-colors ${
+            className={`min-h-10 rounded-t-xl px-4 py-2 text-xs font-semibold transition-colors ${
               tab === t.key
-                ? "bg-card text-foreground border-border border-b-card border"
+                ? "border-border-subtle bg-card text-foreground border-t border-r border-l shadow-xs"
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
@@ -174,149 +179,229 @@ export default function PricingPage() {
         ))}
       </div>
 
-      {tab === "events" &&
-        (eventsLoading ? (
-          <div className="space-y-3">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <Skeleton key={i} className="h-20 w-full" />
-            ))}
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {eventsList.map((event) => {
-              const cfg = TRIGGER_CONFIG[event.trigger] ?? {
-                label: event.trigger,
-                color: "bg-muted text-muted-foreground",
-                icon: "bolt",
-              };
-              const rateLabel = event.rateType
-                ? `${RATE_TYPE_LABELS[event.rateType] ?? event.rateType}: ${event.oldRate?.toFixed(2) ?? "—"} → ${event.newRate?.toFixed(2) ?? "—"} (${event.variationPct != null ? `${event.variationPct.toFixed(1)}%` : "—"})`
-                : "—";
-              return (
+      {/* ── Tab: Eventos de Repricing ─────────────── */}
+      {tab === "events" && (
+        <div className="space-y-3">
+          {eventsLoading
+            ? Array.from({ length: 3 }).map((_, i) => (
                 <div
-                  key={event.id}
-                  className={`rounded-xl border ${
-                    !event.isApproved
-                      ? "border-amber-300 bg-amber-50 dark:border-amber-500/30 dark:bg-amber-500/5"
-                      : "border-border bg-card"
-                  } p-4`}
+                  key={i}
+                  className="border-border-subtle surface-card rounded-xl border p-4"
                 >
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                      <span className="material-symbols-outlined text-muted-foreground text-xl">
-                        {cfg.icon}
-                      </span>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span
-                            className={`rounded-full px-2 py-0.5 text-xs font-bold ${cfg.color}`}
-                          >
-                            {cfg.label}
-                          </span>
-                          <span className="text-foreground text-sm font-medium">
-                            {rateLabel}
-                          </span>
+                  <Skeleton className="h-5 w-48" />
+                  <Skeleton className="mt-2 h-4 w-64" />
+                </div>
+              ))
+            : eventsList.map((event) => {
+                const trig = TRIGGER_CONFIG[event.trigger] ?? {
+                  label: event.trigger,
+                  tone: "neutral" as StatusTone,
+                  icon: "bolt",
+                };
+                const rateLabel = event.rateType
+                  ? `${RATE_TYPE_LABELS[event.rateType] ?? event.rateType}`
+                  : "General";
+
+                return (
+                  <div
+                    key={event.id}
+                    className={`border-border-subtle surface-card rounded-xl border p-4 transition-all ${
+                      !event.isApproved
+                        ? "border-amber-500/40 bg-amber-500/5 ring-1 ring-amber-500/10"
+                        : ""
+                    }`}
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <span className="material-symbols-outlined text-muted-foreground text-xl">
+                          {trig.icon}
+                        </span>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <StatusBadge tone={trig.tone}>
+                              {trig.label}
+                            </StatusBadge>
+                            <span className="text-foreground text-xs font-semibold">
+                              {rateLabel}
+                            </span>
+                            {event.variationPct != null && (
+                              <span className="text-muted-foreground font-mono text-xs font-bold tabular-nums">
+                                (Δ {event.variationPct.toFixed(1)}%)
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-muted-foreground mt-1 flex items-center gap-2 text-xs">
+                            <span className="font-mono tabular-nums">
+                              {new Date(event.createdAt).toLocaleString(
+                                "es-VE",
+                              )}
+                            </span>
+                            <span>•</span>
+                            <span className="font-mono tabular-nums">
+                              {event.productsAffected} productos afectados
+                            </span>
+                            {event.oldRate != null && event.newRate != null && (
+                              <>
+                                <span>•</span>
+                                <span className="font-mono tabular-nums">
+                                  {event.oldRate.toFixed(2)} →{" "}
+                                  {event.newRate.toFixed(2)}
+                                </span>
+                              </>
+                            )}
+                          </div>
                         </div>
-                        <p className="text-muted-foreground mt-0.5 text-xs">
-                          {new Date(event.createdAt).toLocaleString()}
-                        </p>
+                      </div>
+
+                      <div>
+                        {event.isApproved ? (
+                          <StatusBadge tone="success">
+                            <span className="material-symbols-outlined mr-1 text-xs">
+                              check_circle
+                            </span>
+                            Aprobado
+                          </StatusBadge>
+                        ) : (
+                          <RoleGuard allow={["owner", "admin", "supervisor"]}>
+                            <button
+                              type="button"
+                              onClick={() => approve.mutate({ id: event.id })}
+                              disabled={approve.isPending}
+                              className="bg-primary text-primary-foreground hover:bg-primary/90 min-h-9 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-colors disabled:opacity-50"
+                            >
+                              {approve.isPending
+                                ? "Aprobando..."
+                                : "Aprobar Repricing"}
+                            </button>
+                          </RoleGuard>
+                        )}
                       </div>
                     </div>
-                    {event.isApproved ? (
-                      <span className="flex items-center gap-1 rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400">
-                        <span className="material-symbols-outlined text-sm">
-                          check_circle
-                        </span>{" "}
-                        Aprobado
-                      </span>
-                    ) : (
-                      <button
-                        onClick={() => approve.mutate({ id: event.id })}
-                        disabled={approve.isPending}
-                        className="bg-warning text-warning-foreground hover:bg-warning/90 rounded-lg px-4 py-1.5 text-xs font-bold transition-colors disabled:opacity-50"
-                      >
-                        {approve.isPending ? "..." : "Aprobar"}
-                      </button>
-                    )}
                   </div>
-                </div>
-              );
-            })}
-          </div>
-        ))}
+                );
+              })}
 
-      {tab === "history" &&
-        (historyLoading ? (
-          <div className="space-y-2">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <Skeleton key={i} className="h-12 w-full" />
-            ))}
-          </div>
-        ) : (
-          <div className="border-border bg-card overflow-hidden rounded-xl border">
-            <table className="w-full text-left text-sm">
-              <thead>
-                <tr className="border-border text-muted-foreground border-b text-[10px] font-bold tracking-widest uppercase">
-                  <th className="px-4 py-3">Fecha</th>
-                  <th className="px-4 py-3">Tipo Precio</th>
-                  <th className="px-4 py-3 text-right">Anterior</th>
-                  <th className="px-4 py-3 text-right">Nuevo</th>
-                  <th className="px-4 py-3 text-right">Tasa</th>
-                  <th className="px-4 py-3">Disparador</th>
-                </tr>
-              </thead>
-              <tbody>
-                {historyList.map((entry) => {
-                  const trigCfg = TRIGGER_CONFIG[entry.trigger] ?? {
-                    label: entry.trigger,
-                    color: "bg-muted text-muted-foreground",
-                    icon: "bolt",
-                  };
-                  return (
-                    <tr
-                      key={entry.id}
-                      className="border-border hover:bg-accent/50 border-b transition-colors"
+          {!eventsLoading && eventsList.length === 0 && (
+            <EmptyState
+              icon="price_change"
+              title="No hay eventos de repricing"
+              description="Las variaciones de cotización generarán eventos automáticos cuando superen el umbral configurado."
+            />
+          )}
+        </div>
+      )}
+
+      {/* ── Tab: Historial de Precios ─────────────── */}
+      {tab === "history" && (
+        <div>
+          {historyLoading ? (
+            <div className="space-y-2">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <Skeleton key={i} className="h-12 w-full" />
+              ))}
+            </div>
+          ) : (
+            <div className="border-border-subtle surface-card overflow-hidden rounded-xl border">
+              {/* Desktop Table View */}
+              <table className="w-full text-left text-sm">
+                <thead>
+                  <tr className="border-border-subtle border-b">
+                    <th
+                      className={`text-muted-foreground ${cellPx} text-xs font-medium tracking-widest uppercase`}
                     >
-                      <td className="text-muted-foreground px-4 py-3 font-mono text-xs">
-                        {new Date(entry.createdAt).toLocaleString()}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="bg-secondary text-muted-foreground rounded px-2 py-0.5 text-xs">
-                          {PRICE_TYPE_LABELS[entry.priceType] ??
-                            entry.priceType}
-                        </span>
-                      </td>
-                      <td className="text-muted-foreground px-4 py-3 text-right font-mono line-through">
-                        ${entry.oldAmountUsd?.toFixed(2) ?? "—"}
-                      </td>
-                      <td className="text-foreground px-4 py-3 text-right font-mono font-bold">
-                        ${entry.newAmountUsd.toFixed(2)}
-                      </td>
-                      <td className="text-muted-foreground px-4 py-3 text-right font-mono">
-                        {entry.rateUsed?.toFixed(4) ?? "—"}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span
-                          className={`rounded-full px-2 py-0.5 text-xs font-bold ${trigCfg.color}`}
+                      Fecha y Hora
+                    </th>
+                    <th
+                      className={`text-muted-foreground ${cellPx} text-xs font-medium tracking-widest uppercase`}
+                    >
+                      Tipo de Precio
+                    </th>
+                    <th
+                      className={`text-muted-foreground ${cellPx} text-right text-xs font-medium tracking-widest uppercase`}
+                    >
+                      Precio Anterior
+                    </th>
+                    <th
+                      className={`text-muted-foreground ${cellPx} text-right text-xs font-medium tracking-widest uppercase`}
+                    >
+                      Precio Nuevo
+                    </th>
+                    <th
+                      className={`text-muted-foreground ${cellPx} text-right text-xs font-medium tracking-widest uppercase`}
+                    >
+                      Tasa Empleada
+                    </th>
+                    <th
+                      className={`text-muted-foreground ${cellPx} text-center text-xs font-medium tracking-widest uppercase`}
+                    >
+                      Disparador
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {historyList.map((entry) => {
+                    const trig = TRIGGER_CONFIG[entry.trigger] ?? {
+                      label: entry.trigger,
+                      tone: "neutral" as StatusTone,
+                      icon: "bolt",
+                    };
+                    return (
+                      <tr
+                        key={entry.id}
+                        className="border-border-subtle hover:bg-accent/50 border-b transition-colors"
+                      >
+                        <td
+                          className={`text-muted-foreground ${cellPx} font-mono text-xs tabular-nums`}
                         >
-                          {trigCfg.label}
-                        </span>
+                          {new Date(entry.createdAt).toLocaleString("es-VE")}
+                        </td>
+                        <td className={cellPx}>
+                          <span className="text-foreground text-xs font-medium">
+                            {PRICE_TYPE_LABELS[entry.priceType] ??
+                              entry.priceType}
+                          </span>
+                        </td>
+                        <td
+                          className={`text-muted-foreground ${cellPx} text-right font-mono text-xs tabular-nums line-through`}
+                        >
+                          ${entry.oldAmountUsd?.toFixed(2) ?? "—"}
+                        </td>
+                        <td
+                          className={`text-foreground ${cellPx} text-right font-mono text-sm font-bold tabular-nums`}
+                        >
+                          ${entry.newAmountUsd.toFixed(2)}
+                        </td>
+                        <td
+                          className={`text-muted-foreground ${cellPx} text-right font-mono text-xs tabular-nums`}
+                        >
+                          {entry.rateUsed != null
+                            ? Number(entry.rateUsed).toFixed(4)
+                            : "—"}
+                        </td>
+                        <td className={`${cellPx} text-center`}>
+                          <StatusBadge tone={trig.tone}>
+                            {trig.label}
+                          </StatusBadge>
+                        </td>
+                      </tr>
+                    );
+                  })}
+
+                  {historyList.length === 0 && (
+                    <tr className="hover:bg-transparent">
+                      <td colSpan={6} className="px-4 py-6">
+                        <EmptyState
+                          icon="price_change"
+                          title="Sin registros de auditoría"
+                          description="Los ajustes y recálculos de precios de catálogo se documentarán en esta tabla."
+                        />
                       </td>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        ))}
-
-      {((tab === "events" && eventsList.length === 0 && !eventsLoading) ||
-        (tab === "history" && historyList.length === 0 && !historyLoading)) && (
-        <div className="border-border bg-card text-muted-foreground flex flex-col items-center justify-center rounded-xl border py-12">
-          <span className="material-symbols-outlined mb-2 text-3xl">
-            price_change
-          </span>
-          <p className="text-sm">No hay datos disponibles</p>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
     </div>

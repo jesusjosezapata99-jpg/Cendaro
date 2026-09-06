@@ -1,10 +1,29 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 
+import {
+  Button,
+  Input,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@cendaro/ui";
+
+import type { StatusTone } from "~/components/status-badge";
+import { EmptyState } from "~/components/empty-state";
+import { PageHeader } from "~/components/page-header";
+import { Skeleton } from "~/components/skeleton";
+import { StatCard } from "~/components/stat-card";
+import { StatusBadge } from "~/components/status-badge";
+import { useBcvRate } from "~/hooks/use-bcv-rate";
+import { formatDualCurrency } from "~/lib/format-currency";
 import { useTRPC } from "~/trpc/client";
 
 const CreateCustomerDialog = dynamic(
@@ -15,259 +34,418 @@ const CreateCustomerDialog = dynamic(
   { ssr: false },
 );
 
-function Skeleton({ className = "" }: { className?: string }) {
-  return <div className={`bg-muted animate-pulse rounded-lg ${className}`} />;
-}
-
-const TYPE_LABELS: Record<string, { label: string; color: string }> = {
-  wholesale: {
-    label: "Mayorista",
-    color: "bg-blue-100 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400",
-  },
-  retail: { label: "Detal", color: "bg-secondary text-muted-foreground" },
-  distributor: {
-    label: "Distribuidor",
-    color:
-      "bg-purple-100 dark:bg-purple-500/20 text-purple-600 dark:text-purple-400",
-  },
-  vip: {
-    label: "VIP",
-    color:
-      "bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400",
-  },
-  marketplace: {
-    label: "Marketplace",
-    color: "bg-cyan-100 dark:bg-cyan-500/20 text-cyan-600 dark:text-cyan-400",
-  },
-  vendor_client: {
-    label: "Cliente Vendedor",
-    color:
-      "bg-emerald-100 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400",
-  },
+const TYPE_CONFIG: Record<string, { label: string; tone: StatusTone }> = {
+  wholesale: { label: "Mayorista", tone: "primary" },
+  retail: { label: "Detal", tone: "neutral" },
+  distributor: { label: "Distribuidor", tone: "warning" },
+  vip: { label: "VIP", tone: "success" },
+  marketplace: { label: "Marketplace", tone: "primary" },
+  vendor_client: { label: "Cliente Vendedor", tone: "success" },
 };
+
+const FILTER_TYPES = [
+  { key: "all", label: "Todos" },
+  { key: "wholesale", label: "Mayoristas" },
+  { key: "retail", label: "Detal" },
+  { key: "distributor", label: "Distribuidores" },
+  { key: "vip", label: "VIP" },
+  { key: "marketplace", label: "Marketplace" },
+  { key: "vendor_client", label: "Vendedores" },
+] as const;
 
 export default function CustomersClient() {
   const trpc = useTRPC();
-  const { data: customers, isLoading } = useQuery(
-    trpc.sales.listCustomers.queryOptions({ limit: 50 }),
-  );
+  const bcv = useBcvRate();
   const [showCreate, setShowCreate] = useState(false);
+  const [search, setSearch] = useState("");
+  const [typeFilter, setTypeFilter] = useState<string>("all");
 
-  const list = customers ?? [];
+  const { data: customers, isLoading } = useQuery(
+    trpc.sales.listCustomers.queryOptions({ limit: 100 }),
+  );
+
+  const list = useMemo(() => customers ?? [], [customers]);
+
+  const filtered = useMemo(() => {
+    return list.filter((c) => {
+      const matchesType =
+        typeFilter === "all" ? true : c.customerType === typeFilter;
+      if (!matchesType) return false;
+
+      if (!search.trim()) return true;
+      const q = search.toLowerCase();
+      return (
+        c.name.toLowerCase().includes(q) ||
+        Boolean(c.phone?.toLowerCase().includes(q)) ||
+        Boolean(c.email?.toLowerCase().includes(q))
+      );
+    });
+  }, [list, typeFilter, search]);
+
+  const totalWithCredit = useMemo(
+    () => list.filter((c) => Number(c.creditLimit ?? 0) > 0).length,
+    [list],
+  );
+
+  const totalWholesale = useMemo(
+    () =>
+      list.filter(
+        (c) =>
+          c.customerType === "wholesale" || c.customerType === "distributor",
+      ).length,
+    [list],
+  );
+
+  const totalCreditAssigned = useMemo(
+    () => list.reduce((s, c) => s + Number(c.creditLimit ?? 0), 0),
+    [list],
+  );
+
+  const dualCredit = useMemo(
+    () => formatDualCurrency(totalCreditAssigned, bcv.rate),
+    [totalCreditAssigned, bcv.rate],
+  );
 
   return (
     <div className="space-y-6 p-4 lg:p-8">
-      {/* Header — stacks vertically on mobile */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-foreground text-2xl font-black tracking-tight">
-            Clientes
-          </h1>
-          <p className="text-muted-foreground mt-1 text-sm">
-            Gestión de clientes y CxC
-          </p>
-        </div>
-        <button
+      {/* Page Header */}
+      <PageHeader
+        title="Directorio de Clientes"
+        description="Gestión integral de clientes comerciales, líneas de crédito y contacto directo"
+      >
+        <Button
           onClick={() => setShowCreate(true)}
-          className="bg-primary text-primary-foreground hover:bg-primary/90 flex min-h-[44px] w-full items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-bold transition-colors sm:w-auto"
+          className="min-h-11 w-full gap-2 sm:w-auto"
         >
           <span className="material-symbols-outlined text-lg">person_add</span>
           Nuevo Cliente
-        </button>
+        </Button>
+      </PageHeader>
+
+      {/* 4 StatCards */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard
+          label="Total Clientes"
+          value={isLoading ? "—" : list.length}
+          icon="group"
+          tone="default"
+          sub="Directorio consolidado"
+        />
+        <StatCard
+          label="Con Línea de Crédito"
+          value={isLoading ? "—" : totalWithCredit}
+          icon="account_balance"
+          tone="success"
+          sub="Cuentas con crédito habilitado"
+        />
+        <StatCard
+          label="Mayoristas & Distribuidores"
+          value={isLoading ? "—" : totalWholesale}
+          icon="business"
+          tone="primary"
+          sub="Cuentas corporativas B2B"
+        />
+        <StatCard
+          label="Línea de Crédito Total"
+          value={isLoading ? "—" : dualCredit.usd}
+          icon="attach_money"
+          tone="warning"
+          sub={`Equivalente oficial: ${dualCredit.bs}`}
+        />
       </div>
 
+      {/* Search & Filter Bar */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="relative w-full sm:max-w-xs">
+          <span className="material-symbols-outlined text-muted-foreground absolute top-1/2 left-3 -translate-y-1/2 text-lg">
+            search
+          </span>
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar por nombre, RIF o teléfono..."
+            className="h-11 pl-9"
+          />
+        </div>
+
+        {/* Filter Tabs (Horizontal Scrollable) */}
+        <div className="mobile-scroll-x border-border-subtle flex gap-1.5 border-b pb-2 sm:border-0 sm:pb-0">
+          {FILTER_TYPES.map((tab) => {
+            const isActive = typeFilter === tab.key;
+            const count =
+              tab.key === "all"
+                ? list.length
+                : list.filter((c) => c.customerType === tab.key).length;
+
+            return (
+              <button
+                key={tab.key}
+                onClick={() => setTypeFilter(tab.key)}
+                className={`flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
+                  isActive
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "bg-surface-card text-muted-foreground hover:bg-accent hover:text-foreground border-border-subtle border"
+                }`}
+              >
+                <span>{tab.label}</span>
+                <span
+                  className={`py-0.2 rounded-full px-1.5 font-mono text-[10px] tabular-nums ${
+                    isActive
+                      ? "bg-primary-foreground/20 text-primary-foreground"
+                      : "bg-muted text-muted-foreground"
+                  }`}
+                >
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Main Content Body */}
+      {isLoading ? (
+        <div className="space-y-3">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Skeleton key={i} className="h-20 w-full rounded-xl" />
+          ))}
+        </div>
+      ) : filtered.length > 0 ? (
+        <>
+          {/* Mobile View: Cards (md:hidden) */}
+          <div className="space-y-3 md:hidden">
+            {filtered.map((c) => {
+              const typeCfg = TYPE_CONFIG[c.customerType] ?? {
+                label: c.customerType,
+                tone: "neutral" as StatusTone,
+              };
+              const phoneClean = c.phone?.replace(/[^0-9]/g, "") ?? "";
+              const dual = formatDualCurrency(
+                Number(c.creditLimit ?? 0),
+                bcv.rate,
+              );
+
+              return (
+                <div
+                  key={c.id}
+                  className="surface-card border-border-subtle hover:border-primary/40 rounded-xl border p-4 transition-all"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <Link
+                      href={`/customers/${c.id}`}
+                      className="group min-w-0 flex-1"
+                    >
+                      <p className="text-foreground group-hover:text-primary truncate font-bold transition-colors">
+                        {c.name}
+                      </p>
+                      <p className="text-muted-foreground mt-0.5 font-mono text-xs">
+                        {c.email ??
+                          (c.phone ? `Tel: ${c.phone}` : "Cliente registrado")}
+                      </p>
+                    </Link>
+                    <StatusBadge tone={typeCfg.tone}>
+                      {typeCfg.label}
+                    </StatusBadge>
+                  </div>
+
+                  <div className="border-border-subtle/60 mt-3 flex items-center justify-between border-t pt-2.5 text-xs">
+                    <div className="flex items-center gap-2">
+                      {c.phone ? (
+                        <>
+                          <a
+                            href={`tel:${c.phone}`}
+                            className="border-border-subtle text-muted-foreground hover:text-foreground inline-flex items-center gap-1 rounded-md border px-2 py-1"
+                            title="Llamar"
+                          >
+                            <span className="material-symbols-outlined text-sm">
+                              phone
+                            </span>
+                            {c.phone}
+                          </a>
+                          {phoneClean && (
+                            <a
+                              href={`https://wa.me/${phoneClean}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex size-7 items-center justify-center rounded-md border border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10"
+                              title="Abrir WhatsApp"
+                            >
+                              <span className="material-symbols-outlined text-sm">
+                                chat
+                              </span>
+                            </a>
+                          )}
+                        </>
+                      ) : (
+                        <span className="text-muted-foreground">
+                          Sin teléfono
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="text-right">
+                      {Number(c.creditLimit ?? 0) > 0 ? (
+                        <div>
+                          <span className="text-foreground block font-mono text-xs font-bold tabular-nums">
+                            {dual.usd}
+                          </span>
+                          <span className="text-muted-foreground block font-mono text-[10px] tabular-nums">
+                            {dual.bs}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground">
+                          Sin crédito
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Desktop View: Table (hidden md:block) */}
+          <div className="surface-card border-border-subtle hidden overflow-hidden rounded-xl border md:block">
+            <Table>
+              <TableHeader>
+                <TableRow className="border-border-subtle hover:bg-transparent">
+                  <TableHead className="w-12 text-center">#</TableHead>
+                  <TableHead>Cliente</TableHead>
+                  <TableHead>Tipo</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Contacto</TableHead>
+                  <TableHead className="text-right">
+                    Límite Crédito (USD / Bs)
+                  </TableHead>
+                  <TableHead className="w-20 text-center">Acción</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filtered.map((c, idx) => {
+                  const typeCfg = TYPE_CONFIG[c.customerType] ?? {
+                    label: c.customerType,
+                    tone: "neutral" as StatusTone,
+                  };
+                  const phoneClean = c.phone?.replace(/[^0-9]/g, "") ?? "";
+                  const dual = formatDualCurrency(
+                    Number(c.creditLimit ?? 0),
+                    bcv.rate,
+                  );
+
+                  return (
+                    <TableRow
+                      key={c.id}
+                      className="border-border-subtle hover:bg-accent/40 transition-colors"
+                    >
+                      <TableCell className="text-muted-foreground text-center font-mono text-xs tabular-nums">
+                        {idx + 1}
+                      </TableCell>
+                      <TableCell>
+                        <Link
+                          href={`/customers/${c.id}`}
+                          className="text-foreground hover:text-primary block font-semibold transition-colors"
+                        >
+                          {c.name}
+                        </Link>
+                      </TableCell>
+                      <TableCell>
+                        <StatusBadge tone={typeCfg.tone}>
+                          {typeCfg.label}
+                        </StatusBadge>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground text-xs">
+                        {c.email ?? "—"}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1.5">
+                          {c.phone ? (
+                            <>
+                              <span className="text-foreground text-xs">
+                                {c.phone}
+                              </span>
+                              {phoneClean && (
+                                <a
+                                  href={`https://wa.me/${phoneClean}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="inline-flex size-6 items-center justify-center rounded text-emerald-600 transition-colors hover:bg-emerald-500/10"
+                                  title="Enviar WhatsApp"
+                                >
+                                  <span className="material-symbols-outlined text-sm">
+                                    chat
+                                  </span>
+                                </a>
+                              )}
+                            </>
+                          ) : (
+                            <span className="text-muted-foreground text-xs">
+                              —
+                            </span>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right font-mono tabular-nums">
+                        {Number(c.creditLimit ?? 0) > 0 ? (
+                          <div>
+                            <span className="text-foreground font-bold">
+                              {dual.usd}
+                            </span>
+                            <span className="text-muted-foreground block text-[11px]">
+                              {dual.bs}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground text-xs">
+                            Sin crédito
+                          </span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <Link
+                          href={`/customers/${c.id}`}
+                          className="border-border-subtle text-muted-foreground hover:border-primary hover:bg-primary/10 hover:text-primary inline-flex size-8 items-center justify-center rounded-lg border transition-all"
+                          title="Ver ficha de cliente"
+                        >
+                          <span className="material-symbols-outlined text-base">
+                            chevron_right
+                          </span>
+                        </Link>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        </>
+      ) : (
+        <EmptyState
+          icon="person_off"
+          title="No se encontraron clientes"
+          description={
+            search
+              ? `No hay clientes que coincidan con "${search}".`
+              : typeFilter !== "all"
+                ? `No hay clientes registrados bajo la tipología "${TYPE_CONFIG[typeFilter]?.label ?? typeFilter}".`
+                : "Aún no hay clientes registrados en el sistema."
+          }
+          action={
+            <Button onClick={() => setShowCreate(true)} className="gap-2">
+              <span className="material-symbols-outlined text-base">
+                person_add
+              </span>
+              Crear Nuevo Cliente
+            </Button>
+          }
+        />
+      )}
+
+      {/* Modal create customer */}
       <CreateCustomerDialog
         open={showCreate}
         onClose={() => setShowCreate(false)}
       />
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        {[
-          {
-            label: "Total Clientes",
-            value: isLoading ? "—" : list.length,
-            icon: "group",
-            accent: "border-blue-500/40",
-          },
-          {
-            label: "Con Crédito",
-            value: isLoading
-              ? "—"
-              : list.filter((c) => Number(c.creditLimit ?? 0) > 0).length,
-            icon: "account_balance",
-            accent: "border-emerald-500/40",
-          },
-          {
-            label: "Mayoristas",
-            value: isLoading
-              ? "—"
-              : list.filter((c) => c.customerType === "wholesale").length,
-            icon: "business",
-            accent: "border-violet-500/40",
-          },
-        ].map((stat) => (
-          <div
-            key={stat.label}
-            className={`rounded-xl border-l-4 ${stat.accent} bg-card border-border border p-4`}
-          >
-            <div className="flex items-center gap-2">
-              <span className="material-symbols-outlined text-muted-foreground text-lg">
-                {stat.icon}
-              </span>
-              <span className="text-muted-foreground text-[10px] font-bold tracking-widest uppercase">
-                {stat.label}
-              </span>
-            </div>
-            <p className="text-foreground mt-1 text-2xl font-bold">
-              {stat.value}
-            </p>
-          </div>
-        ))}
-      </div>
-
-      {/* ── Mobile: Card View ─────────────────────── */}
-      <div className="space-y-3 md:hidden">
-        {isLoading
-          ? Array.from({ length: 4 }).map((_, i) => (
-              <Skeleton key={i} className="h-20 w-full" />
-            ))
-          : list.map((c) => {
-              const typeCfg = TYPE_LABELS[c.customerType] ?? {
-                label: c.customerType,
-                color: "",
-              };
-              return (
-                <Link
-                  key={c.id}
-                  href={`/customers/${c.id}`}
-                  className="border-border bg-card hover:border-primary/30 block rounded-xl border p-4 transition-colors"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <p className="text-foreground truncate font-medium">
-                        {c.name}
-                      </p>
-                      <p className="text-muted-foreground mt-0.5 font-mono text-xs">
-                        {c.email ?? "—"}
-                      </p>
-                    </div>
-                    <span
-                      className={`shrink-0 rounded-full px-2.5 py-0.5 text-[10px] font-bold ${typeCfg.color}`}
-                    >
-                      {typeCfg.label}
-                    </span>
-                  </div>
-                  <div className="mt-2 flex items-center justify-between">
-                    <span className="text-muted-foreground text-xs">
-                      {c.phone ?? "—"}
-                    </span>
-                    {Number(c.creditLimit ?? 0) > 0 && (
-                      <span className="text-muted-foreground font-mono text-xs">
-                        Crédito: ${Number(c.creditLimit).toLocaleString()}
-                      </span>
-                    )}
-                  </div>
-                </Link>
-              );
-            })}
-        {!isLoading && list.length === 0 && (
-          <div className="text-muted-foreground flex flex-col items-center py-12 text-center">
-            <span className="material-symbols-outlined mb-2 text-3xl">
-              person_off
-            </span>
-            No hay clientes registrados
-          </div>
-        )}
-      </div>
-
-      {/* ── Desktop: Table View ───────────────────── */}
-      <div className="border-border bg-card hidden overflow-hidden rounded-xl border md:block">
-        <table className="w-full text-left text-sm">
-          <thead>
-            <tr className="border-border text-muted-foreground border-b text-[10px] font-bold tracking-widest uppercase">
-              <th className="px-4 py-3">Cliente</th>
-              <th className="px-4 py-3">Tipo</th>
-              <th className="px-4 py-3">RIF/Cédula</th>
-              <th className="px-4 py-3">Teléfono</th>
-              <th className="px-4 py-3 text-right">Límite Crédito</th>
-            </tr>
-          </thead>
-          <tbody>
-            {isLoading
-              ? Array.from({ length: 5 }).map((_, i) => (
-                  <tr key={i} className="border-border border-b">
-                    <td className="px-4 py-3">
-                      <Skeleton className="h-5 w-40" />
-                    </td>
-                    <td className="px-4 py-3">
-                      <Skeleton className="h-5 w-24" />
-                    </td>
-                    <td className="px-4 py-3">
-                      <Skeleton className="h-5 w-28" />
-                    </td>
-                    <td className="px-4 py-3">
-                      <Skeleton className="h-5 w-32" />
-                    </td>
-                    <td className="px-4 py-3">
-                      <Skeleton className="ml-auto h-5 w-20" />
-                    </td>
-                  </tr>
-                ))
-              : list.map((c) => {
-                  const typeCfg = TYPE_LABELS[c.customerType] ?? {
-                    label: c.customerType,
-                    color: "",
-                  };
-                  return (
-                    <tr
-                      key={c.id}
-                      className="border-border hover:bg-accent/50 border-b transition-colors"
-                    >
-                      <td className="px-4 py-3">
-                        <Link
-                          href={`/customers/${c.id}`}
-                          className="text-foreground hover:text-primary font-medium transition-colors"
-                        >
-                          {c.name}
-                        </Link>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span
-                          className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold ${typeCfg.color}`}
-                        >
-                          {typeCfg.label}
-                        </span>
-                      </td>
-                      <td className="text-muted-foreground px-4 py-3 font-mono text-xs">
-                        {c.email ?? "—"}
-                      </td>
-                      <td className="text-muted-foreground px-4 py-3">
-                        {c.phone ?? "—"}
-                      </td>
-                      <td className="text-muted-foreground px-4 py-3 text-right font-mono">
-                        {Number(c.creditLimit ?? 0) > 0
-                          ? `$${Number(c.creditLimit).toLocaleString()}`
-                          : "—"}
-                      </td>
-                    </tr>
-                  );
-                })}
-            {!isLoading && list.length === 0 && (
-              <tr>
-                <td
-                  colSpan={5}
-                  className="text-muted-foreground px-4 py-12 text-center"
-                >
-                  <span className="material-symbols-outlined mb-2 block text-3xl">
-                    person_off
-                  </span>
-                  No hay clientes registrados
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
     </div>
   );
 }
