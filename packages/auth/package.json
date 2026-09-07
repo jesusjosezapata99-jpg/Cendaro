@@ -30,7 +30,7 @@
     "typecheck": "tsc --noEmit --emitDeclarationOnly false"
   },
   "dependencies": {
-    "@supabase/ssr": "^0.12.5",
+    "@supabase/ssr": "^0.12.6",
     "@supabase/supabase-js": "^2.114.0"
   },
   "devDependencies": {
