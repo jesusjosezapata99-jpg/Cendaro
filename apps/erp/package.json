@@ -18,7 +18,7 @@
     "@cendaro/db": "workspace:*",
     "@cendaro/ui": "workspace:*",
     "@cendaro/validators": "workspace:*",
-    "@supabase/ssr": "^0.12.5",
+    "@supabase/ssr": "^0.12.6",
     "@supabase/supabase-js": "^2.114.0",
     "@t3-oss/env-nextjs": "^0.13.11",
     "@tanstack/react-query": "catalog:",
