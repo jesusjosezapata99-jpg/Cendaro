@@ -66,6 +66,15 @@ const CHANNEL_LABELS: Record<string, string> = {
   instagram: "Instagram",
 };
 
+/** Sales channels → Material Symbols glyph (mirrors the orders list). */
+const CHANNEL_ICONS: Record<string, string> = {
+  store: "store",
+  mercadolibre: "shopping_cart",
+  vendors: "local_shipping",
+  whatsapp: "chat",
+  instagram: "photo_camera",
+};
+
 /** Shared cell padding for tables. */
 const cellPx = "px-4 py-3";
 
@@ -179,7 +188,7 @@ export default function OrderDetailPage() {
                   aria-hidden
                   className="material-symbols-outlined text-base"
                 >
-                  store
+                  {CHANNEL_ICONS[order.channel] ?? "store"}
                 </span>
                 {CHANNEL_LABELS[order.channel] ?? order.channel}
               </span>

@@ -472,7 +472,7 @@ export function CatalogImportWizard() {
       )}
 
       {/* Step content */}
-      <div className="min-h-[300px]">
+      <div className="min-h-75">
         {state.step === "upload" && (
           <FileUpload
             onFileSelect={handleFileSelect}

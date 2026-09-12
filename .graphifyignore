@@ -1,0 +1,14 @@
+node_modules/
+.next/
+.turbo/
+dist/
+build/
+out/
+coverage/
+.cache/
+.git/
+*.lock
+*.lockb
+pnpm-lock.yaml
+supabase/.temp/
+.system_generated/

@@ -495,7 +495,7 @@ export function InventoryImportWizard({
       )}
 
       {/* Step content */}
-      <div className="min-h-[300px]">
+      <div className="min-h-75">
         {state.step === 1 && (
           <ModeSelect selectedMode={state.mode} onSelect={selectMode} />
         )}

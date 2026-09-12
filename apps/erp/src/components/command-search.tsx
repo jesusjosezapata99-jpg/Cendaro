@@ -510,7 +510,7 @@ export function CommandSearch() {
                               })
                             }
                             className={cn(
-                              "flex min-h-[40px] w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors",
+                              "flex min-h-10 w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors",
                               idx === selectedIndex
                                 ? "bg-accent text-foreground"
                                 : "text-foreground/80 hover:bg-accent/50",
@@ -549,7 +549,7 @@ export function CommandSearch() {
                               })
                             }
                             className={cn(
-                              "flex min-h-[40px] w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors",
+                              "flex min-h-10 w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors",
                               idx === selectedIndex
                                 ? "bg-accent text-foreground"
                                 : "text-foreground/80 hover:bg-accent/50",
@@ -595,7 +595,7 @@ export function CommandSearch() {
                               })
                             }
                             className={cn(
-                              "flex min-h-[40px] w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors",
+                              "flex min-h-10 w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors",
                               idx === selectedIndex
                                 ? "bg-accent text-foreground"
                                 : "text-foreground/80 hover:bg-accent/50",
@@ -636,7 +636,7 @@ export function CommandSearch() {
                               })
                             }
                             className={cn(
-                              "flex min-h-[40px] w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors",
+                              "flex min-h-10 w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition-colors",
                               idx === selectedIndex
                                 ? "bg-accent text-foreground"
                                 : "text-foreground/80 hover:bg-accent/50",

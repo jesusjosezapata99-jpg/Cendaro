@@ -18,7 +18,7 @@ export function Hero() {
 
       {/* Background glow — center */}
       <div
-        className="pointer-events-none absolute top-1/2 left-1/2 -z-10 h-[500px] w-[700px] -translate-x-1/2 -translate-y-1/3 rounded-full blur-[140px]"
+        className="pointer-events-none absolute top-1/2 left-1/2 -z-10 h-125 w-175 -translate-x-1/2 -translate-y-1/3 rounded-full blur-[140px]"
         style={{
           background: "oklch(0.546 0.195 262 / var(--landing-glow-opacity))",
         }}
@@ -27,11 +27,11 @@ export function Hero() {
 
       {/* Edge vignettes — left & right (like midday) */}
       <div
-        className="from-primary/4 dark:from-primary/6 pointer-events-none absolute top-0 left-0 -z-10 h-full w-[400px] bg-linear-to-r to-transparent"
+        className="from-primary/4 dark:from-primary/6 pointer-events-none absolute top-0 left-0 -z-10 h-full w-100 bg-linear-to-r to-transparent"
         aria-hidden="true"
       />
       <div
-        className="from-primary/4 dark:from-primary/6 pointer-events-none absolute top-0 right-0 -z-10 h-full w-[400px] bg-linear-to-l to-transparent"
+        className="from-primary/4 dark:from-primary/6 pointer-events-none absolute top-0 right-0 -z-10 h-full w-100 bg-linear-to-l to-transparent"
         aria-hidden="true"
       />
 

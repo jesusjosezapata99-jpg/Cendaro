@@ -140,16 +140,7 @@ export default function OrdersClient() {
 
       {/* Filter chips — wraps on mobile */}
       <div className="mobile-scroll-x flex gap-2 pb-1">
-        {[
-          "all",
-          "pending",
-          "confirmed",
-          "prepared",
-          "dispatched",
-          "delivered",
-          "invoiced",
-          "cancelled",
-        ].map((s) => (
+        {["all", ...Object.keys(STATUS_CONFIG)].map((s) => (
           <button
             key={s}
             onClick={() => setStatusFilter(s)}

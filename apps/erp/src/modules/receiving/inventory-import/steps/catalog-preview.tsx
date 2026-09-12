@@ -233,7 +233,7 @@ export function CatalogPreview({
 
       {/* Table */}
       <div className="bg-card border-border overflow-hidden rounded-lg border">
-        <div className="max-h-[400px] overflow-auto">
+        <div className="max-h-100 overflow-auto">
           {tab === "brands" ? (
             <table className="w-full text-sm">
               <thead className="bg-muted/50 sticky top-0">

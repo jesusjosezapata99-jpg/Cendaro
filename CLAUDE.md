@@ -48,16 +48,17 @@ pnpm ui-add       # Add shadcn/ui components
 
 ---
 
-## Context Hydration (MANDATORY)
+## Context Hydration (Targeted & On-Demand)
 
-**At the start of EVERY task, before writing any code, read these files:**
+**Read files selectively based on task scope to avoid context bloat:**
 
-1. `.gemini/knowledge/state.md` — Recent changes, active decisions, living memory
-2. `.gemini/knowledge/architecture.md` — Full system topology, dependency graph
-3. `.gemini/knowledge/stack.md` — Complete dependency inventory with versions
-4. `graphify-out/GRAPH_REPORT.md` — Architecture knowledge graph (god nodes, communities)
+1. `graphify query "<question>"` / `/graphify` — Query the local AST graph for symbols, callers, and file relationships (zero-token AST discovery).
+2. `.gemini/knowledge/state.md` — Recent changes, active decisions, living memory.
+3. `.gemini/knowledge/architecture.md` — Consult selectively for system topology and dependency graph.
+4. `.gemini/knowledge/stack.md` — Consult before adding or upgrading dependencies.
+5. `graphify-out/GRAPH_REPORT.md` — Consult ONLY for broad architecture review if query/path/explain do not surface enough context (never dump on turn 1).
 
-> ⛔ Failure to read these files before coding constitutes a critical context failure.
+> ⚡ **Token Economy Rule**: Ingest only the specific section required for the task. Use Graphify for structural navigation.
 
 ## graphify
 
