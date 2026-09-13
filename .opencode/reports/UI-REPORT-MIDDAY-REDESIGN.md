@@ -189,3 +189,43 @@ Las 27 rutas `(app)` **no se pudieron capturar** — requieren sesión autentica
 2. Superposición visual de un icono (p. ej. `Timer`) sobre el original de Midday a 20px (aceptación T1.6, mencionada en el plan pero no ejecutada formalmente esta sesión — la verificación de path SVG ya se hizo por coordenadas exactas en la sesión anterior).
 3. Revisión manual de totales monetarios diferida en T1.12.
 4. Propuesta de commit (`feat(ui): adopt Midday design foundations — tokens, Hedvig type, symbol icons, primitives`) y **esperar aprobación explícita del usuario** antes de `git commit`.
+
+---
+
+## F2 — Estructura: riel, cabecera, búsqueda global, notificaciones, tema
+
+**Estado**: en progreso, ejecutada tarea por tarea con gate completo entre cada una (a pedido explícito del usuario: "no todo de golpe asegura la calidad").
+
+### T2.1 — Navegación única · 2026-09-13
+
+**Archivos**:
+
+- `apps/erp/src/lib/navigation.ts` (nuevo) — `NAV_ITEMS`: los 9 padres de §5.8.3 (`overview, pos, sales, customers, catalog, inventory, finance, channels, settings`), tipados `NavParent { id, label, icon: IconName, href?, roles?, children? }` / `NavChild { label, href, roles?, kind: "link" | "create" }`. Helpers `getVisibleNav(role)`, `isParentActive`, `isChildActive`.
+- `apps/erp/src/lib/redirect-allowlist.ts` (nuevo) — `REDIRECT_ALLOWLIST_PREFIX` extraído de `proxy.ts` a un módulo sin dependencias (ni `~/env` ni `@cendaro/auth/middleware`) para poder testearlo contra `NAV_ITEMS` en Vitest sin arrastrar la validación de variables de entorno.
+- `apps/erp/src/proxy.ts` — ahora importa `REDIRECT_ALLOWLIST_PREFIX` de `~/lib/redirect-allowlist` en vez de declararlo inline.
+- `packages/validators/src/index.ts` — nuevo `NAV_ROLE_RULES` (+ `NavRoleRuleKey`): única fuente de roles por sección/acción, compartida entre la UI del riel y `search.global` (T2.11). Los valores de `createOrder`, `createCustomer` y `createProduct`/`catalogImport` se leyeron de la tabla real `role_permission` (no se asumieron): `orders.create` → owner/admin/supervisor/employee; `customers.create` y `catalog.create` → owner/admin/supervisor. `catalog` no tiene una acción "import" propia en el enum `permission_action` (`create, read, update, delete, approve, export`), así que el asistente de importación se gatea igual que `catalog.create`.
+- `apps/erp/vitest.config.ts` (nuevo) + `apps/erp/package.json` (`"test": "vitest run"`, `vitest@^4.1.11` como devDependency) — **F1 había dejado `apps/erp` sin runner de tests propio** (el `turbo run test` solo cubría `packages/api`); T2.1 es la primera tarea que necesita un test en `apps/erp`, así que se añadió el mínimo necesario (alias `~` resuelto manualmente en `resolve.alias`, ya que Vitest no lee `tsconfig.json` paths por sí solo).
+- `apps/erp/src/lib/navigation.test.ts` (nuevo, 10 tests) — (1) toda ruta de `NAV_ITEMS` (base sin query string) está cubierta por `REDIRECT_ALLOWLIST_PREFIX`; (2) tabla de verdad: cada uno de los 6 roles (`owner, admin, supervisor, employee, vendor, marketing`) ve exactamente el conjunto de hijos esperado, incluyendo el caso `role === null` (perfil aún cargando) que replica la semántica histórica de `hasRole()` en `role-guard.tsx` (un ítem sin `roles` es visible aunque el rol todavía no se conozca); (3) `isParentActive`/`isChildActive` con query strings y rutas anidadas.
+
+**Bug propio detectado y corregido antes del gate**: al portar el padre "Inventario" se me olvidó aplicarle `roles: NAV_ROLE_RULES.inventory` — el padre quedó sin restricción, cuando el `sidebar.tsx` actual restringe _todo_ `/inventory` a `owner/admin/supervisor`. Se detectó por inspección cruzada contra el sidebar existente antes de escribir el test (no lo encontró el gate automático), y se corrigió antes de correr typecheck/lint/test.
+
+**Gate G1** (`pnpm exec turbo run typecheck lint test build --filter=@cendaro/erp --filter=@cendaro/validators --force`): 9/9 tareas ✅, 10/10 tests Vitest nuevos ✅, build de 47 páginas ✅ (mismo warning benigno de fetch del logo OG que en F1).
+
+**Pendiente de T2.1** dentro del alcance de F2: ninguno — T2.1 es autocontenida. `sidebar.tsx` / `nav-link.tsx` siguen intactos y en uso; se reemplazan recién en T2.2 (`components/shell/rail.tsx`) y se eliminan en T2.14, no antes.
+
+**Siguiente**: T2.2 — Riel (`components/shell/rail.tsx` + `main-menu.tsx`), consumiendo `NAV_ITEMS`/`getVisibleNav` de esta tarea.
+
+### T2.2 — Riel (`components/shell/rail.tsx` + `main-menu.tsx`) · 2026-09-13
+
+**Archivos**:
+
+- `apps/erp/src/components/shell/rail.tsx` (nuevo) — `<aside>` `fixed hidden md:flex` M-01 (70↔240px, `duration-200 ease-[cubic-bezier(0.4,0,0.2,1)]`, disparo `hover` **y** `focus`/`blur` por DEV-4), cabecera M-02 (`h-17.5` con `border-b`, ancho `w-17.25↔w-full`, logo `/cendaro-logo.png` fijo en `left-5.5` sin transición), `<nav pt-17.5 border-b mb-3>` conteniendo `<MainMenu/>`, y un slot vacío `justify-between` al fondo reservado para la pila de workspaces (M-08, T2.3).
+- `apps/erp/src/components/shell/main-menu.tsx` (nuevo) — un `<li className="relative">` por padre con 3 capas absolutas superpuestas: fondo del ítem (M-03, `left-3.75 h-10`, `w-10↔w-[calc(100%-30px)]`, activo `bg-nav-active border-line`), caja de icono (`left-3.75 w-10 h-10`, tamaño 20, color `text-nav-icon`/`text-foreground` si activo) y etiqueta (M-04, `left-13.75 right-1`). Hijos con stagger M-06 (`transitionDelay = 40+i·20ms` al abrir, `i·20ms` al cerrar) y contenedor M-05 (`max-h-0↔max-h-96`). Chevron M-07 como botón **hermano** del `Link`/`button` de fila (nunca anidado dentro — evita botón-dentro-de-botón/enlace) que rota 180° y expande/contrae independientemente de la navegación.
+
+**Desviación documentada respecto a la redacción literal del plan**: T2.2 dice "Etiqueta: render condicional al expandir" para M-04, pero un nodo desmontado no puede animar su propia salida — la etiqueta se mantiene siempre montada y se anima con `opacity-100/0` + `pointer-events-none` cuando está colapsada, que es el patrón estándar para que la transición de 200ms sea real y no un corte abrupto. Documentado en el propio archivo.
+
+**Aún sin cablear** (deliberado, seguimos "parte por parte"): ni `rail.tsx` ni `main-menu.tsx` se importan todavía desde `app-shell.tsx` — ese swap sobre `sidebar.tsx` ocurre recién en T2.9 una vez que T2.3 (pila de workspaces) y T2.5 (menú móvil) también existan, para no dejar el shell a medio migrar. Por tanto el Gate visual (computed styles de M-01…M-07 con agent-browser) queda pendiente hasta T2.9, igual que T2.1.
+
+**Gate G1** (`pnpm exec turbo run typecheck lint build --filter=@cendaro/erp --force`): typecheck ✅ · lint ✅ (2 rondas: `import/consistent-type-specifier-style` y `no-unnecessary-type-assertion` corregidos) · build de 47 páginas ✅.
+
+**Siguiente**: T2.3 — Pila de workspaces (`components/shell/workspace-stack.tsx`), que ocupa el slot vacío al fondo de `rail.tsx`.

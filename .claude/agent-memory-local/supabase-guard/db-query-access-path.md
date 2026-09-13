@@ -1,18 +1,16 @@
 ---
 name: db-query-access-path
-description: How to actually run read-only SQL as supabase-guard on this machine — no Supabase MCP tools are exposed to this subagent; use DATABASE_URL + postgres.js
+description: How supabase-guard runs read-only SQL — Supabase MCP tools are now exposed to this subagent; postgres.js via DATABASE_URL is the fallback
 metadata:
   type: reference
 ---
 
-The `supabase-guard` subagent is **not** given the Supabase MCP tools at runtime (only Read/Bash/Write/Edit), despite CLAUDE.md listing `supabase` as an MCP. To run read-only SQL, connect directly.
+As of 2026-09-13 the `supabase-guard` subagent **does** receive the Supabase MCP tools (`mcp__supabase__execute_sql`, `list_tables`, etc.). Use them first. (Before 2026-09-12 they were not propagated into the subagent — that has changed; do not assume the old limitation.)
 
-**Why:** MCP servers are allow-listed for the main session, not propagated into this subagent's tool set. Discovered 2026-09-12 when asked to run three role-inspection queries.
+**Why:** MCP allow-listing for subagents changed; verified by a successful `get_project_url` + `execute_sql` run.
 
 **How to apply:**
 
-- Credentials: `DATABASE_URL` in `C:\Users\jzs99\Desktop\TEST\.env` — Supabase pooler at `aws-1-eu-west-3.pooler.supabase.com:5432`, user `postgres.ljwoptpaxazqmnhdczsb`. Always assert the string contains `ljwoptpaxazqmnhdczsb` before connecting (never `xlgyogcaflsmmwpcuiwk`).
-- `psql` is NOT installed. Driver is `postgres` (postgres.js v3) but only via pnpm's virtual store — a script in the scratchpad cannot resolve `import postgres from "postgres"`. Import the resolved path as a `file:///` URL (Windows bare `C:/` paths fail with `ERR_UNSUPPORTED_ESM_URL_SCHEME`). Get the path with `node -e "console.log(require.resolve('postgres'))"` run from `packages/db`.
-- Use `postgres(url, { max: 1, prepare: false, ssl: "require" })` and `sql.unsafe(q)` for literal query text; wrap each query to print `e.code` / `e.severity` verbatim.
-- Keep the script in the scratchpad, not the project tree.
-- This path is gated: the auto-mode permission classifier denies repeat runs as **[Production Reads]**. Expect to get one batch through, then need explicit user approval. Do not try to route around the denial — surface it and let the user decide.
+- Always call `mcp__supabase__get_project_url` (or otherwise confirm `ljwoptpaxazqmnhdczsb`) before querying. Never `xlgyogcaflsmmwpcuiwk`.
+- Fallback only if MCP tools are absent: `DATABASE_URL` in `C:\Users\jzs99\Desktop\TEST\.env` (pooler `aws-1-eu-west-3.pooler.supabase.com:5432`, user `postgres.ljwoptpaxazqmnhdczsb`). `psql` is NOT installed; use postgres.js resolved via `node -e "console.log(require.resolve('postgres'))"` from `packages/db`, imported as a `file:///` URL (bare `C:/` paths fail with `ERR_UNSUPPORTED_ESM_URL_SCHEME`). Options: `{ max: 1, prepare: false, ssl: "require" }`, query with `sql.unsafe(q)`. Keep scripts in the scratchpad.
+- The fallback path is gated by the permission classifier as **[Production Reads]** — surface a denial to the user rather than routing around it. See [[feedback-no-set-role]].

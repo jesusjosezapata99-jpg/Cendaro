@@ -90,6 +90,43 @@ export type UserRole = (typeof USER_ROLES)[number];
 
 export const userRoleSchema = z.enum(USER_ROLES);
 
+/**
+ * NAV_ROLE_RULES — single source of truth for "which roles see this" across
+ * the sidebar (`~/lib/navigation.ts`), the global search redaction
+ * (`search.global`, T2.11) and any other UI gate that used to hardcode a
+ * `roles: UserRole[]` list. Values for the "create X" entries mirror the
+ * actual grants in `role_permission` (read 2026-09-13) rather than a guess:
+ * `orders.create` → admin/employee/owner/supervisor, `customers.create` and
+ * `catalog.create` → admin/owner/supervisor. `catalog` has no dedicated
+ * "import" permission in the DB, so the import wizard is gated the same as
+ * `catalogCreate`.
+ */
+export const NAV_ROLE_RULES = {
+  pos: ["owner", "admin", "supervisor", "employee"],
+  deliveryNotes: ["owner", "admin", "supervisor"],
+  invoices: ["owner", "admin", "supervisor"],
+  vendors: ["owner", "admin", "supervisor"],
+  createOrder: ["owner", "admin", "supervisor", "employee"],
+  createCustomer: ["owner", "admin", "supervisor"],
+  pricing: ["owner", "admin", "supervisor"],
+  catalogImport: ["owner", "admin", "supervisor"],
+  createProduct: ["owner", "admin", "supervisor"],
+  containers: ["owner", "admin", "supervisor"],
+  inventory: ["owner", "admin", "supervisor"],
+  payments: ["owner", "admin", "supervisor", "employee"],
+  accountsReceivable: ["owner", "admin", "supervisor"],
+  cashClosure: ["owner", "admin", "supervisor"],
+  rates: ["owner", "admin", "supervisor"],
+  marketplace: ["owner", "admin", "supervisor", "marketing"],
+  whatsapp: ["owner", "admin", "supervisor", "employee"],
+  settings: ["owner", "admin"],
+  users: ["owner", "admin"],
+  audit: ["owner", "admin"],
+  alerts: ["owner", "admin", "supervisor"],
+} as const satisfies Record<string, readonly UserRole[]>;
+
+export type NavRoleRuleKey = keyof typeof NAV_ROLE_RULES;
+
 // ──────────────────────────────────────────────
 // Composite form schemas (frontend ↔ backend)
 // ──────────────────────────────────────────────

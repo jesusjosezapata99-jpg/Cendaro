@@ -6,7 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import type { IconName } from "@cendaro/ui/icons";
 import type { UserRole } from "@cendaro/validators";
-import { cn } from "@cendaro/ui";
+import { Button, cn } from "@cendaro/ui";
 import { Icon, Icons } from "@cendaro/ui/icons";
 
 import { hasRole } from "~/components/role-guard";
@@ -416,22 +416,18 @@ export function CommandSearch() {
 
   return (
     <>
-      {/* ── Dormant trigger (pill) ── */}
-      <button
+      {/* ── Dormant trigger (pill) — §5.8.1 header search button spec ── */}
+      <Button
+        variant="outline"
         onClick={handleOpen}
-        className={cn(
-          "bg-secondary hover:bg-accent text-muted-foreground hidden h-9 items-center gap-2 rounded-lg px-4 text-sm transition-all sm:flex",
-          "w-64 justify-between",
-        )}
+        className="text-muted-foreground hidden min-w-62.5 justify-start border-0 p-0 font-normal hover:bg-transparent sm:flex md:w-40 lg:w-64"
       >
-        <div className="flex items-center gap-2">
-          <Icons.Search className="size-4" />
-          <span className="text-muted-foreground/70 text-xs">Buscar...</span>
-        </div>
-        <kbd className="bg-background text-muted-foreground/50 pointer-events-none hidden rounded border px-1.5 py-0.5 font-mono text-[10px] font-medium sm:inline-flex">
+        <Icons.Search className="mr-2 size-4.5" />
+        <span className="text-sm">Buscar cualquier cosa…</span>
+        <kbd className="bg-background text-muted-foreground/50 pointer-events-none ml-auto hidden rounded border px-1.5 py-0.5 font-mono text-[10px] font-medium sm:inline-flex">
           ⌘K
         </kbd>
-      </button>
+      </Button>
 
       {/* ── Mobile trigger ── */}
       <button
