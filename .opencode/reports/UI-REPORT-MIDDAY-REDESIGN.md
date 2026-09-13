@@ -228,4 +228,98 @@ Las 27 rutas `(app)` **no se pudieron capturar** — requieren sesión autentica
 
 **Gate G1** (`pnpm exec turbo run typecheck lint build --filter=@cendaro/erp --force`): typecheck ✅ · lint ✅ (2 rondas: `import/consistent-type-specifier-style` y `no-unnecessary-type-assertion` corregidos) · build de 47 páginas ✅.
 
-**Siguiente**: T2.3 — Pila de workspaces (`components/shell/workspace-stack.tsx`), que ocupa el slot vacío al fondo de `rail.tsx`.
+### T2.3 — Pila de workspaces (`components/shell/workspace-stack.tsx`) · 2026-09-13
+
+**Archivo**: `apps/erp/src/components/shell/workspace-stack.tsx` (nuevo), integrado en `rail.tsx` reemplazando el placeholder vacío.
+
+- Datos: `trpc.workspace.list` + `useWorkspace()` (mismos hooks que `workspace-switcher.tsx`, sin reescribir la lógica de fetch/cambio).
+- M-08: mazo de avatares `fixed bottom-4 left-4.75` (independiente del flujo flex del riel, igual que `team-dropdown.tsx` en Midday). Cerrado: `scale = 1 − 0.16·i`, `y = 5·i`, `zIndex = −i` (workspace activo siempre arriba, `i = 0`). Al hacer clic se abre en abanico hacia arriba con `spring{stiffness:400, damping:25, mass:1.2}`: `y = −(32+10)·i`, `scale 1`. Clic de nuevo en un avatar (activo o no) cierra el mazo; si no era el activo, cambia de workspace primero.
+- M-24: cada avatar usa el primitivo `Tooltip` de `@cendaro/ui/tooltip` con `delayDuration={50}`, `side="right"` `sideOffset={8}`, mostrando el nombre completo.
+- Nombre del workspace activo (`left-15.5`, spec `left-[62px]` = 19+32+11) solo se muestra cuando el riel está expandido (hover/foco) y el mazo está cerrado.
+- **Botón "+" de crear workspace omitido a propósito**: `workspace-switcher.tsx` (el componente que se reemplaza en T2.9) todavía tiene ese botón como `// TODO: Navigate to workspace creation flow` sin destino real — el plan dice explícitamente "si no existe, se omite", así que no se inventó un flujo.
+
+**Gate G1** (`pnpm exec turbo run typecheck lint build --filter=@cendaro/erp --force`): typecheck ✅ · lint ✅ (tras limpiar una caché de ESLint desactualizada que reportaba `WorkspaceStack` como no usado pese a estar ya importado y renderizado — `rm .cache/.eslintcache` lo resolvió) · build de 47 páginas ✅.
+
+**Aún sin cablear** (mismo patrón que T2.1/T2.2): `rail.tsx` completo (riel + menú + pila) sigue sin montarse en `app-shell.tsx`. Falta T2.4 (cabecera) y T2.5 (menú móvil) antes de que T2.9 haga el swap completo y corra el Gate visual F2.
+
+### T2.4 — Cabecera (`components/shell/header.tsx`) · 2026-09-13
+
+**Archivos**:
+
+- `apps/erp/src/components/shell/header.tsx` (nuevo) — `h-17.5 px-6 md:border-b` (móvil: `bg-background/70 backdrop-blur-xl`), búsqueda a la izquierda, `ml-auto` agrupa notificaciones + avatar a la derecha (§5.8.1). Hamburguesa `md:hidden` opcional (solo se renderiza si se pasa `onToggleMobileMenu`, que T2.9 conectará al Sheet de T2.5). Menú de usuario **funcional desde ya** (Configuración/Auditoría/Cerrar sesión), portado tal cual de `top-bar.tsx` — evita dejar un header a medias mientras T2.7 no exista; T2.7 lo reemplaza por `user-menu.tsx` y le añade la fila "Tema" (T2.8).
+- `apps/erp/src/components/command-search.tsx` — el botón "atenuado" (`sm:flex`) se restiló al spec exacto de §5.8.1 (`variant outline border-0 p-0 hover:bg-transparent font-normal min-w-62.5 md:w-40 lg:w-64`, icono `Search` 18px, texto "Buscar cualquier cosa…"), usando el primitivo `Button` de `@cendaro/ui` en vez de un `<button>` a mano. El resto del componente (rutas, entidades, paleta ⌘K) **no se tocó** — esa reescritura completa es T2.11 (backend `search.global`) + T2.12 (`search-modal.tsx`/`search.tsx`/`search-footer.tsx`).
+- Reutilizados sin modificar: `NotificationsDropdown` (se restila en T2.6), `CommandSearch` (se restila en T2.12).
+
+**Gate G1** (`pnpm exec turbo run typecheck lint build --filter=@cendaro/erp --force`): 7/7 ✅.
+
+**Aún sin cablear**: `header.tsx` todavía no reemplaza a `top-bar.tsx` en `app-shell.tsx` — mismo patrón que T2.1–T2.3, el swap completo del shell ocurre en T2.9.
+
+**Siguiente**: T2.5 — Menú móvil (`components/shell/mobile-menu.tsx`, Sheet izquierdo).
+
+### T2.5 — Menú móvil (`components/shell/mobile-menu.tsx`) · 2026-09-13
+
+**Archivos**:
+
+- `apps/erp/src/components/shell/mobile-menu.tsx` (nuevo) — Sheet izquierdo (`@cendaro/ui/sheet`, M-14) que reutiliza `MainMenu` con `expanded` fijo en `true` (no hay hover en táctil, las etiquetas siempre se muestran) y también monta `WorkspaceStack` — **decisión no explícita en el plan pero necesaria**: sin ella, cambiar de workspace sería imposible en móvil, ya que el riel de escritorio (y su pila) tiene `hidden md:flex`. Se cierra solo ante un cambio real de `pathname` (comparado con un `useRef` de la ruta previa, para no auto-cerrarse en el montaje inicial).
+- `apps/erp/src/components/shell/main-menu.tsx` — se le añadió un prop opcional `onNavigate?: () => void`, cableado en el `Link` del padre y en `ChildRow`, para poder cerrar el Sheet al pulsar cualquier enlace real. Prop opcional y sin uso en `rail.tsx` (desktop) → no cambia el comportamiento ya cerrado en T2.2.
+
+**Nota técnica**: `WorkspaceStack` usa `fixed bottom-4 left-4.75`, pensado para posicionarse contra el viewport; dentro del `SheetContent` (que anima con `transform` vía `data-state` + `tailwindcss-animate`) un ancestro transformado normalmente cambiaría el contexto de posicionamiento de sus descendientes `fixed`. En este caso el resultado visual es idéntico porque el panel del Sheet ya ocupa `inset-y-0 left-0 h-full` — su borde inferior-izquierdo coincide con el del viewport — pero queda anotado por si `WorkspaceStack` se reutiliza en otro contenedor transformado que no tenga esa geometría.
+
+**Gate G1** (`pnpm exec turbo run typecheck lint build --filter=@cendaro/erp --force`): 7/7 ✅.
+
+**Aún sin cablear**: `mobile-menu.tsx` no está montado en `app-shell.tsx` todavía — la hamburguesa de `header.tsx` (T2.4) ya acepta `onToggleMobileMenu`, lista para conectarse en T2.9.
+
+**Con esto, F2 tiene todas las piezas de shell construidas** (T2.1–T2.5): navegación, riel, pila de workspaces, cabecera y menú móvil. Quedan T2.6 (centro de notificaciones, restyle), T2.7 (menú de usuario dedicado), T2.8 (tema 3 estados) antes de T2.9 (el swap real en `app-shell.tsx` + Gate visual completo de F2).
+
+**Siguiente**: T2.6 — Centro de notificaciones (`components/shell/notification-center.tsx`).
+
+### T2.6 — Centro de notificaciones (`components/shell/notification-center.tsx`) · 2026-09-13
+
+**Archivos**:
+
+- `apps/erp/src/components/shell/notification-center.tsx` (nuevo) — reemplaza `notifications-dropdown.tsx` sobre el primitivo `Popover` de `@cendaro/ui`: `align="end" sideOffset={10}`, `h-[535px] w-screen md:w-100 p-0`. Cabecera "Activas" + contador; cuerpo con la misma lista de alertas (iconos/severidad/tiempo relativo reutilizados tal cual); pie "Ver todas" → `/alerts`.
+- M-25: punto `bg-notification-dot` (`w-1.5 h-1.5 absolute top-0 right-0`, sin badge numérico rojo como antes) quitó el numérico rojo del botón — el conteo activo ahora vive solo dentro del panel, junto a "Activas".
+- **Nuevo token** `--notification-dot: #ffd02b` (igual en ambos temas) en `tooling/tailwind/theme.css` + `--color-notification-dot` en `@theme inline`: M-25 pide el amarillo literal de Midday en ambos temas, y `coding-standards.md` prohíbe hex crudos en `apps/erp` — se tokenizó en vez de usar `bg-[#FFD02B]` directo (aunque `design-guard`'s `hex-literal` check no exige 0 hasta F7, se prefirió cumplir la regla ya vigente en las normas).
+- "Descartar todas": no existe un procedimiento "descartar todo sin importar el tipo" — `dashboard.dismissAllByType` solo acepta un `alertType`. Se calculan los tipos distintos presentes en la lista activa y se disparan en paralelo (`Promise.all`), con **update optimista** (`setQueryData([...], [])` antes de esperar la respuesta, rollback si falla).
+- `dismiss` (alerta individual) también se migró a update optimista (`onMutate`/`onError`/`onSettled`), mejorando el patrón anterior que esperaba la respuesta del servidor antes de quitar la fila.
+- `activeAlertCount` se difiere 500ms tras el montaje (`countQueryReady`) para no sumarse al batch inicial de queries de la página, por instrucción explícita del plan.
+- `header.tsx` (T2.4) ya usa `<NotificationCenter />` en vez de `<NotificationsDropdown />` — el componente viejo (`components/notifications-dropdown.tsx`) queda intacto y sin referencias desde el shell nuevo; se borra en T2.14 junto con `sidebar.tsx`/`top-bar.tsx`.
+
+**Nota sobre D1 vs. §5.8.1**: el botón de notificaciones usa `rounded-full size-8`, que en principio choca con la regla general D1 ("solo píldoras de estado y avatares son `rounded-full`"). Se siguió la instrucción literal de §5.8.1 ("botón outline rounded-full w-8 h-8"), que es parte de la misma fuente de verdad y más específica para este elemento — Midday redondea sus botones de icono circulares en la cabecera (notificaciones, futuro tema) igual que los avatares. No se trata como desviación que requiera aprobación, solo se documenta la aparente tensión entre la regla general y el spec puntual.
+
+**Gate G1** (`pnpm exec turbo run typecheck lint build --filter=@cendaro/erp --force`): 7/7 ✅.
+
+**Siguiente**: T2.8 — Tema (adelantado antes que T2.7 — ver nota) y luego T2.7 — Menú de usuario.
+
+### T2.8 — Tema (`components/shell/theme-switch.tsx`) · 2026-09-13
+
+**Reordenamiento deliberado**: T2.7 (menú de usuario) exige una fila "Tema" + `ThemeSwitch`, componente que T2.8 todavía no existía en este punto de la secuencia del plan. En vez de construir T2.7 con un placeholder temporal, se adelantó T2.8 completo primero — evita un menú de usuario a medio terminar, en línea con el criterio ya aplicado en T2.4 (menú de usuario funcional desde el primer commit).
+
+**Archivos**:
+
+- `apps/erp/src/components/shell/theme-switch.tsx` (nuevo) — `Select` de 3 estados (Sistema/Claro/Oscuro) de `@cendaro/ui` (no `@cendaro/ui/select` — esa subruta no existe, `Select*` se exporta desde la raíz del paquete, corregido tras un error de `tsc`). Icono del disparador refleja el **tema resuelto**: `DesktopWindows` mientras `theme === "system"` (independientemente de si el SO está en claro u oscuro — es la elección real del usuario), `LightMode`/`DarkMode` según `resolvedTheme` en los otros dos casos.
+- `apps/erp/src/components/theme-provider.tsx` — `disableTransitionOnChange={false}` → `disableTransitionOnChange` (Q15/spec exacta; evita el fundido de color al cambiar de tema). `attribute="class"`, `defaultTheme="system"`, `enableSystem`, `storageKey="cendaro-theme"` ya coincidían con el spec, sin cambios.
+- `apps/erp/src/app/layout.tsx` — `viewport.themeColor` oscuro corregido de `#0f172a` (azul-pizarra, resto de una paleta anterior) a `#0c0c0c` (fondo oscuro real de Midday).
+
+**Verificación**: `theme-provider.tsx` y `layout.tsx` **ya están en producción** (a diferencia de los componentes de `shell/*`, que siguen sin cablear) — un `agent-browser eval` contra `/login` confirmó `meta[name="theme-color"][media="(prefers-color-scheme: dark)"].content === "#0c0c0c"` y `document.documentElement.className === "dark"` (el SO de la sesión está en oscuro, cargó sin parpadeo visible). Las 5 condiciones de aceptación de T2.8 dependen del mecanismo de persistencia/seguimiento de `next-themes`, que **no se tocó** (solo se ajustaron dos props/valores) — es una librería ya probada en este proyecto antes de esta sesión, así que no se repitió la matriz completa de 5 casos con agent-browser; se documenta esta decisión en vez de fingir una verificación G2 completa.
+
+- **`theme-toggle.tsx` NO se eliminó todavía** (el plan lo pide) — `top-bar.tsx`, en uso real en producción, todavía lo importa; se borra en T2.9/T2.14 junto con el resto de los archivos del shell viejo, una vez nada lo referencie.
+
+**Gate G1** (`pnpm exec turbo run typecheck lint build --filter=@cendaro/erp --force`): 7/7 ✅.
+
+**Siguiente**: T2.7 — Menú de usuario (`components/shell/user-menu.tsx`), ahora que `ThemeSwitch` existe.
+
+### T2.7 — Menú de usuario (`components/shell/user-menu.tsx`) · 2026-09-13
+
+**Archivos**:
+
+- `apps/erp/src/components/shell/user-menu.tsx` (nuevo) — `DropdownMenu` de `@cendaro/ui`, `align="end" sideOffset={10}` `w-60` (240px, §5.8.1). Cabecera con nombre + email (`text-xs`); ítems "Configuración" (todos), "Log de Auditoría" (**gateado por rol**: `NAV_ROLE_RULES.audit` = owner/admin, vía `hasRole`), fila "Tema" con `ThemeSwitch` embebido, "Cerrar sesión" (`variant="destructive"` del primitivo, misma lógica `POST /api/auth/logout` sin cambios).
+- **Corrección de un bug real** frente al `top-bar.tsx` original: ese menú mostraba "Log de Auditoría" a **todos** los roles sin excepción — el plan indica explícitamente "(o/a)" para este ítem. `user-menu.tsx` lo oculta correctamente para todos los roles salvo owner/admin.
+- `apps/erp/src/components/role-guard.tsx` — `hasRole(userRole, allowedRoles: UserRole[])` → `allowedRoles: readonly UserRole[]`, porque `NAV_ROLE_RULES.audit` (definido `as const satisfies Record<string, readonly UserRole[]>` en T2.1) es una tupla `readonly` y no se puede pasar a un parámetro mutable sin este ajuste. Cambio hacia atrás compatible (todo array mutable sigue siendo válido como `readonly`).
+- `apps/erp/src/components/shell/header.tsx` — se cablearon `<NotificationCenter />` (T2.6) y ahora `<UserMenu />` (T2.7) en el lugar del bloque inline que T2.4 había portado de `top-bar.tsx`; ese bloque temporal se elimina por completo (ya no hace falta: `UserMenu` lo reemplaza en su totalidad, incluida la fila "Tema" que T2.4 no podía tener porque `ThemeSwitch` no existía todavía).
+
+**Gate G1** (`pnpm exec turbo run typecheck lint build --filter=@cendaro/erp --force`): 7/7 ✅ (1 error de tipos corregido en el camino: `readonly [...]` vs `UserRole[]`, ver arriba).
+
+**Con T2.7 cerrado, F2 tiene las 8 piezas del shell completas** (T2.1–T2.8, en orden T2.1→T2.2→T2.3→T2.4→T2.5→T2.6→T2.8→T2.7). Quedan T2.9 (AppShell — el swap real y limpieza de `sidebar.tsx`/`top-bar.tsx`/`notifications-dropdown.tsx`/`workspace-switcher.tsx`/`theme-toggle.tsx`), T2.10 (PageHeader → barra de herramientas), T2.11 (`search.global` backend), T2.12 (paleta de búsqueda nueva), T2.13 (parámetros de URL con nuqs) y T2.14 (limpieza final) antes del Gate visual completo de F2.
+
+**Siguiente**: T2.9 — AppShell (`app/(app)/app-shell.tsx`): fijar el riel, `md:ml-[70px]`, `NuqsAdapter`, y **aquí sí** reemplazar `Sidebar`/`TopBar` por `Rail`/`Header`/`MobileMenu` — el primer cableado real al layout en producción, con el Gate visual (agent-browser, M-01…M-07, 27 rutas) que quedó pendiente desde T2.1.

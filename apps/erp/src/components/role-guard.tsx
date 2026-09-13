@@ -48,7 +48,7 @@ export function RoleGuard({
  */
 export function hasRole(
   userRole: string | null | undefined,
-  allowedRoles: UserRole[],
+  allowedRoles: readonly UserRole[],
 ): boolean {
   if (!userRole) return false;
   return allowedRoles.includes(userRole as UserRole);

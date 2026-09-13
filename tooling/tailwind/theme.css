@@ -67,6 +67,8 @@
   --tooltip: var(--background);
   --tooltip-line: var(--border);
   --toast: #f6f6f3;
+  /* M-25 — notification dot, same literal Midday yellow in both themes */
+  --notification-dot: #ffd02b;
 
   /* ── Chart tokens — verbatim Midday globals.css ── */
   --chart-grid-stroke: #e6e6e6;
@@ -247,6 +249,7 @@
   --color-tooltip: var(--tooltip);
   --color-tooltip-line: var(--tooltip-line);
   --color-toast: var(--toast);
+  --color-notification-dot: var(--notification-dot);
 
   --font-sans:
     var(--font-hedvig-sans, "Hedvig Letters Sans"), system-ui, arial, sans-serif;

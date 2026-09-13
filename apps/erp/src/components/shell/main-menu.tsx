@@ -39,9 +39,11 @@ interface MainMenuProps {
   role: UserRole | null;
   /** Whether the rail is in its hover/focus-expanded (240px) state. */
   expanded: boolean;
+  /** Called after a real navigation (parent or child link) — e.g. to close the mobile Sheet (T2.5). */
+  onNavigate?: () => void;
 }
 
-export function MainMenu({ role, expanded }: MainMenuProps) {
+export function MainMenu({ role, expanded, onNavigate }: MainMenuProps) {
   const pathname = usePathname();
   const items = getVisibleNav(role);
   const [openId, setOpenId] = useState<string | null>(null);
@@ -74,6 +76,7 @@ export function MainMenu({ role, expanded }: MainMenuProps) {
           onToggle={() =>
             setOpenId((cur) => (cur === item.id ? null : item.id))
           }
+          onNavigate={onNavigate}
         />
       ))}
     </ul>
@@ -86,12 +89,14 @@ function MenuItem({
   expanded,
   isOpen,
   onToggle,
+  onNavigate,
 }: {
   item: VisibleNavParent;
   pathname: string;
   expanded: boolean;
   isOpen: boolean;
   onToggle: () => void;
+  onNavigate?: () => void;
 }) {
   const active = isParentActive(item, pathname);
   const children = item.children ?? [];
@@ -138,6 +143,7 @@ function MenuItem({
           href={item.href}
           className="relative block h-10"
           aria-current={active ? "page" : undefined}
+          onClick={onNavigate}
         >
           {visual}
         </Link>
@@ -191,6 +197,7 @@ function MenuItem({
               index={index}
               open={isOpen && expanded}
               active={isChildActive(child, pathname)}
+              onNavigate={onNavigate}
             />
           ))}
         </div>
@@ -204,11 +211,13 @@ function ChildRow({
   index,
   open,
   active,
+  onNavigate,
 }: {
   child: NavChild;
   index: number;
   open: boolean;
   active: boolean;
+  onNavigate?: () => void;
 }) {
   // M-06: stagger 40 + i·20ms opening, i·20ms closing.
   const delay = open ? 40 + index * 20 : index * 20;
@@ -224,6 +233,7 @@ function ChildRow({
       )}
       tabIndex={open ? 0 : -1}
       aria-current={active ? "page" : undefined}
+      onClick={onNavigate}
     >
       <span className="truncate">{child.label}</span>
     </Link>
