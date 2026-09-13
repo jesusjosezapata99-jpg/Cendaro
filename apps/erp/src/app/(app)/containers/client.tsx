@@ -109,15 +109,16 @@ export default function ContainersPage() {
       <PageHeader
         title="Contenedores & Importaciones"
         description="Gestión logística de importaciones internacionales, costeo FOB y recepción de carga"
-      >
-        <Button
-          onClick={() => setShowCreate(true)}
-          className="min-h-11 w-full gap-2 sm:w-auto"
-        >
-          <Icons.Add className="size-4.5" />
-          Nuevo Contenedor
-        </Button>
-      </PageHeader>
+        actions={
+          <Button
+            onClick={() => setShowCreate(true)}
+            className="min-h-11 w-full gap-2 sm:w-auto"
+          >
+            <Icons.Add className="size-4.5" />
+            Nuevo Contenedor
+          </Button>
+        }
+      />
 
       {/* 4 StatCards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">

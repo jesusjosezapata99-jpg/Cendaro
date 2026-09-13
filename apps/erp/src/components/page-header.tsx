@@ -1,9 +1,10 @@
 import { cn } from "@cendaro/ui";
 
 interface PageHeaderProps {
+  /** Document/a11y title only — Midday shows no visible page heading. */
   title: string;
   description?: string;
-  /** Meta content under the title (e.g. BCV rate badge). */
+  /** Left slot: search/filters (T2.11-T2.13) or other page-scoped controls. */
   children?: React.ReactNode;
   /** Right-aligned action buttons. */
   actions?: React.ReactNode;
@@ -11,8 +12,10 @@ interface PageHeaderProps {
 }
 
 /**
- * Standard page heading for every ERP section — title (semibold, tight),
- * optional description, and an actions slot aligned right on desktop.
+ * Page toolbar (PLAN-2026-09-MIDDAY-REDESIGN §T2.10) — no visible title;
+ * `title` renders `sr-only` for accessibility and the document outline.
+ * Left: description (page context, since the heading is hidden) + search/
+ * filters. Right: outline actions + primary "Crear" button.
  */
 export function PageHeader({
   title,
@@ -24,16 +27,16 @@ export function PageHeader({
   return (
     <div
       className={cn(
-        "flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between",
+        "flex flex-col gap-3 py-6 sm:flex-row sm:items-center sm:justify-between",
         className,
       )}
     >
-      <div className="min-w-0 space-y-1">
-        <h1 className="text-foreground text-2xl font-medium tracking-tight">
-          {title}
-        </h1>
+      <h1 className="sr-only">{title}</h1>
+      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3">
         {description ? (
-          <p className="text-muted-foreground text-sm">{description}</p>
+          <p className="text-muted-foreground shrink-0 text-sm">
+            {description}
+          </p>
         ) : null}
         {children}
       </div>

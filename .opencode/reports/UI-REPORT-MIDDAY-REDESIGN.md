@@ -348,3 +348,22 @@ Las 27 rutas `(app)` **no se pudieron capturar** — requieren sesión autentica
 **`sidebar.tsx`, `top-bar.tsx`, `notifications-dropdown.tsx`, `workspace-switcher.tsx`, `theme-toggle.tsx` quedan huérfanos** (verificado con `rg`: ningún archivo vivo los importa ya, salvo `sidebar.tsx` importándose a sí mismo su propio `workspace-switcher.tsx`) — se eliminan formalmente en T2.14, no antes.
 
 **Siguiente**: T2.10 — PageHeader como barra de herramientas.
+
+### T2.10 — PageHeader como barra de herramientas (`components/page-header.tsx`) · 2026-09-13
+
+**El cambio**: `PageHeader` deja de ser un encabezado de página (`h1` visible de 24px + descripción + acciones) y pasa a ser una **barra de herramientas**, per §T2.10: `h1` ahora es `sr-only` (Midday no muestra título de página, pero el heading se conserva en el DOM para lectores de pantalla y el árbol de accesibilidad), el contenedor gana `py-6`, y el layout queda: izquierda = descripción (único texto visible ahora que el título está oculto) + `children` (slot para búsqueda/filtros que T2.11-T2.13 poblarán por dominio) en una fila `flex-wrap`; derecha = `actions`, sin cambios de comportamiento. La firma de props (`title`, `description`, `children`, `actions`, `className`) se mantiene **intacta** — cero cambios de API pública — para no forzar una migración de los 27 call sites en esta tarea; cada dominio adopta filtros reales en su propia fase (F5/F7, tablas virtualizadas con `nuqs`).
+
+**Corrección de 2 call sites durante la auditoría de consistencia**: al revisar los 27 usos existentes antes de aceptar el nuevo layout, se encontró que `containers/client.tsx` y `customers/client.tsx` pasaban su botón "Nuevo Contenedor"/"Nuevo Cliente" por `children` en vez de `actions` — una inconsistencia pre-existente que, con el título visible de antes, no se notaba (el botón caía debajo del título, en la misma columna izquierda que las demás páginas usaban para texto). Con el título oculto, dejar esos botones en `children` los habría puesto **a la izquierda** de la barra, mientras que las otras 25 páginas los muestran a la derecha vía `actions` — una inconsistencia visual real, no cosmética menor. Se movieron ambos a `actions` (2 archivos, cambio quirúrgico, sin tocar el resto del contenido de cada página). El badge de tasa BCV en `dashboard/client.tsx` se dejó en `children` — es contexto informativo, no una acción, y su lugar correcto sigue siendo junto a la descripción.
+
+**Gate G1** (`pnpm exec turbo run typecheck lint test build --filter=@cendaro/erp --force`): 8/8 ✅ (10/10 tests).
+
+**Gate G2 — visual, con agent-browser (login real, `jesusjz`)**:
+
+- `/dashboard` (claro, 1440×900): sin `h1` visible, descripción + badge BCV en la izquierda, buscador/notificaciones/avatar en la cabecera superior sin cambios — confirmado `document.querySelector('h1').textContent === "Dashboard Ejecutivo"` con `getComputedStyle(...).position === "absolute"` (clase `sr-only` aplicada correctamente).
+- `/customers` (claro y oscuro, 1440×900): "Nuevo Cliente" ahora alineado a la derecha como en el resto de las páginas (antes aparecía a la izquierda, debajo de la descripción) — confirmado el fix de los 2 call sites.
+- `/customers` (390×844, claro): la barra colapsa a columna (`flex-col` en mobile, ya presente en el componente original), descripción arriba, botón de acción a ancho completo debajo, sin solaparse con las StatCards ni con el buscador de la página.
+- Logo del riel: reverificado visible correctamente en ambos temas (persiste el fix de T2.9, `invert dark:invert-0`).
+
+**No hay cambios de comportamiento fuera de `page-header.tsx` + los 2 call sites corregidos** — el resto de las 25 páginas restantes siguen renderizando exactamente el mismo `title`/`description`/`actions` que antes, solo con el layout de barra en vez de encabezado.
+
+**Siguiente**: T2.11 — `search.global` (tRPC).

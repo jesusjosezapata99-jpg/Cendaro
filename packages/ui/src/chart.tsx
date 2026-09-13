@@ -108,7 +108,10 @@ interface TooltipPayloadItem {
   payload?: Record<string, unknown>;
 }
 
-interface ChartTooltipContentProps extends React.ComponentProps<"div"> {
+interface ChartTooltipContentProps extends Omit<
+  React.ComponentProps<"div">,
+  "content"
+> {
   active?: boolean;
   payload?: TooltipPayloadItem[];
   label?: unknown;
@@ -119,6 +122,35 @@ interface ChartTooltipContentProps extends React.ComponentProps<"div"> {
   /** Hide the label row. */
   hideLabel?: boolean;
   labelFormatter?: (label: unknown) => React.ReactNode;
+  // Recharts internal props passed when rendering custom tooltip content:
+  accessibilityLayer?: boolean;
+  allowEscapeViewBox?: boolean | { x?: boolean; y?: boolean };
+  animationDuration?: number;
+  animationEasing?: string;
+  axisId?: string | number;
+  content?: unknown;
+  contentStyle?: React.CSSProperties;
+  coordinate?: { x?: number; y?: number };
+  cursor?: unknown;
+  defaultIndex?: number;
+  filterNull?: boolean;
+  formatter?: unknown;
+  includeHidden?: boolean;
+  isAnimationActive?: boolean | "auto";
+  itemSorter?: unknown;
+  itemStyle?: React.CSSProperties;
+  labelStyle?: React.CSSProperties;
+  offset?: number | { x?: number; y?: number };
+  payloadUniqBy?: unknown;
+  portal?: HTMLElement | null;
+  position?: { x?: number; y?: number };
+  reverseDirection?: boolean | { x?: boolean; y?: boolean };
+  separator?: string;
+  shared?: boolean;
+  trigger?: "hover" | "click";
+  useTranslate3d?: boolean;
+  viewBox?: unknown;
+  wrapperStyle?: React.CSSProperties;
 }
 
 const ChartTooltipContent = React.forwardRef<
@@ -134,6 +166,35 @@ const ChartTooltipContent = React.forwardRef<
     hideIndicator = false,
     valueFormatter,
     labelFormatter,
+    // Filter Recharts internal props so they do NOT leak to the native DOM element in React 19
+    accessibilityLayer: _accessibilityLayer,
+    allowEscapeViewBox: _allowEscapeViewBox,
+    animationDuration: _animationDuration,
+    animationEasing: _animationEasing,
+    axisId: _axisId,
+    content: _content,
+    contentStyle: _contentStyle,
+    coordinate: _coordinate,
+    cursor: _cursor,
+    defaultIndex: _defaultIndex,
+    filterNull: _filterNull,
+    formatter: _formatter,
+    includeHidden: _includeHidden,
+    isAnimationActive: _isAnimationActive,
+    itemSorter: _itemSorter,
+    itemStyle: _itemStyle,
+    labelStyle: _labelStyle,
+    offset: _offset,
+    payloadUniqBy: _payloadUniqBy,
+    portal: _portal,
+    position: _position,
+    reverseDirection: _reverseDirection,
+    separator: _separator,
+    shared: _shared,
+    trigger: _trigger,
+    useTranslate3d: _useTranslate3d,
+    viewBox: _viewBox,
+    wrapperStyle: _wrapperStyle,
     ...props
   },
   ref,
@@ -209,7 +270,10 @@ const ChartTooltipContent = React.forwardRef<
 
 // ── Legend ─────────────────────────────────────────────────────────────────
 
-interface ChartLegendContentProps extends React.ComponentProps<"div"> {
+interface ChartLegendContentProps extends Omit<
+  React.ComponentProps<"div">,
+  "content"
+> {
   payload?: {
     dataKey?: string | number;
     value?: string | number;
@@ -219,13 +283,55 @@ interface ChartLegendContentProps extends React.ComponentProps<"div"> {
   hideIcon?: boolean;
   /** Format series names. */
   nameFormatter?: (name: string) => React.ReactNode;
+  align?: "left" | "center" | "right";
+  chartHeight?: number;
+  chartWidth?: number;
+  content?: unknown;
+  height?: number | string;
+  iconSize?: number;
+  iconType?: string;
+  inactiveColor?: string;
+  itemSorter?: unknown;
+  layout?: "horizontal" | "vertical" | "auto";
+  margin?: unknown;
+  onBBoxUpdate?: unknown;
+  payloadUniqBy?: unknown;
+  portal?: HTMLElement | null;
+  position?: unknown;
+  verticalAlign?: "top" | "middle" | "bottom";
+  width?: number | string;
+  wrapperStyle?: React.CSSProperties;
 }
 
 const ChartLegendContent = React.forwardRef<
   HTMLDivElement,
   ChartLegendContentProps
 >(function ChartLegendContent(
-  { className, payload, hideIcon = false, nameFormatter, ...props },
+  {
+    className,
+    payload,
+    hideIcon = false,
+    nameFormatter,
+    align: _align,
+    chartHeight: _chartHeight,
+    chartWidth: _chartWidth,
+    content: _content,
+    height: _height,
+    iconSize: _iconSize,
+    iconType: _iconType,
+    inactiveColor: _inactiveColor,
+    itemSorter: _itemSorter,
+    layout: _layout,
+    margin: _margin,
+    onBBoxUpdate: _onBBoxUpdate,
+    payloadUniqBy: _payloadUniqBy,
+    portal: _portal,
+    position: _position,
+    verticalAlign: _verticalAlign,
+    width: _width,
+    wrapperStyle: _wrapperStyle,
+    ...props
+  },
   ref,
 ) {
   const { config } = useChart();

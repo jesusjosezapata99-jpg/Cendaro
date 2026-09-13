@@ -113,15 +113,16 @@ export default function CustomersClient() {
       <PageHeader
         title="Directorio de Clientes"
         description="Gestión integral de clientes comerciales, líneas de crédito y contacto directo"
-      >
-        <Button
-          onClick={() => setShowCreate(true)}
-          className="min-h-11 w-full gap-2 sm:w-auto"
-        >
-          <Icons.PersonAdd className="size-4.5" />
-          Nuevo Cliente
-        </Button>
-      </PageHeader>
+        actions={
+          <Button
+            onClick={() => setShowCreate(true)}
+            className="min-h-11 w-full gap-2 sm:w-auto"
+          >
+            <Icons.PersonAdd className="size-4.5" />
+            Nuevo Cliente
+          </Button>
+        }
+      />
 
       {/* 4 StatCards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">

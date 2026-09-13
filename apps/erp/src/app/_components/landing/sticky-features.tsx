@@ -142,7 +142,7 @@ export function StickyFeatures() {
           <div className="relative">
             {/* Vertical indicator line */}
             <div
-              className="absolute top-0 left-[7px] h-full w-px"
+              className="absolute top-0 left-1.75 h-full w-px"
               style={{ background: "var(--landing-line)" }}
             />
 
@@ -156,7 +156,7 @@ export function StickyFeatures() {
                 style={{ paddingTop: index === 0 ? "12vh" : undefined }}
               >
                 {/* Indicator dot */}
-                <div className="relative z-10 mt-[6px] shrink-0">
+                <div className="relative z-10 mt-1.5 shrink-0">
                   <IndicatorDot
                     isActive={activeIndex === index}
                     onClick={() => scrollToFeature(index)}
