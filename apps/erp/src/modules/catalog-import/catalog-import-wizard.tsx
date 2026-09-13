@@ -405,7 +405,7 @@ export function CatalogImportWizard() {
   // ── Render ─────────────────────────────────
 
   return (
-    <div className="space-y-6 p-4 lg:p-8" role="tabpanel">
+    <div className="space-y-6 py-4 lg:py-8" role="tabpanel">
       {/* Breadcrumb */}
       <div className="text-muted-foreground flex items-center gap-2 text-sm">
         <Link

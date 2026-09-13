@@ -19,7 +19,7 @@ export function Skeleton({ className }: { className?: string }) {
 export function ListPageSkeleton() {
   return (
     <Delayed>
-      <div className="animate-in fade-in space-y-6 p-4 duration-200 lg:p-8">
+      <div className="animate-in fade-in space-y-6 py-4 duration-200 lg:py-8">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="space-y-2">
             <Skeleton className="h-7 w-48" />
@@ -69,7 +69,7 @@ export function ListPageSkeleton() {
 export function DashboardSkeleton() {
   return (
     <Delayed>
-      <div className="animate-in fade-in space-y-6 p-4 duration-200 lg:p-8">
+      <div className="animate-in fade-in space-y-6 py-4 duration-200 lg:py-8">
         <div className="space-y-2">
           <Skeleton className="h-8 w-56" />
           <Skeleton className="h-4 w-48" />
@@ -134,7 +134,7 @@ export function DashboardSkeleton() {
 export function DetailSkeleton() {
   return (
     <Delayed>
-      <div className="animate-in fade-in space-y-6 p-4 duration-200 lg:p-8">
+      <div className="animate-in fade-in space-y-6 py-4 duration-200 lg:py-8">
         <div className="space-y-2">
           <Skeleton className="h-4 w-28" />
           <Skeleton className="h-7 w-64" />

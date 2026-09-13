@@ -77,7 +77,7 @@ export default function QuotesClient() {
   ).length;
 
   return (
-    <div className="animate-in fade-in slide-in-from-bottom-1 space-y-6 p-4 duration-200 lg:p-8">
+    <div className="animate-in fade-in slide-in-from-bottom-1 space-y-6 py-4 duration-200 lg:py-8">
       <PageHeader
         title="Cotizaciones"
         description="Gestión de propuestas comerciales y presupuestos"

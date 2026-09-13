@@ -153,7 +153,7 @@ export default function AuditPage() {
   );
 
   return (
-    <div className="space-y-6 p-4 lg:p-8">
+    <div className="space-y-6 py-4 lg:py-8">
       {/* Header */}
       <PageHeader
         title="Log de Auditoría & Gobernanza"

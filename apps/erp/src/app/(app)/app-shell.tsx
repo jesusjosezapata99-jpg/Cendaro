@@ -3,13 +3,15 @@
 import { Suspense, useState } from "react";
 
 import { Delayed } from "~/components/delayed";
-import { Sidebar } from "~/components/sidebar";
-import { TopBar } from "~/components/top-bar";
+import { Header } from "~/components/shell/header";
+import { MobileMenu } from "~/components/shell/mobile-menu";
+import { Rail } from "~/components/shell/rail";
+import { useCurrentUser } from "~/hooks/use-current-user";
 import { useWorkspace } from "~/hooks/use-workspace";
 
 function PageSkeleton() {
   return (
-    <div className="space-y-6 p-4 lg:p-8">
+    <div className="space-y-6 py-4 lg:py-8">
       <div className="space-y-2">
         <div className="bg-muted h-7 w-48 animate-pulse rounded-lg" />
         <div className="bg-muted h-4 w-64 animate-pulse rounded-lg" />
@@ -63,15 +65,31 @@ function WorkspaceGate({ children }: { children: React.ReactNode }) {
   );
 }
 
+/**
+ * PLAN-2026-09-MIDDAY-REDESIGN §5.8.1, T2.9 — the real shell swap: `Sidebar`
+ * + `TopBar` (F1-era) are replaced by `Rail` + `Header` + `MobileMenu`
+ * (T2.1–T2.8, all built and gated individually this session, none wired
+ * until now). Content column offsets by the rail's collapsed width
+ * (`md:ml-17.5` = 70px) and supplies its own horizontal padding
+ * (`px-4 md:px-8`) — pages no longer do (see
+ * `scripts/codemods/strip-page-horizontal-padding.mjs`, run once as part of
+ * this task to avoid doubling it up across all 27 routes).
+ */
 export function AppShell({ children }: { children: React.ReactNode }) {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { profile } = useCurrentUser();
 
   return (
     <div className="flex h-dvh overflow-hidden">
-      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <TopBar onToggleSidebar={() => setSidebarOpen((o) => !o)} />
-        <main className="bg-background safe-pb flex-1 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch]">
+      <Rail />
+      <MobileMenu
+        open={mobileMenuOpen}
+        onClose={() => setMobileMenuOpen(false)}
+        role={profile?.role ?? null}
+      />
+      <div className="flex flex-1 flex-col overflow-hidden md:ml-17.5">
+        <Header onToggleMobileMenu={() => setMobileMenuOpen((o) => !o)} />
+        <main className="bg-background safe-pb flex-1 overflow-y-auto overscroll-contain px-4 [-webkit-overflow-scrolling:touch] md:px-8">
           <WorkspaceGate>{children}</WorkspaceGate>
         </main>
       </div>

@@ -67,7 +67,10 @@ export function Rail() {
             alt="Cendaro"
             width={24}
             height={24}
-            className="size-6"
+            // The mark is painted pure white on a transparent PNG (no dark
+            // ink at all — confirmed pixel-by-pixel) and disappears against
+            // a light-theme header; invert it back to visible in light mode.
+            className="size-6 invert dark:invert-0"
             priority
           />
         </Link>

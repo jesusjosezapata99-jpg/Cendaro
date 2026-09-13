@@ -242,7 +242,7 @@ export default function CreateProductPage() {
         </div>
       }
     >
-      <div className="space-y-6 p-4 lg:p-8">
+      <div className="space-y-6 py-4 lg:py-8">
         {/* Breadcrumb */}
         <div className="text-muted-foreground flex items-center gap-2 text-sm">
           <Link

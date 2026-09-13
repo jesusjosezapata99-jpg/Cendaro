@@ -2,6 +2,7 @@
 
 import type { DehydratedState } from "@tanstack/react-query";
 import { HydrationBoundary } from "@tanstack/react-query";
+import { NuqsAdapter } from "nuqs/adapters/next/app";
 
 import { WorkspaceAutoResolver } from "~/components/workspace-auto-resolver";
 import { WorkspaceProvider } from "~/hooks/use-workspace";
@@ -20,7 +21,12 @@ export function Providers({
     <TRPCProvider>
       <HydrationBoundary state={dehydratedState}>
         <WorkspaceProvider initialWorkspaceId={initialWorkspaceId}>
-          <WorkspaceAutoResolver>{children}</WorkspaceAutoResolver>
+          {/* Requires the ancestor <Suspense> already in app/(app)/layout.tsx
+              — `cacheComponents: true` needs `useSearchParams()` consumers
+              (nuqs hooks, T2.13) to sit under one. */}
+          <NuqsAdapter>
+            <WorkspaceAutoResolver>{children}</WorkspaceAutoResolver>
+          </NuqsAdapter>
         </WorkspaceProvider>
       </HydrationBoundary>
     </TRPCProvider>

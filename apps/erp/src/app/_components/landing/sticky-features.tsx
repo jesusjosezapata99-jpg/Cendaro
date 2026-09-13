@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, m } from "framer-motion";
 
 import { NoiseOverlay } from "./noise-overlay";
 import { ScrollEntrance } from "./scroll-entrance";
@@ -74,7 +74,7 @@ function IndicatorDot({
       className="group relative flex items-center justify-center"
       style={{ width: 16, height: 16 }}
     >
-      <motion.span
+      <m.span
         className="block rounded-[1px]"
         animate={{
           width: isActive ? 8 : 5,
@@ -166,7 +166,7 @@ export function StickyFeatures() {
 
                 {/* Feature text */}
                 <div className="flex flex-col justify-center">
-                  <motion.h3
+                  <m.h3
                     className="cursor-pointer font-serif text-[1.5rem] leading-tight tracking-[-0.01em]"
                     animate={{
                       opacity: activeIndex === index ? 1 : 0.2,
@@ -175,10 +175,10 @@ export function StickyFeatures() {
                     onClick={() => scrollToFeature(index)}
                   >
                     {feature.title}
-                  </motion.h3>
+                  </m.h3>
 
                   {/* Expandable description */}
-                  <motion.div
+                  <m.div
                     className="overflow-hidden"
                     animate={{
                       height: activeIndex === index ? "auto" : 0,
@@ -190,7 +190,7 @@ export function StickyFeatures() {
                     <p className="text-muted-foreground/60 mt-3 max-w-md text-[0.95rem] leading-relaxed">
                       {feature.description}
                     </p>
-                  </motion.div>
+                  </m.div>
                 </div>
               </div>
             ))}
@@ -200,7 +200,7 @@ export function StickyFeatures() {
           <div className="relative">
             <div className="sticky top-20 flex items-center justify-center py-8">
               <AnimatePresence mode="wait">
-                <motion.div
+                <m.div
                   key={activeIndex}
                   className="w-full overflow-hidden rounded-xl border border-(--landing-card-border)"
                   initial={{ opacity: 0, scale: 0.98, filter: "blur(4px)" }}
@@ -215,7 +215,7 @@ export function StickyFeatures() {
                     }
                     className="rounded-xl"
                   />
-                </motion.div>
+                </m.div>
               </AnimatePresence>
             </div>
           </div>

@@ -14,7 +14,7 @@ import { Delayed } from "~/components/delayed";
 export default function Loading() {
   return (
     <Delayed>
-      <div className="animate-in fade-in space-y-6 p-4 duration-200 lg:p-8">
+      <div className="animate-in fade-in space-y-6 py-4 duration-200 lg:py-8">
         {/* Header skeleton */}
         <div className="space-y-2">
           <div className="bg-muted h-7 w-48 animate-pulse rounded-lg" />

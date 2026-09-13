@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, m } from "framer-motion";
 import {
   LayoutDashboard,
   Menu,
@@ -106,14 +106,14 @@ export function Navbar() {
       {/* Mobile menu */}
       <AnimatePresence>
         {mobileOpen && (
-          <motion.div
+          <m.div
             className="bg-background fixed inset-0 z-40 flex flex-col px-6 pt-20 md:hidden"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
           >
-            <motion.div
+            <m.div
               className="flex flex-col gap-2"
               initial="hidden"
               animate="visible"
@@ -123,7 +123,7 @@ export function Navbar() {
               }}
             >
               {navLinks.map((link) => (
-                <motion.a
+                <m.a
                   key={link.href}
                   href={link.href}
                   className="text-foreground hover:bg-muted cursor-pointer rounded-lg px-4 py-3 text-lg transition-colors"
@@ -134,13 +134,13 @@ export function Navbar() {
                   }}
                 >
                   {link.label}
-                </motion.a>
+                </m.a>
               ))}
 
               <div className="border-border my-4 border-t" />
 
               {mobileFeatures.map((feature) => (
-                <motion.div
+                <m.div
                   key={feature.label}
                   className="text-muted-foreground flex items-center gap-3 rounded-lg px-4 py-3"
                   variants={{
@@ -150,10 +150,10 @@ export function Navbar() {
                 >
                   <feature.icon className="h-5 w-5" strokeWidth={1.5} />
                   <span className="text-sm">{feature.label}</span>
-                </motion.div>
+                </m.div>
               ))}
 
-              <motion.div
+              <m.div
                 className="mt-6"
                 variants={{
                   hidden: { opacity: 0, y: 10 },
@@ -167,9 +167,9 @@ export function Navbar() {
                 >
                   Empezar gratis
                 </Link>
-              </motion.div>
-            </motion.div>
-          </motion.div>
+              </m.div>
+            </m.div>
+          </m.div>
         )}
       </AnimatePresence>
     </>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef } from "react";
-import { motion, useInView, useReducedMotion } from "framer-motion";
+import { m, useInView, useReducedMotion } from "framer-motion";
 
 interface ScrollEntranceProps {
   children: React.ReactNode;
@@ -29,7 +29,7 @@ export function ScrollEntrance({
   };
 
   return (
-    <motion.div
+    <m.div
       ref={ref}
       className={className}
       initial={
@@ -55,7 +55,7 @@ export function ScrollEntrance({
       }}
     >
       {children}
-    </motion.div>
+    </m.div>
   );
 }
 
@@ -74,7 +74,7 @@ export function StaggerGroup({
   const prefersReducedMotion = useReducedMotion();
 
   return (
-    <motion.div
+    <m.div
       ref={ref}
       className={className}
       initial="hidden"
@@ -89,7 +89,7 @@ export function StaggerGroup({
       }}
     >
       {children}
-    </motion.div>
+    </m.div>
   );
 }
 
@@ -104,7 +104,7 @@ export function StaggerItem({
   const prefersReducedMotion = useReducedMotion();
 
   return (
-    <motion.div
+    <m.div
       className={className}
       variants={{
         hidden: prefersReducedMotion
@@ -124,6 +124,6 @@ export function StaggerItem({
       }}
     >
       {children}
-    </motion.div>
+    </m.div>
   );
 }

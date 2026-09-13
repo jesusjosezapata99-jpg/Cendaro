@@ -90,7 +90,7 @@ export default function QuoteDetailClient() {
   /* Loading */
   if (isLoading) {
     return (
-      <div className="animate-in fade-in space-y-6 p-4 duration-200 lg:p-8">
+      <div className="animate-in fade-in space-y-6 py-4 duration-200 lg:py-8">
         <Skeleton className="h-8 w-64" />
         <Skeleton className="h-40 w-full rounded-xl" />
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
@@ -105,7 +105,7 @@ export default function QuoteDetailClient() {
   /* Not found */
   if (!quote) {
     return (
-      <div className="p-4 lg:p-8">
+      <div className="py-4 lg:py-8">
         <EmptyState
           icon="SearchOff"
           title="Cotización no encontrada"
@@ -132,7 +132,7 @@ export default function QuoteDetailClient() {
     quote.status !== "converted" && quote.status !== "rejected";
 
   return (
-    <div className="animate-in fade-in slide-in-from-bottom-1 space-y-6 p-4 duration-200 lg:p-8">
+    <div className="animate-in fade-in slide-in-from-bottom-1 space-y-6 py-4 duration-200 lg:py-8">
       {/* Breadcrumb & Actions */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="text-muted-foreground flex items-center gap-2 text-sm">

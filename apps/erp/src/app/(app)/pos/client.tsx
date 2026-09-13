@@ -410,7 +410,7 @@ export default function PosClient() {
   };
 
   return (
-    <div className="animate-in fade-in slide-in-from-bottom-1 space-y-4 p-4 duration-200 lg:p-6">
+    <div className="animate-in fade-in slide-in-from-bottom-1 space-y-4 py-4 duration-200 lg:py-6">
       {/* Top Header */}
       <PageHeader
         title="Terminal Punto de Venta (POS)"

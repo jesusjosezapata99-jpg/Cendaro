@@ -1,7 +1,7 @@
 ---
 version: "3.6"
 last-audit: "2026-09-13"
-entries: 16
+entries: 17
 shared-by: ["Gemini/Antigravity"]
 ---
 
@@ -13,31 +13,32 @@ This file is the **single source of truth** for error history. Every entry makes
 
 ## Quick Reference — Active Prevention Rules
 
-| #   | Rule                                                                                                                                                                                                           | Context                |
-| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- |
-| 1   | Tools via `pnpm exec` need root devDependency                                                                                                                                                                  | Windows PATH           |
-| 2   | Root `eslint.config.ts` required for lint-staged                                                                                                                                                               | ESLint v9              |
-| 3   | `?.` + `eslint-disable` for third-party type mismatches                                                                                                                                                        | TS ↔ ESLint            |
-| 4   | Always `pnpm exec` prefix in lint-staged                                                                                                                                                                       | Windows bins           |
-| 5   | Verify `exports` field matches file extensions                                                                                                                                                                 | Shared packages        |
-| 6   | NEVER use `npx skills add` — git clone + manual copy                                                                                                                                                           | Skills install         |
-| 7   | Always commit + push BEFORE handing off to user                                                                                                                                                                | Git discipline         |
-| 8   | Run `pnpm typecheck` before committing type changes                                                                                                                                                            | Pre-push guard         |
-| 9   | Client-side parsing + chunked JSON for file uploads                                                                                                                                                            | Vercel 4.5MB           |
-| 10  | Verify `project_id = ljwoptpaxazqmnhdczsb` before DB ops                                                                                                                                                       | Supabase safety        |
-| 11  | Run `/memory-audit` after dependency changes                                                                                                                                                                   | KI freshness           |
-| 12  | Maintain `.gemini/rules.md` + `.agents/skills/` as refs                                                                                                                                                        | Multi-agent            |
-| 13  | Use specific `.next/{build,server,static,types,cache}/**` globs                                                                                                                                                | Turbo remote cache     |
-| 14  | NEVER set `PATH` in `~/.claude/settings.json` env section                                                                                                                                                      | Claude Code env        |
-| 15  | After claude-mem MCP fix, verify `bash` in Windows system PATH                                                                                                                                                 | Plugin hooks           |
-| 16  | NEVER use PowerShell `-Encoding UTF8` for Bun config files — use `[System.IO.File]::WriteAllText($path, $content, [System.Text.UTF8Encoding]::new($false))` to avoid BOM                                       | claude-mem settings    |
-| 17  | Both `cache/` and `marketplaces/` dirs are needed for claude-mem — patch BOTH `.mcp.json` files when fixing Windows compat                                                                                     | claude-mem dual-source |
-| 18  | NEVER use dynamic segment configurations (e.g. `export const dynamic = "force-dynamic"`) when `cacheComponents` is enabled globally                                                                            | Next.js 16 routes      |
-| 19  | NEVER use dynamic runtime constructors (e.g. `new Date()`) inside static Server Components to avoid prerendering failure                                                                                       | Next.js 16 rendering   |
-| 20  | Wrap legacy ESLint plugins with `fixupPluginRules` under ESLint 10 and pin discrete hook rules (`rules-of-hooks`, `exhaustive-deps`)                                                                           | ESLint v10 migration   |
-| 21  | Do not type-assert `(as T)` when the expression already has type `T` (flags `@typescript-eslint/no-unnecessary-type-assertion` in CI)                                                                          | TypeScript / ESLint    |
-| 22  | Use Supabase Hosted HTTP transport (`https://mcp.supabase.com/mcp?project_ref=...`) with local scope PAT for Claude Code; omit `read_only=true` for full read/write access                                     | Claude Code MCP        |
-| 23  | In PostgreSQL 16, grant `WITH INHERIT TRUE, SET TRUE` without `ADMIN TRUE` when updating existing roles to avoid `ERROR: 0LP01: ADMIN option cannot be granted back to your own grantor` and enable `SET ROLE` | PostgreSQL 16 Roles    |
+| #   | Rule                                                                                                                                                                                                           | Context                 |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------- |
+| 1   | Tools via `pnpm exec` need root devDependency                                                                                                                                                                  | Windows PATH            |
+| 2   | Root `eslint.config.ts` required for lint-staged                                                                                                                                                               | ESLint v9               |
+| 3   | `?.` + `eslint-disable` for third-party type mismatches                                                                                                                                                        | TS ↔ ESLint             |
+| 4   | Always `pnpm exec` prefix in lint-staged                                                                                                                                                                       | Windows bins            |
+| 5   | Verify `exports` field matches file extensions                                                                                                                                                                 | Shared packages         |
+| 6   | NEVER use `npx skills add` — git clone + manual copy                                                                                                                                                           | Skills install          |
+| 7   | Always commit + push BEFORE handing off to user                                                                                                                                                                | Git discipline          |
+| 8   | Run `pnpm typecheck` before committing type changes                                                                                                                                                            | Pre-push guard          |
+| 9   | Client-side parsing + chunked JSON for file uploads                                                                                                                                                            | Vercel 4.5MB            |
+| 10  | Verify `project_id = ljwoptpaxazqmnhdczsb` before DB ops                                                                                                                                                       | Supabase safety         |
+| 11  | Run `/memory-audit` after dependency changes                                                                                                                                                                   | KI freshness            |
+| 12  | Maintain `.gemini/rules.md` + `.agents/skills/` as refs                                                                                                                                                        | Multi-agent             |
+| 13  | Use specific `.next/{build,server,static,types,cache}/**` globs                                                                                                                                                | Turbo remote cache      |
+| 14  | NEVER set `PATH` in `~/.claude/settings.json` env section                                                                                                                                                      | Claude Code env         |
+| 15  | After claude-mem MCP fix, verify `bash` in Windows system PATH                                                                                                                                                 | Plugin hooks            |
+| 16  | NEVER use PowerShell `-Encoding UTF8` for Bun config files — use `[System.IO.File]::WriteAllText($path, $content, [System.Text.UTF8Encoding]::new($false))` to avoid BOM                                       | claude-mem settings     |
+| 17  | Both `cache/` and `marketplaces/` dirs are needed for claude-mem — patch BOTH `.mcp.json` files when fixing Windows compat                                                                                     | claude-mem dual-source  |
+| 18  | NEVER use dynamic segment configurations (e.g. `export const dynamic = "force-dynamic"`) when `cacheComponents` is enabled globally                                                                            | Next.js 16 routes       |
+| 19  | NEVER use dynamic runtime constructors (e.g. `new Date()`) inside static Server Components to avoid prerendering failure                                                                                       | Next.js 16 rendering    |
+| 20  | Wrap legacy ESLint plugins with `fixupPluginRules` under ESLint 10 and pin discrete hook rules (`rules-of-hooks`, `exhaustive-deps`)                                                                           | ESLint v10 migration    |
+| 21  | Do not type-assert `(as T)` when the expression already has type `T` (flags `@typescript-eslint/no-unnecessary-type-assertion` in CI)                                                                          | TypeScript / ESLint     |
+| 22  | Use Supabase Hosted HTTP transport (`https://mcp.supabase.com/mcp?project_ref=...`) with local scope PAT for Claude Code; omit `read_only=true` for full read/write access                                     | Claude Code MCP         |
+| 23  | In PostgreSQL 16, grant `WITH INHERIT TRUE, SET TRUE` without `ADMIN TRUE` when updating existing roles to avoid `ERROR: 0LP01: ADMIN option cannot be granted back to your own grantor` and enable `SET ROLE` | PostgreSQL 16 Roles     |
+| 24  | Always import and use `m.*` components inside `<LazyMotion strict>` trees; never import or render `motion.*` components to prevent runtime tree-shaking violations.                                            | Framer Motion / Next.js |
 
 ## Entry Template
 
@@ -56,6 +57,16 @@ This file is the **single source of truth** for error history. Every entry makes
 ---
 
 ## Entries
+
+### [2026-09-13] Framer Motion: `You have rendered a 'motion' component within a 'LazyMotion' component`
+
+- **Error**: Runtime exception `You have rendered a 'motion' component within a 'LazyMotion' component. This will break tree shaking. Import and render a 'm' component instead.` at `Hero (src/app/_components/landing/hero.tsx:39:7)`.
+- **Root Cause**: The application root sets `<LazyMotion features={domAnimation} strict>` in `apps/erp/src/components/motion-provider.tsx`. In Framer Motion, passing `strict={true}` strictly disallows standard `<motion.*>` components in descendants to guarantee tree-shaking (~5 kB `m` vs ~34 kB `motion`). Six landing page components were importing `motion` and rendering `<motion.div>`, `<motion.h1>`, etc.
+- **Fix**: Migrated all 6 landing page components (`hero.tsx`, `navbar.tsx`, `scroll-entrance.tsx`, `sticky-features.tsx`, `value-props.tsx`, `faq-section.tsx`) to `import { m } from "framer-motion"` and replaced all `<motion.*>` tags with `<m.*>`.
+- **Prevention**: In applications configured with `<LazyMotion strict>`, always use the lightweight `m` proxy (`import { m } from "framer-motion"`) instead of `motion`. Never import standard `motion` inside strict `LazyMotion` contexts.
+- **Workspace**: `@cendaro/erp` (`apps/erp/src/app/_components/landing/*`)
+- **Severity**: Major (Runtime break on landing page / home route)
+- **Recurrence**: 1st (Rule 24)
 
 ### [2026-09-13] PostgreSQL 16: `0LP01: ADMIN option cannot be granted back to your own grantor` and `SET LOCAL ROLE app_user` Failure
 

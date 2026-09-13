@@ -1,6 +1,6 @@
 "use client";
 
-import { motion, useReducedMotion } from "framer-motion";
+import { m, useReducedMotion } from "framer-motion";
 import { ArrowRight } from "lucide-react";
 
 import { NoiseOverlay } from "./noise-overlay";
@@ -36,7 +36,7 @@ export function Hero() {
       />
 
       {/* Trust badge */}
-      <motion.div
+      <m.div
         className="border-primary/20 bg-primary/5 mb-6 inline-flex items-center gap-2 rounded-full border px-4 py-1.5"
         initial={{ opacity: 0, y: 16, filter: "blur(10px)" }}
         animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
@@ -49,20 +49,20 @@ export function Hero() {
         <span className="text-primary text-xs font-medium">
           Nuevo — Categorización con IA
         </span>
-      </motion.div>
+      </m.div>
 
       {/* Headline — tighter tracking like midday (-0.02em) */}
-      <motion.h1
+      <m.h1
         className="text-foreground mx-auto max-w-4xl font-serif text-[clamp(2.5rem,5vw,4.5rem)] leading-[1.08] tracking-[-0.02em]"
         initial={{ opacity: 0, y: 24, filter: "blur(10px)" }}
         animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
         transition={{ duration: 0.7, ease, delay: 0.15 }}
       >
         Gestión inteligente para negocios que crecen
-      </motion.h1>
+      </m.h1>
 
       {/* Subtitle */}
-      <motion.p
+      <m.p
         className="text-muted-foreground mx-auto mt-6 max-w-xl text-lg"
         initial={{ opacity: 0, y: 24, filter: "blur(10px)" }}
         animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
@@ -70,10 +70,10 @@ export function Hero() {
       >
         Inventario, pedidos, catálogo y facturación en un solo lugar. Sin Excel.
         Sin complicaciones. Todo automatizado.
-      </motion.p>
+      </m.p>
 
       {/* CTAs */}
-      <motion.div
+      <m.div
         className="mt-8 flex flex-col items-center gap-4 sm:flex-row sm:gap-3"
         initial={{ opacity: 0, y: 24, filter: "blur(10px)" }}
         animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
@@ -92,18 +92,18 @@ export function Hero() {
         >
           Ver funciones
         </a>
-      </motion.div>
-      <motion.span
+      </m.div>
+      <m.span
         className="text-muted-foreground mt-3 text-sm"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 0.7, ease, delay: 0.6 }}
       >
         14 días gratis · Cancela cuando quieras
-      </motion.span>
+      </m.span>
 
       {/* ── Video demo — flat, enterprise treatment ── */}
-      <motion.div
+      <m.div
         className="relative mx-auto mt-16 w-full max-w-5xl"
         initial={
           reduced ? { opacity: 0 } : { opacity: 0, y: 40, filter: "blur(10px)" }
@@ -126,7 +126,7 @@ export function Hero() {
             className="rounded-xl"
           />
         </div>
-      </motion.div>
+      </m.div>
     </section>
   );
 }

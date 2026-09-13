@@ -140,7 +140,7 @@ export default function WhatsAppPage() {
   };
 
   return (
-    <div className="space-y-6 p-4 lg:p-8">
+    <div className="space-y-6 py-4 lg:py-8">
       {/* Header */}
       <PageHeader
         title="Ventas WhatsApp & CRM"

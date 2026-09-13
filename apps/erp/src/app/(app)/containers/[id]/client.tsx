@@ -456,7 +456,7 @@ export default function ContainerDetailPage() {
   // ── Loading ──────────────────────────────────────────
   if (isLoading) {
     return (
-      <div className="space-y-6 p-4 lg:p-8">
+      <div className="space-y-6 py-4 lg:py-8">
         <Skeleton className="h-6 w-48" />
         <Skeleton className="h-32 w-full rounded-xl" />
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
@@ -471,7 +471,7 @@ export default function ContainerDetailPage() {
 
   if (!container) {
     return (
-      <div className="p-4 lg:p-8">
+      <div className="py-4 lg:py-8">
         <EmptyState
           icon="Package2"
           title="Contenedor no encontrado"
@@ -500,7 +500,7 @@ export default function ContainerDetailPage() {
     container.status === "created" || container.status === "in_transit";
 
   return (
-    <div className="space-y-6 p-4 lg:p-8">
+    <div className="space-y-6 py-4 lg:py-8">
       {/* Breadcrumb */}
       <div className="text-muted-foreground flex items-center gap-2 text-xs">
         <Link

@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 
 import { NoiseOverlay } from "./noise-overlay";
 import { ScrollEntrance, StaggerGroup, StaggerItem } from "./scroll-entrance";
@@ -102,7 +102,7 @@ export function ValueProps() {
               </div>
 
               {/* Right: big metric — SANS-SERIF, not italic (like midday) */}
-              <motion.div
+              <m.div
                 className="flex shrink-0 flex-col items-center md:items-end"
                 initial={{ opacity: 0, scale: 0.95 }}
                 whileInView={{ opacity: 1, scale: 1 }}
@@ -115,7 +115,7 @@ export function ValueProps() {
                 <span className="text-muted-foreground/60 mt-1 text-sm font-medium tracking-wide">
                   horas ahorradas por semana
                 </span>
-              </motion.div>
+              </m.div>
             </div>
           </div>
         </ScrollEntrance>

@@ -169,7 +169,7 @@ export default function SettingsClient() {
 
   if (loadingProfile && loadingWorkspace) {
     return (
-      <div className="space-y-6 p-4 lg:p-8">
+      <div className="space-y-6 py-4 lg:py-8">
         <Skeleton className="h-10 w-64" />
         <Skeleton className="h-32 w-full" />
         <Skeleton className="h-64 w-full" />
@@ -178,7 +178,7 @@ export default function SettingsClient() {
   }
 
   return (
-    <div className="space-y-6 p-4 lg:p-8">
+    <div className="space-y-6 py-4 lg:py-8">
       {/* Header */}
       <PageHeader
         title="Configuración del Sistema"
