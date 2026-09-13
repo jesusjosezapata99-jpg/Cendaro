@@ -391,3 +391,35 @@ Las 27 rutas `(app)` **no se pudieron capturar** — requieren sesión autentica
 - 22 llamadas consecutivas con `q: "test"` → la request #21 devuelve `429`, `code: "TOO_MANY_REQUESTS"`, mismo mensaje que el código — rate limit confirmado end-to-end, no solo en el test con timers falsos.
 
 **Siguiente**: T2.12 — Paleta de búsqueda (`components/search/*`), reemplaza el contenido de `command-search.tsx` y elimina su lista `ROUTES` duplicada.
+
+### T2.12 — Paleta de búsqueda (`components/search/*`) · 2026-09-13
+
+**4 archivos nuevos**, exactamente los que pide el plan:
+
+- `open-search-button.tsx`: el trigger dormido (M-20) — botón de escritorio con el kbd `⌘K` en `opacity-0 → group-hover:opacity-100`, y botón-icono aparte para móvil (`sm:hidden`), igual que la versión original.
+- `search-modal.tsx`: `Dialog` de `@cendaro/ui/dialog` con el manejador global ⌘K/Ctrl+K (mismo patrón que `command-search.tsx`, ahora aquí), tamaño M-19 (`h-[535px] md:max-w-[740px] border-none bg-transparent p-0`, con un wrapper interior `bg-card border rounded-2xl shadow-2xl` que provee el "chrome" visible ya que el `DialogContent` en sí queda transparente). Mobile: sheet inferior `h-[70vh]` en vez del centrado de escritorio (reutiliza el patrón `max-md:` que `dialog.tsx` ya usa para todo diálogo `< md`).
+- `search.tsx`: la lógica — input, debounce **inline** de 150 ms (no se agregó la dependencia `use-debounce` del plan: es un hook de 6 líneas que este código ya había reimplementado una vez en `command-search.tsx`; instalar un paquete nuevo para eso habría sido sobre-ingeniería — desviación documentada), navegación de teclado (↑↓ + Enter + Escape, con `onMouseEnter` sincronizando el índice seleccionado con el hover del mouse, igual que la paleta original).
+- `search-footer.tsx`: los hints ↑↓ ↵ ESC, extraídos tal cual del pie original.
+
+**Dos modos, una sola fuente de verdad para roles**:
+
+- **Vacío** (`q.length === 0`): "Páginas" (todo parent/child de `getVisibleNav(role)` con `kind: "link"` o un `href` propio) + "Acciones rápidas" (los `kind: "create"` de `NAV_ITEMS` — "Nuevo pedido", "Nuevo cliente", "Nuevo producto" — ya filtrados por rol por `getVisibleNav` mismo). **Cero listas de roles duplicadas**: a diferencia del plan, que menciona "Crear pedido, Nueva cotización, Registrar pago, Abrir POS" como ejemplos, solo se listan las 3 acciones que **de verdad existen y funcionan hoy** en `NAV_ITEMS` (`kind: "create"`) — no se inventaron "Nueva cotización" ni "Registrar pago" como botones porque ninguna de esas páginas lee todavía un query param `createX=true` (confirmado con `rg`: cero coincidencias en `quotes/client.tsx` ni `payments/client.tsx`); un botón que navegara a un query param sin efecto habría sido una funcionalidad rota, no una característica. Esto es exactamente lo que T2.13 resuelve ("hasta F5, las páginas abren el diálogo existente cuando `createX=true`" — el propio texto del plan admite que esto no está cableado todavía en todos los dominios).
+- **≥ 2 caracteres**: `trpc.search.global` (T2.11) con `keepPreviousData`, agrupado por los 6 tipos reales (`Productos`, `Clientes`, `Pedidos`, `Cotizaciones`, `Contenedores`, `Proveedores`), orden estable, icono 16px `text-nav-icon` por fila, `Icons.ArrowOutward` visible solo en hover (`opacity-0 group-hover/row:opacity-100`) — tal como especifica el plan.
+- **1 carácter**: ni páginas ni resultados — mensaje "Escribe al menos 2 caracteres" (el backend exige `min(2)`; mostrar un estado vacío en vez de nada evita que el usuario piense que está roto).
+
+**M-19 — altura animada real, no una fórmula heurística**: la primera idea (una fórmula `items × 48px + grupos × 28px`) se descartó antes de escribirla en el reporte por ser frágil ante texto que se envuelve en 2 líneas u otros casos borde. Implementado correctamente con `ResizeObserver` sobre el contenido real (`contentRef`), escribiendo `--search-list-height` como CSS custom property; la regla `height: min(450px, var(--search-list-height)); transition: height 100ms ease` vive en `globals.css` junto a las demás keyframes de motion (M-13, M-21, M-26) por consistencia con el resto del catálogo.
+
+**Cableado**: `header.tsx` reemplaza `<CommandSearch />` por `<SearchModal />`. `command-search.tsx` queda huérfano de la app viva (solo lo referencia `top-bar.tsx`, ya huérfano desde T2.9) — su borrado formal es T2.14, no antes, siguiendo la disciplina ya establecida en T2.9.
+
+**Gate G1** (`pnpm exec turbo run typecheck lint test build --filter=@cendaro/erp --force`): 8/8 ✅, 10/10 tests (sin tests nuevos en esta tarea — es UI pura consumiendo lo ya testeado en T2.11; el propio `search.test.ts` de T2.11 cubre la lógica de negocio que esta paleta invoca).
+
+**Gate G2 — visual y funcional, con agent-browser (login real `jesusjz`)**:
+
+- Modo vacío: "Páginas" + "Acciones rápidas" renderizadas correctamente, con scroll dentro del panel (altura animada capada en 450px confirmada — no se desborda ni se corta contenido).
+- Búsqueda con texto no coincidente ("cliente", "coca"): `No se encontraron resultados`, sin crash, altura del panel se contrae correctamente (confirma que el `ResizeObserver` recalcula en cada cambio, no solo al montar).
+- Click en "Nuevo cliente" → navega a `/customers?createCustomer=true` (confirmado con `window.location`) — el diálogo de creación **no se abre solo todavía** (correcto y esperado: eso es T2.13, no una regresión de esta tarea).
+- ⌘K real (`KeyboardEvent` con `metaKey: true` vía `document.dispatchEvent`) abre la paleta; `Escape` la cierra (vía el comportamiento nativo de Radix Dialog, no solo mi propio handler en el input).
+- Claro y oscuro (1440×900): contraste correcto en ambos, `ArrowOutward` visible solo en hover confirmado en la captura de tema claro.
+- Móvil (390×844): la paleta se convierte en bottom-sheet `h-[70vh]` (mismo patrón `max-md:` que el resto de los diálogos del sistema), lista de páginas legible, footer con los hints de teclado presente aunque de utilidad menor en touch (no se ocultó — el plan no pide ocultarlo en móvil, y mantener paridad visual con desktop es la opción más simple y consistente).
+
+**Siguiente**: T2.13 — Parámetros de URL con `nuqs` (`hooks/params/*.ts`), la pieza que falta para que `createOrder=true`/`createCustomer=true`/`createProduct=true` abran sus diálogos automáticamente.
