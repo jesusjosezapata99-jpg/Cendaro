@@ -203,6 +203,14 @@ export const createCallerFactory = t.createCallerFactory;
  * • In dev: pretty colored output (all requests)
  * • In prod: structured JSON (only slow > 500ms + errors)
  * • Automatically tags slow queries (> 200ms warning, > 1000ms error)
+ *
+ * IMPORTANT: tRPC's `next()` never rejects — every level of the middleware
+ * chain (see `callRecursive` in @trpc/server) catches the downstream error
+ * internally and resolves `next()` with `{ ok: false, error }` instead of
+ * throwing. A `try/catch` around `await next()` here would therefore never
+ * catch anything, silently logging every failed procedure as a success
+ * (fixed 2026-09 — see Cendaro UI-REPORT-2026-09-PREMIUM-IDENTITY §5, C2).
+ * We must branch on `result.ok` instead.
  */
 const loggingMiddleware = t.middleware(async ({ ctx, next, path, type }) => {
   const start = performance.now();
@@ -210,49 +218,46 @@ const loggingMiddleware = t.middleware(async ({ ctx, next, path, type }) => {
 
   reqLog.debug(`→ ${path}`);
 
-  try {
-    const result = await next();
-    const durationMs = Math.round(performance.now() - start);
+  const result = await next();
+  const durationMs = Math.round(performance.now() - start);
 
-    if (durationMs > 1000) {
-      reqLog.warn(`⚠ SLOW ${path}`, { durationMs });
-    } else if (durationMs > 200) {
-      reqLog.info(`✓ ${path}`, { durationMs });
-    } else {
-      reqLog.debug(`✓ ${path}`, { durationMs });
-    }
-
-    return result;
-  } catch (err) {
-    const durationMs = Math.round(performance.now() - start);
-
-    if (err instanceof TRPCError) {
-      // Expected errors (UNAUTHORIZED, FORBIDDEN, etc.) at warn level
-      const isClientError = [
+  if (!result.ok) {
+    const err = result.error;
+    const isClientError = (
+      [
         "UNAUTHORIZED",
         "FORBIDDEN",
         "BAD_REQUEST",
         "NOT_FOUND",
-      ].includes(err.code);
-      if (isClientError) {
-        reqLog.warn(
-          `✗ ${path} [${err.code}]`,
-          { durationMs, trpcCode: err.code },
-          err,
-        );
-      } else {
-        reqLog.error(
-          `✗ ${path} [${err.code}]`,
-          { durationMs, trpcCode: err.code },
-          err,
-        );
-      }
+      ] as TRPCError["code"][]
+    ).includes(err.code);
+
+    if (isClientError) {
+      reqLog.warn(
+        `✗ ${path} [${err.code}]`,
+        { durationMs, trpcCode: err.code },
+        err,
+      );
     } else {
-      reqLog.error(`✗ ${path} [INTERNAL]`, { durationMs }, err);
+      reqLog.error(
+        `✗ ${path} [${err.code}]`,
+        { durationMs, trpcCode: err.code },
+        err,
+      );
     }
 
-    throw err;
+    return result;
   }
+
+  if (durationMs > 1000) {
+    reqLog.warn(`⚠ SLOW ${path}`, { durationMs });
+  } else if (durationMs > 200) {
+    reqLog.info(`✓ ${path}`, { durationMs });
+  } else {
+    reqLog.debug(`✓ ${path}`, { durationMs });
+  }
+
+  return result;
 });
 
 /**
@@ -489,8 +494,18 @@ export const workspaceProcedure = protectedProcedure.use(
     // Execute inside transaction with SET LOCAL for RLS enforcement
     return ctx.db.transaction(async (tx) => {
       await tx.execute(sql`SET LOCAL ROLE app_user`);
+      // `SET LOCAL app.workspace_id = $1` cannot be parameterized — Postgres's
+      // SET command does not accept bind parameters in the value position over
+      // the extended query protocol (which postgres.js uses when `prepare`
+      // is enabled, the default on the session-mode pooler). set_config() is a
+      // regular function call and fully supports parameters; its third
+      // argument (`true` = is_local) makes it behave exactly like SET LOCAL,
+      // scoped to this transaction only. Confirmed 2026-09 (Cendaro C1
+      // follow-up): this surfaced only after the app_user role GRANT was
+      // fixed, previously masked by the earlier "permission denied to set
+      // role" failure on the line above.
       await tx.execute(
-        sql`SET LOCAL app.workspace_id = ${resolved.workspaceId}`,
+        sql`SELECT set_config('app.workspace_id', ${resolved.workspaceId}, true)`,
       );
       return next({
         ctx: {

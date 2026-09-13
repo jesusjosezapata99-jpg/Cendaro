@@ -342,10 +342,23 @@ export const installmentStatusEnum = pgEnum("installment_status", [
 /** DB role without BYPASSRLS — created via migration, referenced here for policies. */
 export const appUserRole = pgRole("app_user").existing();
 
-/** One-liner factory: adds workspace isolation RLS to any table with workspace_id. */
+/**
+ * One-liner factory: adds workspace isolation RLS to any table with workspace_id.
+ *
+ * MUST be `as: "permissive"` (Postgres's default policy type): a RESTRICTIVE
+ * policy only narrows down rows already allowed by a PERMISSIVE one — it
+ * never grants access on its own. Since this is the only policy on each
+ * table, marking it "restrictive" made every row unconditionally
+ * inaccessible to `app_user` regardless of workspace_id, independent of the
+ * `app_user` role-grant (C1) and the `SET LOCAL app.workspace_id` parameter
+ * binding fix. Confirmed 2026-09 via `pg_policy.polpermissive = false` on
+ * all ~60 workspace-scoped tables and a direct reproduction (INSERT with the
+ * exact matching workspace_id still rejected with 42501). See
+ * `packages/db/migrations/002_fix_workspace_policy_permissive.sql`.
+ */
 export const workspacePolicy = (tableName: string) =>
   pgPolicy(`${tableName}_workspace_isolation`, {
-    as: "restrictive",
+    as: "permissive",
     for: "all",
     to: appUserRole,
     using: sql`workspace_id = current_setting('app.workspace_id', true)::uuid`,

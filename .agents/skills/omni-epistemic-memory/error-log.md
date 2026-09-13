@@ -1,7 +1,7 @@
 ---
-version: "3.4"
-last-audit: "2026-09-07"
-entries: 14
+version: "3.5"
+last-audit: "2026-09-12"
+entries: 15
 shared-by: ["Gemini/Antigravity"]
 ---
 
@@ -13,29 +13,30 @@ This file is the **single source of truth** for error history. Every entry makes
 
 ## Quick Reference — Active Prevention Rules
 
-| #   | Rule                                                                                                                                                                     | Context                |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------- |
-| 1   | Tools via `pnpm exec` need root devDependency                                                                                                                            | Windows PATH           |
-| 2   | Root `eslint.config.ts` required for lint-staged                                                                                                                         | ESLint v9              |
-| 3   | `?.` + `eslint-disable` for third-party type mismatches                                                                                                                  | TS ↔ ESLint            |
-| 4   | Always `pnpm exec` prefix in lint-staged                                                                                                                                 | Windows bins           |
-| 5   | Verify `exports` field matches file extensions                                                                                                                           | Shared packages        |
-| 6   | NEVER use `npx skills add` — git clone + manual copy                                                                                                                     | Skills install         |
-| 7   | Always commit + push BEFORE handing off to user                                                                                                                          | Git discipline         |
-| 8   | Run `pnpm typecheck` before committing type changes                                                                                                                      | Pre-push guard         |
-| 9   | Client-side parsing + chunked JSON for file uploads                                                                                                                      | Vercel 4.5MB           |
-| 10  | Verify `project_id = ljwoptpaxazqmnhdczsb` before DB ops                                                                                                                 | Supabase safety        |
-| 11  | Run `/memory-audit` after dependency changes                                                                                                                             | KI freshness           |
-| 12  | Maintain `.gemini/rules.md` + `.agents/skills/` as refs                                                                                                                  | Multi-agent            |
-| 13  | Use specific `.next/{build,server,static,types,cache}/**` globs                                                                                                          | Turbo remote cache     |
-| 14  | NEVER set `PATH` in `~/.claude/settings.json` env section                                                                                                                | Claude Code env        |
-| 15  | After claude-mem MCP fix, verify `bash` in Windows system PATH                                                                                                           | Plugin hooks           |
-| 16  | NEVER use PowerShell `-Encoding UTF8` for Bun config files — use `[System.IO.File]::WriteAllText($path, $content, [System.Text.UTF8Encoding]::new($false))` to avoid BOM | claude-mem settings    |
-| 17  | Both `cache/` and `marketplaces/` dirs are needed for claude-mem — patch BOTH `.mcp.json` files when fixing Windows compat                                               | claude-mem dual-source |
-| 18  | NEVER use dynamic segment configurations (e.g. `export const dynamic = "force-dynamic"`) when `cacheComponents` is enabled globally                                      | Next.js 16 routes      |
-| 19  | NEVER use dynamic runtime constructors (e.g. `new Date()`) inside static Server Components to avoid prerendering failure                                                 | Next.js 16 rendering   |
-| 20  | Wrap legacy ESLint plugins with `fixupPluginRules` under ESLint 10 and pin discrete hook rules (`rules-of-hooks`, `exhaustive-deps`)                                     | ESLint v10 migration   |
-| 21  | Do not type-assert `(as T)` when the expression already has type `T` (flags `@typescript-eslint/no-unnecessary-type-assertion` in CI)                                    | TypeScript / ESLint    |
+| #   | Rule                                                                                                                                                                       | Context                |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- |
+| 1   | Tools via `pnpm exec` need root devDependency                                                                                                                              | Windows PATH           |
+| 2   | Root `eslint.config.ts` required for lint-staged                                                                                                                           | ESLint v9              |
+| 3   | `?.` + `eslint-disable` for third-party type mismatches                                                                                                                    | TS ↔ ESLint            |
+| 4   | Always `pnpm exec` prefix in lint-staged                                                                                                                                   | Windows bins           |
+| 5   | Verify `exports` field matches file extensions                                                                                                                             | Shared packages        |
+| 6   | NEVER use `npx skills add` — git clone + manual copy                                                                                                                       | Skills install         |
+| 7   | Always commit + push BEFORE handing off to user                                                                                                                            | Git discipline         |
+| 8   | Run `pnpm typecheck` before committing type changes                                                                                                                        | Pre-push guard         |
+| 9   | Client-side parsing + chunked JSON for file uploads                                                                                                                        | Vercel 4.5MB           |
+| 10  | Verify `project_id = ljwoptpaxazqmnhdczsb` before DB ops                                                                                                                   | Supabase safety        |
+| 11  | Run `/memory-audit` after dependency changes                                                                                                                               | KI freshness           |
+| 12  | Maintain `.gemini/rules.md` + `.agents/skills/` as refs                                                                                                                    | Multi-agent            |
+| 13  | Use specific `.next/{build,server,static,types,cache}/**` globs                                                                                                            | Turbo remote cache     |
+| 14  | NEVER set `PATH` in `~/.claude/settings.json` env section                                                                                                                  | Claude Code env        |
+| 15  | After claude-mem MCP fix, verify `bash` in Windows system PATH                                                                                                             | Plugin hooks           |
+| 16  | NEVER use PowerShell `-Encoding UTF8` for Bun config files — use `[System.IO.File]::WriteAllText($path, $content, [System.Text.UTF8Encoding]::new($false))` to avoid BOM   | claude-mem settings    |
+| 17  | Both `cache/` and `marketplaces/` dirs are needed for claude-mem — patch BOTH `.mcp.json` files when fixing Windows compat                                                 | claude-mem dual-source |
+| 18  | NEVER use dynamic segment configurations (e.g. `export const dynamic = "force-dynamic"`) when `cacheComponents` is enabled globally                                        | Next.js 16 routes      |
+| 19  | NEVER use dynamic runtime constructors (e.g. `new Date()`) inside static Server Components to avoid prerendering failure                                                   | Next.js 16 rendering   |
+| 20  | Wrap legacy ESLint plugins with `fixupPluginRules` under ESLint 10 and pin discrete hook rules (`rules-of-hooks`, `exhaustive-deps`)                                       | ESLint v10 migration   |
+| 21  | Do not type-assert `(as T)` when the expression already has type `T` (flags `@typescript-eslint/no-unnecessary-type-assertion` in CI)                                      | TypeScript / ESLint    |
+| 22  | Use Supabase Hosted HTTP transport (`https://mcp.supabase.com/mcp?project_ref=...`) with local scope PAT for Claude Code; omit `read_only=true` for full read/write access | Claude Code MCP        |
 
 ## Entry Template
 
@@ -195,16 +196,26 @@ This file is the **single source of truth** for error history. Every entry makes
 - **Severity**: Minor (CI Blocking)
 - **Recurrence**: 1st
 
+### [2026-09-12] Supabase MCP in Claude Code: 401 Unauthorized & Read-Only Stdio Scope Conflict
+
+- **Error**: Claude Code could not access Supabase tools (`execute_sql`, `list_tables` failed with 401 Unauthorized or returned empty tools) and write mutations were completely blocked.
+- **Root Cause**: (1) The token in Claude Code's local scope (`sbp_8523...`) was revoked/expired (HTTP 401). (2) Claude Code's local config had hardcoded `--read-only` flag on `@supabase/mcp-server-supabase`. (3) Scope conflict existed between local (`~/.claude.json`) and project (`.mcp.json`), where local took precedence. (4) Local stdio spawned via `npx` in Windows has high startup latency and silent tool discovery failures compared to Streamable HTTP.
+- **Fix**: Removed old local and project server registrations (`claude mcp remove supabase -s local/project`). Added official Supabase Hosted MCP server over Streamable HTTP (`https://mcp.supabase.com/mcp?project_ref=ljwoptpaxazqmnhdczsb`) in local scope with active Personal Access Token (`Authorization: Bearer <PAT>`). Omitted `read_only=true` to grant full read and write access. Added `"mcp__supabase__*"` to permissions.
+- **Prevention**: Use Supabase Hosted HTTP transport for Claude Code. Always configure at local scope to protect tokens from git commits and push protection violations. Omit read-only flags when write access is required.
+- **Workspace**: Root / Claude Code configuration (`~/.claude.json`, `.claude/settings.json`)
+- **Severity**: Major
+- **Recurrence**: 1st
+
 ---
 
 ## Statistics
 
 | Metric                    | Value                        |
 | ------------------------- | ---------------------------- |
-| **Total entries**         | 14                           |
+| **Total entries**         | 15                           |
 | **Critical**              | 5                            |
-| **Major**                 | 7                            |
+| **Major**                 | 8                            |
 | **Minor**                 | 2                            |
-| **Most common workspace** | Root monorepo (7/14 entries) |
-| **Date of last entry**    | 2026-09-07                   |
-| **Quick Reference rules** | 21                           |
+| **Most common workspace** | Root monorepo (8/15 entries) |
+| **Date of last entry**    | 2026-09-12                   |
+| **Quick Reference rules** | 22                           |

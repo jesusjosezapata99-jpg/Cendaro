@@ -178,7 +178,7 @@ Custom specialist agents in `.claude/agents/`. Invoke by name or `@-mention`.
 
 - `/project:coding-review` — Pre-commit quality checks
 - `/project:memory-sync` — Post-task memory synchronization
-- `/project:create-plan` — Scaffold plan in `.opencode/plans/`
+- `/project:create-plan` — Scaffold plan (save it in global `~/.claude/plans/`, not `.opencode/plans/`)
 - `/project:create-report` — Scaffold report in `.opencode/reports/`
 - `/project:project-skills` — Browse all available skills
 
@@ -201,6 +201,7 @@ Custom specialist agents in `.claude/agents/`. Invoke by name or `@-mention`.
 - `agent-browser` CLI installed globally — native Rust browser automation
 - Skills: `agent-browser skills get core --full` for command reference
 - Web Vitals: `agent-browser vitals <url>`
+- **Token-Efficient Snapshots**: ALWAYS use `agent-browser snapshot -i` (interactive elements only — saves 90% tokens natively; never pipe to `head` or `tail`).
 
 ---
 
@@ -211,7 +212,7 @@ After completing any significant task:
 1. **Always**: Prepend timestamped entry to `.gemini/knowledge/state.md`
 2. **On structural changes**: Update `.gemini/knowledge/architecture.md`
 3. **On dependency changes**: Update `.gemini/knowledge/stack.md` (verify from `package.json`)
-4. **File artifacts**: Plans → `.opencode/plans/PLAN-[NAME].md`, Reports → `.opencode/reports/[CATEGORY]-REPORT-[NAME].md`
+4. **File artifacts**: Plans → global `~/.claude/plans/PLAN-[NAME].md` (`C:\Users\jzs99\.claude\plans\`, user rule since 2026-09-12 — applies to all sessions), Reports → `.opencode/reports/[CATEGORY]-REPORT-[NAME].md`
 
 **NEVER** save plans or reports to project root, `/docs/`, `/tmp/`, or any ad-hoc path.
 
