@@ -90,7 +90,7 @@ export function CreateSupplierDialog({
         <button
           type="submit"
           disabled={create.isPending || !name}
-          className="bg-primary text-primary-foreground hover:bg-primary/90 w-full rounded-lg py-2.5 text-sm font-bold transition-colors disabled:opacity-50"
+          className="bg-primary text-primary-foreground hover:bg-primary/90 w-full rounded-lg py-2.5 text-sm font-medium transition-colors disabled:opacity-50"
         >
           {create.isPending ? "Creando..." : "Crear Proveedor"}
         </button>

@@ -4,8 +4,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 
+import type { IconName } from "@cendaro/ui/icons";
 import type { UserRole } from "@cendaro/validators";
 import { cn } from "@cendaro/ui";
+import { Icon, Icons } from "@cendaro/ui/icons";
 
 import { hasRole } from "~/components/role-guard";
 import { useCurrentUser } from "~/hooks/use-current-user";
@@ -15,7 +17,7 @@ import { useTRPC } from "~/trpc/client";
 interface SearchRoute {
   label: string;
   path: string;
-  icon: string;
+  icon: IconName;
   keywords: string;
   roles?: UserRole[];
 }
@@ -24,167 +26,167 @@ const ROUTES: SearchRoute[] = [
   {
     label: "Dashboard",
     path: "/dashboard",
-    icon: "dashboard",
+    icon: "Dashboard",
     keywords: "inicio panel kpi",
   },
   {
     label: "Catálogo",
     path: "/catalog",
-    icon: "inventory_2",
+    icon: "Inventory2",
     keywords: "productos sku",
   },
   {
     label: "Marcas",
     path: "/catalog/brands",
-    icon: "branding_watermark",
+    icon: "BrandingWatermark",
     keywords: "brand marca",
   },
   {
     label: "Categorías",
     path: "/catalog/categories",
-    icon: "category",
+    icon: "Category",
     keywords: "categoría tree",
   },
   {
     label: "Proveedores",
     path: "/catalog/suppliers",
-    icon: "local_shipping",
+    icon: "LocalShipping",
     keywords: "proveedor supplier",
   },
   {
     label: "Inventario",
     path: "/inventory",
-    icon: "warehouse",
+    icon: "Warehouse",
     keywords: "stock almacén",
     roles: ["owner", "admin", "supervisor"],
   },
   {
     label: "Contenedores",
     path: "/containers",
-    icon: "package_2",
+    icon: "Package2",
     keywords: "container importación fob",
     roles: ["owner", "admin", "supervisor"],
   },
   {
     label: "Precios",
     path: "/pricing",
-    icon: "sell",
+    icon: "Sell",
     keywords: "repricing precio",
     roles: ["owner", "admin", "supervisor"],
   },
   {
     label: "Tasas de Cambio",
     path: "/rates",
-    icon: "currency_exchange",
+    icon: "CurrencyExchange",
     keywords: "tasa bcv dólar paralelo usdt",
     roles: ["owner", "admin", "supervisor"],
   },
   {
     label: "Punto de Venta",
     path: "/pos",
-    icon: "point_of_sale",
+    icon: "PointOfSale",
     keywords: "pos venta",
     roles: ["owner", "admin", "supervisor", "employee"],
   },
   {
     label: "Pedidos",
     path: "/orders",
-    icon: "list_alt",
+    icon: "ListAlt",
     keywords: "pedido venta order",
   },
   {
     label: "Cotizaciones",
     path: "/quotes",
-    icon: "request_quote",
+    icon: "RequestQuote",
     keywords: "cotización quote",
   },
   {
     label: "Notas de Entrega",
     path: "/delivery-notes",
-    icon: "local_shipping",
+    icon: "LocalShipping",
     keywords: "nota entrega",
     roles: ["owner", "admin", "supervisor"],
   },
   {
     label: "Facturas",
     path: "/invoices",
-    icon: "description",
+    icon: "Description",
     keywords: "factura invoice",
     roles: ["owner", "admin", "supervisor"],
   },
   {
     label: "Vendedores",
     path: "/vendors",
-    icon: "group",
+    icon: "Group",
     keywords: "vendedor comisión",
     roles: ["owner", "admin", "supervisor"],
   },
   {
     label: "Clientes",
     path: "/customers",
-    icon: "person",
+    icon: "Person",
     keywords: "cliente customer",
   },
   {
     label: "Mercado Libre",
     path: "/marketplace",
-    icon: "storefront",
+    icon: "Storefront",
     keywords: "mercadolibre ml",
     roles: ["owner", "admin", "supervisor", "marketing"],
   },
   {
     label: "WhatsApp",
     path: "/whatsapp",
-    icon: "chat",
+    icon: "Chat",
     keywords: "whatsapp chat",
     roles: ["owner", "admin", "supervisor", "employee"],
   },
   {
     label: "Pagos",
     path: "/payments",
-    icon: "payments",
+    icon: "Payments",
     keywords: "pago cobro",
     roles: ["owner", "admin", "supervisor", "employee"],
   },
   {
     label: "Cierre de Caja",
     path: "/cash-closure",
-    icon: "lock_clock",
+    icon: "LockClock",
     keywords: "caja cierre",
     roles: ["owner", "admin", "supervisor"],
   },
   {
     label: "CxC",
     path: "/accounts-receivable",
-    icon: "receipt_long",
+    icon: "ReceiptLong",
     keywords: "cuenta cobrar",
     roles: ["owner", "admin", "supervisor"],
   },
   {
     label: "Alertas",
     path: "/alerts",
-    icon: "notifications_active",
+    icon: "NotificationsActive",
     keywords: "alerta warning",
     roles: ["owner", "admin", "supervisor"],
   },
   {
     label: "Usuarios",
     path: "/users",
-    icon: "manage_accounts",
+    icon: "ManageAccounts",
     keywords: "usuario rol",
     roles: ["owner", "admin"],
   },
   {
     label: "Auditoría",
     path: "/audit",
-    icon: "policy",
+    icon: "Policy",
     keywords: "audit log",
     roles: ["owner", "admin"],
   },
   {
     label: "Configuración",
     path: "/settings",
-    icon: "settings",
+    icon: "Settings",
     keywords: "configuración setting",
     roles: ["owner", "admin"],
   },
@@ -279,7 +281,7 @@ export function CommandSearch() {
     id: string;
     label: string;
     sub: string;
-    icon: string;
+    icon: IconName;
     path: string;
   }
 
@@ -297,7 +299,7 @@ export function CommandSearch() {
       id: p.id,
       label: p.name,
       sub: p.sku,
-      icon: "inventory_2",
+      icon: "Inventory2" as const,
       path: `/catalog/${p.id}`,
     })),
     ...customerResults.map((c) => ({
@@ -305,7 +307,7 @@ export function CommandSearch() {
       id: c.id,
       label: c.name,
       sub: c.phone ?? c.email ?? "—",
-      icon: "person",
+      icon: "Person" as const,
       path: `/customers`,
     })),
     ...orderResults.map((o) => ({
@@ -313,7 +315,7 @@ export function CommandSearch() {
       id: o.id,
       label: o.orderNumber,
       sub: `$${Number(o.total).toFixed(2)}`,
-      icon: "receipt_long",
+      icon: "ReceiptLong" as const,
       path: `/orders`,
     })),
   ];
@@ -395,9 +397,15 @@ export function CommandSearch() {
   }, [query]);
 
   // ── Section header helper ──
-  const SectionHeader = ({ icon, label }: { icon: string; label: string }) => (
-    <div className="text-muted-foreground flex items-center gap-2 px-3 pt-3 pb-1 text-[10px] font-bold tracking-widest uppercase">
-      <span className="material-symbols-outlined text-xs">{icon}</span>
+  const SectionHeader = ({
+    icon,
+    label,
+  }: {
+    icon: IconName;
+    label: string;
+  }) => (
+    <div className="text-muted-foreground flex items-center gap-2 px-3 pt-3 pb-1 text-[10px] font-medium tracking-widest uppercase">
+      <Icon name={icon} className="size-3" />
       {label}
     </div>
   );
@@ -417,7 +425,7 @@ export function CommandSearch() {
         )}
       >
         <div className="flex items-center gap-2">
-          <span className="material-symbols-outlined text-base">search</span>
+          <Icons.Search className="size-4" />
           <span className="text-muted-foreground/70 text-xs">Buscar...</span>
         </div>
         <kbd className="bg-background text-muted-foreground/50 pointer-events-none hidden rounded border px-1.5 py-0.5 font-mono text-[10px] font-medium sm:inline-flex">
@@ -431,7 +439,7 @@ export function CommandSearch() {
         className="text-muted-foreground hover:bg-accent hover:text-foreground flex size-11 items-center justify-center rounded-lg transition-colors sm:hidden"
         aria-label="Buscar"
       >
-        <span className="material-symbols-outlined text-xl">search</span>
+        <Icons.Search className="size-5" />
       </button>
 
       {/* ── Command palette overlay ── */}
@@ -443,9 +451,7 @@ export function CommandSearch() {
           >
             {/* Input */}
             <div className="border-border flex items-center gap-3 border-b px-4">
-              <span className="material-symbols-outlined text-muted-foreground text-lg">
-                search
-              </span>
+              <Icons.Search className="text-muted-foreground size-4.5" />
               <input
                 ref={inputRef}
                 type="text"
@@ -466,9 +472,7 @@ export function CommandSearch() {
             <div className="max-h-[50vh] overflow-y-auto p-1.5">
               {allResults.length === 0 && query.length > 0 ? (
                 <div className="flex flex-col items-center gap-2 py-10">
-                  <span className="material-symbols-outlined text-muted-foreground text-3xl">
-                    search_off
-                  </span>
+                  <Icons.SearchOff className="text-muted-foreground size-7.5" />
                   <p className="text-muted-foreground text-sm">
                     No se encontraron resultados
                   </p>
@@ -478,9 +482,7 @@ export function CommandSearch() {
                 </div>
               ) : allResults.length === 0 && query.length === 0 ? (
                 <div className="flex flex-col items-center gap-2 py-10">
-                  <span className="material-symbols-outlined text-muted-foreground/50 text-3xl">
-                    manage_search
-                  </span>
+                  <Icons.ManageSearch className="text-muted-foreground/50 size-7.5" />
                   <p className="text-muted-foreground text-sm">
                     Escribe para buscar en todo el sistema
                   </p>
@@ -493,7 +495,7 @@ export function CommandSearch() {
                   {/* Route results */}
                   {routeResults.length > 0 && (
                     <>
-                      <SectionHeader icon="web" label="Páginas" />
+                      <SectionHeader icon="Web" label="Páginas" />
                       {routeResults.map((r) => {
                         const idx = getIndex();
                         return (
@@ -516,9 +518,10 @@ export function CommandSearch() {
                                 : "text-foreground/80 hover:bg-accent/50",
                             )}
                           >
-                            <span className="material-symbols-outlined text-muted-foreground text-base">
-                              {r.icon}
-                            </span>
+                            <Icon
+                              name={r.icon}
+                              className="text-muted-foreground size-4"
+                            />
                             <span className="font-medium">{r.label}</span>
                             <span className="text-muted-foreground ml-auto text-xs">
                               {r.path}
@@ -532,7 +535,7 @@ export function CommandSearch() {
                   {/* Product results */}
                   {productResults.length > 0 && (
                     <>
-                      <SectionHeader icon="inventory_2" label="Productos" />
+                      <SectionHeader icon="Inventory2" label="Productos" />
                       {productResults.map((p) => {
                         const idx = getIndex();
                         return (
@@ -544,7 +547,7 @@ export function CommandSearch() {
                                 id: p.id,
                                 label: p.name,
                                 sub: p.sku,
-                                icon: "inventory_2",
+                                icon: "Inventory2",
                                 path: `/catalog/${p.id}`,
                               })
                             }
@@ -555,9 +558,7 @@ export function CommandSearch() {
                                 : "text-foreground/80 hover:bg-accent/50",
                             )}
                           >
-                            <span className="material-symbols-outlined text-muted-foreground text-base">
-                              inventory_2
-                            </span>
+                            <Icons.Inventory2 className="text-muted-foreground size-4" />
                             <div className="min-w-0 flex-1">
                               <p className="truncate font-medium">{p.name}</p>
                               <p className="text-muted-foreground text-xs">
@@ -565,7 +566,7 @@ export function CommandSearch() {
                               </p>
                             </div>
                             {p.status !== "draft" && (
-                              <span className="bg-secondary text-muted-foreground rounded px-1.5 py-0.5 text-[10px] font-bold">
+                              <span className="bg-secondary text-muted-foreground rounded px-1.5 py-0.5 text-[10px] font-medium">
                                 {p.status}
                               </span>
                             )}
@@ -578,7 +579,7 @@ export function CommandSearch() {
                   {/* Customer results */}
                   {customerResults.length > 0 && (
                     <>
-                      <SectionHeader icon="person" label="Clientes" />
+                      <SectionHeader icon="Person" label="Clientes" />
                       {customerResults.map((c) => {
                         const idx = getIndex();
                         return (
@@ -590,7 +591,7 @@ export function CommandSearch() {
                                 id: c.id,
                                 label: c.name,
                                 sub: c.phone ?? c.email ?? "—",
-                                icon: "person",
+                                icon: "Person",
                                 path: `/customers`,
                               })
                             }
@@ -601,9 +602,7 @@ export function CommandSearch() {
                                 : "text-foreground/80 hover:bg-accent/50",
                             )}
                           >
-                            <span className="material-symbols-outlined text-muted-foreground text-base">
-                              person
-                            </span>
+                            <Icons.Person className="text-muted-foreground size-4" />
                             <div className="min-w-0 flex-1">
                               <p className="truncate font-medium">{c.name}</p>
                               <p className="text-muted-foreground text-xs">
@@ -619,7 +618,7 @@ export function CommandSearch() {
                   {/* Order results */}
                   {orderResults.length > 0 && (
                     <>
-                      <SectionHeader icon="receipt_long" label="Pedidos" />
+                      <SectionHeader icon="ReceiptLong" label="Pedidos" />
                       {orderResults.map((o) => {
                         const idx = getIndex();
                         return (
@@ -631,7 +630,7 @@ export function CommandSearch() {
                                 id: o.id,
                                 label: o.orderNumber,
                                 sub: `$${Number(o.total).toFixed(2)}`,
-                                icon: "receipt_long",
+                                icon: "ReceiptLong",
                                 path: `/orders`,
                               })
                             }
@@ -642,9 +641,7 @@ export function CommandSearch() {
                                 : "text-foreground/80 hover:bg-accent/50",
                             )}
                           >
-                            <span className="material-symbols-outlined text-muted-foreground text-base">
-                              receipt_long
-                            </span>
+                            <Icons.ReceiptLong className="text-muted-foreground size-4" />
                             <div className="min-w-0 flex-1">
                               <p className="truncate font-medium">
                                 {o.orderNumber}

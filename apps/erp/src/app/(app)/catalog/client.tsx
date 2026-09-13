@@ -19,6 +19,7 @@ import {
   TableHeader,
   TableRow,
 } from "@cendaro/ui";
+import { Icons } from "@cendaro/ui/icons";
 
 import type { StatusTone } from "~/components/status-badge";
 import { EmptyState } from "~/components/empty-state";
@@ -73,15 +74,13 @@ export default function CatalogClient() {
           <>
             <Button variant="outline" asChild className="min-h-11">
               <Link href="/catalog/import">
-                <span className="material-symbols-outlined text-lg">
-                  upload_file
-                </span>
+                <Icons.UploadFile className="size-4.5" />
                 Importar
               </Link>
             </Button>
             <Button asChild className="min-h-11">
               <Link href="/catalog/new">
-                <span className="material-symbols-outlined text-lg">add</span>
+                <Icons.Add className="size-4.5" />
                 Nuevo Producto
               </Link>
             </Button>
@@ -94,31 +93,29 @@ export default function CatalogClient() {
         <StatCard
           label="Total Productos"
           value={isLoading ? "—" : total.toLocaleString("es-VE")}
-          icon="inventory_2"
+          icon="Inventory2"
           tone="primary"
         />
         <StatCard
           label="Mostrando"
           value={isLoading ? "—" : products.length}
-          icon="visibility"
+          icon="Visibility"
           tone="success"
         />
         <StatCard
           label="Página"
           value={`${page + 1} / ${Math.max(totalPages, 1)}`}
-          icon="auto_stories"
+          icon="AutoStories"
         />
       </div>
 
       {/* Filters */}
       <div className="flex flex-col gap-3 sm:flex-row">
         <div className="relative flex-1">
-          <span
+          <Icons.Search
+            className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2"
             aria-hidden
-            className="material-symbols-outlined text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-base"
-          >
-            search
-          </span>
+          />
           <Input
             type="text"
             placeholder="Buscar por nombre o referencia..."
@@ -193,7 +190,7 @@ export default function CatalogClient() {
             })}
         {!isLoading && products.length === 0 && (
           <EmptyState
-            icon="search_off"
+            icon="SearchOff"
             title="No se encontraron productos"
             description="Ajusta la búsqueda o el filtro de estado e inténtalo de nuevo."
           />
@@ -284,7 +281,7 @@ export default function CatalogClient() {
               <TableRow className="hover:bg-transparent">
                 <TableCell colSpan={4} className="px-4 py-6">
                   <EmptyState
-                    icon="search_off"
+                    icon="SearchOff"
                     title="No se encontraron productos"
                     description="Ajusta la búsqueda o el filtro de estado e inténtalo de nuevo."
                   />
@@ -315,9 +312,7 @@ export default function CatalogClient() {
             onClick={() => setPage((p) => Math.max(0, p - 1))}
             disabled={page === 0}
           >
-            <span aria-hidden className="material-symbols-outlined text-base">
-              arrow_back
-            </span>
+            <Icons.ArrowBack className="size-4" aria-hidden />
             Anterior
           </Button>
           <span className="text-foreground px-2 font-mono text-sm font-medium tabular-nums">
@@ -330,9 +325,7 @@ export default function CatalogClient() {
             disabled={page + 1 >= totalPages}
           >
             Siguiente
-            <span aria-hidden className="material-symbols-outlined text-base">
-              arrow_forward
-            </span>
+            <Icons.ArrowForward className="size-4" aria-hidden />
           </Button>
         </div>
       </div>

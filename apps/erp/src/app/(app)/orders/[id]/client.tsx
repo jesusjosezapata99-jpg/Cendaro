@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 
+import type { IconName } from "@cendaro/ui/icons";
 import {
   Button,
   Table,
@@ -15,6 +16,7 @@ import {
   TableHeader,
   TableRow,
 } from "@cendaro/ui";
+import { Icon, Icons } from "@cendaro/ui/icons";
 
 import type { StatusTone } from "~/components/status-badge";
 import { EmptyState } from "~/components/empty-state";
@@ -67,12 +69,12 @@ const CHANNEL_LABELS: Record<string, string> = {
 };
 
 /** Sales channels → Material Symbols glyph (mirrors the orders list). */
-const CHANNEL_ICONS: Record<string, string> = {
-  store: "store",
-  mercadolibre: "shopping_cart",
-  vendors: "local_shipping",
-  whatsapp: "chat",
-  instagram: "photo_camera",
+const CHANNEL_ICONS: Record<string, IconName> = {
+  store: "Store",
+  mercadolibre: "ShoppingCart",
+  vendors: "LocalShipping",
+  whatsapp: "Chat",
+  instagram: "PhotoCamera",
 };
 
 /** Shared cell padding for tables. */
@@ -110,7 +112,7 @@ export default function OrderDetailPage() {
     return (
       <div className="p-4 lg:p-8">
         <EmptyState
-          icon="search_off"
+          icon="SearchOff"
           title="Pedido no encontrado"
           description="El pedido que buscas no existe o fue eliminado."
           action={
@@ -144,9 +146,7 @@ export default function OrderDetailPage() {
           >
             Pedidos
           </Link>
-          <span aria-hidden className="material-symbols-outlined text-base">
-            chevron_right
-          </span>
+          <Icons.ChevronRight className="size-4" aria-hidden />
           <span className="text-foreground font-medium">
             {order.orderNumber}
           </span>
@@ -157,7 +157,7 @@ export default function OrderDetailPage() {
             onClick={() => setShowStatusDialog(true)}
             className="min-h-11"
           >
-            <span className="material-symbols-outlined text-lg">edit</span>
+            <Icons.Edit className="size-4.5" />
             Cambiar Estado
           </Button>
         </RoleGuard>
@@ -177,28 +177,21 @@ export default function OrderDetailPage() {
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0 space-y-1">
             <div className="flex flex-wrap items-center gap-3">
-              <h1 className="text-foreground text-2xl font-semibold tracking-tight">
+              <h1 className="text-foreground text-2xl font-medium tracking-tight">
                 {order.orderNumber}
               </h1>
               <StatusBadge tone={st.tone}>{st.label}</StatusBadge>
             </div>
             <p className="text-muted-foreground flex flex-wrap items-center gap-x-6 gap-y-1 text-sm">
               <span className="flex items-center gap-1">
-                <span
-                  aria-hidden
-                  className="material-symbols-outlined text-base"
-                >
-                  {CHANNEL_ICONS[order.channel] ?? "store"}
-                </span>
+                <Icon
+                  name={CHANNEL_ICONS[order.channel] ?? "Store"}
+                  className="size-4"
+                />
                 {CHANNEL_LABELS[order.channel] ?? order.channel}
               </span>
               <span className="flex items-center gap-1">
-                <span
-                  aria-hidden
-                  className="material-symbols-outlined text-base"
-                >
-                  schedule
-                </span>
+                <Icons.Schedule className="size-4" aria-hidden />
                 {new Date(order.createdAt).toLocaleString("es-VE")}
               </span>
             </p>
@@ -214,7 +207,7 @@ export default function OrderDetailPage() {
           sub={
             bcv.rate > 0 ? formatDualCurrency(total, bcv.rate).bs : undefined
           }
-          icon="receipt_long"
+          icon="ReceiptLong"
           tone="primary"
         />
         <StatCard
@@ -225,7 +218,7 @@ export default function OrderDetailPage() {
               ? formatDualCurrency(totalPaid, bcv.rate).bs
               : undefined
           }
-          icon="check_circle"
+          icon="CheckCircle"
           tone="success"
         />
         <StatCard
@@ -234,10 +227,10 @@ export default function OrderDetailPage() {
           sub={
             bcv.rate > 0 ? formatDualCurrency(balance, bcv.rate).bs : undefined
           }
-          icon="account_balance_wallet"
+          icon="AccountBalanceWallet"
           tone={balance > 0 ? "warning" : "success"}
         />
-        <StatCard label="Estado" value={st.label} icon="flag" />
+        <StatCard label="Estado" value={st.label} icon="Flag" />
       </div>
 
       {/* Order metadata */}
@@ -276,7 +269,7 @@ export default function OrderDetailPage() {
               className="border-border-subtle flex items-center justify-between gap-3 rounded-lg border p-3"
             >
               <span className="text-muted-foreground text-sm">{a.label}</span>
-              <span className="text-foreground font-mono text-sm font-semibold tabular-nums">
+              <span className="text-foreground font-mono text-sm font-medium tabular-nums">
                 {a.value}
               </span>
             </div>
@@ -350,7 +343,7 @@ export default function OrderDetailPage() {
                       : "—"}
                   </TableCell>
                   <TableCell
-                    className={`text-foreground ${cellPx} text-right font-mono text-xs font-semibold tabular-nums`}
+                    className={`text-foreground ${cellPx} text-right font-mono text-xs font-medium tabular-nums`}
                   >
                     ${Number(item.lineTotal).toFixed(2)}
                   </TableCell>
@@ -408,7 +401,7 @@ export default function OrderDetailPage() {
                       </StatusBadge>
                     </TableCell>
                     <TableCell
-                      className={`text-foreground ${cellPx} text-right font-mono font-semibold tabular-nums`}
+                      className={`text-foreground ${cellPx} text-right font-mono font-medium tabular-nums`}
                     >
                       ${Number(p.amount).toFixed(2)}
                     </TableCell>

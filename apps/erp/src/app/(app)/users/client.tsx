@@ -4,6 +4,8 @@ import { useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { useQuery } from "@tanstack/react-query";
 
+import { Icons } from "@cendaro/ui/icons";
+
 import type { StatusTone } from "~/components/status-badge";
 import { EmptyState } from "~/components/empty-state";
 import { PageHeader } from "~/components/page-header";
@@ -107,20 +109,18 @@ export default function UsersPage() {
             <button
               type="button"
               onClick={() => void refetch()}
-              className="border-border bg-secondary text-foreground hover:bg-accent flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-semibold shadow-xs transition-colors"
+              className="border-border bg-secondary text-foreground hover:bg-accent flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium shadow-xs transition-colors"
             >
-              <span className="material-symbols-outlined text-sm">refresh</span>
+              <Icons.Refresh className="size-3.5" />
               Actualizar
             </button>
             {canCreate && (
               <button
                 type="button"
                 onClick={() => setShowCreate(true)}
-                className="bg-primary text-primary-foreground hover:bg-primary/90 flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-semibold shadow-xs transition-colors"
+                className="bg-primary text-primary-foreground hover:bg-primary/90 flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-medium shadow-xs transition-colors"
               >
-                <span className="material-symbols-outlined text-sm">
-                  person_add
-                </span>
+                <Icons.PersonAdd className="size-3.5" />
                 Nuevo Usuario
               </button>
             )}
@@ -133,28 +133,28 @@ export default function UsersPage() {
         <StatCard
           label="Total Usuarios"
           value={isLoading ? "—" : totalUsers}
-          icon="group"
+          icon="Group"
           tone="default"
           sub="Cuentas registradas"
         />
         <StatCard
           label="Usuarios Activos"
           value={isLoading ? "—" : activeCount}
-          icon="check_circle"
+          icon="CheckCircle"
           tone="success"
           sub="Con acceso operativo"
         />
         <StatCard
           label="Fuerza de Ventas"
           value={isLoading ? "—" : vendorCount}
-          icon="badge"
+          icon="Badge"
           tone="primary"
           sub="Vendedores nacionales"
         />
         <StatCard
           label="Cuentas Suspendidas"
           value={isLoading ? "—" : suspendedCount}
-          icon="warning"
+          icon="Warning"
           tone={suspendedCount > 0 ? "destructive" : "default"}
           sub={suspendedCount > 0 ? "Acceso revocado" : "Cero bloqueos"}
         />
@@ -163,9 +163,7 @@ export default function UsersPage() {
       {/* Search and Filters */}
       <div className="surface-card flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="relative max-w-md flex-1">
-          <span className="material-symbols-outlined text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-lg">
-            search
-          </span>
+          <Icons.Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4.5 -translate-y-1/2" />
           <input
             type="text"
             placeholder="Buscar por nombre, email o username..."
@@ -227,7 +225,7 @@ export default function UsersPage() {
       ) : filtered.length === 0 ? (
         <div className="surface-card">
           <EmptyState
-            icon="person_off"
+            icon="PersonOff"
             title="No se encontraron usuarios"
             description={
               search || roleFilter || statusFilter
@@ -254,7 +252,7 @@ export default function UsersPage() {
                 <div key={user.id} className="surface-card space-y-3 p-3.5">
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex min-w-0 items-center gap-3">
-                      <div className="bg-primary/10 text-primary flex size-10 shrink-0 items-center justify-center rounded-full text-xs font-bold uppercase">
+                      <div className="bg-primary/10 text-primary flex size-10 shrink-0 items-center justify-center rounded-full text-xs font-medium uppercase">
                         {user.fullName
                           .split(" ")
                           .map((n) => n[0])
@@ -262,7 +260,7 @@ export default function UsersPage() {
                           .join("")}
                       </div>
                       <div className="min-w-0">
-                        <p className="text-foreground truncate text-xs font-semibold">
+                        <p className="text-foreground truncate text-xs font-medium">
                           {user.fullName}
                         </p>
                         <p className="text-muted-foreground truncate text-[11px]">
@@ -301,11 +299,9 @@ export default function UsersPage() {
                           phone: user.phone,
                         })
                       }
-                      className="border-border bg-secondary text-foreground hover:bg-accent inline-flex items-center gap-1 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors"
+                      className="border-border bg-secondary text-foreground hover:bg-accent inline-flex items-center gap-1 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors"
                     >
-                      <span className="material-symbols-outlined text-sm">
-                        edit
-                      </span>
+                      <Icons.Edit className="size-3.5" />
                       Editar
                     </button>
                   </div>
@@ -319,7 +315,7 @@ export default function UsersPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead>
-                  <tr className="border-border text-muted-foreground border-b text-[10px] font-bold tracking-wider uppercase">
+                  <tr className="border-border text-muted-foreground border-b text-[10px] font-medium tracking-wider uppercase">
                     <th className="px-6 py-3.5">Usuario</th>
                     <th className="px-6 py-3.5">Identificador</th>
                     <th className="px-6 py-3.5">Rol de Acceso</th>
@@ -346,7 +342,7 @@ export default function UsersPage() {
                       >
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-3">
-                            <div className="bg-primary/10 text-primary flex size-9 shrink-0 items-center justify-center rounded-full text-xs font-bold uppercase">
+                            <div className="bg-primary/10 text-primary flex size-9 shrink-0 items-center justify-center rounded-full text-xs font-medium uppercase">
                               {user.fullName
                                 .split(" ")
                                 .map((n) => n[0])
@@ -354,7 +350,7 @@ export default function UsersPage() {
                                 .join("")}
                             </div>
                             <div className="min-w-0">
-                              <p className="text-foreground text-xs font-semibold">
+                              <p className="text-foreground text-xs font-medium">
                                 {user.fullName}
                               </p>
                               <p className="text-muted-foreground text-[11px]">
@@ -402,11 +398,9 @@ export default function UsersPage() {
                                 phone: user.phone,
                               })
                             }
-                            className="text-primary hover:bg-primary/10 inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-semibold transition-colors"
+                            className="text-primary hover:bg-primary/10 inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition-colors"
                           >
-                            <span className="material-symbols-outlined text-sm">
-                              edit
-                            </span>
+                            <Icons.Edit className="size-3.5" />
                             Editar
                           </button>
                         </td>

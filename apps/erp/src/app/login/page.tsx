@@ -4,6 +4,8 @@ import { Suspense, useState } from "react";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 
+import { Icons } from "@cendaro/ui/icons";
+
 export default function LoginPage() {
   return (
     <Suspense>
@@ -57,9 +59,9 @@ function LoginContent() {
     <div className="bg-background relative flex min-h-screen items-center justify-center overflow-hidden px-4">
       {/* Ambient background effects */}
       <div className="pointer-events-none absolute inset-0">
-        <div className="bg-primary/4 absolute -top-40 -left-40 size-[500px] rounded-full blur-[120px]" />
-        <div className="bg-primary/6 absolute -right-32 -bottom-32 size-[400px] rounded-full blur-[100px]" />
-        <div className="bg-primary/2.5 absolute top-1/3 left-1/2 size-[300px] -translate-x-1/2 rounded-full blur-[80px]" />
+        <div className="bg-primary/4 absolute -top-40 -left-40 size-125 rounded-full blur-[120px]" />
+        <div className="bg-primary/6 absolute -right-32 -bottom-32 size-100 rounded-full blur-[100px]" />
+        <div className="bg-primary/2.5 absolute top-1/3 left-1/2 size-75 -translate-x-1/2 rounded-full blur-[80px]" />
       </div>
 
       {/* Subtle grid pattern */}
@@ -71,7 +73,7 @@ function LoginContent() {
         }}
       />
 
-      <div className="relative z-10 w-full max-w-[420px]">
+      <div className="relative z-10 w-full max-w-105">
         {/* Logo & Brand */}
         <div className="mb-10 text-center">
           <div className="shadow-primary/20 mx-auto mb-5 flex size-16 items-center justify-center transition-transform duration-300 hover:scale-105">
@@ -98,7 +100,7 @@ function LoginContent() {
           className="border-border/60 bg-card/80 rounded-2xl border p-8 shadow-2xl shadow-black/5 backdrop-blur-xl"
         >
           <div className="mb-7">
-            <h2 className="text-foreground text-xl font-bold tracking-tight">
+            <h2 className="text-foreground text-xl font-medium tracking-tight">
               Iniciar Sesión
             </h2>
             <p className="text-muted-foreground mt-1 text-[0.8rem]">
@@ -109,9 +111,7 @@ function LoginContent() {
           {/* Session expired notice */}
           {sessionExpired && (
             <div className="animate-in fade-in slide-in-from-top-1 mb-5 flex items-center gap-2.5 rounded-xl border border-amber-500/15 bg-amber-500/10 px-4 py-3 text-sm text-amber-600 duration-200 dark:text-amber-400">
-              <span className="material-symbols-outlined text-base">
-                schedule
-              </span>
+              <Icons.Schedule className="size-4" />
               <span className="font-medium">
                 Tu sesión expiró por inactividad. Inicia sesión de nuevo.
               </span>
@@ -120,7 +120,7 @@ function LoginContent() {
           {/* Error Alert */}
           {error && (
             <div className="bg-destructive/10 text-destructive border-destructive/15 animate-in fade-in slide-in-from-top-1 mb-5 flex items-center gap-2.5 rounded-xl border px-4 py-3 text-sm duration-200">
-              <span className="material-symbols-outlined text-base">error</span>
+              <Icons.Error className="size-4" />
               <span className="font-medium">{error}</span>
             </div>
           )}
@@ -130,15 +130,13 @@ function LoginContent() {
             <div className="group">
               <label
                 htmlFor="username"
-                className={`mb-2 flex items-center gap-1.5 text-xs font-semibold tracking-wider uppercase transition-colors duration-200 ${
+                className={`mb-2 flex items-center gap-1.5 text-xs font-medium tracking-wider uppercase transition-colors duration-200 ${
                   focusedField === "username"
                     ? "text-primary"
                     : "text-muted-foreground/80"
                 }`}
               >
-                <span className="material-symbols-outlined text-sm">
-                  person
-                </span>
+                <Icons.Person className="size-3.5" />
                 Usuario
               </label>
               <div className="relative">
@@ -161,13 +159,13 @@ function LoginContent() {
             <div className="group">
               <label
                 htmlFor="password"
-                className={`mb-2 flex items-center gap-1.5 text-xs font-semibold tracking-wider uppercase transition-colors duration-200 ${
+                className={`mb-2 flex items-center gap-1.5 text-xs font-medium tracking-wider uppercase transition-colors duration-200 ${
                   focusedField === "password"
                     ? "text-primary"
                     : "text-muted-foreground/80"
                 }`}
               >
-                <span className="material-symbols-outlined text-sm">lock</span>
+                <Icons.Lock className="size-3.5" />
                 Contraseña
               </label>
               <div className="relative">
@@ -191,7 +189,7 @@ function LoginContent() {
           <button
             type="submit"
             disabled={loading}
-            className="group from-primary to-primary/90 text-primary-foreground shadow-primary/20 hover:shadow-primary/30 focus:ring-primary/50 focus:ring-offset-background mt-7 flex w-full items-center justify-center gap-2 rounded-xl bg-linear-to-r px-5 py-3 text-sm font-bold shadow-lg transition-all duration-200 hover:shadow-xl hover:brightness-110 focus:ring-2 focus:ring-offset-2 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+            className="group from-primary to-primary/90 text-primary-foreground shadow-primary/20 hover:shadow-primary/30 focus:ring-primary/50 focus:ring-offset-background mt-7 flex w-full items-center justify-center gap-2 rounded-xl bg-linear-to-r px-5 py-3 text-sm font-medium shadow-lg transition-all duration-200 hover:shadow-xl hover:brightness-110 focus:ring-2 focus:ring-offset-2 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
           >
             {loading ? (
               <>
@@ -201,16 +199,14 @@ function LoginContent() {
             ) : (
               <>
                 <span>Acceder al Sistema</span>
-                <span className="material-symbols-outlined text-base transition-transform duration-200 group-hover:translate-x-0.5">
-                  arrow_forward
-                </span>
+                <Icons.ArrowForward className="size-4 transition-transform duration-200 group-hover:translate-x-0.5" />
               </>
             )}
           </button>
 
           {/* Security note */}
           <div className="text-muted-foreground/50 mt-5 flex items-center justify-center gap-1.5 text-[0.7rem]">
-            <span className="material-symbols-outlined text-xs">shield</span>
+            <Icons.Shield className="size-3" />
             <span>Conexión segura · Solo usuarios autorizados</span>
           </div>
         </form>

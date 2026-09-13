@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { Icons } from "@cendaro/ui/icons";
+
 import { Dialog, Field, FormActions, Input, Select } from "~/components/dialog";
 import { useBcvRate } from "~/hooks/use-bcv-rate";
 import { formatDualCurrency } from "~/lib/format-currency";
@@ -291,7 +293,7 @@ export function CreateQuoteDialog({ open, onClose }: Props) {
                       key={idx}
                       className="border-border-subtle border-b last:border-0"
                     >
-                      <td className="text-primary px-3 py-2 font-mono font-bold">
+                      <td className="text-primary px-3 py-2 font-mono font-medium">
                         {line.productRef}
                       </td>
                       <td className="text-foreground max-w-50 truncate px-3 py-2">
@@ -308,7 +310,7 @@ export function CreateQuoteDialog({ open, onClose }: Props) {
                           ? `-$${line.discount.toFixed(2)}`
                           : "—"}
                       </td>
-                      <td className="text-foreground px-3 py-2 text-right font-mono font-semibold tabular-nums">
+                      <td className="text-foreground px-3 py-2 text-right font-mono font-medium tabular-nums">
                         $
                         {(
                           (line.unitPrice - line.discount) *
@@ -321,9 +323,7 @@ export function CreateQuoteDialog({ open, onClose }: Props) {
                           onClick={() => removeLine(idx)}
                           className="text-destructive hover:text-destructive/80 transition-colors"
                         >
-                          <span className="material-symbols-outlined text-sm">
-                            delete
-                          </span>
+                          <Icons.Delete className="size-3.5" />
                         </button>
                       </td>
                     </tr>
@@ -337,9 +337,7 @@ export function CreateQuoteDialog({ open, onClose }: Props) {
           <div className="space-y-2">
             <div className="relative" ref={dropdownRef}>
               <div className="relative">
-                <span className="material-symbols-outlined text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-lg">
-                  search
-                </span>
+                <Icons.Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4.5 -translate-y-1/2" />
                 <input
                   ref={searchInputRef}
                   type="text"
@@ -357,9 +355,7 @@ export function CreateQuoteDialog({ open, onClose }: Props) {
                   className="border-border-subtle bg-card text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-ring/20 min-h-11 w-full rounded-lg border py-2.5 pr-4 pl-10 text-sm transition-colors outline-none focus:ring-2"
                 />
                 {selectedProduct && (
-                  <span className="material-symbols-outlined pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-lg text-emerald-400">
-                    check_circle
-                  </span>
+                  <Icons.CheckCircle className="pointer-events-none absolute top-1/2 right-3 size-4.5 -translate-y-1/2 text-emerald-400" />
                 )}
               </div>
 
@@ -386,7 +382,7 @@ export function CreateQuoteDialog({ open, onClose }: Props) {
                             : "text-foreground hover:bg-accent"
                         }`}
                       >
-                        <span className="text-primary shrink-0 font-mono text-xs font-bold">
+                        <span className="text-primary shrink-0 font-mono text-xs font-medium">
                           {p.sku}
                         </span>
                         <span className="min-w-0 flex-1 truncate">
@@ -407,9 +403,7 @@ export function CreateQuoteDialog({ open, onClose }: Props) {
                 productSearch.trim() &&
                 filteredProducts.length === 0 && (
                   <div className="border-border-subtle bg-card text-muted-foreground absolute z-50 mt-1 w-full rounded-lg border p-3 text-center text-xs shadow-xl">
-                    <span className="material-symbols-outlined mb-1 block text-lg">
-                      search_off
-                    </span>
+                    <Icons.SearchOff className="mb-1 block size-4.5" />
                     No se encontró ningún producto
                   </div>
                 )}
@@ -480,10 +474,9 @@ export function CreateQuoteDialog({ open, onClose }: Props) {
                 type="button"
                 onClick={addLine}
                 disabled={!selectedProduct || !addPrice}
-                className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:bg-muted disabled:text-muted-foreground min-h-11 rounded-lg px-3 py-2 text-xs font-semibold transition-colors disabled:cursor-not-allowed"
+                className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:bg-muted disabled:text-muted-foreground min-h-11 rounded-lg px-3 py-2 text-xs font-medium transition-colors disabled:cursor-not-allowed"
               >
-                <span className="material-symbols-outlined text-sm">add</span>{" "}
-                Añadir
+                <Icons.Add className="size-3.5" /> Añadir
               </button>
             </div>
           </div>
@@ -516,9 +509,9 @@ export function CreateQuoteDialog({ open, onClose }: Props) {
             </div>
           )}
           <div className="border-border-subtle mt-2 flex items-baseline justify-between border-t pt-2">
-            <span className="text-foreground text-sm font-semibold">Total</span>
+            <span className="text-foreground text-sm font-medium">Total</span>
             <div className="text-right">
-              <span className="text-primary font-mono text-base font-bold tabular-nums">
+              <span className="text-primary font-mono text-base font-medium tabular-nums">
                 ${total.toFixed(2)}
               </span>
               {bcv.rate > 0 && (

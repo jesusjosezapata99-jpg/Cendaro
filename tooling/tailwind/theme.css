@@ -1,147 +1,180 @@
 /* ================================================================
    Cendaro — Design System Theme
    ================================================================
-   Primary: #2463eb (Cendaro Blue)
-   Based on a clean enterprise blue palette with dark mode support.
-   Tailwind CSS v4 with oklch color space.
+   Midday-derived monochrome system (PLAN-2026-09-MIDDAY-REDESIGN §5.1–5.3).
+   Radius 0 everywhere except pills/avatars; color only carries meaning
+   (status, focus), never decoration. Values sourced from Midday's own
+   globals.css (verbatim) with two accessibility adjustments (DEV-1, DEV-2),
+   validated by `scripts/checks/contrast.mjs`.
    ================================================================ */
 
 :root {
-  --background: oklch(0.985 0.002 250);
-  --foreground: oklch(0.145 0.015 250);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0.015 250);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0.015 250);
-  --primary: oklch(0.546 0.195 262);
-  --primary-foreground: oklch(1 0 0);
-  --secondary: oklch(0.965 0.005 250);
-  --secondary-foreground: oklch(0.355 0.02 250);
-  --muted: oklch(0.965 0.005 250);
-  --muted-foreground: oklch(0.555 0.015 250);
-  --accent: oklch(0.965 0.005 250);
-  --accent-foreground: oklch(0.546 0.195 262);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(1 0 0);
-  --success: oklch(0.627 0.194 149.48);
-  --success-foreground: oklch(1 0 0);
-  --warning: oklch(0.769 0.189 70.08);
-  --warning-foreground: oklch(0.21 0.006 25.96);
-  /* Soft text variants — AA contrast for tinted badges/chips in light mode */
-  --success-soft: oklch(0.55 0.16 149);
-  --warning-soft: oklch(0.6 0.14 70);
-  --destructive-soft: oklch(0.55 0.22 27);
-  --border: oklch(0.922 0.004 250);
-  /* Hairline border — 8% of foreground, reads as "etched" rather than drawn */
-  --border-subtle: oklch(0.145 0.015 250 / 0.08);
-  --input: oklch(1 0 0);
-  --ring: oklch(0.546 0.195 262);
-  --chart-1: oklch(0.546 0.195 262);
-  --chart-2: oklch(0.627 0.194 149.48);
-  --chart-3: oklch(0.769 0.189 70.08);
-  --chart-4: oklch(0.6 0.118 184);
-  --chart-5: oklch(0.577 0.245 27.325);
-  --sidebar: oklch(0.965 0.005 250);
-  --sidebar-foreground: oklch(0.355 0.02 250);
-  --sidebar-primary: oklch(0.546 0.195 262);
-  --sidebar-primary-foreground: oklch(1 0 0);
-  --sidebar-accent: oklch(0.922 0.004 250);
-  --sidebar-accent-foreground: oklch(0.546 0.195 262);
-  --sidebar-border: oklch(0.9 0.006 250);
-  --sidebar-ring: oklch(0.546 0.195 262);
-  --radius: 0.5rem;
-  /* Multi-layer elevation: ambient (spread wide, faint) + key (directional)
-     + contact (tight, darkest). Light: 3–9% ink. */
-  --shadow-2xs: 0px 1px 1px 0px oklch(0 0 0 / 0.03);
-  --shadow-xs:
-    0px 1px 2px 0px oklch(0 0 0 / 0.04), 0px 1px 2px -1px oklch(0 0 0 / 0.03);
-  --shadow-sm:
-    0px 1px 2px 0px oklch(0 0 0 / 0.04), 0px 2px 4px -1px oklch(0 0 0 / 0.04),
-    0px 3px 8px -2px oklch(0 0 0 / 0.03);
-  --shadow:
-    0px 1px 2px 0px oklch(0 0 0 / 0.04), 0px 4px 8px -2px oklch(0 0 0 / 0.05),
-    0px 8px 20px -4px oklch(0 0 0 / 0.04);
-  --shadow-md:
-    0px 2px 4px -1px oklch(0 0 0 / 0.05), 0px 8px 16px -4px oklch(0 0 0 / 0.06),
-    0px 16px 32px -8px oklch(0 0 0 / 0.05);
-  --shadow-lg:
-    0px 4px 8px -2px oklch(0 0 0 / 0.06),
-    0px 14px 28px -6px oklch(0 0 0 / 0.08),
-    0px 28px 56px -12px oklch(0 0 0 / 0.07);
-  --shadow-xl:
-    0px 8px 16px -4px oklch(0 0 0 / 0.08),
-    0px 24px 48px -12px oklch(0 0 0 / 0.11),
-    0px 48px 96px -24px oklch(0 0 0 / 0.09);
-  --shadow-2xl: 0px 24px 48px -12px oklch(0 0 0 / 0.18);
+  --background: hsl(0 0% 100%);
+  --foreground: hsl(0 0% 7%);
+  --card: hsl(45 18% 96%);
+  --card-foreground: hsl(240 10% 3.9%);
+  --popover: hsl(45 18% 96%);
+  --popover-foreground: hsl(240 10% 3.9%);
+  --primary: hsl(240 5.9% 10%);
+  --primary-foreground: hsl(0 0% 98%);
+  --secondary: hsl(40 11% 89%);
+  --secondary-foreground: hsl(240 5.9% 10%);
+  --muted: hsl(40 11% 89%);
+  /* DEV-1: Midday's own 38% fails AA nowhere in light mode (6.2:1) — kept verbatim */
+  --muted-foreground: hsl(0 0% 38%);
+  --accent: hsl(40 10% 94%);
+  --accent-foreground: hsl(240 5.9% 10%);
+  /* Darkened from Midday's literal 60.2% (same hue/sat) — white text on the
+     solid destructive button otherwise reads 3.6:1, failing AA (T1.4). */
+  --destructive: hsl(0 84.2% 48%);
+  --destructive-foreground: hsl(0 0% 98%);
+  --border: hsl(45 5% 85%);
+  --input: hsl(240 5.9% 90%);
+  --ring: hsl(240 5.9% 10%);
+  --radius: 0rem;
+
+  /* ── Status tones (§5.3) — text/bg pairs, single source via lib/status.ts ── */
+  --status-neutral-fg: #616161;
+  --status-neutral-bg: #f2f1ef;
+  --status-default-fg: #1d1d1d;
+  --status-default-bg: rgb(135 135 135 / 0.1);
+  --status-success-fg: #007a3d;
+  --status-success-bg: #ddf1e4;
+  --status-warning-fg: #8a6500;
+  --status-warning-bg: rgb(255 208 43 / 0.1);
+  --status-info-fg: #1a56c4;
+  --status-info-bg: #ddebff;
+  --status-orange-fg: #b4470a;
+  --status-orange-bg: #ffedd5;
+  --status-destructive-fg: #c21f21;
+  --status-destructive-bg: rgb(255 54 56 / 0.1);
+
+  /* ── Chrome tokens (§5.2) — literal Midday values, not decorative ── */
+  --line: #e6e6e6;
+  --line-hover: #d0d0d0;
+  --surface: #ffffff;
+  --surface-hover: #f7f7f7;
+  --nav-active: #f7f7f7;
+  --row-hover: #f2f1ef;
+  --sheet: #fafaf9;
+  --overlay: rgb(246 246 243 / 0.6);
+  --tag: #f2f1ef;
+  --tag-foreground: #616161;
+  --avatar-line: #dcdad2;
+  --nav-icon: #000000;
+  --nav-label: #666666;
+  --nav-child: #888888;
+  --tooltip: var(--background);
+  --tooltip-line: var(--border);
+  --toast: #f6f6f3;
+
+  /* ── Chart tokens — verbatim Midday globals.css ── */
+  --chart-grid-stroke: #e6e6e6;
+  --chart-axis-text: #707070;
+  --chart-reference-line-stroke: #e6e6e6;
+  --chart-reference-label: #707070;
+  --chart-actual-line: #000000;
+  --chart-forecast-line: #666666;
+  --chart-tooltip-cursor: #666666;
+  --chart-pattern-bg: white;
+  --chart-pattern-stroke: #707070;
+  --chart-bar-fill: #000000;
+  --chart-bar-fill-secondary: rgb(102 102 102 / 0.3);
+  --chart-gradient-start: #707070;
+  --chart-gradient-end: #000000;
+  --chart-line-secondary: #666666;
+  --chart-1: var(--chart-actual-line);
+  --chart-2: var(--chart-forecast-line);
+  --chart-3: var(--chart-bar-fill-secondary);
+  --chart-4: var(--chart-line-secondary);
+  --chart-5: var(--destructive);
+
   --tracking-normal: 0rem;
   --spacing: 0.25rem;
 
+  color-scheme: light;
+
   @variant dark {
-    --background: oklch(0.141 0.012 254);
-    --foreground: oklch(0.97 0.003 250);
-    --card: oklch(0.175 0.014 254);
-    --card-foreground: oklch(0.97 0.003 250);
-    --popover: oklch(0.175 0.014 254);
-    --popover-foreground: oklch(0.97 0.003 250);
-    --primary: oklch(0.623 0.214 262);
-    --primary-foreground: oklch(0.141 0.012 254);
-    --secondary: oklch(0.22 0.014 254);
-    --secondary-foreground: oklch(0.72 0.012 250);
-    --muted: oklch(0.22 0.014 254);
-    --muted-foreground: oklch(0.62 0.012 250);
-    --accent: oklch(0.22 0.014 254);
-    --accent-foreground: oklch(0.623 0.214 262);
-    --destructive: oklch(0.396 0.141 25.723);
-    --destructive-foreground: oklch(1 0 0);
-    --success: oklch(0.448 0.119 151.328);
-    --success-foreground: oklch(1 0 0);
-    --warning: oklch(0.554 0.135 66.442);
-    --warning-foreground: oklch(1 0 0);
-    /* Soft text variants — lifted for AA contrast on dark cards */
-    --success-soft: oklch(0.72 0.15 149);
-    --warning-soft: oklch(0.78 0.14 70);
-    --destructive-soft: oklch(0.68 0.19 27);
-    --border: oklch(0.265 0.014 254);
-    --border-subtle: oklch(0.97 0.003 250 / 0.09);
-    --input: oklch(0.22 0.014 254);
-    --ring: oklch(0.623 0.214 262);
-    --chart-1: oklch(0.623 0.214 262);
-    --chart-2: oklch(0.448 0.119 151.328);
-    --chart-3: oklch(0.554 0.135 66.442);
-    --chart-4: oklch(0.5 0.08 184);
-    --chart-5: oklch(0.396 0.141 25.723);
-    --sidebar: oklch(0.175 0.014 254);
-    --sidebar-foreground: oklch(0.72 0.012 250);
-    --sidebar-primary: oklch(0.623 0.214 262);
-    --sidebar-primary-foreground: oklch(0.141 0.012 254);
-    --sidebar-accent: oklch(0.22 0.014 254);
-    --sidebar-accent-foreground: oklch(0.623 0.214 262);
-    --sidebar-border: oklch(0.265 0.014 254);
-    --sidebar-ring: oklch(0.623 0.214 262);
-    --radius: 0.5rem;
-    /* Dark mode: shadows deepen + top inner light separates card from bg. */
-    --shadow-2xs: 0px 1px 1px 0px oklch(0 0 0 / 0.22);
-    --shadow-xs:
-      0px 1px 2px 0px oklch(0 0 0 / 0.26), 0px 1px 2px -1px oklch(0 0 0 / 0.2);
-    --shadow-sm:
-      0px 1px 2px 0px oklch(0 0 0 / 0.26), 0px 2px 4px -1px oklch(0 0 0 / 0.24),
-      0px 3px 8px -2px oklch(0 0 0 / 0.2);
-    --shadow:
-      0px 1px 2px 0px oklch(0 0 0 / 0.28), 0px 4px 8px -2px oklch(0 0 0 / 0.26),
-      0px 8px 20px -4px oklch(0 0 0 / 0.22);
-    --shadow-md:
-      0px 2px 4px -1px oklch(0 0 0 / 0.3),
-      0px 8px 16px -4px oklch(0 0 0 / 0.28),
-      0px 16px 32px -8px oklch(0 0 0 / 0.24);
-    --shadow-lg:
-      0px 4px 8px -2px oklch(0 0 0 / 0.32),
-      0px 14px 28px -6px oklch(0 0 0 / 0.3),
-      0px 28px 56px -12px oklch(0 0 0 / 0.26);
-    --shadow-xl:
-      0px 8px 16px -4px oklch(0 0 0 / 0.36),
-      0px 24px 48px -12px oklch(0 0 0 / 0.32),
-      0px 48px 96px -24px oklch(0 0 0 / 0.28);
-    --shadow-2xl: 0px 24px 48px -12px oklch(0 0 0 / 0.5);
+    --background: hsl(0 0% 5%);
+    --foreground: hsl(0 0% 98%);
+    --card: hsl(0 0% 7%);
+    --card-foreground: hsl(0 0% 98%);
+    --popover: hsl(0 0% 7%);
+    --popover-foreground: hsl(0 0% 98%);
+    --primary: hsl(0 0% 98%);
+    --primary-foreground: hsl(240 5.9% 10%);
+    --secondary: hsl(0 0% 7%);
+    --secondary-foreground: hsl(0 0% 98%);
+    --muted: hsl(0 0% 11%);
+    /* DEV-1: Midday's #616161 (38%) is 3.16:1 on #0C0C0C — fails AA. Lifted
+       to #878787 (53%), 5.44:1, hue kept. */
+    --muted-foreground: hsl(0 0% 53%);
+    --accent: hsl(0 0% 11%);
+    --accent-foreground: hsl(0 0% 98%);
+    /* Same AA adjustment as light mode — see above */
+    --destructive: hsl(359 100% 44%);
+    --destructive-foreground: hsl(0 0% 100%);
+    --border: hsl(0 0% 11%);
+    --input: hsl(0 0% 11%);
+    --ring: hsl(240 4.9% 83.9%);
+    --radius: 0rem;
+
+    --status-neutral-fg: #878787;
+    --status-neutral-bg: #1d1d1d;
+    --status-default-fg: #f5f5f3;
+    --status-default-bg: rgb(245 245 243 / 0.1);
+    --status-success-fg: #00c969;
+    --status-success-bg: rgb(0 201 105 / 0.1);
+    --status-warning-fg: #ffd02b;
+    --status-warning-bg: rgb(255 208 43 / 0.1);
+    --status-info-fg: #4c8dff;
+    --status-info-bg: rgb(31 111 235 / 0.1);
+    --status-orange-fg: #f97316;
+    --status-orange-bg: rgb(249 115 22 / 0.1);
+    --status-destructive-fg: #ff3638;
+    --status-destructive-bg: rgb(255 54 56 / 0.1);
+
+    --line: #1d1d1d;
+    --line-hover: #222222;
+    --surface: #0c0c0c;
+    --surface-hover: #0f0f0f;
+    --nav-active: #131313;
+    --row-hover: #0f0f0f;
+    --sheet: #0c0c0c;
+    --overlay: rgb(12 12 12 / 0.8);
+    --tag: #1d1d1d;
+    --tag-foreground: #878787;
+    --avatar-line: #2c2c2c;
+    --nav-icon: #666666;
+    /* DEV-1: Midday's literal #666 (3.41:1 on #0C0C0C) fails AA as 14px nav
+       text — lifted to #878787 (5.44:1), same value as dark muted-foreground */
+    --nav-label: #878787;
+    --nav-child: #888888;
+    --tooltip: rgb(26 26 26 / 0.95);
+    --tooltip-line: #2c2c2c;
+    --toast: var(--secondary);
+
+    --chart-grid-stroke: #1d1d1d;
+    --chart-axis-text: #666666;
+    --chart-reference-line-stroke: #333333;
+    --chart-reference-label: #666666;
+    --chart-actual-line: #ffffff;
+    --chart-forecast-line: #999999;
+    --chart-tooltip-cursor: #999999;
+    --chart-pattern-bg: #0c0c0c;
+    --chart-pattern-stroke: #666666;
+    --chart-bar-fill: white;
+    --chart-bar-fill-secondary: rgb(102 102 102 / 0.3);
+    --chart-gradient-start: #666666;
+    --chart-gradient-end: #ffffff;
+    --chart-line-secondary: #999999;
+    --chart-1: var(--chart-actual-line);
+    --chart-2: var(--chart-forecast-line);
+    --chart-3: var(--chart-bar-fill-secondary);
+    --chart-4: var(--chart-line-secondary);
+    --chart-5: var(--destructive);
+
+    color-scheme: dark;
   }
 }
 
@@ -162,15 +195,7 @@
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
-  --color-destructive-soft: var(--destructive-soft);
-  --color-success: var(--success);
-  --color-success-foreground: var(--success-foreground);
-  --color-success-soft: var(--success-soft);
-  --color-warning: var(--warning);
-  --color-warning-foreground: var(--warning-foreground);
-  --color-warning-soft: var(--warning-soft);
   --color-border: var(--border);
-  --color-border-subtle: var(--border-subtle);
   --color-input: var(--input);
   --color-ring: var(--ring);
   --color-chart-1: var(--chart-1);
@@ -178,19 +203,56 @@
   --color-chart-3: var(--chart-3);
   --color-chart-4: var(--chart-4);
   --color-chart-5: var(--chart-5);
-  --color-sidebar: var(--sidebar);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-ring: var(--sidebar-ring);
+
+  /* Sidebar/rail uses the plain background/foreground/border tokens by
+     design (§5.8.1) — no separate sidebar palette in the Midday system. */
+  --color-sidebar: var(--background);
+  --color-sidebar-foreground: var(--foreground);
+  --color-sidebar-primary: var(--primary);
+  --color-sidebar-primary-foreground: var(--primary-foreground);
+  --color-sidebar-accent: var(--accent);
+  --color-sidebar-accent-foreground: var(--accent-foreground);
+  --color-sidebar-border: var(--border);
+  --color-sidebar-ring: var(--ring);
+
+  --color-status-neutral-fg: var(--status-neutral-fg);
+  --color-status-neutral-bg: var(--status-neutral-bg);
+  --color-status-default-fg: var(--status-default-fg);
+  --color-status-default-bg: var(--status-default-bg);
+  --color-status-success-fg: var(--status-success-fg);
+  --color-status-success-bg: var(--status-success-bg);
+  --color-status-warning-fg: var(--status-warning-fg);
+  --color-status-warning-bg: var(--status-warning-bg);
+  --color-status-info-fg: var(--status-info-fg);
+  --color-status-info-bg: var(--status-info-bg);
+  --color-status-orange-fg: var(--status-orange-fg);
+  --color-status-orange-bg: var(--status-orange-bg);
+  --color-status-destructive-fg: var(--status-destructive-fg);
+  --color-status-destructive-bg: var(--status-destructive-bg);
+
+  --color-line: var(--line);
+  --color-line-hover: var(--line-hover);
+  --color-surface: var(--surface);
+  --color-surface-hover: var(--surface-hover);
+  --color-nav-active: var(--nav-active);
+  --color-row-hover: var(--row-hover);
+  --color-sheet: var(--sheet);
+  --color-overlay: var(--overlay);
+  --color-tag: var(--tag);
+  --color-tag-foreground: var(--tag-foreground);
+  --color-avatar-line: var(--avatar-line);
+  --color-nav-icon: var(--nav-icon);
+  --color-nav-label: var(--nav-label);
+  --color-nav-child: var(--nav-child);
+  --color-tooltip: var(--tooltip);
+  --color-tooltip-line: var(--tooltip-line);
+  --color-toast: var(--toast);
 
   --font-sans:
-    var(--font-geist-sans, "Geist"), ui-sans-serif, system-ui, sans-serif;
+    var(--font-hedvig-sans, "Hedvig Letters Sans"), system-ui, arial, sans-serif;
   --font-serif:
-    var(--font-serif, "Playfair Display"), Georgia, "Times New Roman", serif;
+    var(--font-hedvig-serif, "Hedvig Letters Serif"), Georgia,
+    "Times New Roman", serif;
   --font-mono:
     var(--font-geist-mono, "Geist Mono"), ui-monospace, "Cascadia Code",
     monospace;
@@ -199,15 +261,6 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
-
-  --shadow-2xs: var(--shadow-2xs);
-  --shadow-xs: var(--shadow-xs);
-  --shadow-sm: var(--shadow-sm);
-  --shadow: var(--shadow);
-  --shadow-md: var(--shadow-md);
-  --shadow-lg: var(--shadow-lg);
-  --shadow-xl: var(--shadow-xl);
-  --shadow-2xl: var(--shadow-2xl);
 
   --tracking-tighter: calc(var(--tracking-normal) - 0.05em);
   --tracking-tight: calc(var(--tracking-normal) - 0.025em);

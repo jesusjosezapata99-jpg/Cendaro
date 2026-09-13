@@ -88,7 +88,7 @@ export function UpdateQuoteStatusDialog({
           <button
             type="submit"
             disabled={update.isPending}
-            className="bg-primary text-primary-foreground hover:bg-primary/90 min-h-11 rounded-lg px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-50"
+            className="bg-primary text-primary-foreground hover:bg-primary/90 min-h-11 rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50"
           >
             {update.isPending ? "Guardando..." : "Actualizar"}
           </button>

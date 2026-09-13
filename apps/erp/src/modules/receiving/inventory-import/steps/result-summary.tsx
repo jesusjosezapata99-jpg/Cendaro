@@ -7,6 +7,8 @@
  * PRD: FEATURE_PRD_INVENTORY_IMPORT.md §15, §20 (ImportCompleted/ImportPartial)
  */
 import type { ImportResult } from "@cendaro/api";
+import type { IconName } from "@cendaro/ui/icons";
+import { Icon, Icons } from "@cendaro/ui/icons";
 
 import { downloadAsXlsx } from "~/lib/xlsx/download";
 
@@ -56,20 +58,19 @@ export function ResultSummary({
               : "bg-red-50 dark:bg-red-900/20"
         }`}
       >
-        <span
-          className={`material-symbols-outlined text-3xl ${
+        <Icon
+          name={isFullSuccess ? "CheckCircle" : isPartial ? "Warning" : "Error"}
+          className={`size-7.5 ${
             isFullSuccess
               ? "text-emerald-600"
               : isPartial
                 ? "text-amber-600"
                 : "text-red-600"
           }`}
-        >
-          {isFullSuccess ? "check_circle" : isPartial ? "warning" : "error"}
-        </span>
+        />
         <div>
           <h2
-            className={`text-xl font-bold ${
+            className={`text-xl font-medium ${
               isFullSuccess
                 ? "text-emerald-800 dark:text-emerald-200"
                 : isPartial
@@ -103,39 +104,44 @@ export function ResultSummary({
 
       {/* Result stats */}
       <div className="grid gap-4 sm:grid-cols-4">
-        {[
-          {
-            label: "Importados",
-            value: result.committed,
-            icon: "check_circle",
-            color: "text-emerald-600",
-          },
-          {
-            label: "Omitidos",
-            value: result.skipped,
-            icon: "skip_next",
-            color: "text-amber-600",
-          },
-          {
-            label: "Fallidos",
-            value: result.failed,
-            icon: "error",
-            color: "text-red-600",
-          },
-          {
-            label: "Delta Total",
-            value: `${result.totalDelta > 0 ? "+" : ""}${result.totalDelta}`,
-            icon: "analytics",
-            color: "text-blue-600",
-          },
-        ].map((s) => (
+        {(
+          [
+            {
+              label: "Importados",
+              value: result.committed,
+              icon: "CheckCircle",
+              color: "text-emerald-600",
+            },
+            {
+              label: "Omitidos",
+              value: result.skipped,
+              icon: "SkipNext",
+              color: "text-amber-600",
+            },
+            {
+              label: "Fallidos",
+              value: result.failed,
+              icon: "Error",
+              color: "text-red-600",
+            },
+            {
+              label: "Delta Total",
+              value: `${result.totalDelta > 0 ? "+" : ""}${result.totalDelta}`,
+              icon: "Analytics",
+              color: "text-blue-600",
+            },
+          ] as {
+            label: string;
+            value: string | number;
+            icon: IconName;
+            color: string;
+          }[]
+        ).map((s) => (
           <div
             key={s.label}
             className="border-border bg-card rounded-xl border p-4 text-center"
           >
-            <span className={`material-symbols-outlined text-xl ${s.color}`}>
-              {s.icon}
-            </span>
+            <Icon name={s.icon} className={`size-5 ${s.color}`} />
             <p className="text-foreground mt-1 text-xl font-black">{s.value}</p>
             <p className="text-muted-foreground text-xs">{s.label}</p>
           </div>
@@ -166,9 +172,9 @@ export function ResultSummary({
       {result.errors.length > 0 && (
         <button
           onClick={handleDownloadErrors}
-          className="flex w-full items-center justify-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 transition-colors hover:bg-red-100 dark:border-red-900 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/30"
+          className="flex w-full items-center justify-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700 transition-colors hover:bg-red-100 dark:border-red-900 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/30"
         >
-          <span className="material-symbols-outlined text-lg">download</span>
+          <Icons.Download className="size-4.5" />
           Descargar errores ({result.errors.length} filas)
         </button>
       )}
@@ -179,14 +185,14 @@ export function ResultSummary({
           href={`/inventory/warehouse/${warehouseId}`}
           className="text-primary hover:text-primary/80 inline-flex items-center gap-1.5 text-sm font-medium transition-colors"
         >
-          <span className="material-symbols-outlined text-lg">arrow_back</span>
+          <Icons.ArrowBack className="size-4.5" />
           Volver al almacén
         </a>
         <button
           onClick={onNewImport}
-          className="bg-primary hover:bg-primary/90 inline-flex items-center gap-2 rounded-lg px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors"
+          className="bg-primary hover:bg-primary/90 inline-flex items-center gap-2 rounded-lg px-6 py-2.5 text-sm font-medium text-white shadow-sm transition-colors"
         >
-          <span className="material-symbols-outlined text-lg">upload_file</span>
+          <Icons.UploadFile className="size-4.5" />
           Nueva Importación
         </button>
       </div>

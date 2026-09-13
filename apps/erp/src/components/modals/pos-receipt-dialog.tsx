@@ -3,6 +3,7 @@
 import { useMemo } from "react";
 
 import { Button } from "@cendaro/ui";
+import { Icons } from "@cendaro/ui/icons";
 
 import type { CartLine } from "./pos-checkout-dialog";
 import { Dialog } from "~/components/dialog";
@@ -119,7 +120,7 @@ export function PosReceiptDialog({
             <div className="border-border/60 my-2 border-t border-dashed" />
             <div className="flex items-center justify-between text-xs">
               <span className="text-muted-foreground">Ticket / Factura:</span>
-              <span className="text-foreground font-mono font-bold">
+              <span className="text-foreground font-mono font-medium">
                 {receipt.orderNumber}
               </span>
             </div>
@@ -139,7 +140,7 @@ export function PosReceiptDialog({
             )}
             <div className="flex items-center justify-between text-xs">
               <span className="text-muted-foreground">Tasa Oficial BCV:</span>
-              <span className="text-foreground font-mono font-semibold tabular-nums">
+              <span className="text-foreground font-mono font-medium tabular-nums">
                 Bs{" "}
                 {receipt.bcvRate.toLocaleString("es-VE", {
                   minimumFractionDigits: 2,
@@ -152,7 +153,7 @@ export function PosReceiptDialog({
 
           {/* Items Table */}
           <div className="space-y-2">
-            <div className="text-muted-foreground grid grid-cols-12 text-xs font-bold uppercase">
+            <div className="text-muted-foreground grid grid-cols-12 text-xs font-medium uppercase">
               <span className="col-span-2 text-center">Cant</span>
               <span className="col-span-6">Descripción</span>
               <span className="col-span-4 text-right">Total</span>
@@ -165,7 +166,7 @@ export function PosReceiptDialog({
                 );
                 return (
                   <div key={idx} className="grid grid-cols-12 py-1.5 text-xs">
-                    <span className="text-foreground col-span-2 text-center font-mono font-bold tabular-nums">
+                    <span className="text-foreground col-span-2 text-center font-mono font-medium tabular-nums">
                       {item.quantity}
                     </span>
                     <div className="col-span-6 pr-1">
@@ -177,7 +178,7 @@ export function PosReceiptDialog({
                       </span>
                     </div>
                     <div className="col-span-4 text-right font-mono tabular-nums">
-                      <div className="text-foreground font-bold">
+                      <div className="text-foreground font-medium">
                         {itemDual.usd}
                       </div>
                       <div className="text-muted-foreground text-[10px]">
@@ -209,14 +210,14 @@ export function PosReceiptDialog({
               </div>
             )}
             <div className="flex items-baseline justify-between pt-1">
-              <span className="text-foreground font-bold uppercase">
+              <span className="text-foreground font-medium uppercase">
                 TOTAL A PAGAR:
               </span>
               <div className="text-right">
                 <span className="text-foreground font-mono text-base font-black tabular-nums">
                   {dualTotal.usd}
                 </span>
-                <div className="text-primary font-mono text-xs font-semibold tabular-nums">
+                <div className="text-primary font-mono text-xs font-medium tabular-nums">
                   {dualTotal.bs}
                 </div>
               </div>
@@ -227,7 +228,7 @@ export function PosReceiptDialog({
 
           {/* Payments Breakdown */}
           <div className="space-y-1 text-xs">
-            <span className="text-muted-foreground block font-bold uppercase">
+            <span className="text-muted-foreground block font-medium uppercase">
               Formas de Pago:
             </span>
             {receipt.payments.map((p, idx) => (
@@ -236,7 +237,7 @@ export function PosReceiptDialog({
                   {METHOD_LABELS[p.method] ?? p.method}
                   {p.reference ? ` (Ref: ${p.reference})` : ""}:
                 </span>
-                <span className="text-foreground font-semibold tabular-nums">
+                <span className="text-foreground font-medium tabular-nums">
                   {p.currency === "VES"
                     ? `Bs ${p.amount.toLocaleString("es-VE", { minimumFractionDigits: 2 })}`
                     : `$${p.amount.toFixed(2)}`}
@@ -246,8 +247,8 @@ export function PosReceiptDialog({
 
             {receipt.changeUsd > 0.001 && (
               <div className="flex justify-between pt-1 font-mono text-emerald-600 dark:text-emerald-400">
-                <span className="font-bold">Vuelto / Cambio:</span>
-                <span className="font-bold tabular-nums">
+                <span className="font-medium">Vuelto / Cambio:</span>
+                <span className="font-medium tabular-nums">
                   ${receipt.changeUsd.toFixed(2)} (Bs{" "}
                   {receipt.changeBs.toLocaleString("es-VE", {
                     minimumFractionDigits: 2,
@@ -261,7 +262,7 @@ export function PosReceiptDialog({
           {/* Slip Footer */}
           <div className="border-border/60 my-3 border-t border-dashed" />
           <div className="space-y-0.5 text-center">
-            <p className="text-foreground text-xs font-bold">
+            <p className="text-foreground text-xs font-medium">
               ¡Gracias por su preferencia!
             </p>
             <p className="text-muted-foreground text-[10px]">
@@ -278,16 +279,16 @@ export function PosReceiptDialog({
             onClick={handlePrint}
             className="min-h-11 flex-1"
           >
-            <span className="material-symbols-outlined text-base">receipt</span>
+            <Icons.Receipt className="size-4" />
             Imprimir Ticket
           </Button>
 
           <Button
             type="button"
             onClick={handleFinish}
-            className="min-h-11 flex-1 font-bold"
+            className="min-h-11 flex-1 font-medium"
           >
-            <span className="material-symbols-outlined text-base">add</span>
+            <Icons.Add className="size-4" />
             Nueva Venta (POS)
           </Button>
         </div>

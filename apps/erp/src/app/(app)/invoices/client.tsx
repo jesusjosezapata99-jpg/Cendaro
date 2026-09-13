@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 
+import type { IconName } from "@cendaro/ui/icons";
 import {
   Button,
   Table,
@@ -14,6 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from "@cendaro/ui";
+import { Icon, Icons } from "@cendaro/ui/icons";
 
 import type { StatusTone } from "~/components/status-badge";
 import { EmptyState } from "~/components/empty-state";
@@ -46,12 +48,12 @@ const STATUS_CONFIG: Record<string, { label: string; tone: StatusTone }> = {
   returned: { label: "Devuelto", tone: "neutral" },
 };
 
-const CHANNEL_ICONS: Record<string, string> = {
-  store: "store",
-  mercadolibre: "shopping_cart",
-  vendors: "local_shipping",
-  whatsapp: "chat",
-  instagram: "photo_camera",
+const CHANNEL_ICONS: Record<string, IconName> = {
+  store: "Store",
+  mercadolibre: "ShoppingCart",
+  vendors: "LocalShipping",
+  whatsapp: "Chat",
+  instagram: "PhotoCamera",
 };
 
 const CHANNEL_LABELS: Record<string, string> = {
@@ -140,14 +142,12 @@ export default function InvoicesClient() {
               onClick={() => setSelectedOrderId("preview")}
               className="min-h-11 flex-1 sm:flex-initial"
             >
-              <span className="material-symbols-outlined text-lg">
-                receipt_long
-              </span>
+              <Icons.ReceiptLong className="size-4.5" />
               Modelo Comprobante
             </Button>
             <Button asChild className="min-h-11 flex-1 sm:flex-initial">
               <Link href="/orders">
-                <span className="material-symbols-outlined text-lg">add</span>
+                <Icons.Add className="size-4.5" />
                 Nueva Factura / Venta
               </Link>
             </Button>
@@ -160,7 +160,7 @@ export default function InvoicesClient() {
         <StatCard
           label="Total Facturas"
           value={ordersLoading ? "—" : totalFacturas.toLocaleString("es-VE")}
-          icon="receipt_long"
+          icon="ReceiptLong"
         />
         <StatCard
           label="Total Facturado"
@@ -174,7 +174,7 @@ export default function InvoicesClient() {
               ? undefined
               : formatDualCurrency(totalFacturadoUsd, bcv.rate).bs
           }
-          icon="payments"
+          icon="Payments"
           tone="primary"
         />
         <StatCard
@@ -189,7 +189,7 @@ export default function InvoicesClient() {
               ? undefined
               : formatDualCurrency(totalCobradoUsd, bcv.rate).bs
           }
-          icon="check_circle"
+          icon="CheckCircle"
           tone="success"
         />
         <StatCard
@@ -204,7 +204,7 @@ export default function InvoicesClient() {
               ? undefined
               : formatDualCurrency(totalPendienteUsd, bcv.rate).bs
           }
-          icon="pending"
+          icon="Pending"
           tone="warning"
         />
       </div>
@@ -212,9 +212,7 @@ export default function InvoicesClient() {
       {/* Search & Filter Bar */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="relative flex-1">
-          <span className="material-symbols-outlined text-muted-foreground absolute top-1/2 left-3 -translate-y-1/2 text-lg">
-            search
-          </span>
+          <Icons.Search className="text-muted-foreground absolute top-1/2 left-3 size-4.5 -translate-y-1/2" />
           <input
             type="text"
             placeholder="Buscar por Factura #, Orden # o Cliente..."
@@ -265,7 +263,7 @@ export default function InvoicesClient() {
           ))
         ) : filteredInvoices.length === 0 ? (
           <EmptyState
-            icon="receipt_long"
+            icon="ReceiptLong"
             title="No se encontraron facturas"
             description="No hay comprobantes que coincidan con los criterios de búsqueda o filtro."
             action={
@@ -315,13 +313,12 @@ export default function InvoicesClient() {
               >
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
-                    <span
-                      className="material-symbols-outlined text-muted-foreground text-lg"
+                    <Icon
+                      name={CHANNEL_ICONS[order.channel] ?? "ReceiptLong"}
+                      className="text-muted-foreground size-4.5"
                       title={order.channel}
-                    >
-                      {CHANNEL_ICONS[order.channel] ?? "receipt_long"}
-                    </span>
-                    <span className="text-primary font-mono text-sm font-bold tabular-nums">
+                    />
+                    <span className="text-primary font-mono text-sm font-medium tabular-nums">
                       FAC-{order.orderNumber}
                     </span>
                   </div>
@@ -334,7 +331,7 @@ export default function InvoicesClient() {
                 </div>
 
                 <div className="space-y-1 text-xs">
-                  <p className="text-foreground text-sm font-semibold">
+                  <p className="text-foreground text-sm font-medium">
                     {customerName}
                   </p>
                   <p className="text-muted-foreground font-mono">
@@ -345,10 +342,10 @@ export default function InvoicesClient() {
 
                 <div className="border-border-subtle flex items-baseline justify-between border-t pt-2">
                   <div>
-                    <span className="text-muted-foreground text-[10px] font-bold uppercase">
+                    <span className="text-muted-foreground text-[10px] font-medium uppercase">
                       Total Facturado
                     </span>
-                    <p className="text-foreground font-mono text-base font-bold tabular-nums">
+                    <p className="text-foreground font-mono text-base font-medium tabular-nums">
                       ${Number(order.total).toFixed(2)} USD
                     </p>
                     <p className="text-muted-foreground font-mono text-xs tabular-nums">
@@ -362,9 +359,7 @@ export default function InvoicesClient() {
                       onClick={() => setSelectedOrderId(order.id)}
                       className="min-h-9 text-xs"
                     >
-                      <span className="material-symbols-outlined text-base">
-                        receipt_long
-                      </span>
+                      <Icons.ReceiptLong className="size-4" />
                       Comprobante
                     </Button>
                     <Button
@@ -374,9 +369,7 @@ export default function InvoicesClient() {
                       className="min-h-9 text-xs"
                     >
                       <Link href={`/orders/${order.id}`}>
-                        <span className="material-symbols-outlined text-base">
-                          open_in_new
-                        </span>
+                        <Icons.OpenInNew className="size-4" />
                       </Link>
                     </Button>
                   </div>
@@ -393,34 +386,34 @@ export default function InvoicesClient() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="px-4 py-3 text-xs font-semibold uppercase">
+                <TableHead className="px-4 py-3 text-xs font-medium uppercase">
                   Factura #
                 </TableHead>
-                <TableHead className="px-4 py-3 text-xs font-semibold uppercase">
+                <TableHead className="px-4 py-3 text-xs font-medium uppercase">
                   Orden Ref.
                 </TableHead>
-                <TableHead className="px-4 py-3 text-xs font-semibold uppercase">
+                <TableHead className="px-4 py-3 text-xs font-medium uppercase">
                   Cliente
                 </TableHead>
-                <TableHead className="px-4 py-3 text-xs font-semibold uppercase">
+                <TableHead className="px-4 py-3 text-xs font-medium uppercase">
                   Canal
                 </TableHead>
-                <TableHead className="px-4 py-3 text-xs font-semibold uppercase">
+                <TableHead className="px-4 py-3 text-xs font-medium uppercase">
                   Fecha
                 </TableHead>
-                <TableHead className="px-4 py-3 text-right text-xs font-semibold uppercase">
+                <TableHead className="px-4 py-3 text-right text-xs font-medium uppercase">
                   Total
                 </TableHead>
-                <TableHead className="px-4 py-3 text-right text-xs font-semibold uppercase">
+                <TableHead className="px-4 py-3 text-right text-xs font-medium uppercase">
                   Cobrado
                 </TableHead>
-                <TableHead className="px-4 py-3 text-center text-xs font-semibold uppercase">
+                <TableHead className="px-4 py-3 text-center text-xs font-medium uppercase">
                   Estado
                 </TableHead>
-                <TableHead className="px-4 py-3 text-center text-xs font-semibold uppercase">
+                <TableHead className="px-4 py-3 text-center text-xs font-medium uppercase">
                   Cobro
                 </TableHead>
-                <TableHead className="px-4 py-3 text-right text-xs font-semibold uppercase">
+                <TableHead className="px-4 py-3 text-right text-xs font-medium uppercase">
                   Acciones
                 </TableHead>
               </TableRow>
@@ -440,7 +433,7 @@ export default function InvoicesClient() {
                 <TableRow>
                   <TableCell colSpan={10} className="py-12">
                     <EmptyState
-                      icon="receipt_long"
+                      icon="ReceiptLong"
                       title="No se encontraron facturas"
                       description="No hay comprobantes que coincidan con los filtros seleccionados."
                       action={
@@ -489,7 +482,7 @@ export default function InvoicesClient() {
                   return (
                     <TableRow key={order.id} className="text-xs">
                       {/* Factura # */}
-                      <TableCell className="text-primary px-4 py-3 font-mono font-bold tabular-nums">
+                      <TableCell className="text-primary px-4 py-3 font-mono font-medium tabular-nums">
                         FAC-{order.orderNumber}
                       </TableCell>
 
@@ -506,9 +499,10 @@ export default function InvoicesClient() {
                       {/* Canal */}
                       <TableCell className="px-4 py-3">
                         <div className="text-muted-foreground flex items-center gap-1.5">
-                          <span className="material-symbols-outlined text-base">
-                            {CHANNEL_ICONS[order.channel] ?? "store"}
-                          </span>
+                          <Icon
+                            name={CHANNEL_ICONS[order.channel] ?? "Store"}
+                            className="size-4"
+                          />
                           <span>
                             {CHANNEL_LABELS[order.channel] ?? order.channel}
                           </span>
@@ -522,7 +516,7 @@ export default function InvoicesClient() {
 
                       {/* Total */}
                       <TableCell className="px-4 py-3 text-right">
-                        <p className="text-foreground font-mono font-bold tabular-nums">
+                        <p className="text-foreground font-mono font-medium tabular-nums">
                           ${Number(order.total).toFixed(2)}
                         </p>
                         <p className="text-muted-foreground font-mono text-[11px] tabular-nums">
@@ -567,9 +561,7 @@ export default function InvoicesClient() {
                             className="min-h-8 px-2.5 text-xs"
                             title="Ver Comprobante de Facturación"
                           >
-                            <span className="material-symbols-outlined mr-1 text-base">
-                              receipt_long
-                            </span>
+                            <Icons.ReceiptLong className="mr-1 size-4" />
                             Comprobante
                           </Button>
                           <Button
@@ -580,9 +572,7 @@ export default function InvoicesClient() {
                             title="Ir a Detalle de Pedido"
                           >
                             <Link href={`/orders/${order.id}`}>
-                              <span className="material-symbols-outlined text-base">
-                                open_in_new
-                              </span>
+                              <Icons.OpenInNew className="size-4" />
                             </Link>
                           </Button>
                         </div>

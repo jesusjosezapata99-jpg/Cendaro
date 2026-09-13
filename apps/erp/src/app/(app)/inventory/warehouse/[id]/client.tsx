@@ -16,6 +16,7 @@ import {
   TableHeader,
   TableRow,
 } from "@cendaro/ui";
+import { Icons } from "@cendaro/ui/icons";
 
 import type { StatusTone } from "~/components/status-badge";
 import { EmptyState } from "~/components/empty-state";
@@ -104,7 +105,7 @@ export default function WarehouseDetailPage() {
     return (
       <div className="p-4 lg:p-8">
         <EmptyState
-          icon="warehouse"
+          icon="Warehouse"
           title="Almacén no encontrado"
           description="El almacén que buscas no existe o fue eliminado."
           action={
@@ -132,9 +133,7 @@ export default function WarehouseDetailPage() {
         >
           Inventario
         </Link>
-        <span aria-hidden className="material-symbols-outlined text-base">
-          chevron_right
-        </span>
+        <Icons.ChevronRight className="size-4" aria-hidden />
         <span className="text-foreground font-medium">{warehouse.name}</span>
       </div>
 
@@ -142,7 +141,7 @@ export default function WarehouseDetailPage() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0 space-y-1">
           <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-foreground text-2xl font-semibold tracking-tight">
+            <h1 className="text-foreground text-2xl font-medium tracking-tight">
               {warehouse.name}
             </h1>
             <StatusBadge tone={typeCfg.tone}>{typeCfg.label}</StatusBadge>
@@ -152,18 +151,14 @@ export default function WarehouseDetailPage() {
           </div>
           {warehouse.location && (
             <p className="text-muted-foreground flex items-center gap-1 text-sm">
-              <span aria-hidden className="material-symbols-outlined text-base">
-                location_on
-              </span>
+              <Icons.LocationOn className="size-4" aria-hidden />
               {warehouse.location}
             </p>
           )}
         </div>
         <Button asChild className="min-h-11 shrink-0">
           <Link href={`/inventory/warehouse/${id}/import`}>
-            <span className="material-symbols-outlined text-lg">
-              upload_file
-            </span>
+            <Icons.UploadFile className="size-4.5" />
             Importar Inventario
           </Link>
         </Button>
@@ -174,37 +169,35 @@ export default function WarehouseDetailPage() {
         <StatCard
           label="Productos"
           value={warehouse.totalProducts.toLocaleString("es-VE")}
-          icon="inventory_2"
+          icon="Inventory2"
           tone="primary"
         />
         <StatCard
           label="Stock Total"
           value={warehouse.totalStock.toLocaleString("es-VE")}
-          icon="stacks"
+          icon="Stacks"
           tone="success"
         />
         <StatCard
           label="Stock Bajo (≤5)"
           value={warehouse.lowStockCount.toLocaleString("es-VE")}
-          icon="warning"
+          icon="Warning"
           tone="warning"
         />
         <StatCard
           label="Bloqueados"
           value={warehouse.lockedCount.toLocaleString("es-VE")}
-          icon="lock"
+          icon="Lock"
           tone="destructive"
         />
       </div>
 
       {/* Search */}
       <div className="relative max-w-sm">
-        <span
+        <Icons.Search
+          className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2"
           aria-hidden
-          className="material-symbols-outlined text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-base"
-        >
-          search
-        </span>
+        />
         <Input
           type="text"
           value={search}
@@ -266,7 +259,7 @@ export default function WarehouseDetailPage() {
               <TableRow className="hover:bg-transparent">
                 <TableCell colSpan={6} className="px-4 py-6">
                   <EmptyState
-                    icon="inventory_2"
+                    icon="Inventory2"
                     title="No hay productos en este almacén"
                     description="Importa inventario o transfiere stock para empezar a gestionarlo."
                     action={
@@ -324,12 +317,7 @@ export default function WarehouseDetailPage() {
                             disabled={updateQty.isPending}
                             className="text-primary hover:text-primary/80 size-8"
                           >
-                            <span
-                              aria-hidden
-                              className="material-symbols-outlined text-lg"
-                            >
-                              check
-                            </span>
+                            <Icons.Check className="size-4.5" aria-hidden />
                           </Button>
                           <Button
                             variant="ghost"
@@ -337,17 +325,12 @@ export default function WarehouseDetailPage() {
                             onClick={() => setEditingId(null)}
                             className="text-muted-foreground hover:text-foreground size-8"
                           >
-                            <span
-                              aria-hidden
-                              className="material-symbols-outlined text-lg"
-                            >
-                              close
-                            </span>
+                            <Icons.Close className="size-4.5" aria-hidden />
                           </Button>
                         </div>
                       ) : (
                         <span
-                          className={`font-mono font-semibold tabular-nums ${
+                          className={`font-mono font-medium tabular-nums ${
                             item.quantity === 0
                               ? "text-destructive-soft"
                               : item.quantity <= 5
@@ -361,19 +344,15 @@ export default function WarehouseDetailPage() {
                     </TableCell>
                     <TableCell className={`${cellPx} text-center`}>
                       {item.isLocked ? (
-                        <span
+                        <Icons.Lock
+                          className="text-destructive size-4.5"
                           aria-label="Stock bloqueado"
-                          className="material-symbols-outlined text-destructive text-lg"
-                        >
-                          lock
-                        </span>
+                        />
                       ) : (
-                        <span
+                        <Icons.LockOpen
+                          className="text-muted-foreground/50 size-4.5"
                           aria-label="Stock desbloqueado"
-                          className="material-symbols-outlined text-muted-foreground/50 text-lg"
-                        >
-                          lock_open
-                        </span>
+                        />
                       )}
                     </TableCell>
                     <TableCell className={`${cellPx} text-right`}>
@@ -385,12 +364,7 @@ export default function WarehouseDetailPage() {
                           className="text-muted-foreground hover:text-foreground size-8"
                           aria-label="Editar cantidad"
                         >
-                          <span
-                            aria-hidden
-                            className="material-symbols-outlined text-lg"
-                          >
-                            edit
-                          </span>
+                          <Icons.Edit className="size-4.5" aria-hidden />
                         </Button>
                       )}
                     </TableCell>

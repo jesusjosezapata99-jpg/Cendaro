@@ -14,6 +14,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { cn } from "@cendaro/ui";
+import { Icons } from "@cendaro/ui/icons";
 
 import { useWorkspace } from "~/hooks/use-workspace";
 import { useTRPC } from "~/trpc/client";
@@ -135,11 +136,9 @@ export function WorkspaceSwitcher() {
         aria-label="Cambiar workspace"
       >
         {/* Workspace avatar */}
-        <div className="bg-primary text-primary-foreground flex size-8 shrink-0 items-center justify-center rounded-lg text-xs font-bold">
+        <div className="bg-primary text-primary-foreground flex size-8 shrink-0 items-center justify-center rounded-lg text-xs font-medium">
           {isPending ? (
-            <span className="material-symbols-outlined animate-spin text-sm">
-              progress_activity
-            </span>
+            <Icons.ProgressActivity className="size-3.5 animate-spin" />
           ) : (
             initials
           )}
@@ -147,13 +146,13 @@ export function WorkspaceSwitcher() {
 
         {/* Name + plan */}
         <div className="min-w-0 flex-1 text-left">
-          <p className="text-sidebar-foreground truncate text-sm leading-tight font-semibold">
+          <p className="text-sidebar-foreground truncate text-sm leading-tight font-medium">
             {isPending ? "Cargando…" : (current?.name ?? "Seleccionar")}
           </p>
           {!isPending && current && (
             <span
               className={cn(
-                "mt-0.5 inline-block rounded-full px-1.5 py-px text-[10px] font-semibold tracking-wider uppercase",
+                "mt-0.5 inline-block rounded-full px-1.5 py-px text-[10px] font-medium tracking-wider uppercase",
                 planConfig.classes,
               )}
             >
@@ -163,14 +162,12 @@ export function WorkspaceSwitcher() {
         </div>
 
         {/* Chevron */}
-        <span
+        <Icons.ExpandMore
           className={cn(
-            "material-symbols-outlined text-muted-foreground text-lg transition-transform duration-200",
+            "text-muted-foreground size-4.5 transition-transform duration-200",
             isOpen && "rotate-180",
           )}
-        >
-          expand_more
-        </span>
+        />
       </button>
 
       {/* Dropdown */}
@@ -213,7 +210,7 @@ export function WorkspaceSwitcher() {
                   {/* Avatar */}
                   <div
                     className={cn(
-                      "flex size-7 shrink-0 items-center justify-center rounded-md text-[10px] font-bold",
+                      "flex size-7 shrink-0 items-center justify-center rounded-md text-[10px] font-medium",
                       isActive
                         ? "bg-primary text-primary-foreground"
                         : "bg-muted text-muted-foreground",
@@ -227,7 +224,7 @@ export function WorkspaceSwitcher() {
                     <p className="truncate text-sm font-medium">{ws.name}</p>
                     <span
                       className={cn(
-                        "inline-block rounded-full px-1.5 py-px text-[9px] font-semibold tracking-wider uppercase",
+                        "inline-block rounded-full px-1.5 py-px text-[9px] font-medium tracking-wider uppercase",
                         wsPlan.classes,
                       )}
                     >
@@ -237,9 +234,7 @@ export function WorkspaceSwitcher() {
 
                   {/* Active indicator */}
                   {isActive && (
-                    <span className="material-symbols-outlined text-primary text-lg">
-                      check
-                    </span>
+                    <Icons.Check className="text-primary size-4.5" />
                   )}
                 </button>
               );
@@ -266,9 +261,7 @@ export function WorkspaceSwitcher() {
                 "focus-visible:ring-primary focus-visible:ring-2 focus-visible:outline-none",
               )}
             >
-              <span className="material-symbols-outlined text-lg">
-                add_circle
-              </span>
+              <Icons.AddCircle className="size-4.5" />
               <span className="text-sm font-medium">Crear workspace</span>
             </button>
           </div>

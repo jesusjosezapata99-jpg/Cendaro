@@ -14,6 +14,7 @@ import {
   TableHeader,
   TableRow,
 } from "@cendaro/ui";
+import { Icons } from "@cendaro/ui/icons";
 
 import { EmptyState } from "~/components/empty-state";
 import { PageHeader } from "~/components/page-header";
@@ -53,7 +54,7 @@ export default function SuppliersPage() {
         description={`${(suppliers?.length ?? 0).toLocaleString("es-VE")} proveedores registrados`}
         actions={
           <Button onClick={() => setShowCreate(true)} className="min-h-11">
-            <span className="material-symbols-outlined text-lg">add</span>
+            <Icons.Add className="size-4.5" />
             Nuevo Proveedor
           </Button>
         }
@@ -66,12 +67,10 @@ export default function SuppliersPage() {
 
       {/* Search */}
       <div className="relative">
-        <span
+        <Icons.Search
+          className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2"
           aria-hidden
-          className="material-symbols-outlined text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-base"
-        >
-          search
-        </span>
+        />
         <Input
           type="text"
           placeholder="Buscar proveedor o contacto..."
@@ -160,7 +159,7 @@ export default function SuppliersPage() {
 
       {filtered.length === 0 && !isLoading && (
         <EmptyState
-          icon="local_shipping"
+          icon="LocalShipping"
           title="No se encontraron proveedores"
           description="Ajusta la búsqueda o registra un nuevo proveedor para empezar."
         />

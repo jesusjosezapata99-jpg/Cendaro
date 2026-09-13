@@ -7,6 +7,7 @@ import { useParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
+import type { IconName } from "@cendaro/ui/icons";
 import {
   Button,
   Table,
@@ -16,6 +17,7 @@ import {
   TableHeader,
   TableRow,
 } from "@cendaro/ui";
+import { Icon, Icons } from "@cendaro/ui/icons";
 
 import type { StatusTone } from "~/components/status-badge";
 import { EmptyState } from "~/components/empty-state";
@@ -71,27 +73,27 @@ interface AIResponse {
 // ── Status Config ──────────────────────────────────────
 const STATUS_CONFIG: Record<
   string,
-  { label: string; tone: StatusTone; icon: string }
+  { label: string; tone: StatusTone; icon: IconName }
 > = {
   created: {
     label: "Creado",
     tone: "neutral",
-    icon: "draft",
+    icon: "Draft",
   },
   in_transit: {
     label: "En Tránsito",
     tone: "primary",
-    icon: "directions_boat",
+    icon: "DirectionsBoat",
   },
   received: {
     label: "Recibido",
     tone: "warning",
-    icon: "move_to_inbox",
+    icon: "MoveToInbox",
   },
   closed: {
     label: "Cerrado",
     tone: "success",
-    icon: "check_circle",
+    icon: "CheckCircle",
   },
 };
 
@@ -471,7 +473,7 @@ export default function ContainerDetailPage() {
     return (
       <div className="p-4 lg:p-8">
         <EmptyState
-          icon="package_2"
+          icon="Package2"
           title="Contenedor no encontrado"
           description="El registro de importación solicitado no existe o fue removido."
           action={
@@ -480,9 +482,7 @@ export default function ContainerDetailPage() {
               onClick={() => window.history.back()}
               className="gap-2"
             >
-              <span className="material-symbols-outlined text-sm">
-                arrow_back
-              </span>
+              <Icons.ArrowBack className="size-3.5" />
               Volver a Contenedores
             </Button>
           }
@@ -494,7 +494,7 @@ export default function ContainerDetailPage() {
   const cfg = STATUS_CONFIG[container.status] ?? {
     label: container.status,
     tone: "neutral" as StatusTone,
-    icon: "draft",
+    icon: "Draft" as const,
   };
   const canUpload =
     container.status === "created" || container.status === "in_transit";
@@ -507,11 +507,11 @@ export default function ContainerDetailPage() {
           href="/containers"
           className="hover:text-foreground flex items-center gap-1 font-medium transition-colors"
         >
-          <span className="material-symbols-outlined text-sm">arrow_back</span>
+          <Icons.ArrowBack className="size-3.5" />
           Contenedores
         </Link>
-        <span className="material-symbols-outlined text-xs">chevron_right</span>
-        <span className="text-foreground font-mono font-bold">
+        <Icons.ChevronRight className="size-3" />
+        <span className="text-foreground font-mono font-medium">
           #{container.containerNumber}
         </span>
       </div>
@@ -521,13 +521,11 @@ export default function ContainerDetailPage() {
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
             <div className="bg-primary/10 text-primary flex size-12 shrink-0 items-center justify-center rounded-xl">
-              <span className="material-symbols-outlined text-2xl">
-                {cfg.icon}
-              </span>
+              <Icon name={cfg.icon} className="size-6" />
             </div>
             <div>
               <div className="flex items-center gap-3">
-                <h1 className="text-foreground font-mono text-2xl font-bold tracking-tight">
+                <h1 className="text-foreground font-mono text-2xl font-medium tracking-tight">
                   {container.containerNumber}
                 </h1>
                 <StatusBadge tone={cfg.tone}>{cfg.label}</StatusBadge>
@@ -550,9 +548,7 @@ export default function ContainerDetailPage() {
                   disabled={statusMutation.isPending}
                   className="min-h-11 gap-2"
                 >
-                  <span className="material-symbols-outlined text-base">
-                    directions_boat
-                  </span>
+                  <Icons.DirectionsBoat className="size-4" />
                   Marcar en Tránsito
                 </Button>
               )}
@@ -564,9 +560,7 @@ export default function ContainerDetailPage() {
                   disabled={statusMutation.isPending}
                   className="min-h-11 gap-2 bg-amber-600 text-white hover:bg-amber-500"
                 >
-                  <span className="material-symbols-outlined text-base">
-                    move_to_inbox
-                  </span>
+                  <Icons.MoveToInbox className="size-4" />
                   Iniciar Recepción
                 </Button>
               )}
@@ -578,9 +572,7 @@ export default function ContainerDetailPage() {
                   disabled={statusMutation.isPending}
                   className="min-h-11 gap-2 bg-emerald-600 text-white hover:bg-emerald-500"
                 >
-                  <span className="material-symbols-outlined text-base">
-                    check_circle
-                  </span>
+                  <Icons.CheckCircle className="size-4" />
                   Cerrar y Liquidar Carga
                 </Button>
               )}
@@ -601,7 +593,7 @@ export default function ContainerDetailPage() {
         <StatCard
           label="Inversión FOB"
           value={dualFob.usd}
-          icon="attach_money"
+          icon="AttachMoney"
           tone="success"
           sub={`Oficial BCV: ${dualFob.bs}`}
         />
@@ -612,7 +604,7 @@ export default function ContainerDetailPage() {
               ? new Date(container.departureDate).toLocaleDateString("es-VE")
               : "No definida"
           }
-          icon="flight_takeoff"
+          icon="FlightTakeoff"
           tone="default"
           sub="Zarpe desde puerto de origen"
         />
@@ -623,7 +615,7 @@ export default function ContainerDetailPage() {
               ? new Date(container.arrivalDate).toLocaleDateString("es-VE")
               : "No definida"
           }
-          icon="flight_land"
+          icon="FlightLand"
           tone="primary"
           sub="Arribo a aduana / puerto nacional"
         />
@@ -634,12 +626,10 @@ export default function ContainerDetailPage() {
         <div className="border-border-subtle bg-muted/30 flex flex-col gap-2 border-b p-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
             <div className="bg-primary/10 text-primary flex size-9 items-center justify-center rounded-lg">
-              <span className="material-symbols-outlined text-xl">
-                smart_toy
-              </span>
+              <Icons.SmartToy className="size-5" />
             </div>
             <div>
-              <h2 className="text-foreground text-sm font-bold tracking-widest uppercase">
+              <h2 className="text-foreground text-sm font-medium tracking-widest uppercase">
                 Packing List Inteligente
               </h2>
               <p className="text-muted-foreground text-xs">
@@ -681,11 +671,9 @@ export default function ContainerDetailPage() {
               {aiStatus === "idle" && (
                 <>
                   <div className="bg-primary/10 text-primary mx-auto mb-3 flex size-12 items-center justify-center rounded-full">
-                    <span className="material-symbols-outlined text-2xl">
-                      cloud_upload
-                    </span>
+                    <Icons.CloudUpload className="size-6" />
                   </div>
-                  <p className="text-foreground text-sm font-bold">
+                  <p className="text-foreground text-sm font-medium">
                     Arrastra el archivo de Packing List aquí o haz clic para
                     seleccionar
                   </p>
@@ -712,11 +700,9 @@ export default function ContainerDetailPage() {
           {/* Error Message */}
           {aiStatus === "error" && (
             <div className="border-destructive/30 bg-destructive/10 flex items-start gap-3 rounded-xl border p-4">
-              <span className="material-symbols-outlined text-destructive text-xl">
-                error
-              </span>
+              <Icons.Error className="text-destructive size-5" />
               <div className="flex-1">
-                <p className="text-destructive text-sm font-bold">
+                <p className="text-destructive text-sm font-medium">
                   Error al procesar el documento
                 </p>
                 <p className="text-muted-foreground mt-0.5 text-xs">
@@ -731,9 +717,7 @@ export default function ContainerDetailPage() {
                   }}
                   className="mt-3 min-h-9 gap-1 text-xs"
                 >
-                  <span className="material-symbols-outlined text-sm">
-                    restart_alt
-                  </span>
+                  <Icons.RestartAlt className="size-3.5" />
                   Intentar de nuevo
                 </Button>
               </div>
@@ -743,10 +727,8 @@ export default function ContainerDetailPage() {
           {/* Success Progress Message */}
           {aiStatus === "done" && aiProgress && (
             <div className="flex items-center gap-2.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3.5 text-emerald-600 dark:text-emerald-400">
-              <span className="material-symbols-outlined text-lg">
-                check_circle
-              </span>
-              <p className="text-xs font-semibold">{aiProgress}</p>
+              <Icons.CheckCircle className="size-4.5" />
+              <p className="text-xs font-medium">{aiProgress}</p>
             </div>
           )}
 
@@ -808,11 +790,11 @@ export default function ContainerDetailPage() {
                   className="surface-card border-border-subtle rounded-lg border p-2.5 text-center"
                 >
                   <p
-                    className={`font-mono text-base font-bold tabular-nums ${s.tone}`}
+                    className={`font-mono text-base font-medium tabular-nums ${s.tone}`}
                   >
                     {s.value}
                   </p>
-                  <p className="text-muted-foreground mt-0.5 text-[10px] font-semibold tracking-wider uppercase">
+                  <p className="text-muted-foreground mt-0.5 text-[10px] font-medium tracking-wider uppercase">
                     {s.label}
                   </p>
                 </div>
@@ -825,7 +807,7 @@ export default function ContainerDetailPage() {
             <div className="space-y-3">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <h3 className="text-muted-foreground text-xs font-bold tracking-widest uppercase">
+                  <h3 className="text-muted-foreground text-xs font-medium tracking-widest uppercase">
                     Ítems Extraídos ({parsedItems.length})
                   </h3>
                   <p className="text-muted-foreground text-[11px]">
@@ -841,9 +823,7 @@ export default function ContainerDetailPage() {
                   {confirmMutation.isPending ? (
                     <div className="border-primary-foreground size-4 animate-spin rounded-full border-2 border-t-transparent" />
                   ) : (
-                    <span className="material-symbols-outlined text-base">
-                      database
-                    </span>
+                    <Icons.Database className="size-4" />
                   )}
                   Confirmar e Importar al Sistema
                 </Button>
@@ -949,17 +929,17 @@ export default function ContainerDetailPage() {
                                 </button>
                               )}
                             </TableCell>
-                            <TableCell className="text-foreground text-right font-mono text-xs font-bold tabular-nums">
+                            <TableCell className="text-foreground text-right font-mono text-xs font-medium tabular-nums">
                               {item.quantity}
                             </TableCell>
-                            <TableCell className="text-foreground text-right font-mono text-xs font-bold tabular-nums">
+                            <TableCell className="text-foreground text-right font-mono text-xs font-medium tabular-nums">
                               {item.unit_cost != null
                                 ? `$${item.unit_cost.toFixed(2)}`
                                 : "—"}
                             </TableCell>
                             <TableCell className="font-mono text-xs">
                               {item.sku_hint ? (
-                                <span className="bg-muted text-foreground rounded px-1.5 py-0.5 font-semibold">
+                                <span className="bg-muted text-foreground rounded px-1.5 py-0.5 font-medium">
                                   {item.sku_hint}
                                 </span>
                               ) : (
@@ -1011,9 +991,7 @@ export default function ContainerDetailPage() {
                   className="bg-background/80 text-foreground hover:bg-background absolute top-3 right-3 z-10 flex size-9 items-center justify-center rounded-full shadow-md backdrop-blur-md transition-all"
                   title="Cerrar vista previa"
                 >
-                  <span className="material-symbols-outlined text-lg">
-                    close
-                  </span>
+                  <Icons.Close className="size-4.5" />
                 </button>
                 <Image
                   src={zoomImage}
@@ -1031,7 +1009,7 @@ export default function ContainerDetailPage() {
 
       {/* Container Details Section */}
       <section className="surface-card border-border-subtle rounded-xl border p-6">
-        <h2 className="text-muted-foreground text-xs font-bold tracking-widest uppercase">
+        <h2 className="text-muted-foreground text-xs font-medium tracking-widest uppercase">
           Ficha Técnica del Contenedor
         </h2>
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -1063,10 +1041,10 @@ export default function ContainerDetailPage() {
               key={d.label}
               className="border-border-subtle/80 bg-muted/20 rounded-lg border p-3.5"
             >
-              <span className="text-muted-foreground block text-[11px] font-semibold tracking-wider uppercase">
+              <span className="text-muted-foreground block text-[11px] font-medium tracking-wider uppercase">
                 {d.label}
               </span>
-              <span className="text-foreground mt-1 block font-mono text-sm font-semibold">
+              <span className="text-foreground mt-1 block font-mono text-sm font-medium">
                 {d.value}
               </span>
             </div>

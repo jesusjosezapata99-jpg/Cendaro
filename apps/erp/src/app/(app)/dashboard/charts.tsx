@@ -140,7 +140,7 @@ export function CollectionsDonutChart({
       <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
         {hasData ? (
           <>
-            <span className="text-foreground font-mono text-2xl font-semibold tabular-nums">
+            <span className="text-foreground font-mono text-2xl font-medium tabular-nums">
               {pct}%
             </span>
             <span className="text-muted-foreground text-xs">cobrado</span>

@@ -1,8 +1,9 @@
+import type { IconName } from "@cendaro/ui/icons";
 import { cn } from "@cendaro/ui";
+import { Icon } from "@cendaro/ui/icons";
 
 interface EmptyStateProps {
-  /** Material Symbols ligature (e.g. "lock_clock"). */
-  icon?: string;
+  icon?: IconName;
   title: string;
   description?: string;
   /** Optional call-to-action (Button, Link, etc.). */
@@ -31,9 +32,9 @@ export function EmptyState({
       {icon ? (
         <span
           aria-hidden
-          className="bg-muted text-muted-foreground material-symbols-outlined flex size-12 items-center justify-center rounded-full text-2xl"
+          className="bg-muted text-muted-foreground flex size-12 items-center justify-center rounded-full"
         >
-          {icon}
+          <Icon name={icon} className="size-6" />
         </span>
       ) : null}
       <p className="text-foreground text-sm font-medium">{title}</p>

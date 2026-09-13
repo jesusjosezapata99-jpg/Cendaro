@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
 import type { UserRole } from "@cendaro/validators";
+import { Icons } from "@cendaro/ui/icons";
 
 import { Dialog } from "~/components/dialog";
 
@@ -93,7 +94,7 @@ export function CreateUserDialog({
       <form onSubmit={handleSubmit} className="space-y-4">
         {error && (
           <div className="bg-destructive/10 text-destructive border-destructive/15 flex items-center gap-2 rounded-xl border px-4 py-3 text-sm">
-            <span className="material-symbols-outlined text-base">error</span>
+            <Icons.Error className="size-4" />
             <span className="font-medium">{error}</span>
           </div>
         )}
@@ -102,9 +103,7 @@ export function CreateUserDialog({
         <div>
           <label className="mb-1 block text-sm font-medium">
             <span className="flex items-center gap-1.5">
-              <span className="material-symbols-outlined text-muted-foreground text-sm">
-                alternate_email
-              </span>
+              <Icons.AlternateEmail className="text-muted-foreground size-3.5" />
               Nombre de Usuario
             </span>
           </label>
@@ -126,9 +125,7 @@ export function CreateUserDialog({
         <div>
           <label className="mb-1 block text-sm font-medium">
             <span className="flex items-center gap-1.5">
-              <span className="material-symbols-outlined text-muted-foreground text-sm">
-                person
-              </span>
+              <Icons.Person className="text-muted-foreground size-3.5" />
               Nombre Completo
             </span>
           </label>
@@ -145,9 +142,7 @@ export function CreateUserDialog({
         <div>
           <label className="mb-1 block text-sm font-medium">
             <span className="flex items-center gap-1.5">
-              <span className="material-symbols-outlined text-muted-foreground text-sm">
-                mail
-              </span>
+              <Icons.Mail className="text-muted-foreground size-3.5" />
               Correo Electrónico
             </span>
           </label>
@@ -165,9 +160,7 @@ export function CreateUserDialog({
         <div>
           <label className="mb-1 block text-sm font-medium">
             <span className="flex items-center gap-1.5">
-              <span className="material-symbols-outlined text-muted-foreground text-sm">
-                lock
-              </span>
+              <Icons.Lock className="text-muted-foreground size-3.5" />
               Contraseña
             </span>
           </label>
@@ -186,9 +179,11 @@ export function CreateUserDialog({
               onClick={() => setShowPassword((v) => !v)}
               className="text-muted-foreground hover:text-foreground absolute top-1/2 right-3 -translate-y-1/2 transition-colors"
             >
-              <span className="material-symbols-outlined text-base">
-                {showPassword ? "visibility_off" : "visibility"}
-              </span>
+              {showPassword ? (
+                <Icons.VisibilityOff className="size-4" />
+              ) : (
+                <Icons.Visibility className="size-4" />
+              )}
             </button>
           </div>
         </div>
@@ -198,9 +193,7 @@ export function CreateUserDialog({
           <div>
             <label className="mb-1 block text-sm font-medium">
               <span className="flex items-center gap-1.5">
-                <span className="material-symbols-outlined text-muted-foreground text-sm">
-                  badge
-                </span>
+                <Icons.Badge className="text-muted-foreground size-3.5" />
                 Rol
               </span>
             </label>
@@ -219,9 +212,7 @@ export function CreateUserDialog({
           <div>
             <label className="mb-1 block text-sm font-medium">
               <span className="flex items-center gap-1.5">
-                <span className="material-symbols-outlined text-muted-foreground text-sm">
-                  phone
-                </span>
+                <Icons.Phone className="text-muted-foreground size-3.5" />
                 Teléfono
               </span>
             </label>
@@ -238,7 +229,7 @@ export function CreateUserDialog({
         <button
           type="submit"
           disabled={loading}
-          className="bg-primary text-primary-foreground hover:bg-primary/90 flex w-full items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-bold transition-colors disabled:opacity-50"
+          className="bg-primary text-primary-foreground hover:bg-primary/90 flex w-full items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-medium transition-colors disabled:opacity-50"
         >
           {loading ? (
             <>
@@ -247,9 +238,7 @@ export function CreateUserDialog({
             </>
           ) : (
             <>
-              <span className="material-symbols-outlined text-base">
-                person_add
-              </span>
+              <Icons.PersonAdd className="size-4" />
               Crear Usuario
             </>
           )}

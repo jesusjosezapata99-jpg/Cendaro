@@ -2,8 +2,10 @@
 
 import { usePathname, useRouter } from "next/navigation";
 
+import type { IconName } from "@cendaro/ui/icons";
 import type { UserRole } from "@cendaro/validators";
 import { cn } from "@cendaro/ui";
+import { Icon, Icons } from "@cendaro/ui/icons";
 
 import { NavLink } from "~/components/nav-link";
 import { hasRole } from "~/components/role-guard";
@@ -13,7 +15,7 @@ import { useCurrentUser } from "~/hooks/use-current-user";
 interface NavItem {
   href: string;
   label: string;
-  icon: string;
+  icon: IconName;
   badge?: string;
   /** Roles that can see this item. If omitted, all roles can see it. */
   roles?: UserRole[];
@@ -22,28 +24,28 @@ interface NavItem {
 const navSections: { title: string; items: NavItem[] }[] = [
   {
     title: "Principal",
-    items: [{ href: "/dashboard", label: "Dashboard", icon: "dashboard" }],
+    items: [{ href: "/dashboard", label: "Dashboard", icon: "Dashboard" }],
   },
   {
     title: "Operaciones",
     items: [
-      { href: "/catalog", label: "Catálogo", icon: "inventory_2" },
+      { href: "/catalog", label: "Catálogo", icon: "Inventory2" },
       {
         href: "/inventory",
         label: "Inventario",
-        icon: "warehouse",
+        icon: "Warehouse",
         roles: ["owner", "admin", "supervisor"],
       },
       {
         href: "/containers",
         label: "Contenedores",
-        icon: "package_2",
+        icon: "Package2",
         roles: ["owner", "admin", "supervisor"],
       },
       {
         href: "/pricing",
         label: "Precios",
-        icon: "sell",
+        icon: "Sell",
         roles: ["owner", "admin", "supervisor"],
       },
     ],
@@ -54,30 +56,30 @@ const navSections: { title: string; items: NavItem[] }[] = [
       {
         href: "/pos",
         label: "Punto de Venta",
-        icon: "point_of_sale",
+        icon: "PointOfSale",
         roles: ["owner", "admin", "supervisor", "employee"],
       },
-      { href: "/orders", label: "Pedidos", icon: "list_alt" },
-      { href: "/quotes", label: "Cotizaciones", icon: "request_quote" },
+      { href: "/orders", label: "Pedidos", icon: "ListAlt" },
+      { href: "/quotes", label: "Cotizaciones", icon: "RequestQuote" },
       {
         href: "/delivery-notes",
         label: "Notas de Entrega",
-        icon: "local_shipping",
+        icon: "LocalShipping",
         roles: ["owner", "admin", "supervisor"],
       },
       {
         href: "/invoices",
         label: "Facturas",
-        icon: "description",
+        icon: "Description",
         roles: ["owner", "admin", "supervisor"],
       },
       {
         href: "/vendors",
         label: "Vendedores",
-        icon: "group",
+        icon: "Group",
         roles: ["owner", "admin", "supervisor"],
       },
-      { href: "/customers", label: "Clientes", icon: "person" },
+      { href: "/customers", label: "Clientes", icon: "Person" },
     ],
   },
   {
@@ -86,13 +88,13 @@ const navSections: { title: string; items: NavItem[] }[] = [
       {
         href: "/marketplace",
         label: "Mercado Libre",
-        icon: "storefront",
+        icon: "Storefront",
         roles: ["owner", "admin", "supervisor", "marketing"],
       },
       {
         href: "/whatsapp",
         label: "WhatsApp",
-        icon: "chat",
+        icon: "Chat",
         roles: ["owner", "admin", "supervisor", "employee"],
       },
     ],
@@ -103,25 +105,25 @@ const navSections: { title: string; items: NavItem[] }[] = [
       {
         href: "/payments",
         label: "Pagos",
-        icon: "payments",
+        icon: "Payments",
         roles: ["owner", "admin", "supervisor", "employee"],
       },
       {
         href: "/cash-closure",
         label: "Cierre de Caja",
-        icon: "lock_clock",
+        icon: "LockClock",
         roles: ["owner", "admin", "supervisor"],
       },
       {
         href: "/accounts-receivable",
         label: "CxC",
-        icon: "receipt_long",
+        icon: "ReceiptLong",
         roles: ["owner", "admin", "supervisor"],
       },
       {
         href: "/rates",
         label: "Tasas de Cambio",
-        icon: "currency_exchange",
+        icon: "CurrencyExchange",
         roles: ["owner", "admin", "supervisor"],
       },
     ],
@@ -132,25 +134,25 @@ const navSections: { title: string; items: NavItem[] }[] = [
       {
         href: "/alerts",
         label: "Alertas",
-        icon: "notifications_active",
+        icon: "NotificationsActive",
         roles: ["owner", "admin", "supervisor"],
       },
       {
         href: "/users",
         label: "Usuarios",
-        icon: "manage_accounts",
+        icon: "ManageAccounts",
         roles: ["owner", "admin"],
       },
       {
         href: "/audit",
         label: "Auditoría",
-        icon: "policy",
+        icon: "Policy",
         roles: ["owner", "admin"],
       },
       {
         href: "/settings",
         label: "Configuración",
-        icon: "settings",
+        icon: "Settings",
         roles: ["owner", "admin"],
       },
     ],
@@ -191,7 +193,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
       {/* Sidebar panel */}
       <aside
         className={cn(
-          "border-sidebar-border glass-sidebar text-sidebar-foreground fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r transition-transform duration-300 ease-out lg:static lg:z-auto lg:translate-x-0",
+          "border-sidebar-border bg-background text-sidebar-foreground fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r transition-transform duration-300 ease-out lg:static lg:z-auto lg:translate-x-0",
           /* iOS safe-area: pad left for landscape notch */
           "safe-pl",
           open ? "translate-x-0" : "-translate-x-full",
@@ -208,7 +210,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
             className="text-muted-foreground hover:bg-sidebar-accent flex size-11 shrink-0 items-center justify-center rounded-lg lg:hidden"
             aria-label="Cerrar menú lateral"
           >
-            <span className="material-symbols-outlined text-xl">close</span>
+            <Icons.Close className="size-5" />
           </button>
         </div>
 
@@ -224,7 +226,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
 
             return (
               <div key={section.title} className="mb-5">
-                <h2 className="text-muted-foreground mb-2 px-3 text-[10px] font-bold tracking-widest uppercase">
+                <h2 className="text-muted-foreground mb-2 px-3 text-[10px] font-medium tracking-widest uppercase">
                   {section.title}
                 </h2>
                 <ul className="space-y-0.5">
@@ -239,9 +241,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
                           active={isActive}
                           onClick={onClose}
                         >
-                          <span className="material-symbols-outlined text-xl">
-                            {item.icon}
-                          </span>
+                          <Icon name={item.icon} className="size-5" />
                           <span>{item.label}</span>
                           {item.badge && (
                             <span className="bg-primary/10 text-primary ml-auto rounded-full px-2 py-0.5 text-xs font-medium">
@@ -261,7 +261,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
         {/* Footer — User — with safe-area-inset-bottom */}
         <div className="border-sidebar-border safe-pb border-t px-4 py-3">
           <div className="flex items-center gap-3">
-            <div className="bg-primary/10 text-primary flex size-8 items-center justify-center rounded-full text-sm font-bold">
+            <div className="bg-primary/10 text-primary flex size-8 items-center justify-center rounded-full text-sm font-medium">
               {loading ? "…" : initials}
             </div>
             <div className="min-w-0 flex-1">
@@ -276,7 +276,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
               className="text-muted-foreground hover:bg-sidebar-accent hover:text-destructive flex size-11 shrink-0 items-center justify-center rounded-lg transition-colors"
               title="Cerrar sesión"
             >
-              <span className="material-symbols-outlined text-lg">logout</span>
+              <Icons.Logout className="size-4.5" />
             </button>
           </div>
         </div>

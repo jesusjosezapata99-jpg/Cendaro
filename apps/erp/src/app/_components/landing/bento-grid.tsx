@@ -166,7 +166,7 @@ function MiniVisual({ type }: { type: Feature["visual"] }) {
             ].map((u) => (
               <div
                 key={u.initial}
-                className={`border-card text-muted-foreground/60 flex h-8 w-8 items-center justify-center rounded-full border-2 text-[10px] font-bold ${u.color}`}
+                className={`border-card text-muted-foreground/60 flex h-8 w-8 items-center justify-center rounded-full border-2 text-[10px] font-medium ${u.color}`}
               >
                 {u.initial}
               </div>
@@ -213,7 +213,7 @@ function MiniVisual({ type }: { type: Feature["visual"] }) {
               className="bg-muted-foreground/5 flex items-center justify-between rounded px-2 py-1.5"
             >
               <div className="flex items-center gap-2">
-                <span className="text-muted-foreground/60 text-[11px] font-bold tabular-nums">
+                <span className="text-muted-foreground/60 text-[11px] font-medium tabular-nums">
                   {inv.num}
                 </span>
                 <span className="text-muted-foreground/30 text-[10px] tabular-nums">
@@ -225,7 +225,7 @@ function MiniVisual({ type }: { type: Feature["visual"] }) {
                   {inv.amount}
                 </span>
                 <span
-                  className={`rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${
+                  className={`rounded-full px-1.5 py-0.5 text-[9px] font-medium ${
                     inv.paid
                       ? "bg-emerald-500/10 text-emerald-600/70"
                       : "bg-amber-500/10 text-amber-600/70"
@@ -265,7 +265,7 @@ function MiniVisual({ type }: { type: Feature["visual"] }) {
             ))}
           </div>
           <div className="text-right">
-            <div className="text-primary/60 text-[12px] font-bold">+24%</div>
+            <div className="text-primary/60 text-xs font-medium">+24%</div>
             <div className="text-muted-foreground/40 text-[10px]">MoM</div>
           </div>
         </div>
@@ -336,7 +336,7 @@ export function BentoGrid() {
                   className="text-primary h-6 w-6"
                   strokeWidth={1.5}
                 />
-                <h3 className="mt-4 text-lg font-semibold tracking-tight">
+                <h3 className="mt-4 text-lg font-medium tracking-tight">
                   {feature.title}
                 </h3>
                 <p className="text-muted-foreground mt-1.5 text-sm leading-relaxed">

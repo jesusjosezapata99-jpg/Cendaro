@@ -9,6 +9,7 @@
 import { useCallback, useRef } from "react";
 
 import type { ImportMode } from "@cendaro/api";
+import { Icons } from "@cendaro/ui/icons";
 
 import {
   ACCEPTED_EXTENSIONS,
@@ -60,12 +61,12 @@ export function FileUpload({
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <div className="text-center">
-        <h2 className="text-foreground text-xl font-bold">
+        <h2 className="text-foreground text-xl font-medium">
           Cargar Archivo de Inventario
         </h2>
         <p className="text-muted-foreground mt-1 text-sm">
           Modo:{" "}
-          <span className="text-foreground font-semibold">
+          <span className="text-foreground font-medium">
             {mode === "replace" ? "Reemplazar" : "Ajustar"}
           </span>
         </p>
@@ -89,9 +90,7 @@ export function FileUpload({
           </>
         ) : (
           <>
-            <span className="material-symbols-outlined text-muted-foreground group-hover:text-primary text-5xl transition-colors">
-              upload_file
-            </span>
+            <Icons.UploadFile className="text-muted-foreground group-hover:text-primary text-5xl transition-colors" />
             <p className="text-foreground mt-4 font-medium">
               Arrastra un archivo aquí o haz clic para seleccionar
             </p>
@@ -114,7 +113,7 @@ export function FileUpload({
       {/* Error message */}
       {error && (
         <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-900/20 dark:text-red-400">
-          <span className="material-symbols-outlined text-lg">error</span>
+          <Icons.Error className="size-4.5" />
           {error}
         </div>
       )}
@@ -125,7 +124,7 @@ export function FileUpload({
           onClick={onDownloadTemplate}
           className="text-primary hover:text-primary/80 inline-flex items-center gap-1.5 text-sm font-medium transition-colors"
         >
-          <span className="material-symbols-outlined text-lg">download</span>
+          <Icons.Download className="size-4.5" />
           Descargar plantilla de ejemplo
         </button>
       </div>

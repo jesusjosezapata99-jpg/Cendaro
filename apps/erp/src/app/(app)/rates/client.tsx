@@ -3,7 +3,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import type { IconName } from "@cendaro/ui/icons";
 import { Button } from "@cendaro/ui";
+import { Icon, Icons } from "@cendaro/ui/icons";
 
 import type { StatusTone } from "~/components/status-badge";
 import { EmptyState } from "~/components/empty-state";
@@ -20,7 +22,7 @@ import { useTRPC } from "~/trpc/client";
 interface RateMeta {
   label: string;
   unit: string;
-  icon: string;
+  icon: IconName;
   tone: StatusTone;
 }
 
@@ -28,25 +30,25 @@ const RATE_META: Record<string, RateMeta> = {
   bcv: {
     label: "Tasa Oficial (BCV)",
     unit: "Bs/USD",
-    icon: "account_balance",
+    icon: "AccountBalance",
     tone: "primary",
   },
   parallel: {
     label: "Paralelo (USDT)",
     unit: "Bs/USDT",
-    icon: "currency_exchange",
+    icon: "CurrencyExchange",
     tone: "warning",
   },
   rmb_usd: {
     label: "RMB → USD",
     unit: "RMB/USD",
-    icon: "currency_yuan",
+    icon: "CurrencyYuan",
     tone: "destructive",
   },
   rmb_bs: {
     label: "RMB → Bs",
     unit: "Bs/RMB",
-    icon: "sync_alt",
+    icon: "SyncAlt",
     tone: "success",
   },
 };
@@ -156,7 +158,7 @@ export default function RatesClient() {
       const meta = RATE_META[r.rateType] ?? {
         label: r.rateType,
         unit: "",
-        icon: "currency_exchange",
+        icon: "CurrencyExchange" as const,
         tone: "neutral" as StatusTone,
       };
 
@@ -229,7 +231,7 @@ export default function RatesClient() {
               className="min-h-11 flex-1 sm:flex-initial"
               disabled={syncRate.isPending}
             >
-              <span className="material-symbols-outlined text-lg">sync</span>
+              <Icons.Sync className="size-4.5" />
               {syncRate.isPending ? "Sincronizando..." : "Actualizar Tasas"}
             </Button>
           </RoleGuard>
@@ -258,21 +260,22 @@ export default function RatesClient() {
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className="material-symbols-outlined text-muted-foreground text-lg">
-                        {rate.icon}
-                      </span>
-                      <span className="text-muted-foreground text-xs font-semibold tracking-wider uppercase">
+                      <Icon
+                        name={rate.icon}
+                        className="text-muted-foreground size-4.5"
+                      />
+                      <span className="text-muted-foreground text-xs font-medium tracking-wider uppercase">
                         {rate.label}
                       </span>
                     </div>
                     {rate.isLive && (
-                      <span className="rounded border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-bold text-emerald-500">
+                      <span className="rounded border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald-500">
                         En vivo
                       </span>
                     )}
                   </div>
 
-                  <p className="text-foreground mt-3 font-mono text-3xl font-bold tabular-nums">
+                  <p className="text-foreground mt-3 font-mono text-3xl font-medium tabular-nums">
                     {rate.value.toFixed(2)}
                   </p>
 
@@ -283,13 +286,15 @@ export default function RatesClient() {
 
                     {rate.delta !== 0 && (
                       <div
-                        className={`flex items-center gap-0.5 font-mono text-xs font-bold tabular-nums ${
+                        className={`flex items-center gap-0.5 font-mono text-xs font-medium tabular-nums ${
                           isUp ? "text-destructive" : "text-emerald-500"
                         }`}
                       >
-                        <span className="material-symbols-outlined text-sm">
-                          {isUp ? "trending_up" : "trending_down"}
-                        </span>
+                        {isUp ? (
+                          <Icons.TrendingUp className="size-3.5" />
+                        ) : (
+                          <Icons.TrendingDown className="size-3.5" />
+                        )}
                         <span>{Math.abs(rate.delta).toFixed(2)}%</span>
                       </div>
                     )}
@@ -308,10 +313,8 @@ export default function RatesClient() {
         <div className="border-border-subtle surface-card rounded-xl border p-5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="material-symbols-outlined text-muted-foreground text-base">
-                currency_exchange
-              </span>
-              <h2 className="text-foreground text-xs font-semibold tracking-wider uppercase">
+              <Icons.CurrencyExchange className="text-muted-foreground size-4" />
+              <h2 className="text-foreground text-xs font-medium tracking-wider uppercase">
                 Brecha Cambiaria Oficial vs Paralelo
               </h2>
             </div>
@@ -333,7 +336,7 @@ export default function RatesClient() {
               <p className="text-muted-foreground text-[10px] font-medium tracking-wider uppercase">
                 Oficial (BCV)
               </p>
-              <p className="text-primary mt-1 font-mono text-2xl font-bold tabular-nums">
+              <p className="text-primary mt-1 font-mono text-2xl font-medium tabular-nums">
                 {ves.oficial.rate.toFixed(2)}
               </p>
               <p className="text-muted-foreground font-mono text-xs tabular-nums">
@@ -345,7 +348,7 @@ export default function RatesClient() {
               <p className="text-muted-foreground text-[10px] font-medium tracking-wider uppercase">
                 Paralelo (USDT)
               </p>
-              <p className="mt-1 font-mono text-2xl font-bold text-amber-500 tabular-nums">
+              <p className="mt-1 font-mono text-2xl font-medium text-amber-500 tabular-nums">
                 {ves.paralelo.rate.toFixed(2)}
               </p>
               <p className="text-muted-foreground font-mono text-xs tabular-nums">
@@ -357,7 +360,7 @@ export default function RatesClient() {
               <p className="text-muted-foreground text-[10px] font-medium tracking-wider uppercase">
                 Diferencial Neto
               </p>
-              <p className="text-foreground mt-1 font-mono text-2xl font-bold tabular-nums">
+              <p className="text-foreground mt-1 font-mono text-2xl font-medium tabular-nums">
                 +Bs {ves.spread.absolute.toFixed(2)}
               </p>
               <p className="text-muted-foreground font-mono text-xs tabular-nums">
@@ -371,10 +374,8 @@ export default function RatesClient() {
       {/* Multi-currency Calculator */}
       <div className="border-border-subtle surface-card rounded-xl border p-5">
         <div className="flex items-center gap-2">
-          <span className="material-symbols-outlined text-muted-foreground text-base">
-            currency_exchange
-          </span>
-          <h2 className="text-foreground text-xs font-semibold tracking-wider uppercase">
+          <Icons.CurrencyExchange className="text-muted-foreground size-4" />
+          <h2 className="text-foreground text-xs font-medium tracking-wider uppercase">
             Calculadora de Conversión Multi-Moneda
           </h2>
         </div>
@@ -418,9 +419,7 @@ export default function RatesClient() {
               aria-label="Invertir monedas"
               className="border-border-subtle hover:bg-accent text-muted-foreground hover:text-foreground flex size-9 items-center justify-center rounded-lg border transition-colors"
             >
-              <span className="material-symbols-outlined text-lg">
-                swap_horiz
-              </span>
+              <Icons.SwapHoriz className="size-4.5" />
             </button>
           </div>
 
@@ -473,7 +472,7 @@ export default function RatesClient() {
             <p className="text-muted-foreground text-[10px] font-medium tracking-wider uppercase">
               Resultado Estimado
             </p>
-            <p className="text-primary mt-0.5 font-mono text-xl font-bold tabular-nums">
+            <p className="text-primary mt-0.5 font-mono text-xl font-medium tabular-nums">
               {computeConversion().toLocaleString("es-VE", {
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2,
@@ -487,10 +486,8 @@ export default function RatesClient() {
       <div className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-muted-foreground text-base">
-              schedule
-            </span>
-            <h2 className="text-foreground text-xs font-semibold tracking-wider uppercase">
+            <Icons.Schedule className="text-muted-foreground size-4" />
+            <h2 className="text-foreground text-xs font-medium tracking-wider uppercase">
               Historial de Cotizaciones
             </h2>
           </div>
@@ -535,7 +532,7 @@ export default function RatesClient() {
                 const meta = RATE_META[entry.rateType] ?? {
                   label: entry.rateType,
                   unit: "",
-                  icon: "currency_exchange",
+                  icon: "CurrencyExchange" as const,
                   tone: "neutral" as StatusTone,
                 };
                 return (
@@ -545,12 +542,13 @@ export default function RatesClient() {
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <span className="material-symbols-outlined text-muted-foreground text-base">
-                          {meta.icon}
-                        </span>
+                        <Icon
+                          name={meta.icon}
+                          className="text-muted-foreground size-4"
+                        />
                         <StatusBadge tone={meta.tone}>{meta.label}</StatusBadge>
                       </div>
-                      <span className="text-foreground font-mono text-base font-bold tabular-nums">
+                      <span className="text-foreground font-mono text-base font-medium tabular-nums">
                         {entry.rate.toFixed(2)}
                       </span>
                     </div>
@@ -568,7 +566,7 @@ export default function RatesClient() {
 
           {!historyLoading && filteredHistory.length === 0 && (
             <EmptyState
-              icon="schedule"
+              icon="Schedule"
               title="Sin registros históricos"
               description="No hay cotizaciones para el tipo de tasa seleccionado."
             />
@@ -617,7 +615,7 @@ export default function RatesClient() {
                     const meta = RATE_META[entry.rateType] ?? {
                       label: entry.rateType,
                       unit: "",
-                      icon: "currency_exchange",
+                      icon: "CurrencyExchange" as const,
                       tone: "neutral" as StatusTone,
                     };
                     return (
@@ -632,16 +630,17 @@ export default function RatesClient() {
                         </td>
                         <td className={cellPx}>
                           <div className="flex items-center gap-2">
-                            <span className="material-symbols-outlined text-muted-foreground text-base">
-                              {meta.icon}
-                            </span>
+                            <Icon
+                              name={meta.icon}
+                              className="text-muted-foreground size-4"
+                            />
                             <StatusBadge tone={meta.tone}>
                               {meta.label}
                             </StatusBadge>
                           </div>
                         </td>
                         <td
-                          className={`text-foreground ${cellPx} text-right font-mono text-sm font-bold tabular-nums`}
+                          className={`text-foreground ${cellPx} text-right font-mono text-sm font-medium tabular-nums`}
                         >
                           {entry.rate.toFixed(2)}
                         </td>
@@ -658,7 +657,7 @@ export default function RatesClient() {
                 <tr className="hover:bg-transparent">
                   <td colSpan={4} className="px-4 py-6">
                     <EmptyState
-                      icon="schedule"
+                      icon="Schedule"
                       title="Sin registros históricos"
                       description="No hay cotizaciones para el tipo de tasa seleccionado."
                     />

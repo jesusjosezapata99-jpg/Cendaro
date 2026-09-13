@@ -13,6 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from "@cendaro/ui";
+import { Icons } from "@cendaro/ui/icons";
 
 import { EmptyState } from "~/components/empty-state";
 import { PageHeader } from "~/components/page-header";
@@ -116,28 +117,28 @@ export default function VendorsPage() {
         <StatCard
           label="Vendedores Activos"
           value={isLoading ? "—" : vendorCount}
-          icon="group"
+          icon="Group"
           tone="default"
           sub="Con comisiones generadas"
         />
         <StatCard
           label="Comisiones Registradas"
           value={isLoading ? "—" : items.length}
-          icon="receipt_long"
+          icon="ReceiptLong"
           tone="primary"
           sub="Total histórico de registros"
         />
         <StatCard
           label="Comisiones Por Liquidar"
           value={isLoading ? "—" : dualPending.usd}
-          icon="payments"
+          icon="Payments"
           tone="warning"
           sub={`Equivalente oficial: ${dualPending.bs}`}
         />
         <StatCard
           label="Comisiones Liquidadas"
           value={isLoading ? "—" : dualPaid.usd}
-          icon="check_circle"
+          icon="CheckCircle"
           tone="success"
           sub={`Equivalente oficial: ${dualPaid.bs}`}
         />
@@ -158,7 +159,7 @@ export default function VendorsPage() {
             <button
               key={tab.key}
               onClick={() => setActiveFilter(tab.key)}
-              className={`flex min-h-11 shrink-0 items-center gap-2 rounded-lg px-4 py-2 text-xs font-semibold transition-all ${
+              className={`flex min-h-11 shrink-0 items-center gap-2 rounded-lg px-4 py-2 text-xs font-medium transition-all ${
                 isActive
                   ? "bg-primary text-primary-foreground shadow-sm"
                   : "bg-surface-card text-muted-foreground hover:bg-accent hover:text-foreground border-border-subtle border"
@@ -207,7 +208,9 @@ export default function VendorsPage() {
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <p className="text-foreground font-bold">{vendorName}</p>
+                      <p className="text-foreground font-medium">
+                        {vendorName}
+                      </p>
                       <p className="text-muted-foreground font-mono text-xs">
                         Pedido: #{c.orderId.slice(0, 8)}
                       </p>
@@ -219,7 +222,7 @@ export default function VendorsPage() {
 
                   <div className="border-border-subtle/60 mt-3 grid grid-cols-2 gap-2 border-t pt-2.5 text-xs">
                     <div>
-                      <p className="text-muted-foreground text-[10px] font-semibold tracking-wider uppercase">
+                      <p className="text-muted-foreground text-[10px] font-medium tracking-wider uppercase">
                         Venta Total ({c.commissionPct}%)
                       </p>
                       <p className="text-foreground mt-0.5 font-mono font-medium tabular-nums">
@@ -227,10 +230,10 @@ export default function VendorsPage() {
                       </p>
                     </div>
                     <div className="text-right">
-                      <p className="text-muted-foreground text-[10px] font-semibold tracking-wider uppercase">
+                      <p className="text-muted-foreground text-[10px] font-medium tracking-wider uppercase">
                         Comisión Neta
                       </p>
-                      <p className="text-primary mt-0.5 font-mono font-bold tabular-nums">
+                      <p className="text-primary mt-0.5 font-mono font-medium tabular-nums">
                         {dualCommission.usd}
                       </p>
                       <p className="text-muted-foreground font-mono text-[10px] tabular-nums">
@@ -247,9 +250,7 @@ export default function VendorsPage() {
                         disabled={pay.isPending}
                         className="min-h-9 w-full gap-1.5 text-xs"
                       >
-                        <span className="material-symbols-outlined text-sm">
-                          payments
-                        </span>
+                        <Icons.Payments className="size-3.5" />
                         Liquidar Comisión
                       </Button>
                     </div>
@@ -298,7 +299,7 @@ export default function VendorsPage() {
                         {idx + 1}
                       </TableCell>
                       <TableCell>
-                        <span className="text-foreground block font-semibold">
+                        <span className="text-foreground block font-medium">
                           {vendorName}
                         </span>
                         <span className="text-muted-foreground font-mono text-xs">
@@ -313,11 +314,11 @@ export default function VendorsPage() {
                           {dualOrder.bs}
                         </span>
                       </TableCell>
-                      <TableCell className="text-muted-foreground text-center font-mono text-xs font-semibold tabular-nums">
+                      <TableCell className="text-muted-foreground text-center font-mono text-xs font-medium tabular-nums">
                         {c.commissionPct}%
                       </TableCell>
                       <TableCell className="text-right font-mono tabular-nums">
-                        <span className="text-foreground font-bold">
+                        <span className="text-foreground font-medium">
                           {dualCommission.usd}
                         </span>
                         <span className="text-muted-foreground block text-[11px]">
@@ -344,9 +345,7 @@ export default function VendorsPage() {
                             disabled={pay.isPending}
                             className="min-h-8 gap-1 px-2.5 text-xs"
                           >
-                            <span className="material-symbols-outlined text-sm">
-                              payments
-                            </span>
+                            <Icons.Payments className="size-3.5" />
                             Liquidar
                           </Button>
                         )}
@@ -360,7 +359,7 @@ export default function VendorsPage() {
         </>
       ) : (
         <EmptyState
-          icon="receipt_long"
+          icon="ReceiptLong"
           title="No hay comisiones registradas"
           description={
             activeFilter === "all"

@@ -2,8 +2,10 @@
 
 import { useRef, useState } from "react";
 
+import { Icons } from "@cendaro/ui/icons";
+
 const inputBase =
-  "w-full min-h-[44px] rounded-lg border border-border bg-card px-3 py-2.5 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-ring/20";
+  "w-full min-h-11 rounded-lg border border-border bg-card px-3 py-2.5 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-ring/20";
 
 interface Option {
   id: string;
@@ -101,19 +103,19 @@ export function CreatableSelect({
             type="button"
             onClick={handleCreate}
             disabled={saving || !newName.trim()}
-            className="border-primary/30 bg-primary/10 text-primary hover:bg-primary/20 flex h-[44px] w-[44px] shrink-0 items-center justify-center rounded-lg border transition-colors disabled:opacity-40"
+            className="border-primary/30 bg-primary/10 text-primary hover:bg-primary/20 flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border transition-colors disabled:opacity-40"
             title="Confirmar"
           >
-            <span className="material-symbols-outlined text-lg">check</span>
+            <Icons.Check className="size-4.5" />
           </button>
           <button
             type="button"
             onClick={handleCancel}
             disabled={saving}
-            className="text-muted-foreground hover:text-destructive border-border flex h-[44px] w-[44px] shrink-0 items-center justify-center rounded-lg border transition-colors"
+            className="text-muted-foreground hover:text-destructive border-border flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border transition-colors"
             title="Cancelar"
           >
-            <span className="material-symbols-outlined text-lg">close</span>
+            <Icons.Close className="size-4.5" />
           </button>
         </div>
       ) : (

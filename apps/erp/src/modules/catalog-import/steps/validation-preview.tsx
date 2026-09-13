@@ -10,6 +10,9 @@
 import { useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 
+import type { IconName } from "@cendaro/ui/icons";
+import { Icon, Icons } from "@cendaro/ui/icons";
+
 import type { ValidatedCatalogRow } from "../lib/catalog-validators";
 
 // ── Types ────────────────────────────────────────
@@ -65,14 +68,14 @@ export function ValidationPreview({
     label: string;
     count: number;
     color: string;
-    icon: string;
+    icon: IconName;
   }[] = [
     {
       key: "all",
       label: "Total",
       count: validatedRows.length,
       color: "text-foreground bg-muted/50",
-      icon: "list",
+      icon: "List",
     },
     {
       key: "valid",
@@ -80,7 +83,7 @@ export function ValidationPreview({
       count: validCount,
       color:
         "text-emerald-700 bg-emerald-50 dark:text-emerald-400 dark:bg-emerald-900/20",
-      icon: "check_circle",
+      icon: "CheckCircle",
     },
     {
       key: "warning",
@@ -88,14 +91,14 @@ export function ValidationPreview({
       count: warningCount,
       color:
         "text-amber-700 bg-amber-50 dark:text-amber-400 dark:bg-amber-900/20",
-      icon: "warning",
+      icon: "Warning",
     },
     {
       key: "error",
       label: "Errores",
       count: errorCount,
       color: "text-red-700 bg-red-50 dark:text-red-400 dark:bg-red-900/20",
-      icon: "error",
+      icon: "Error",
     },
   ];
 
@@ -114,9 +117,7 @@ export function ValidationPreview({
             }`}
           >
             <div className="flex items-center gap-2">
-              <span className="material-symbols-outlined text-lg">
-                {card.icon}
-              </span>
+              <Icon name={card.icon} className="size-4.5" />
               <span className="text-2xl font-black">{card.count}</span>
             </div>
             <p className="mt-1 text-xs font-medium opacity-70">{card.label}</p>
@@ -126,18 +127,18 @@ export function ValidationPreview({
 
       {/* Data table */}
       <div className="overflow-hidden rounded-xl border">
-        <div ref={parentRef} className="max-h-[400px] overflow-auto">
+        <div ref={parentRef} className="max-h-100 overflow-auto">
           <table className="w-full text-sm">
             <thead className="bg-muted/50 sticky top-0 z-10">
               <tr>
-                <th className="px-3 py-2 text-left font-semibold">#</th>
-                <th className="px-3 py-2 text-left font-semibold">Estado</th>
-                <th className="px-3 py-2 text-left font-semibold">SKU</th>
-                <th className="px-3 py-2 text-left font-semibold">Nombre</th>
-                <th className="px-3 py-2 text-left font-semibold">Categoría</th>
-                <th className="px-3 py-2 text-left font-semibold">Marca</th>
-                <th className="px-3 py-2 text-left font-semibold">Costo</th>
-                <th className="px-3 py-2 text-left font-semibold">Mensajes</th>
+                <th className="px-3 py-2 text-left font-medium">#</th>
+                <th className="px-3 py-2 text-left font-medium">Estado</th>
+                <th className="px-3 py-2 text-left font-medium">SKU</th>
+                <th className="px-3 py-2 text-left font-medium">Nombre</th>
+                <th className="px-3 py-2 text-left font-medium">Categoría</th>
+                <th className="px-3 py-2 text-left font-medium">Marca</th>
+                <th className="px-3 py-2 text-left font-medium">Costo</th>
+                <th className="px-3 py-2 text-left font-medium">Mensajes</th>
               </tr>
             </thead>
             <tbody className="divide-border divide-y">
@@ -166,26 +167,27 @@ export function ValidationPreview({
                       {row.rowNumber}
                     </td>
                     <td className="px-3 py-2">
-                      <span
-                        className={`material-symbols-outlined text-base ${
+                      <Icon
+                        name={
+                          row.status === "valid"
+                            ? "CheckCircle"
+                            : row.status === "warning"
+                              ? "Warning"
+                              : "Error"
+                        }
+                        className={`size-4 ${
                           row.status === "valid"
                             ? "text-emerald-500"
                             : row.status === "warning"
                               ? "text-amber-500"
                               : "text-red-500"
                         }`}
-                      >
-                        {row.status === "valid"
-                          ? "check_circle"
-                          : row.status === "warning"
-                            ? "warning"
-                            : "error"}
-                      </span>
+                      />
                     </td>
                     <td className="text-foreground px-3 py-2 font-mono text-xs">
                       {row.sku || "—"}
                     </td>
-                    <td className="text-foreground max-w-[200px] truncate px-3 py-2">
+                    <td className="text-foreground max-w-50 truncate px-3 py-2">
                       {row.name || "—"}
                     </td>
                     <td className="text-muted-foreground px-3 py-2 text-xs">
@@ -236,18 +238,16 @@ export function ValidationPreview({
           onClick={onBack}
           className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-sm transition-colors"
         >
-          <span className="material-symbols-outlined text-lg">arrow_back</span>
+          <Icons.ArrowBack className="size-4.5" />
           Volver
         </button>
 
         <button
           onClick={onProceed}
           disabled={validCount === 0}
-          className="bg-primary hover:bg-primary/90 inline-flex items-center gap-2 rounded-xl px-6 py-3 text-sm font-semibold text-white transition-all hover:shadow-lg active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+          className="bg-primary hover:bg-primary/90 inline-flex items-center gap-2 rounded-xl px-6 py-3 text-sm font-medium text-white transition-all hover:shadow-lg active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
         >
-          <span className="material-symbols-outlined text-lg">
-            arrow_forward
-          </span>
+          <Icons.ArrowForward className="size-4.5" />
           Continuar con {validCount + warningCount} filas
         </button>
       </div>

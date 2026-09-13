@@ -4,7 +4,9 @@ import { useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import type { IconName } from "@cendaro/ui/icons";
 import { Button } from "@cendaro/ui";
+import { Icon, Icons } from "@cendaro/ui/icons";
 
 import type { StatusTone } from "~/components/status-badge";
 import { EmptyState } from "~/components/empty-state";
@@ -27,34 +29,34 @@ const RegisterPaymentDialog = dynamic(
 
 interface MethodMeta {
   label: string;
-  icon: string;
+  icon: IconName;
   tone: StatusTone;
 }
 
 const METHOD_CONFIG: Record<string, MethodMeta> = {
   mobile_payment: {
     label: "Pago Móvil",
-    icon: "smartphone",
+    icon: "Smartphone",
     tone: "primary",
   },
   transfer: {
     label: "Transferencia",
-    icon: "account_balance",
+    icon: "AccountBalance",
     tone: "primary",
   },
   cash: {
     label: "Efectivo",
-    icon: "payments",
+    icon: "Payments",
     tone: "success",
   },
   pos_terminal: {
     label: "Punto de Venta",
-    icon: "credit_card",
+    icon: "CreditCard",
     tone: "neutral",
   },
   zelle: {
     label: "Zelle",
-    icon: "bolt",
+    icon: "Bolt",
     tone: "warning",
   },
 };
@@ -156,7 +158,7 @@ export default function PaymentsClient() {
               onClick={() => setShowRegister(true)}
               className="min-h-11 flex-1 sm:flex-initial"
             >
-              <span className="material-symbols-outlined text-lg">add</span>
+              <Icons.Add className="size-4.5" />
               Registrar Pago
             </Button>
           </RoleGuard>
@@ -180,24 +182,24 @@ export default function PaymentsClient() {
               ? undefined
               : formatDualCurrency(totalCollected, bcv.rate).bs
           }
-          icon="payments"
+          icon="Payments"
           tone="primary"
         />
         <StatCard
           label="Transacciones"
           value={isLoading ? "—" : rawItems.length.toLocaleString("es-VE")}
-          icon="receipt_long"
+          icon="ReceiptLong"
         />
         <StatCard
           label="Validados"
           value={isLoading ? "—" : validatedCount.toLocaleString("es-VE")}
-          icon="check_circle"
+          icon="CheckCircle"
           tone="success"
         />
         <StatCard
           label="Por Validar"
           value={isLoading ? "—" : pendingValidation.toLocaleString("es-VE")}
-          icon="pending"
+          icon="Pending"
           tone={pendingValidation > 0 ? "warning" : "default"}
         />
       </div>
@@ -223,11 +225,12 @@ export default function PaymentsClient() {
                 <span className="text-muted-foreground text-xs font-medium">
                   {cfg.label}
                 </span>
-                <span className="material-symbols-outlined text-muted-foreground text-lg">
-                  {cfg.icon}
-                </span>
+                <Icon
+                  name={cfg.icon}
+                  className="text-muted-foreground size-4.5"
+                />
               </div>
-              <p className="text-foreground mt-2 font-mono text-xl font-bold tabular-nums">
+              <p className="text-foreground mt-2 font-mono text-xl font-medium tabular-nums">
                 {group?.count ?? 0}
               </p>
               <div className="mt-1">
@@ -309,7 +312,7 @@ export default function PaymentsClient() {
           : filteredItems.map((p) => {
               const cfg = METHOD_CONFIG[p.method] ?? {
                 label: p.method,
-                icon: "payments",
+                icon: "Payments" as const,
                 tone: "neutral" as StatusTone,
               };
               const amountNum = Number(p.amount);
@@ -320,12 +323,10 @@ export default function PaymentsClient() {
                 >
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2">
-                      <span
-                        aria-hidden
-                        className="material-symbols-outlined text-muted-foreground text-lg"
-                      >
-                        {cfg.icon}
-                      </span>
+                      <Icon
+                        name={cfg.icon}
+                        className="text-muted-foreground size-4.5"
+                      />
                       <StatusBadge tone={cfg.tone}>{cfg.label}</StatusBadge>
                     </div>
                     {p.isValidated ? (
@@ -340,7 +341,7 @@ export default function PaymentsClient() {
                       <p className="text-muted-foreground text-xs font-medium tracking-wider uppercase">
                         Monto
                       </p>
-                      <p className="text-foreground font-mono text-base font-bold tabular-nums">
+                      <p className="text-foreground font-mono text-base font-medium tabular-nums">
                         ${amountNum.toFixed(2)}
                       </p>
                       {bcv.rate > 0 && (
@@ -354,7 +355,7 @@ export default function PaymentsClient() {
                         <p className="text-muted-foreground text-xs font-medium tracking-wider uppercase">
                           Referencia
                         </p>
-                        <p className="text-foreground font-mono text-xs font-semibold tabular-nums">
+                        <p className="text-foreground font-mono text-xs font-medium tabular-nums">
                           {p.reference}
                         </p>
                       </div>
@@ -386,7 +387,7 @@ export default function PaymentsClient() {
                           type="button"
                           disabled={validate.isPending}
                           onClick={() => validate.mutate({ id: p.id })}
-                          className="bg-primary text-primary-foreground hover:bg-primary/90 min-h-9 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors disabled:opacity-50"
+                          className="bg-primary text-primary-foreground hover:bg-primary/90 min-h-9 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50"
                         >
                           Validar
                         </button>
@@ -399,7 +400,7 @@ export default function PaymentsClient() {
 
         {!isLoading && filteredItems.length === 0 && (
           <EmptyState
-            icon="payments"
+            icon="Payments"
             title="No se encontraron pagos"
             description="Ajusta los filtros seleccionados o registra un nuevo cobro comercial."
           />
@@ -462,7 +463,7 @@ export default function PaymentsClient() {
               : filteredItems.map((p) => {
                   const cfg = METHOD_CONFIG[p.method] ?? {
                     label: p.method,
-                    icon: "payments",
+                    icon: "Payments" as const,
                     tone: "neutral" as StatusTone,
                   };
                   const amountNum = Number(p.amount);
@@ -473,19 +474,17 @@ export default function PaymentsClient() {
                     >
                       <td className={cellPx}>
                         <div className="flex items-center gap-2">
-                          <span
-                            aria-hidden
-                            className="material-symbols-outlined text-muted-foreground text-lg"
-                          >
-                            {cfg.icon}
-                          </span>
+                          <Icon
+                            name={cfg.icon}
+                            className="text-muted-foreground size-4.5"
+                          />
                           <span className="text-foreground text-xs font-medium">
                             {cfg.label}
                           </span>
                         </div>
                       </td>
                       <td
-                        className={`text-foreground ${cellPx} text-right font-mono font-semibold tabular-nums`}
+                        className={`text-foreground ${cellPx} text-right font-mono font-medium tabular-nums`}
                       >
                         ${amountNum.toFixed(2)}
                         {bcv.rate > 0 && (
@@ -549,7 +548,7 @@ export default function PaymentsClient() {
               <tr className="hover:bg-transparent">
                 <td colSpan={7} className="px-4 py-6">
                   <EmptyState
-                    icon="payments"
+                    icon="Payments"
                     title="No se encontraron pagos"
                     description="Ajusta los filtros seleccionados o registra un nuevo cobro comercial."
                   />

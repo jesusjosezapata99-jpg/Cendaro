@@ -3,6 +3,9 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import type { IconName } from "@cendaro/ui/icons";
+import { Icon, Icons } from "@cendaro/ui/icons";
+
 import type { StatusTone } from "~/components/status-badge";
 import { EmptyState } from "~/components/empty-state";
 import { PageHeader } from "~/components/page-header";
@@ -16,46 +19,46 @@ function Skeleton({ className = "" }: { className?: string }) {
 
 const TYPE_CONFIG: Record<
   string,
-  { label: string; icon: string; tone: StatusTone }
+  { label: string; icon: IconName; tone: StatusTone }
 > = {
   low_stock: {
     label: "Stock Bajo",
-    icon: "inventory_2",
+    icon: "Inventory2",
     tone: "warning",
   },
   inventory_diff: {
     label: "Dif. Inventario",
-    icon: "balance",
+    icon: "Balance",
     tone: "destructive",
   },
   product_blocked: {
     label: "Producto Bloqueado",
-    icon: "block",
+    icon: "Block",
     tone: "destructive",
   },
   rate_change: {
     label: "Cambio Tasa",
-    icon: "trending_up",
+    icon: "TrendingUp",
     tone: "primary",
   },
   vendor_under_target: {
     label: "Vendedor Bajo Meta",
-    icon: "trending_down",
+    icon: "TrendingDown",
     tone: "warning",
   },
   order_late: {
     label: "Pedido Atrasado",
-    icon: "schedule",
+    icon: "Schedule",
     tone: "warning",
   },
   ml_failure: {
     label: "Falla ML",
-    icon: "error_outline",
+    icon: "ErrorOutline",
     tone: "destructive",
   },
   ar_overdue: {
     label: "CxC Vencida",
-    icon: "credit_card_off",
+    icon: "CreditCardOff",
     tone: "destructive",
   },
 };
@@ -124,9 +127,9 @@ export default function AlertsPage() {
           <button
             type="button"
             onClick={() => void refetch()}
-            className="border-border bg-secondary text-foreground hover:bg-accent flex items-center gap-2 rounded-lg border px-3.5 py-2 text-xs font-semibold shadow-xs transition-colors"
+            className="border-border bg-secondary text-foreground hover:bg-accent flex items-center gap-2 rounded-lg border px-3.5 py-2 text-xs font-medium shadow-xs transition-colors"
           >
-            <span className="material-symbols-outlined text-sm">refresh</span>
+            <Icons.Refresh className="size-3.5" />
             Actualizar
           </button>
         }
@@ -137,28 +140,28 @@ export default function AlertsPage() {
         <StatCard
           label="Alertas Activas"
           value={isLoading ? "—" : activeCount}
-          icon="notifications_active"
+          icon="NotificationsActive"
           tone={activeCount > 0 ? "warning" : "default"}
           sub={activeCount > 0 ? "Requieren atención" : "Sin incidentes"}
         />
         <StatCard
           label="Alta Prioridad"
           value={isLoading ? "—" : highCount}
-          icon="priority_high"
+          icon="PriorityHigh"
           tone={highCount > 0 ? "destructive" : "success"}
           sub="Impacto operativo directo"
         />
         <StatCard
           label="Resueltas / Archivadas"
           value={isLoading ? "—" : dismissedCount}
-          icon="check_circle"
+          icon="CheckCircle"
           tone="success"
           sub="Descartadas por operadores"
         />
         <StatCard
           label="Categorías Activas"
           value={isLoading ? "—" : activeTypes}
-          icon="category"
+          icon="Category"
           tone="default"
           sub="Tipos de eventos detectados"
         />
@@ -171,13 +174,11 @@ export default function AlertsPage() {
           onClick={() => setFilter("active")}
           className={`flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
             filter === "active"
-              ? "bg-primary text-primary-foreground font-semibold"
+              ? "bg-primary text-primary-foreground font-medium"
               : "border-border bg-card text-muted-foreground hover:bg-accent hover:text-foreground border"
           }`}
         >
-          <span className="material-symbols-outlined text-sm">
-            notifications
-          </span>
+          <Icons.Notifications className="size-3.5" />
           Activas
           <span className="bg-background/20 py-0.2 ml-1 rounded-full px-1.5 font-mono text-[10px]">
             {activeCount}
@@ -189,13 +190,11 @@ export default function AlertsPage() {
           onClick={() => setFilter("dismissed")}
           className={`flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
             filter === "dismissed"
-              ? "bg-primary text-primary-foreground font-semibold"
+              ? "bg-primary text-primary-foreground font-medium"
               : "border-border bg-card text-muted-foreground hover:bg-accent hover:text-foreground border"
           }`}
         >
-          <span className="material-symbols-outlined text-sm">
-            check_circle
-          </span>
+          <Icons.CheckCircle className="size-3.5" />
           Descartadas
           <span className="bg-background/20 py-0.2 ml-1 rounded-full px-1.5 font-mono text-[10px]">
             {dismissedCount}
@@ -216,13 +215,11 @@ export default function AlertsPage() {
               onClick={() => setFilter(key)}
               className={`flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
                 filter === key
-                  ? "bg-primary text-primary-foreground font-semibold"
+                  ? "bg-primary text-primary-foreground font-medium"
                   : "border-border bg-card text-muted-foreground hover:bg-accent hover:text-foreground border"
               }`}
             >
-              <span className="material-symbols-outlined text-sm">
-                {cfg.icon}
-              </span>
+              <Icon name={cfg.icon} className="size-3.5" />
               {cfg.label}
               {count > 0 ? (
                 <span className="bg-warning/20 text-warning-soft py-0.2 ml-1 rounded-full px-1.5 font-mono text-[10px]">
@@ -244,7 +241,7 @@ export default function AlertsPage() {
       ) : filtered.length === 0 ? (
         <div className="surface-card">
           <EmptyState
-            icon="notifications"
+            icon="Notifications"
             title="Sin alertas en esta categoría"
             description={
               filter === "active"
@@ -258,7 +255,7 @@ export default function AlertsPage() {
           {filtered.map((alert) => {
             const typeCfg = TYPE_CONFIG[alert.alertType] ?? {
               label: alert.alertType,
-              icon: "info",
+              icon: "Info" as const,
               tone: "neutral" as StatusTone,
             };
             const severityBorder =
@@ -274,15 +271,13 @@ export default function AlertsPage() {
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div className="flex min-w-0 items-start gap-3">
                     <div className="bg-muted text-muted-foreground mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg">
-                      <span className="material-symbols-outlined text-base">
-                        {typeCfg.icon}
-                      </span>
+                      <Icon name={typeCfg.icon} className="size-4" />
                     </div>
 
                     <div className="min-w-0 space-y-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <h3
-                          className={`truncate text-sm font-semibold ${
+                          className={`truncate text-sm font-medium ${
                             alert.isDismissed
                               ? "text-muted-foreground line-through"
                               : "text-foreground"
@@ -309,9 +304,7 @@ export default function AlertsPage() {
                       </p>
 
                       <div className="text-muted-foreground flex items-center gap-2 pt-1 font-mono text-[11px] tabular-nums">
-                        <span className="material-symbols-outlined text-xs">
-                          schedule
-                        </span>
+                        <Icons.Schedule className="size-3" />
                         <time>
                           {new Date(alert.createdAt).toLocaleString("es-VE", {
                             day: "2-digit",
@@ -331,20 +324,16 @@ export default function AlertsPage() {
                         type="button"
                         onClick={() => dismiss.mutate({ id: alert.id })}
                         disabled={dismiss.isPending}
-                        className="border-border bg-secondary text-foreground hover:bg-accent flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold shadow-xs transition-colors disabled:opacity-50"
+                        className="border-border bg-secondary text-foreground hover:bg-accent flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium shadow-xs transition-colors disabled:opacity-50"
                       >
                         {dismiss.isPending ? (
                           <>
-                            <span className="material-symbols-outlined animate-spin text-sm">
-                              progress_activity
-                            </span>
+                            <Icons.ProgressActivity className="size-3.5 animate-spin" />
                             Descartando...
                           </>
                         ) : (
                           <>
-                            <span className="material-symbols-outlined text-sm">
-                              check
-                            </span>
+                            <Icons.Check className="size-3.5" />
                             Descartar
                           </>
                         )}

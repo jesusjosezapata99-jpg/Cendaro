@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { Icons } from "@cendaro/ui/icons";
+
 import { Dialog, Field, FormActions, Input, Select } from "~/components/dialog";
 import { useTRPC } from "~/trpc/client";
 
@@ -277,7 +279,7 @@ export function CreateOrderDialog({
                       key={idx}
                       className="border-border border-b last:border-0"
                     >
-                      <td className="text-primary px-3 py-2 font-mono text-[11px] font-bold">
+                      <td className="text-primary px-3 py-2 font-mono text-[11px] font-medium">
                         {line.productRef}
                       </td>
                       <td className="text-foreground px-3 py-2">
@@ -292,7 +294,7 @@ export function CreateOrderDialog({
                       <td className="text-muted-foreground px-3 py-2 text-right font-mono">
                         ${line.discount.toFixed(2)}
                       </td>
-                      <td className="text-foreground px-3 py-2 text-right font-mono font-bold">
+                      <td className="text-foreground px-3 py-2 text-right font-mono font-medium">
                         $
                         {(
                           (line.unitPrice - line.discount) *
@@ -305,9 +307,7 @@ export function CreateOrderDialog({
                           onClick={() => removeLine(idx)}
                           className="text-destructive hover:text-destructive/80"
                         >
-                          <span className="material-symbols-outlined text-sm">
-                            delete
-                          </span>
+                          <Icons.Delete className="size-3.5" />
                         </button>
                       </td>
                     </tr>
@@ -321,9 +321,7 @@ export function CreateOrderDialog({
           <div className="space-y-2">
             <div className="relative" ref={dropdownRef}>
               <div className="relative">
-                <span className="material-symbols-outlined text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-lg">
-                  search
-                </span>
+                <Icons.Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4.5 -translate-y-1/2" />
                 <input
                   ref={searchInputRef}
                   type="text"
@@ -341,9 +339,7 @@ export function CreateOrderDialog({
                   className="border-border bg-card text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-ring/20 min-h-11 w-full rounded-lg border py-2.5 pr-4 pl-10 text-sm transition-colors outline-none focus:ring-2"
                 />
                 {selectedProduct && (
-                  <span className="material-symbols-outlined pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-lg text-emerald-400">
-                    check_circle
-                  </span>
+                  <Icons.CheckCircle className="pointer-events-none absolute top-1/2 right-3 size-4.5 -translate-y-1/2 text-emerald-400" />
                 )}
               </div>
 
@@ -370,7 +366,7 @@ export function CreateOrderDialog({
                             : "text-foreground hover:bg-accent"
                         }`}
                       >
-                        <span className="text-primary shrink-0 font-mono text-xs font-bold">
+                        <span className="text-primary shrink-0 font-mono text-xs font-medium">
                           {p.sku}
                         </span>
                         <span className="min-w-0 flex-1 truncate">
@@ -391,9 +387,7 @@ export function CreateOrderDialog({
                 productSearch.trim() &&
                 filteredProducts.length === 0 && (
                   <div className="border-border bg-card text-muted-foreground absolute z-50 mt-1 w-full rounded-lg border p-3 text-center text-xs shadow-xl">
-                    <span className="material-symbols-outlined mb-1 block text-lg">
-                      search_off
-                    </span>
+                    <Icons.SearchOff className="mb-1 block size-4.5" />
                     No se encontró ningún producto
                   </div>
                 )}
@@ -427,10 +421,9 @@ export function CreateOrderDialog({
                 type="button"
                 onClick={addLine}
                 disabled={!selectedProduct || !addPrice}
-                className="bg-secondary text-muted-foreground hover:bg-accent flex min-h-11 items-center justify-center gap-1 rounded-lg px-3 py-2.5 text-xs font-bold transition-colors disabled:opacity-40"
+                className="bg-secondary text-muted-foreground hover:bg-accent flex min-h-11 items-center justify-center gap-1 rounded-lg px-3 py-2.5 text-xs font-medium transition-colors disabled:opacity-40"
               >
-                <span className="material-symbols-outlined text-sm">add</span>{" "}
-                Agregar
+                <Icons.Add className="size-3.5" /> Agregar
               </button>
             </div>
           </div>
@@ -442,7 +435,7 @@ export function CreateOrderDialog({
             <div className="border-border bg-secondary rounded-lg border p-3 text-sm">
               <div className="flex justify-between gap-8">
                 <span className="text-muted-foreground">Subtotal:</span>
-                <span className="text-foreground font-mono font-bold">
+                <span className="text-foreground font-mono font-medium">
                   ${subtotal.toFixed(2)}
                 </span>
               </div>
@@ -455,8 +448,8 @@ export function CreateOrderDialog({
                 </div>
               )}
               <div className="border-border mt-1 flex justify-between gap-8 border-t pt-1">
-                <span className="text-foreground font-bold">Total:</span>
-                <span className="text-primary font-mono text-lg font-bold">
+                <span className="text-foreground font-medium">Total:</span>
+                <span className="text-primary font-mono text-lg font-medium">
                   ${total.toFixed(2)}
                 </span>
               </div>

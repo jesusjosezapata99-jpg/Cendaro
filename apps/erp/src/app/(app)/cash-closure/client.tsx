@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Button } from "@cendaro/ui";
+import { Icons } from "@cendaro/ui/icons";
 
 import type { StatusTone } from "~/components/status-badge";
 import { EmptyState } from "~/components/empty-state";
@@ -97,9 +98,7 @@ export default function CashClosureClient() {
               onClick={() => setShowCreate(true)}
               className="min-h-11 flex-1 sm:flex-initial"
             >
-              <span className="material-symbols-outlined text-lg">
-                lock_clock
-              </span>
+              <Icons.LockClock className="size-4.5" />
               Cerrar Día
             </Button>
           </RoleGuard>
@@ -119,7 +118,7 @@ export default function CashClosureClient() {
           sub={
             isLoading ? undefined : formatDualCurrency(todaySales, bcv.rate).bs
           }
-          icon="payments"
+          icon="Payments"
           tone="primary"
         />
         <StatCard
@@ -128,7 +127,7 @@ export default function CashClosureClient() {
           sub={
             isLoading ? undefined : formatDualCurrency(todayCash, bcv.rate).bs
           }
-          icon="payments"
+          icon="Payments"
           tone="success"
         />
         <StatCard
@@ -141,7 +140,7 @@ export default function CashClosureClient() {
               ? undefined
               : formatDualCurrency(todayDigital, bcv.rate).bs
           }
-          icon="contactless"
+          icon="Contactless"
         />
         <StatCard
           label="Discrepancia Total"
@@ -155,9 +154,7 @@ export default function CashClosureClient() {
               ? undefined
               : formatDualCurrency(Math.abs(totalDiscrepancies), bcv.rate).bs
           }
-          icon={
-            Math.abs(totalDiscrepancies) < 0.01 ? "check_circle" : "warning"
-          }
+          icon={Math.abs(totalDiscrepancies) < 0.01 ? "CheckCircle" : "Warning"}
           tone={
             Math.abs(totalDiscrepancies) < 0.01
               ? "success"
@@ -216,10 +213,8 @@ export default function CashClosureClient() {
                 >
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2">
-                      <span className="material-symbols-outlined text-muted-foreground text-lg">
-                        calendar_today
-                      </span>
-                      <span className="text-foreground font-mono text-sm font-semibold tabular-nums">
+                      <Icons.CalendarToday className="text-muted-foreground size-4.5" />
+                      <span className="text-foreground font-mono text-sm font-medium tabular-nums">
                         {new Date(closure.closureDate).toLocaleDateString(
                           "es-VE",
                         )}
@@ -233,7 +228,7 @@ export default function CashClosureClient() {
                       <p className="text-muted-foreground text-[10px] font-medium tracking-wider uppercase">
                         Ventas
                       </p>
-                      <p className="text-foreground font-mono font-semibold tabular-nums">
+                      <p className="text-foreground font-mono font-medium tabular-nums">
                         ${(closure.totalSales ?? 0).toFixed(2)}
                       </p>
                     </div>
@@ -241,7 +236,7 @@ export default function CashClosureClient() {
                       <p className="text-muted-foreground text-[10px] font-medium tracking-wider uppercase">
                         Efectivo
                       </p>
-                      <p className="font-mono font-semibold text-emerald-500 tabular-nums">
+                      <p className="font-mono font-medium text-emerald-500 tabular-nums">
                         ${(closure.totalCash ?? 0).toFixed(2)}
                       </p>
                     </div>
@@ -249,7 +244,7 @@ export default function CashClosureClient() {
                       <p className="text-muted-foreground text-[10px] font-medium tracking-wider uppercase">
                         Digital
                       </p>
-                      <p className="text-primary font-mono font-semibold tabular-nums">
+                      <p className="text-primary font-mono font-medium tabular-nums">
                         ${(closure.totalDigital ?? 0).toFixed(2)}
                       </p>
                     </div>
@@ -258,7 +253,7 @@ export default function CashClosureClient() {
                         Discrepancia
                       </p>
                       <p
-                        className={`font-mono font-bold tabular-nums ${
+                        className={`font-mono font-medium tabular-nums ${
                           Math.abs(discrepancy) < 0.01
                             ? "text-emerald-500"
                             : discrepancy < 0
@@ -282,7 +277,7 @@ export default function CashClosureClient() {
                           type="button"
                           disabled={review.isPending}
                           onClick={() => review.mutate({ id: closure.id })}
-                          className="bg-primary text-primary-foreground hover:bg-primary/90 min-h-9 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors disabled:opacity-50"
+                          className="bg-primary text-primary-foreground hover:bg-primary/90 min-h-9 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50"
                         >
                           Aprobar
                         </button>
@@ -295,7 +290,7 @@ export default function CashClosureClient() {
 
         {!isLoading && filteredItems.length === 0 && (
           <EmptyState
-            icon="point_of_sale"
+            icon="PointOfSale"
             title="No se encontraron cierres"
             description="Ajusta los filtros o registra un nuevo cierre de día."
           />
@@ -379,13 +374,11 @@ export default function CashClosureClient() {
                     >
                       <td className={cellPx}>
                         <div className="flex items-center gap-2">
-                          <span
+                          <Icons.CalendarToday
+                            className="text-muted-foreground size-4"
                             aria-hidden
-                            className="material-symbols-outlined text-muted-foreground text-base"
-                          >
-                            calendar_today
-                          </span>
-                          <span className="text-foreground font-mono text-xs font-semibold tabular-nums">
+                          />
+                          <span className="text-foreground font-mono text-xs font-medium tabular-nums">
                             {new Date(closure.closureDate).toLocaleDateString(
                               "es-VE",
                             )}
@@ -421,7 +414,7 @@ export default function CashClosureClient() {
                         ${(closure.actualTotal ?? 0).toFixed(2)}
                       </td>
                       <td
-                        className={`${cellPx} text-right font-mono text-xs font-bold tabular-nums ${
+                        className={`${cellPx} text-right font-mono text-xs font-medium tabular-nums ${
                           Math.abs(discrepancy) < 0.01
                             ? "text-emerald-500"
                             : discrepancy < 0
@@ -457,7 +450,7 @@ export default function CashClosureClient() {
               <tr className="hover:bg-transparent">
                 <td colSpan={9} className="px-4 py-6">
                   <EmptyState
-                    icon="point_of_sale"
+                    icon="PointOfSale"
                     title="No se encontraron cierres"
                     description="Ajusta los filtros o registra un nuevo cierre de día."
                   />

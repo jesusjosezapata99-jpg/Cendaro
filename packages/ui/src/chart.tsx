@@ -156,7 +156,7 @@ const ChartTooltipContent = React.forwardRef<
     <div
       ref={ref}
       className={cn(
-        "glass-overlay border-border-subtle text-popover-foreground min-w-32 space-y-1.5 rounded-lg border px-2.5 py-1.5 text-xs shadow-md",
+        "bg-background text-popover-foreground min-w-32 space-y-1.5 border p-2 text-[10px]",
         className,
       )}
       {...props}
@@ -196,7 +196,7 @@ const ChartTooltipContent = React.forwardRef<
                   {itemConfig?.label ?? item.name ?? key}
                 </span>
               </div>
-              <span className="text-foreground font-mono font-semibold tabular-nums">
+              <span className="text-foreground font-mono font-medium tabular-nums">
                 {formatted}
               </span>
             </div>

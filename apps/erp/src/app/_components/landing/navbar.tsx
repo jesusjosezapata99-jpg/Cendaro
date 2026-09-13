@@ -60,9 +60,7 @@ export function Navbar() {
               height={32}
               className="h-8 w-8"
             />
-            <span className="text-lg font-semibold tracking-tight">
-              Cendaro
-            </span>
+            <span className="text-lg font-medium tracking-tight">Cendaro</span>
           </Link>
 
           {/* Desktop links */}

@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import { useQuery } from "@tanstack/react-query";
 
 import { Button } from "@cendaro/ui";
+import { Icons } from "@cendaro/ui/icons";
 
 import type {
   CartLine,
@@ -417,21 +418,17 @@ export default function PosClient() {
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <StatusBadge tone="success">
-              <span className="material-symbols-outlined mr-1 text-xs">
-                lock_open
-              </span>
+              <Icons.LockOpen className="mr-1 size-3" />
               Caja Abierta
             </StatusBadge>
 
             {/* BCV Official Rate Badge with Live Sync Button */}
-            <div className="border-border bg-secondary/80 flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-semibold shadow-xs">
-              <span className="material-symbols-outlined text-primary text-base">
-                verified
-              </span>
+            <div className="border-border bg-secondary/80 flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-medium shadow-xs">
+              <Icons.Verified className="text-primary size-4" />
               <span className="text-muted-foreground hidden sm:inline">
                 BCV Oficial:
               </span>
-              <span className="text-foreground font-mono font-bold tabular-nums">
+              <span className="text-foreground font-mono font-medium tabular-nums">
                 {bcv.isLoading
                   ? "Cargando..."
                   : `Bs ${bcv.rate.toLocaleString("es-VE", { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`}
@@ -443,13 +440,9 @@ export default function PosClient() {
                 title="Actualizar tasa oficial directamente desde bcv.org.ve"
                 className="text-muted-foreground hover:text-primary ml-0.5 rounded p-0.5 transition-colors disabled:opacity-50"
               >
-                <span
-                  className={`material-symbols-outlined text-sm ${
-                    bcv.isSyncing ? "animate-spin" : ""
-                  }`}
-                >
-                  sync
-                </span>
+                <Icons.Sync
+                  className={`size-3.5 ${bcv.isSyncing ? "animate-spin" : ""}`}
+                />
               </button>
             </div>
 
@@ -459,9 +452,7 @@ export default function PosClient() {
                 onClick={clearCart}
                 className="min-h-9 text-xs"
               >
-                <span className="material-symbols-outlined text-sm">
-                  restart_alt
-                </span>
+                <Icons.RestartAlt className="size-3.5" />
                 Limpiar Carrito
               </Button>
             )}
@@ -473,11 +464,9 @@ export default function PosClient() {
       <div className="border-border bg-card/60 flex flex-wrap items-center justify-between gap-3 rounded-xl border px-4 py-2.5 shadow-xs">
         <div className="flex flex-wrap items-center gap-4 text-xs">
           <div className="flex items-center gap-1.5">
-            <span className="material-symbols-outlined text-primary text-base">
-              receipt_long
-            </span>
+            <Icons.ReceiptLong className="text-primary size-4" />
             <span className="text-muted-foreground">Ventas Turno:</span>
-            <span className="text-foreground font-mono font-bold tabular-nums">
+            <span className="text-foreground font-mono font-medium tabular-nums">
               {todayStats.count} ({revenueDual.usd})
             </span>
           </div>
@@ -485,11 +474,9 @@ export default function PosClient() {
           <div className="text-border hidden sm:inline-block">|</div>
 
           <div className="hidden items-center gap-1.5 sm:flex">
-            <span className="material-symbols-outlined text-muted-foreground text-base">
-              analytics
-            </span>
+            <Icons.Analytics className="text-muted-foreground size-4" />
             <span className="text-muted-foreground">Ticket Promedio:</span>
-            <span className="text-foreground font-mono font-semibold tabular-nums">
+            <span className="text-foreground font-mono font-medium tabular-nums">
               {avgDual.usd}
             </span>
           </div>
@@ -497,11 +484,9 @@ export default function PosClient() {
           <div className="text-border hidden md:inline-block">|</div>
 
           <div className="hidden items-center gap-1.5 md:flex">
-            <span className="material-symbols-outlined text-muted-foreground text-base">
-              calendar_today
-            </span>
+            <Icons.CalendarToday className="text-muted-foreground size-4" />
             <span className="text-muted-foreground">Fecha Valor:</span>
-            <span className="text-foreground font-mono text-[11px] font-semibold">
+            <span className="text-foreground font-mono text-[11px] font-medium">
               {bcv.dateText ?? bcv.date}
             </span>
           </div>
@@ -510,15 +495,13 @@ export default function PosClient() {
         {/* Active Cart Counter Chip */}
         <div className="flex items-center gap-2">
           <div
-            className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-bold transition-colors ${
+            className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition-colors ${
               cart.length > 0
                 ? "bg-amber-500/15 text-amber-600 dark:text-amber-400"
                 : "bg-secondary text-muted-foreground"
             }`}
           >
-            <span className="material-symbols-outlined text-sm">
-              shopping_cart
-            </span>
+            <Icons.ShoppingCart className="size-3.5" />
             <span>
               {totalCartUnits} un. ({cart.length} ítems)
             </span>
@@ -533,9 +516,7 @@ export default function PosClient() {
           {/* Barcode & Search Input */}
           <div className="border-border bg-card focus-within:border-primary/60 focus-within:ring-primary/20 relative rounded-xl border p-2.5 shadow-xs transition-shadow focus-within:ring-2">
             <div className="flex items-center gap-2">
-              <span className="material-symbols-outlined text-muted-foreground pl-1 text-xl">
-                barcode_scanner
-              </span>
+              <Icons.BarcodeScanner className="text-muted-foreground size-5 pl-1" />
               <input
                 ref={barcodeInputRef}
                 type="text"
@@ -546,7 +527,7 @@ export default function PosClient() {
                 className="text-foreground placeholder:text-muted-foreground w-full bg-transparent text-xs font-medium focus:outline-none sm:text-sm"
               />
               <div className="flex items-center gap-1">
-                <kbd className="border-border bg-secondary text-muted-foreground hidden rounded border px-1.5 py-0.5 font-mono text-[10px] font-bold sm:inline-block">
+                <kbd className="border-border bg-secondary text-muted-foreground hidden rounded border px-1.5 py-0.5 font-mono text-[10px] font-medium sm:inline-block">
                   F2
                 </kbd>
                 {searchQuery && (
@@ -555,9 +536,7 @@ export default function PosClient() {
                     onClick={() => setSearchQuery("")}
                     className="text-muted-foreground hover:text-foreground p-1"
                   >
-                    <span className="material-symbols-outlined text-base">
-                      close
-                    </span>
+                    <Icons.Close className="size-4" />
                   </button>
                 )}
               </div>
@@ -565,8 +544,8 @@ export default function PosClient() {
 
             {/* Scanner Instant Feedback Toast */}
             {scannerFeedback && (
-              <div className="border-primary/40 bg-primary/10 text-primary animate-in fade-in zoom-in-95 absolute -bottom-3 left-6 z-20 flex items-center gap-1 rounded-md border px-2.5 py-0.5 text-xs font-bold shadow-xs duration-150">
-                <span className="material-symbols-outlined text-xs">check</span>
+              <div className="border-primary/40 bg-primary/10 text-primary animate-in fade-in zoom-in-95 absolute -bottom-3 left-6 z-20 flex items-center gap-1 rounded-md border px-2.5 py-0.5 text-xs font-medium shadow-xs duration-150">
+                <Icons.Check className="size-3" />
                 <span>{scannerFeedback}</span>
               </div>
             )}
@@ -577,7 +556,7 @@ export default function PosClient() {
             <button
               type="button"
               onClick={() => setSelectedCategory("all")}
-              className={`rounded-xl border px-3 py-1.5 text-xs font-semibold whitespace-nowrap transition-colors ${
+              className={`rounded-xl border px-3 py-1.5 text-xs font-medium whitespace-nowrap transition-colors ${
                 selectedCategory === "all"
                   ? "border-primary bg-primary text-primary-foreground shadow-xs"
                   : "border-border bg-card text-muted-foreground hover:bg-secondary hover:text-foreground"
@@ -595,7 +574,7 @@ export default function PosClient() {
                   key={cat.id}
                   type="button"
                   onClick={() => setSelectedCategory(cat.id)}
-                  className={`rounded-xl border px-3 py-1.5 text-xs font-semibold whitespace-nowrap transition-colors ${
+                  className={`rounded-xl border px-3 py-1.5 text-xs font-medium whitespace-nowrap transition-colors ${
                     isSelected
                       ? "border-primary bg-primary text-primary-foreground shadow-xs"
                       : "border-border bg-card text-muted-foreground hover:bg-secondary hover:text-foreground"
@@ -620,7 +599,7 @@ export default function PosClient() {
               </div>
             ) : filteredProducts.length === 0 ? (
               <EmptyState
-                icon="search_off"
+                icon="SearchOff"
                 title="Sin productos encontrados"
                 description={`No hay coincidencias para "${searchQuery}". Intente con otro término o código.`}
               />
@@ -648,21 +627,19 @@ export default function PosClient() {
                     >
                       {/* Floating In-Cart Badge */}
                       {inCartQty > 0 && (
-                        <div className="bg-primary text-primary-foreground absolute -top-2 -right-2 flex items-center gap-1 rounded-full px-2 py-0.5 font-mono text-[10px] font-bold shadow-xs">
-                          <span className="material-symbols-outlined text-[10px]">
-                            shopping_cart
-                          </span>
+                        <div className="bg-primary text-primary-foreground absolute -top-2 -right-2 flex items-center gap-1 rounded-full px-2 py-0.5 font-mono text-[10px] font-medium shadow-xs">
+                          <Icons.ShoppingCart className="text-[10px]" />
                           <span>x{inCartQty}</span>
                         </div>
                       )}
 
                       <div>
                         <div className="flex items-center justify-between gap-1">
-                          <span className="text-muted-foreground font-mono text-[10px] font-semibold">
+                          <span className="text-muted-foreground font-mono text-[10px] font-medium">
                             {p.sku}
                           </span>
                           <span
-                            className={`py-0.2 rounded px-1.5 font-mono text-[9px] font-bold ${
+                            className={`py-0.2 rounded px-1.5 font-mono text-[9px] font-medium ${
                               isOut
                                 ? "bg-destructive/15 text-destructive"
                                 : isLow
@@ -673,7 +650,7 @@ export default function PosClient() {
                             {stock} un.
                           </span>
                         </div>
-                        <h4 className="text-foreground group-hover:text-primary mt-1 line-clamp-2 text-xs leading-snug font-bold transition-colors">
+                        <h4 className="text-foreground group-hover:text-primary mt-1 line-clamp-2 text-xs leading-snug font-medium transition-colors">
                           {p.name}
                         </h4>
                       </div>
@@ -683,7 +660,7 @@ export default function PosClient() {
                           <span className="text-foreground font-mono text-sm font-black tabular-nums">
                             {dual.usd}
                           </span>
-                          <span className="text-primary font-mono text-[10px] font-bold tabular-nums">
+                          <span className="text-primary font-mono text-[10px] font-medium tabular-nums">
                             {dual.bs}
                           </span>
                         </div>
@@ -704,10 +681,8 @@ export default function PosClient() {
               <div className="border-border/60 border-b pb-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className="material-symbols-outlined text-primary text-xl">
-                      receipt
-                    </span>
-                    <h3 className="text-foreground text-xs font-bold tracking-wider uppercase">
+                    <Icons.Receipt className="text-primary size-5" />
+                    <h3 className="text-foreground text-xs font-medium tracking-wider uppercase">
                       Ticket de Venta (Mostrador)
                     </h3>
                   </div>
@@ -715,12 +690,9 @@ export default function PosClient() {
                     type="button"
                     variant="outline"
                     onClick={() => setCreateCustomerOpen(true)}
-                    className="h-7 px-2 text-[11px] font-bold"
+                    className="h-7 px-2 text-[11px] font-medium"
                   >
-                    <span className="material-symbols-outlined text-xs">
-                      person_add
-                    </span>
-                    + Nuevo Cliente
+                    <Icons.PersonAdd className="size-3" />+ Nuevo Cliente
                   </Button>
                 </div>
 
@@ -733,11 +705,9 @@ export default function PosClient() {
                       className="border-border bg-secondary/60 hover:bg-secondary flex flex-1 items-center justify-between rounded-xl border px-3 py-2 text-left transition-colors"
                     >
                       <div className="flex min-w-0 items-center gap-2">
-                        <span className="material-symbols-outlined text-muted-foreground text-base">
-                          person
-                        </span>
+                        <Icons.Person className="text-muted-foreground size-4" />
                         <div className="truncate">
-                          <span className="text-foreground block truncate text-xs font-bold">
+                          <span className="text-foreground block truncate text-xs font-medium">
                             {selectedCustomer
                               ? selectedCustomer.name
                               : "Consumidor Final"}
@@ -749,9 +719,7 @@ export default function PosClient() {
                           </span>
                         </div>
                       </div>
-                      <span className="material-symbols-outlined text-muted-foreground text-base">
-                        expand_more
-                      </span>
+                      <Icons.ExpandMore className="text-muted-foreground size-4" />
                     </button>
 
                     {selectedCustomer && (
@@ -761,9 +729,7 @@ export default function PosClient() {
                         className="text-muted-foreground hover:text-foreground p-1"
                         title="Restablecer a Consumidor Final"
                       >
-                        <span className="material-symbols-outlined text-base">
-                          close
-                        </span>
+                        <Icons.Close className="size-4" />
                       </button>
                     )}
                   </div>
@@ -788,9 +754,7 @@ export default function PosClient() {
                           className="bg-primary/10 text-primary hover:bg-primary/20 border-primary/30 flex size-7 items-center justify-center rounded-lg border text-xs"
                           title="Crear cliente nuevo"
                         >
-                          <span className="material-symbols-outlined text-sm">
-                            person_add
-                          </span>
+                          <Icons.PersonAdd className="size-3.5" />
                         </button>
                       </div>
 
@@ -802,7 +766,7 @@ export default function PosClient() {
                         }}
                         className="hover:bg-secondary flex w-full items-center justify-between rounded-lg p-2 text-left text-xs transition-colors"
                       >
-                        <span className="text-foreground font-bold">
+                        <span className="text-foreground font-medium">
                           Consumidor Final
                         </span>
                         <span className="text-muted-foreground text-[10px]">
@@ -821,7 +785,7 @@ export default function PosClient() {
                           className="hover:bg-secondary flex w-full items-center justify-between rounded-lg p-2 text-left text-xs transition-colors"
                         >
                           <div className="truncate pr-2">
-                            <span className="text-foreground block truncate font-semibold">
+                            <span className="text-foreground block truncate font-medium">
                               {c.name}
                             </span>
                             <span className="text-muted-foreground font-mono text-[10px]">
@@ -844,10 +808,8 @@ export default function PosClient() {
               <div className="divide-border/40 max-h-90 min-h-55 divide-y overflow-y-auto py-2 pr-1">
                 {cart.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-12 text-center">
-                    <span className="material-symbols-outlined text-muted-foreground/40 text-4xl">
-                      shopping_cart_off
-                    </span>
-                    <p className="text-muted-foreground mt-2 text-xs font-semibold">
+                    <Icons.ShoppingCartOff className="text-muted-foreground/40 size-9" />
+                    <p className="text-muted-foreground mt-2 text-xs font-medium">
                       El ticket está vacío
                     </p>
                     <p className="text-muted-foreground/80 mt-0.5 text-[11px]">
@@ -866,7 +828,7 @@ export default function PosClient() {
                         className="flex items-center justify-between py-2.5 text-xs"
                       >
                         <div className="flex-1 pr-2">
-                          <p className="text-foreground line-clamp-1 leading-tight font-bold">
+                          <p className="text-foreground line-clamp-1 leading-tight font-medium">
                             {line.name}
                           </p>
                           <div className="text-muted-foreground mt-0.5 flex items-center gap-1.5 font-mono text-[10px]">
@@ -896,17 +858,17 @@ export default function PosClient() {
                           <button
                             type="button"
                             onClick={() => updateQuantity(line.id, -1)}
-                            className="border-border bg-secondary text-foreground hover:bg-accent flex size-7 items-center justify-center rounded-lg border font-bold"
+                            className="border-border bg-secondary text-foreground hover:bg-accent flex size-7 items-center justify-center rounded-lg border font-medium"
                           >
                             -
                           </button>
-                          <span className="text-foreground w-6 text-center font-mono font-bold tabular-nums">
+                          <span className="text-foreground w-6 text-center font-mono font-medium tabular-nums">
                             {line.quantity}
                           </span>
                           <button
                             type="button"
                             onClick={() => updateQuantity(line.id, 1)}
-                            className="border-border bg-secondary text-foreground hover:bg-accent flex size-7 items-center justify-center rounded-lg border font-bold"
+                            className="border-border bg-secondary text-foreground hover:bg-accent flex size-7 items-center justify-center rounded-lg border font-medium"
                           >
                             +
                           </button>
@@ -915,7 +877,7 @@ export default function PosClient() {
                         {/* Line Total & Remove */}
                         <div className="flex items-center gap-2 pl-3">
                           <div className="text-right font-mono tabular-nums">
-                            <div className="text-foreground font-bold">
+                            <div className="text-foreground font-medium">
                               {lineDual.usd}
                             </div>
                             <div className="text-muted-foreground text-[10px]">
@@ -927,9 +889,7 @@ export default function PosClient() {
                             onClick={() => removeLine(line.id)}
                             className="text-muted-foreground hover:text-destructive flex size-6 items-center justify-center rounded transition-colors"
                           >
-                            <span className="material-symbols-outlined text-base">
-                              delete
-                            </span>
+                            <Icons.Delete className="size-4" />
                           </button>
                         </div>
                       </div>
@@ -958,14 +918,14 @@ export default function PosClient() {
                 )}
                 <div className="border-border/40 my-1 border-t" />
                 <div className="flex items-baseline justify-between pt-0.5">
-                  <span className="text-foreground font-bold tracking-wider uppercase">
+                  <span className="text-foreground font-medium tracking-wider uppercase">
                     TOTAL A COBRAR:
                   </span>
                   <div className="text-right">
                     <span className="text-foreground font-mono text-2xl font-black tabular-nums">
                       {cartDual.usd}
                     </span>
-                    <div className="text-primary font-mono text-xs font-bold tabular-nums">
+                    <div className="text-primary font-mono text-xs font-medium tabular-nums">
                       {cartDual.bs}
                     </div>
                   </div>
@@ -977,13 +937,11 @@ export default function PosClient() {
                 type="button"
                 onClick={() => setCheckoutOpen(true)}
                 disabled={cart.length === 0}
-                className="min-h-12 w-full text-sm font-bold shadow-md"
+                className="min-h-12 w-full text-sm font-medium shadow-md"
               >
-                <span className="material-symbols-outlined text-lg">
-                  payments
-                </span>
+                <Icons.Payments className="size-4.5" />
                 Cobrar Venta ({cartDual.usd})
-                <kbd className="bg-primary-foreground/20 text-primary-foreground ml-2 hidden rounded px-1.5 py-0.5 font-mono text-[10px] font-bold sm:inline-block">
+                <kbd className="bg-primary-foreground/20 text-primary-foreground ml-2 hidden rounded px-1.5 py-0.5 font-mono text-[10px] font-medium sm:inline-block">
                   F4
                 </kbd>
               </Button>

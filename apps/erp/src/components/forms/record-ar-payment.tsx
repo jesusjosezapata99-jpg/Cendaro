@@ -92,7 +92,7 @@ export function RecordArPaymentDialog({ open, onClose, receivable }: Props) {
         <div className="border-border-subtle surface-card rounded-lg border p-3">
           <div className="flex items-center justify-between text-xs">
             <span className="text-muted-foreground">Saldo Pendiente:</span>
-            <span className="text-foreground font-mono font-bold tabular-nums">
+            <span className="text-foreground font-mono font-medium tabular-nums">
               ${currentBalance.toFixed(2)}
             </span>
           </div>
@@ -134,7 +134,7 @@ export function RecordArPaymentDialog({ open, onClose, receivable }: Props) {
         {parsedAmount > 0 && bcv.rate > 0 && (
           <div className="border-border-subtle surface-card flex items-center justify-between rounded-lg border px-3 py-2 text-xs">
             <span className="text-muted-foreground">Conversión BCV:</span>
-            <span className="text-primary font-mono font-semibold tabular-nums">
+            <span className="text-primary font-mono font-medium tabular-nums">
               {formatDualCurrency(parsedAmount, bcv.rate).bs}
             </span>
           </div>

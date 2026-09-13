@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 
 import { Button } from "@cendaro/ui";
+import { Icons } from "@cendaro/ui/icons";
 
 import type { StatusTone } from "~/components/status-badge";
 import { EmptyState } from "~/components/empty-state";
@@ -214,7 +215,7 @@ export default function AccountsReceivableClient() {
               onClick={() => setShowCreate(true)}
               className="min-h-11 flex-1 sm:flex-initial"
             >
-              <span className="material-symbols-outlined text-lg">add</span>
+              <Icons.Add className="size-4.5" />
               Nueva CxC
             </Button>
           </RoleGuard>
@@ -235,13 +236,13 @@ export default function AccountsReceivableClient() {
               ? undefined
               : formatDualCurrency(totalPendingBalance, bcv.rate).bs
           }
-          icon="receipt_long"
+          icon="ReceiptLong"
           tone="primary"
         />
         <StatCard
           label="Cuentas Activas"
           value={isLoadingAR ? "—" : activeItems.length.toLocaleString("es-VE")}
-          icon="assignment"
+          icon="Assignment"
         />
         <StatCard
           label="Cartera Vencida"
@@ -253,7 +254,7 @@ export default function AccountsReceivableClient() {
               ? undefined
               : formatDualCurrency(overdueTotal, bcv.rate).bs
           }
-          icon="warning"
+          icon="Warning"
           tone={overdueTotal > 0 ? "destructive" : "default"}
         />
         <StatCard
@@ -264,7 +265,7 @@ export default function AccountsReceivableClient() {
               ? undefined
               : `Abonado: $${totalPaidAmount.toLocaleString("es-VE", { minimumFractionDigits: 2 })}`
           }
-          icon="check_circle"
+          icon="CheckCircle"
           tone={recoveryRate >= 70 ? "success" : "default"}
         />
       </div>
@@ -273,10 +274,8 @@ export default function AccountsReceivableClient() {
       <div className="border-border-subtle surface-card rounded-xl border p-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-muted-foreground text-base">
-              schedule
-            </span>
-            <span className="text-foreground text-xs font-semibold tracking-wider uppercase">
+            <Icons.Schedule className="text-muted-foreground size-4" />
+            <span className="text-foreground text-xs font-medium tracking-wider uppercase">
               Antigüedad de Deuda (Aging)
             </span>
           </div>
@@ -323,7 +322,7 @@ export default function AccountsReceivableClient() {
                 </span>
               </div>
               <p
-                className={`mt-1 font-mono text-sm font-bold tabular-nums ${b.color}`}
+                className={`mt-1 font-mono text-sm font-medium tabular-nums ${b.color}`}
               >
                 ${b.total.toFixed(2)}
               </p>
@@ -336,9 +335,9 @@ export default function AccountsReceivableClient() {
       {overdueAccounts.length > 0 && (
         <div className="border-destructive/30 bg-destructive/10 text-destructive flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3.5 text-xs">
           <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-lg">warning</span>
+            <Icons.Warning className="size-4.5" />
             <div>
-              <p className="font-semibold">
+              <p className="font-medium">
                 {overdueAccounts.length} cuenta
                 {overdueAccounts.length > 1 ? "s" : ""} vencida
                 {overdueAccounts.length > 1 ? "s" : ""} por un total de $
@@ -357,7 +356,7 @@ export default function AccountsReceivableClient() {
           <button
             type="button"
             onClick={() => setStatusFilter("overdue")}
-            className="border-destructive/40 hover:bg-destructive/20 rounded-lg border px-3 py-1 font-semibold transition-colors"
+            className="border-destructive/40 hover:bg-destructive/20 rounded-lg border px-3 py-1 font-medium transition-colors"
           >
             Filtrar Vencidas
           </button>
@@ -423,7 +422,7 @@ export default function AccountsReceivableClient() {
                     <div>
                       <Link
                         href={`/accounts-receivable/${ar.id}`}
-                        className="text-foreground hover:text-primary text-sm font-semibold transition-colors"
+                        className="text-foreground hover:text-primary text-sm font-medium transition-colors"
                       >
                         {customer?.name ??
                           `Cliente ${ar.customerId.slice(0, 8)}`}
@@ -443,7 +442,7 @@ export default function AccountsReceivableClient() {
                         Saldo Pendiente
                       </p>
                       <p
-                        className={`font-mono text-base font-bold tabular-nums ${
+                        className={`font-mono text-base font-medium tabular-nums ${
                           balNum > 0 ? "text-primary" : "text-emerald-500"
                         }`}
                       >
@@ -475,7 +474,7 @@ export default function AccountsReceivableClient() {
                         {new Date(ar.dueDate).toLocaleDateString("es-VE")}
                       </span>
                       {daysOverdue > 0 && ar.status !== "paid" && (
-                        <span className="text-destructive ml-2 font-mono font-semibold tabular-nums">
+                        <span className="text-destructive ml-2 font-mono font-medium tabular-nums">
                           ({daysOverdue}d mora)
                         </span>
                       )}
@@ -493,7 +492,7 @@ export default function AccountsReceivableClient() {
                               orderId: ar.orderId,
                             })
                           }
-                          className="bg-primary text-primary-foreground hover:bg-primary/90 min-h-9 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors"
+                          className="bg-primary text-primary-foreground hover:bg-primary/90 min-h-9 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors"
                         >
                           Abonar
                         </button>
@@ -512,7 +511,7 @@ export default function AccountsReceivableClient() {
 
         {!isLoadingAR && filteredItems.length === 0 && (
           <EmptyState
-            icon="receipt_long"
+            icon="ReceiptLong"
             title="No se encontraron cuentas"
             description="No hay cuentas por cobrar que coincidan con los filtros seleccionados."
           />
@@ -604,7 +603,7 @@ export default function AccountsReceivableClient() {
                       <td className={cellPx}>
                         <Link
                           href={`/accounts-receivable/${ar.id}`}
-                          className="text-foreground hover:text-primary block text-xs font-semibold transition-colors"
+                          className="text-foreground hover:text-primary block text-xs font-medium transition-colors"
                         >
                           {customer?.name ?? `ID: ${ar.customerId.slice(0, 8)}`}
                         </Link>
@@ -642,12 +641,12 @@ export default function AccountsReceivableClient() {
                         ${Number(ar.paidAmount).toFixed(2)}
                       </td>
                       <td
-                        className={`text-foreground ${cellPx} text-right font-mono font-semibold tabular-nums`}
+                        className={`text-foreground ${cellPx} text-right font-mono font-medium tabular-nums`}
                       >
                         <span
                           className={
                             balNum > 0
-                              ? "text-primary font-bold"
+                              ? "text-primary font-medium"
                               : "text-emerald-500"
                           }
                         >
@@ -667,7 +666,7 @@ export default function AccountsReceivableClient() {
                       <td
                         className={`${cellPx} text-right font-mono text-xs tabular-nums ${
                           daysOverdue > 0 && ar.status !== "paid"
-                            ? "text-destructive font-bold"
+                            ? "text-destructive font-medium"
                             : "text-muted-foreground"
                         }`}
                       >
@@ -709,7 +708,7 @@ export default function AccountsReceivableClient() {
               <tr className="hover:bg-transparent">
                 <td colSpan={9} className="px-4 py-6">
                   <EmptyState
-                    icon="receipt_long"
+                    icon="ReceiptLong"
                     title="No se encontraron cuentas"
                     description="No hay cuentas por cobrar que coincidan con los filtros seleccionados."
                   />

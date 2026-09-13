@@ -7,6 +7,7 @@ import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 
 import { Button, Card, CardContent, CardHeader, CardTitle } from "@cendaro/ui";
+import { Icons } from "@cendaro/ui/icons";
 
 import type { StatusTone } from "~/components/status-badge";
 import { EmptyState } from "~/components/empty-state";
@@ -74,7 +75,7 @@ export default function ProductDetailPage() {
     return (
       <div className="p-4 lg:p-8">
         <EmptyState
-          icon="search_off"
+          icon="SearchOff"
           title="Producto no encontrado"
           description="El producto que buscas no existe o fue eliminado del catálogo."
           action={
@@ -110,14 +111,12 @@ export default function ProductDetailPage() {
           >
             Catálogo
           </Link>
-          <span aria-hidden className="material-symbols-outlined text-base">
-            chevron_right
-          </span>
+          <Icons.ChevronRight className="size-4" aria-hidden />
           <span className="text-foreground font-medium">{product.name}</span>
         </nav>
         <RoleGuard allow={["owner", "admin", "supervisor"]}>
           <Button variant="outline" onClick={() => setShowEdit(true)}>
-            <span className="material-symbols-outlined text-lg">edit</span>
+            <Icons.Edit className="size-4.5" />
             Editar
           </Button>
         </RoleGuard>
@@ -142,16 +141,14 @@ export default function ProductDetailPage() {
         <CardContent>
           <div className="flex flex-col gap-6 lg:flex-row">
             <div className="bg-muted flex size-32 shrink-0 items-center justify-center rounded-xl">
-              <span
+              <Icons.Image
+                className="text-muted-foreground size-9"
                 aria-hidden
-                className="material-symbols-outlined text-muted-foreground text-4xl"
-              >
-                image
-              </span>
+              />
             </div>
             <div className="flex-1 space-y-3">
               <div className="flex flex-wrap items-start gap-3">
-                <h1 className="text-foreground text-2xl font-semibold tracking-tight">
+                <h1 className="text-foreground text-2xl font-medium tracking-tight">
                   {product.name}
                 </h1>
                 <StatusBadge tone={badge.tone} className="mt-1">
@@ -161,14 +158,14 @@ export default function ProductDetailPage() {
               <div className="text-muted-foreground flex flex-wrap gap-x-6 gap-y-1 text-sm">
                 <span>
                   SKU:{" "}
-                  <strong className="text-foreground font-mono font-semibold tabular-nums">
+                  <strong className="text-foreground font-mono font-medium tabular-nums">
                     {product.sku}
                   </strong>
                 </span>
                 {product.barcode && (
                   <span>
                     Código:{" "}
-                    <strong className="text-foreground font-mono font-semibold tabular-nums">
+                    <strong className="text-foreground font-mono font-medium tabular-nums">
                       {product.barcode}
                     </strong>
                   </span>
@@ -189,20 +186,20 @@ export default function ProductDetailPage() {
         <StatCard
           label="SKU"
           value={<span className="font-mono text-base">{product.sku}</span>}
-          icon="qr_code"
+          icon="QrCode"
         />
         <StatCard
           label="Estado"
           value={badge.label}
-          icon="verified"
+          icon="Verified"
           tone={badge.tone === "neutral" ? "default" : badge.tone}
         />
         <StatCard
           label="Creado"
           value={new Date(product.createdAt).toLocaleDateString("es-VE")}
-          icon="calendar_today"
+          icon="CalendarToday"
         />
-        <StatCard label="Stock Total" value={totalStock} icon="inventory_2" />
+        <StatCard label="Stock Total" value={totalStock} icon="Inventory2" />
       </div>
 
       {/* Stock por Almacén */}
@@ -222,12 +219,10 @@ export default function ProductDetailPage() {
                 }) => (
                   <div key={s.id} className={metaRowClasses}>
                     <div className="flex min-w-0 items-center gap-2">
-                      <span
+                      <Icons.Warehouse
+                        className="text-muted-foreground size-4.5"
                         aria-hidden
-                        className="material-symbols-outlined text-muted-foreground text-lg"
-                      >
-                        warehouse
-                      </span>
+                      />
                       <span
                         className="text-foreground truncate font-mono text-sm tabular-nums"
                         title={s.warehouseId}
@@ -236,16 +231,14 @@ export default function ProductDetailPage() {
                       </span>
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
-                      <span className="text-foreground font-mono text-sm font-semibold tabular-nums">
+                      <span className="text-foreground font-mono text-sm font-medium tabular-nums">
                         {s.quantity.toLocaleString("es-VE")}
                       </span>
                       {s.isLocked && (
-                        <span
+                        <Icons.Lock
+                          className="text-destructive size-3.5"
                           aria-label="Stock bloqueado"
-                          className="material-symbols-outlined text-destructive text-sm"
-                        >
-                          lock
-                        </span>
+                        />
                       )}
                     </div>
                   </div>
@@ -268,17 +261,15 @@ export default function ProductDetailPage() {
                 (c: { id: string; channel: string; quantity: number }) => (
                   <div key={c.id} className={metaRowClasses}>
                     <div className="flex items-center gap-2">
-                      <span
+                      <Icons.Storefront
+                        className="text-muted-foreground size-4.5"
                         aria-hidden
-                        className="material-symbols-outlined text-muted-foreground text-lg"
-                      >
-                        storefront
-                      </span>
+                      />
                       <span className="text-foreground text-sm font-medium capitalize">
                         {c.channel}
                       </span>
                     </div>
-                    <span className="text-foreground font-mono text-sm font-semibold tabular-nums">
+                    <span className="text-foreground font-mono text-sm font-medium tabular-nums">
                       {c.quantity.toLocaleString("es-VE")}
                     </span>
                   </div>
@@ -323,7 +314,7 @@ export default function ProductDetailPage() {
                   {a.label}
                 </span>
                 <span
-                  className={`text-foreground truncate text-sm font-semibold ${
+                  className={`text-foreground truncate text-sm font-medium ${
                     a.mono ? "font-mono tabular-nums" : ""
                   }`}
                 >

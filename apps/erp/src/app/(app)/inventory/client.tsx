@@ -5,7 +5,9 @@ import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 
+import type { IconName } from "@cendaro/ui/icons";
 import { Button, Input } from "@cendaro/ui";
+import { Icon, Icons } from "@cendaro/ui/icons";
 
 import type { StatusTone } from "~/components/status-badge";
 import { EmptyState } from "~/components/empty-state";
@@ -27,26 +29,27 @@ const CycleCountDialog = lazy(() =>
 );
 
 /** Sales channels → system chart tokens (zero hardcodes). */
-const CHANNELS = [
-  {
-    key: "store",
-    label: "Tienda",
-    icon: "store",
-    tone: "bg-chart-1/15 text-chart-1",
-  },
-  {
-    key: "mercadolibre",
-    label: "ML",
-    icon: "shopping_cart",
-    tone: "bg-chart-2/15 text-chart-2",
-  },
-  {
-    key: "vendors",
-    label: "Vendedores",
-    icon: "group",
-    tone: "bg-chart-3/15 text-chart-3",
-  },
-];
+const CHANNELS: { key: string; label: string; icon: IconName; tone: string }[] =
+  [
+    {
+      key: "store",
+      label: "Tienda",
+      icon: "Store",
+      tone: "bg-chart-1/15 text-chart-1",
+    },
+    {
+      key: "mercadolibre",
+      label: "ML",
+      icon: "ShoppingCart",
+      tone: "bg-chart-2/15 text-chart-2",
+    },
+    {
+      key: "vendors",
+      label: "Vendedores",
+      icon: "Group",
+      tone: "bg-chart-3/15 text-chart-3",
+    },
+  ];
 
 /** Stock level → semantic token chip (single source of truth). */
 const STATUS_CONFIG: Record<string, { label: string; tone: StatusTone }> = {
@@ -154,18 +157,14 @@ export default function InventoryClient() {
               onClick={() => setShowTransfer(true)}
               className="min-h-11 flex-1 sm:flex-initial"
             >
-              <span className="material-symbols-outlined text-lg">
-                swap_horiz
-              </span>
+              <Icons.SwapHoriz className="size-4.5" />
               Transferir
             </Button>
             <Button
               onClick={() => setShowCycle(true)}
               className="min-h-11 flex-1 sm:flex-initial"
             >
-              <span className="material-symbols-outlined text-lg">
-                fact_check
-              </span>
+              <Icons.FactCheck className="size-4.5" />
               Conteo
             </Button>
           </div>
@@ -188,24 +187,24 @@ export default function InventoryClient() {
         <StatCard
           label="Stock Total"
           value={isLoading ? "—" : totalStock.toLocaleString("es-VE")}
-          icon="inventory_2"
+          icon="Inventory2"
           tone="primary"
         />
         <StatCard
           label="Productos"
           value={isLoading ? "—" : items.length.toLocaleString("es-VE")}
-          icon="category"
+          icon="Category"
         />
         <StatCard
           label="Bajo Stock"
           value={isLoading ? "—" : lowStockCount.toLocaleString("es-VE")}
-          icon="trending_down"
+          icon="TrendingDown"
           tone="warning"
         />
         <StatCard
           label="Sin Stock"
           value={isLoading ? "—" : outOfStockCount.toLocaleString("es-VE")}
-          icon="error"
+          icon="Error"
           tone="destructive"
         />
       </div>
@@ -223,15 +222,15 @@ export default function InventoryClient() {
             >
               <span
                 aria-hidden
-                className={`material-symbols-outlined flex size-10 shrink-0 items-center justify-center rounded-lg text-xl ${ch.tone}`}
+                className={`flex size-10 shrink-0 items-center justify-center rounded-lg ${ch.tone}`}
               >
-                {ch.icon}
+                <Icon name={ch.icon} className="size-5" />
               </span>
               <div className="min-w-0">
                 <p className="text-muted-foreground text-xs font-medium tracking-wider uppercase">
                   {ch.label}
                 </p>
-                <p className="text-foreground font-mono text-lg font-semibold tabular-nums">
+                <p className="text-foreground font-mono text-lg font-medium tabular-nums">
                   {(chData?.stock ?? 0).toLocaleString("es-VE")}
                 </p>
               </div>
@@ -249,14 +248,11 @@ export default function InventoryClient() {
               href={`/inventory/warehouse/${w.id}`}
               className="border-border-subtle surface-card hover:border-primary/30 flex min-w-45 shrink-0 items-center gap-3 rounded-xl border p-4 transition-colors"
             >
-              <span
-                aria-hidden
-                className="bg-secondary text-muted-foreground material-symbols-outlined flex size-10 shrink-0 items-center justify-center rounded-lg text-xl"
-              >
-                warehouse
+              <span className="bg-secondary text-muted-foreground flex size-10 shrink-0 items-center justify-center rounded-lg">
+                <Icons.Warehouse className="size-5" aria-hidden />
               </span>
               <div className="min-w-0">
-                <p className="text-foreground truncate text-sm font-semibold">
+                <p className="text-foreground truncate text-sm font-medium">
                   {w.name}
                 </p>
                 <p className="text-muted-foreground truncate text-xs">
@@ -271,12 +267,10 @@ export default function InventoryClient() {
       {/* Search + Filter */}
       <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
         <div className="relative flex-1">
-          <span
+          <Icons.Search
+            className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2"
             aria-hidden
-            className="material-symbols-outlined text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-base"
-          >
-            search
-          </span>
+          />
           <Input
             type="text"
             placeholder="Buscar producto..."
@@ -349,7 +343,7 @@ export default function InventoryClient() {
                           {c.l}
                         </p>
                         <p
-                          className={`text-foreground mt-0.5 font-mono text-sm tabular-nums ${c.strong ? "font-semibold" : ""}`}
+                          className={`text-foreground mt-0.5 font-mono text-sm tabular-nums ${c.strong ? "font-medium" : ""}`}
                         >
                           {c.v.toLocaleString("es-VE")}
                         </p>
@@ -361,7 +355,7 @@ export default function InventoryClient() {
             })}
         {!isLoading && filtered.length === 0 && (
           <EmptyState
-            icon="inventory_2"
+            icon="Inventory2"
             title="No se encontraron items"
             description="Ajusta la búsqueda o el filtro de stock e inténtalo de nuevo."
           />
@@ -446,7 +440,7 @@ export default function InventoryClient() {
                           </StatusBadge>
                         </td>
                         <td
-                          className={`text-foreground ${cellPx} ${colWidths[3]} text-right font-mono font-semibold tabular-nums`}
+                          className={`text-foreground ${cellPx} ${colWidths[3]} text-right font-mono font-medium tabular-nums`}
                         >
                           {item.totalStock.toLocaleString("es-VE")}
                         </td>
@@ -474,7 +468,7 @@ export default function InventoryClient() {
                 <tr className="hover:bg-transparent">
                   <td colSpan={7} className="px-4 py-6">
                     <EmptyState
-                      icon="inventory_2"
+                      icon="Inventory2"
                       title="No se encontraron items"
                       description="Ajusta la búsqueda o el filtro de stock e inténtalo de nuevo."
                     />

@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { useTheme } from "next-themes";
 
+import { Icons } from "@cendaro/ui/icons";
+
 export function ThemeToggle() {
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
@@ -18,7 +20,7 @@ export function ThemeToggle() {
         className="bg-secondary text-muted-foreground flex size-9 items-center justify-center rounded-lg"
         aria-label="Toggle theme"
       >
-        <span className="material-symbols-outlined text-xl">light_mode</span>
+        <Icons.LightMode className="size-5" />
       </button>
     );
   }
@@ -32,9 +34,11 @@ export function ThemeToggle() {
       aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
       title={isDark ? "Cambiar a modo claro" : "Cambiar a modo oscuro"}
     >
-      <span className="material-symbols-outlined text-xl">
-        {isDark ? "light_mode" : "dark_mode"}
-      </span>
+      {isDark ? (
+        <Icons.LightMode className="size-5" />
+      ) : (
+        <Icons.DarkMode className="size-5" />
+      )}
     </button>
   );
 }

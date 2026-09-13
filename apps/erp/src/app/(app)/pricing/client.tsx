@@ -3,6 +3,9 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import type { IconName } from "@cendaro/ui/icons";
+import { Icon, Icons } from "@cendaro/ui/icons";
+
 import type { StatusTone } from "~/components/status-badge";
 import { EmptyState } from "~/components/empty-state";
 import { PageHeader } from "~/components/page-header";
@@ -15,24 +18,24 @@ import { useTRPC } from "~/trpc/client";
 interface TriggerConfig {
   label: string;
   tone: StatusTone;
-  icon: string;
+  icon: IconName;
 }
 
 const TRIGGER_CONFIG: Record<string, TriggerConfig> = {
   auto: {
     label: "Automático",
     tone: "primary",
-    icon: "bolt",
+    icon: "Bolt",
   },
   manual: {
     label: "Manual",
     tone: "neutral",
-    icon: "edit",
+    icon: "Edit",
   },
   scheduled: {
     label: "Programado",
     tone: "warning",
-    icon: "schedule",
+    icon: "Schedule",
   },
 };
 
@@ -99,10 +102,8 @@ export default function PricingClient() {
         description="Repricing masivo, auditoría de precios y aprobaciones ejecutivas"
         actions={
           pendingApproval > 0 ? (
-            <div className="border-warning/30 bg-warning/10 text-warning flex items-center gap-2 rounded-xl border px-3.5 py-2 text-xs font-semibold">
-              <span className="material-symbols-outlined text-base">
-                hourglass_top
-              </span>
+            <div className="border-warning/30 bg-warning/10 text-warning flex items-center gap-2 rounded-xl border px-3.5 py-2 text-xs font-medium">
+              <Icons.HourglassTop className="size-4" />
               <span className="font-mono tabular-nums">{pendingApproval}</span>
               <span>repricing pendiente{pendingApproval > 1 ? "s" : ""}</span>
             </div>
@@ -113,9 +114,9 @@ export default function PricingClient() {
       {/* Critical Variation Alert (≥ 5% Trigger PRD §12) */}
       {hasHighVariation && (
         <div className="border-destructive/30 bg-destructive/10 text-destructive flex items-center gap-3 rounded-xl border p-4 text-xs">
-          <span className="material-symbols-outlined text-xl">warning</span>
+          <Icons.Warning className="size-5" />
           <div>
-            <p className="font-bold">
+            <p className="font-medium">
               Alerta de Variación Cambiaria Crítica (≥ 5% detectada)
             </p>
             <p className="mt-0.5 opacity-90">
@@ -134,13 +135,13 @@ export default function PricingClient() {
           value={
             eventsLoading ? "—" : eventsList.length.toLocaleString("es-VE")
           }
-          icon="sync"
+          icon="Sync"
           tone="primary"
         />
         <StatCard
           label="Pendientes Aprobación"
           value={eventsLoading ? "—" : pendingApproval.toLocaleString("es-VE")}
-          icon="hourglass_top"
+          icon="HourglassTop"
           tone={pendingApproval > 0 ? "warning" : "default"}
         />
         <StatCard
@@ -148,14 +149,14 @@ export default function PricingClient() {
           value={
             historyLoading ? "—" : historyList.length.toLocaleString("es-VE")
           }
-          icon="trending_up"
+          icon="TrendingUp"
         />
         <StatCard
           label="Productos Afectados"
           value={
             eventsLoading ? "—" : totalProductsAffected.toLocaleString("es-VE")
           }
-          icon="inventory_2"
+          icon="Inventory2"
         />
       </div>
 
@@ -168,7 +169,7 @@ export default function PricingClient() {
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
-            className={`min-h-10 rounded-t-xl px-4 py-2 text-xs font-semibold transition-colors ${
+            className={`min-h-10 rounded-t-xl px-4 py-2 text-xs font-medium transition-colors ${
               tab === t.key
                 ? "border-border-subtle bg-card text-foreground border-t border-r border-l shadow-xs"
                 : "text-muted-foreground hover:text-foreground"
@@ -196,7 +197,7 @@ export default function PricingClient() {
                 const trig = TRIGGER_CONFIG[event.trigger] ?? {
                   label: event.trigger,
                   tone: "neutral" as StatusTone,
-                  icon: "bolt",
+                  icon: "Bolt" as const,
                 };
                 const rateLabel = event.rateType
                   ? `${RATE_TYPE_LABELS[event.rateType] ?? event.rateType}`
@@ -213,19 +214,20 @@ export default function PricingClient() {
                   >
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div className="flex items-center gap-3">
-                        <span className="material-symbols-outlined text-muted-foreground text-xl">
-                          {trig.icon}
-                        </span>
+                        <Icon
+                          name={trig.icon}
+                          className="text-muted-foreground size-5"
+                        />
                         <div>
                           <div className="flex items-center gap-2">
                             <StatusBadge tone={trig.tone}>
                               {trig.label}
                             </StatusBadge>
-                            <span className="text-foreground text-xs font-semibold">
+                            <span className="text-foreground text-xs font-medium">
                               {rateLabel}
                             </span>
                             {event.variationPct != null && (
-                              <span className="text-muted-foreground font-mono text-xs font-bold tabular-nums">
+                              <span className="text-muted-foreground font-mono text-xs font-medium tabular-nums">
                                 (Δ {event.variationPct.toFixed(1)}%)
                               </span>
                             )}
@@ -256,9 +258,7 @@ export default function PricingClient() {
                       <div>
                         {event.isApproved ? (
                           <StatusBadge tone="success">
-                            <span className="material-symbols-outlined mr-1 text-xs">
-                              check_circle
-                            </span>
+                            <Icons.CheckCircle className="mr-1 size-3" />
                             Aprobado
                           </StatusBadge>
                         ) : (
@@ -267,7 +267,7 @@ export default function PricingClient() {
                               type="button"
                               onClick={() => approve.mutate({ id: event.id })}
                               disabled={approve.isPending}
-                              className="bg-primary text-primary-foreground hover:bg-primary/90 min-h-9 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-colors disabled:opacity-50"
+                              className="bg-primary text-primary-foreground hover:bg-primary/90 min-h-9 rounded-lg px-3.5 py-1.5 text-xs font-medium transition-colors disabled:opacity-50"
                             >
                               {approve.isPending
                                 ? "Aprobando..."
@@ -283,7 +283,7 @@ export default function PricingClient() {
 
           {!eventsLoading && eventsList.length === 0 && (
             <EmptyState
-              icon="price_change"
+              icon="PriceChange"
               title="No hay eventos de repricing"
               description="Las variaciones de cotización generarán eventos automáticos cuando superen el umbral configurado."
             />
@@ -343,7 +343,7 @@ export default function PricingClient() {
                     const trig = TRIGGER_CONFIG[entry.trigger] ?? {
                       label: entry.trigger,
                       tone: "neutral" as StatusTone,
-                      icon: "bolt",
+                      icon: "Bolt" as const,
                     };
                     return (
                       <tr
@@ -367,7 +367,7 @@ export default function PricingClient() {
                           ${entry.oldAmountUsd?.toFixed(2) ?? "—"}
                         </td>
                         <td
-                          className={`text-foreground ${cellPx} text-right font-mono text-sm font-bold tabular-nums`}
+                          className={`text-foreground ${cellPx} text-right font-mono text-sm font-medium tabular-nums`}
                         >
                           ${entry.newAmountUsd.toFixed(2)}
                         </td>
@@ -391,7 +391,7 @@ export default function PricingClient() {
                     <tr className="hover:bg-transparent">
                       <td colSpan={6} className="px-4 py-6">
                         <EmptyState
-                          icon="price_change"
+                          icon="PriceChange"
                           title="Sin registros de auditoría"
                           description="Los ajustes y recálculos de precios de catálogo se documentarán en esta tabla."
                         />

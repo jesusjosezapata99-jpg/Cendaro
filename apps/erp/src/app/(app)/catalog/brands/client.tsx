@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import { useQuery } from "@tanstack/react-query";
 
 import { Button, Input } from "@cendaro/ui";
+import { Icons } from "@cendaro/ui/icons";
 
 import { EmptyState } from "~/components/empty-state";
 import { PageHeader } from "~/components/page-header";
@@ -50,7 +51,7 @@ export default function BrandsPage() {
         description={`${(brands?.length ?? 0).toLocaleString("es-VE")} marcas registradas en el catálogo`}
         actions={
           <Button onClick={() => setShowCreate(true)} className="min-h-11">
-            <span className="material-symbols-outlined text-lg">add</span>
+            <Icons.Add className="size-4.5" />
             Nueva Marca
           </Button>
         }
@@ -63,12 +64,10 @@ export default function BrandsPage() {
 
       {/* Search */}
       <div className="relative">
-        <span
+        <Icons.Search
+          className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2"
           aria-hidden
-          className="material-symbols-outlined text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-base"
-        >
-          search
-        </span>
+        />
         <Input
           type="text"
           placeholder="Buscar marca..."
@@ -104,7 +103,7 @@ export default function BrandsPage() {
                 <div className="flex items-center gap-3">
                   <div
                     aria-hidden
-                    className={`flex size-12 shrink-0 items-center justify-center rounded-xl text-sm font-bold ${tone}`}
+                    className={`flex size-12 shrink-0 items-center justify-center rounded-xl text-sm font-medium ${tone}`}
                   >
                     {initials}
                   </div>
@@ -128,7 +127,7 @@ export default function BrandsPage() {
 
       {filtered.length === 0 && !isLoading && (
         <EmptyState
-          icon="label_off"
+          icon="LabelOff"
           title="No se encontraron marcas"
           description="Ajusta la búsqueda o crea una nueva marca para empezar."
         />

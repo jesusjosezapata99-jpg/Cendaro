@@ -3,6 +3,8 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
+import { Icons } from "@cendaro/ui/icons";
+
 import {
   Dialog,
   Field,
@@ -188,14 +190,14 @@ export function CreateClosureDialog({ open, onClose }: Props) {
             }`}
           >
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5 text-xs font-semibold">
-                <span className="material-symbols-outlined text-base">
-                  {Math.abs(discrepancy) < 0.01
-                    ? "check_circle"
-                    : discrepancy < 0
-                      ? "warning"
-                      : "info"}
-                </span>
+              <div className="flex items-center gap-1.5 text-xs font-medium">
+                {Math.abs(discrepancy) < 0.01 ? (
+                  <Icons.CheckCircle className="size-4" />
+                ) : discrepancy < 0 ? (
+                  <Icons.Warning className="size-4" />
+                ) : (
+                  <Icons.Info className="size-4" />
+                )}
                 <span>
                   {Math.abs(discrepancy) < 0.01
                     ? "Caja Cuadrada (Sin discrepancias)"
@@ -205,7 +207,7 @@ export function CreateClosureDialog({ open, onClose }: Props) {
                 </span>
               </div>
               <div className="text-right">
-                <span className="font-mono text-sm font-bold tabular-nums">
+                <span className="font-mono text-sm font-medium tabular-nums">
                   {discrepancy >= 0 ? "+" : ""}${discrepancy.toFixed(2)}
                 </span>
                 {bcv.rate > 0 && Math.abs(discrepancy) >= 0.01 && (

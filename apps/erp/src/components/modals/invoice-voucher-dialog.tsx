@@ -12,6 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from "@cendaro/ui";
+import { Icons } from "@cendaro/ui/icons";
 
 import type { StatusTone } from "~/components/status-badge";
 import { Dialog } from "~/components/dialog";
@@ -200,10 +201,8 @@ export function InvoiceVoucherDialog({
         </div>
       ) : !order ? (
         <div className="py-12 text-center">
-          <span className="material-symbols-outlined text-muted-foreground mx-auto mb-2 block text-4xl">
-            receipt_long
-          </span>
-          <p className="text-foreground font-semibold">Factura no encontrada</p>
+          <Icons.ReceiptLong className="text-muted-foreground mx-auto mb-2 block size-9" />
+          <p className="text-foreground font-medium">Factura no encontrada</p>
           <p className="text-muted-foreground mt-1 text-sm">
             No se pudo obtener la información de esta orden de venta.
           </p>
@@ -214,7 +213,7 @@ export function InvoiceVoucherDialog({
           <div className="border-border-subtle bg-accent/20 rounded-xl border p-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <span className="text-muted-foreground text-[10px] font-bold tracking-widest uppercase">
+                <span className="text-muted-foreground text-[10px] font-medium tracking-widest uppercase">
                   Factura Proforma Interna
                 </span>
                 <p className="text-primary font-mono text-xl font-black tracking-tight tabular-nums">
@@ -238,10 +237,10 @@ export function InvoiceVoucherDialog({
           <div className="grid grid-cols-1 gap-4 text-xs sm:grid-cols-2">
             {/* Customer Box */}
             <div className="border-border-subtle surface-card space-y-1.5 rounded-xl border p-3.5">
-              <span className="text-muted-foreground text-[10px] font-bold tracking-widest uppercase">
+              <span className="text-muted-foreground text-[10px] font-medium tracking-widest uppercase">
                 Receptor / Cliente
               </span>
-              <p className="text-foreground text-sm font-semibold">
+              <p className="text-foreground text-sm font-medium">
                 {customer?.name ?? "Cliente Mostrador / Ocasional"}
               </p>
               {customer?.legalName && (
@@ -275,7 +274,7 @@ export function InvoiceVoucherDialog({
 
             {/* Commercial terms & Issuer Box */}
             <div className="border-border-subtle surface-card space-y-1.5 rounded-xl border p-3.5">
-              <span className="text-muted-foreground text-[10px] font-bold tracking-widest uppercase">
+              <span className="text-muted-foreground text-[10px] font-medium tracking-widest uppercase">
                 Emisión & Condiciones
               </span>
               <div className="text-muted-foreground space-y-1">
@@ -310,7 +309,7 @@ export function InvoiceVoucherDialog({
           {/* Items breakdown table */}
           <div>
             <div className="mb-2 flex items-center justify-between">
-              <h4 className="text-foreground text-xs font-bold tracking-wider uppercase">
+              <h4 className="text-foreground text-xs font-medium tracking-wider uppercase">
                 Renglones Facturados ({order.items.length})
               </h4>
             </div>
@@ -318,19 +317,19 @@ export function InvoiceVoucherDialog({
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="px-3 py-2 text-xs font-semibold uppercase">
+                    <TableHead className="px-3 py-2 text-xs font-medium uppercase">
                       Ítem / Producto
                     </TableHead>
-                    <TableHead className="px-3 py-2 text-right text-xs font-semibold uppercase">
+                    <TableHead className="px-3 py-2 text-right text-xs font-medium uppercase">
                       Cant.
                     </TableHead>
-                    <TableHead className="px-3 py-2 text-right text-xs font-semibold uppercase">
+                    <TableHead className="px-3 py-2 text-right text-xs font-medium uppercase">
                       P. Unit
                     </TableHead>
-                    <TableHead className="px-3 py-2 text-right text-xs font-semibold uppercase">
+                    <TableHead className="px-3 py-2 text-right text-xs font-medium uppercase">
                       Total USD
                     </TableHead>
-                    <TableHead className="hidden px-3 py-2 text-right text-xs font-semibold uppercase sm:table-cell">
+                    <TableHead className="hidden px-3 py-2 text-right text-xs font-medium uppercase sm:table-cell">
                       Total Bs.
                     </TableHead>
                   </TableRow>
@@ -361,7 +360,7 @@ export function InvoiceVoucherDialog({
                           <TableCell className="px-3 py-2 text-right font-mono tabular-nums">
                             ${Number(item.unitPrice).toFixed(2)}
                           </TableCell>
-                          <TableCell className="text-foreground px-3 py-2 text-right font-mono font-semibold tabular-nums">
+                          <TableCell className="text-foreground px-3 py-2 text-right font-mono font-medium tabular-nums">
                             ${Number(item.lineTotal).toFixed(2)}
                           </TableCell>
                           <TableCell className="text-muted-foreground hidden px-3 py-2 text-right font-mono tabular-nums sm:table-cell">
@@ -403,7 +402,7 @@ export function InvoiceVoucherDialog({
               </div>
             )}
             <div className="border-border-subtle my-1 flex items-baseline justify-between border-t pt-2">
-              <span className="text-foreground text-sm font-bold">
+              <span className="text-foreground text-sm font-medium">
                 Total Facturado (USD):
               </span>
               <span className="text-primary font-mono text-lg font-black tabular-nums">
@@ -412,7 +411,7 @@ export function InvoiceVoucherDialog({
             </div>
             <div className="text-muted-foreground flex justify-between text-xs">
               <span>Equivalente Legal BCV:</span>
-              <span className="text-foreground font-mono font-semibold tabular-nums">
+              <span className="text-foreground font-mono font-medium tabular-nums">
                 {formatDualCurrency(order.total, bcv.rate).bs}
               </span>
             </div>
@@ -425,7 +424,7 @@ export function InvoiceVoucherDialog({
                 {formatDualCurrency(order.totalPaid ?? 0, bcv.rate).bs})
               </span>
             </div>
-            <div className="flex justify-between text-xs font-semibold">
+            <div className="flex justify-between text-xs font-medium">
               <span className="text-muted-foreground">Saldo Pendiente:</span>
               <span
                 className={`font-mono tabular-nums ${
@@ -454,7 +453,7 @@ export function InvoiceVoucherDialog({
           {/* Payments list if any */}
           {order.payments.length > 0 && (
             <div className="space-y-2">
-              <h4 className="text-foreground text-xs font-bold tracking-wider uppercase">
+              <h4 className="text-foreground text-xs font-medium tracking-wider uppercase">
                 Historial de Pagos ({order.payments.length})
               </h4>
               <div className="space-y-1.5">
@@ -464,7 +463,7 @@ export function InvoiceVoucherDialog({
                     className="border-border-subtle surface-card flex items-center justify-between rounded-lg border px-3 py-2 text-xs"
                   >
                     <div>
-                      <span className="text-foreground font-semibold">
+                      <span className="text-foreground font-medium">
                         {PAYMENT_METHODS[p.method] ?? p.method}
                       </span>
                       {p.reference && (
@@ -473,7 +472,7 @@ export function InvoiceVoucherDialog({
                         </span>
                       )}
                     </div>
-                    <span className="font-mono font-bold text-emerald-500 tabular-nums">
+                    <span className="font-mono font-medium text-emerald-500 tabular-nums">
                       ${Number(p.amount).toFixed(2)}
                     </span>
                   </div>
@@ -484,9 +483,7 @@ export function InvoiceVoucherDialog({
 
           {/* Legal disclaimer */}
           <div className="bg-muted/40 text-muted-foreground rounded-lg p-3 text-center text-[11px]">
-            <span className="material-symbols-outlined mr-1 align-middle text-sm">
-              verified
-            </span>
+            <Icons.Verified className="mr-1 size-3.5 align-middle" />
             Documento de control administrativo interno proforma emitido por el
             sistema Cendaro ERP.
           </div>
@@ -498,16 +495,12 @@ export function InvoiceVoucherDialog({
               onClick={handlePrint}
               className="min-h-10 text-xs"
             >
-              <span className="material-symbols-outlined text-base">
-                receipt_long
-              </span>
+              <Icons.ReceiptLong className="size-4" />
               Imprimir Comprobante
             </Button>
             <Button variant="outline" asChild className="min-h-10 text-xs">
               <Link href={`/orders/${order.id}`}>
-                <span className="material-symbols-outlined text-base">
-                  open_in_new
-                </span>
+                <Icons.OpenInNew className="size-4" />
                 Ver Pedido
               </Link>
             </Button>
@@ -516,7 +509,7 @@ export function InvoiceVoucherDialog({
               onClick={onClose}
               className="min-h-10 text-xs"
             >
-              <span className="material-symbols-outlined text-base">close</span>
+              <Icons.Close className="size-4" />
               Cerrar
             </Button>
           </div>

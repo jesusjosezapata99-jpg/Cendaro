@@ -4,21 +4,38 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./button": "./src/button.tsx"
+    "./button": "./src/button.tsx",
+    "./icons": "./src/icons.tsx",
+    "./dialog": "./src/dialog.tsx",
+    "./sheet": "./src/sheet.tsx",
+    "./popover": "./src/popover.tsx",
+    "./tooltip": "./src/tooltip.tsx",
+    "./checkbox": "./src/checkbox.tsx",
+    "./switch": "./src/switch.tsx",
+    "./avatar": "./src/avatar.tsx",
+    "./spinner": "./src/spinner.tsx",
+    "./submit-button": "./src/submit-button.tsx",
+    "./animated-size-container": "./src/animated-size-container.tsx",
+    "./status-pill": "./src/status-pill.tsx",
+    "./textarea": "./src/textarea.tsx"
   },
   "license": "AGPL-3.0",
   "scripts": {
     "clean": "git clean -xdf .cache .turbo dist node_modules",
     "format": "prettier --check . --ignore-path ../../.gitignore",
+    "icons": "node scripts/generate-icons.mjs",
     "lint": "eslint --cache --cache-location .cache/.eslintcache",
     "typecheck": "tsc --noEmit --emitDeclarationOnly false",
     "ui-add": "pnpm dlx shadcn@latest add && prettier src --write --list-different"
   },
   "dependencies": {
+    "@number-flow/react": "0.6.2",
     "@radix-ui/react-icons": "^1.3.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "framer-motion": "^13.1.0",
     "radix-ui": "^1.6.7",
+    "react-icons": "5.7.0",
     "recharts": "^3.10.1",
     "sonner": "^2.0.8",
     "tailwind-merge": "^3.6.0"

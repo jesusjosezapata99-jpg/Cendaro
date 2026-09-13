@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import { useQuery } from "@tanstack/react-query";
 
 import { Button, Input } from "@cendaro/ui";
+import { Icons } from "@cendaro/ui/icons";
 
 import { EmptyState } from "~/components/empty-state";
 import { PageHeader } from "~/components/page-header";
@@ -87,7 +88,7 @@ export default function CategoriesPage() {
         description={`${totalCategories.toLocaleString("es-VE")} categorías organizadas jerárquicamente`}
         actions={
           <Button onClick={() => setShowCreate(true)} className="min-h-11">
-            <span className="material-symbols-outlined text-lg">add</span>
+            <Icons.Add className="size-4.5" />
             Nueva Categoría
           </Button>
         }
@@ -100,12 +101,10 @@ export default function CategoriesPage() {
 
       {/* Search */}
       <div className="relative">
-        <span
+        <Icons.Search
+          className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2"
           aria-hidden
-          className="material-symbols-outlined text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-base"
-        >
-          search
-        </span>
+        />
         <Input
           type="text"
           placeholder="Buscar categoría..."
@@ -141,9 +140,11 @@ export default function CategoriesPage() {
                       aria-hidden
                       className="bg-secondary text-muted-foreground flex size-8 shrink-0 items-center justify-center rounded-lg"
                     >
-                      <span className="material-symbols-outlined text-base">
-                        {hasChildren ? "category" : "description"}
-                      </span>
+                      {hasChildren ? (
+                        <Icons.Category className="size-4" />
+                      ) : (
+                        <Icons.Description className="size-4" />
+                      )}
                     </span>
                     <div className="min-w-0">
                       <p className="text-foreground truncate font-medium">
@@ -163,14 +164,11 @@ export default function CategoriesPage() {
                           : "subcategorías"}
                       </span>
                     )}
-                    <span
-                      aria-hidden
-                      className={`material-symbols-outlined text-muted-foreground text-base transition-transform duration-200 ${
+                    <Icons.ExpandMore
+                      className={`text-muted-foreground size-4 transition-transform duration-200 ${
                         isExpanded ? "rotate-180" : ""
                       } motion-reduce:transition-none`}
-                    >
-                      expand_more
-                    </span>
+                    />
                   </div>
                 </button>
 
@@ -203,7 +201,7 @@ export default function CategoriesPage() {
 
       {filtered.length === 0 && !isLoading && (
         <EmptyState
-          icon="folder_off"
+          icon="FolderOff"
           title="No se encontraron categorías"
           description="Ajusta la búsqueda o crea una nueva categoría para empezar."
         />

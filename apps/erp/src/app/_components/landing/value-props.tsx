@@ -66,7 +66,7 @@ export function ValueProps() {
                   {item.label}
                 </span>
                 <div className="mt-3 flex items-baseline gap-1.5">
-                  <span className="text-foreground text-2xl font-semibold tracking-tight tabular-nums">
+                  <span className="text-foreground text-2xl font-medium tracking-tight tabular-nums">
                     {item.metric}
                   </span>
                   <span className="text-muted-foreground text-xs">
@@ -90,7 +90,7 @@ export function ValueProps() {
                 <span className="text-muted-foreground/50 text-xs font-medium tracking-wider uppercase">
                   Cuando todo se acumula
                 </span>
-                <h3 className="text-foreground mt-2 text-xl leading-tight font-semibold tracking-tight">
+                <h3 className="text-foreground mt-2 text-xl leading-tight font-medium tracking-tight">
                   Lo que desaparece con Cendaro
                 </h3>
                 <p className="text-muted-foreground/60 mt-3 text-sm leading-relaxed">

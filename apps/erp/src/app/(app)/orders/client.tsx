@@ -5,7 +5,9 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 
+import type { IconName } from "@cendaro/ui/icons";
 import { Button } from "@cendaro/ui";
+import { Icon, Icons } from "@cendaro/ui/icons";
 
 import type { StatusTone } from "~/components/status-badge";
 import { EmptyState } from "~/components/empty-state";
@@ -39,12 +41,12 @@ const STATUS_CONFIG: Record<string, { label: string; tone: StatusTone }> = {
   returned: { label: "Devuelto", tone: "neutral" },
 };
 
-const CHANNEL_ICONS: Record<string, string> = {
-  store: "store",
-  mercadolibre: "shopping_cart",
-  vendors: "local_shipping",
-  whatsapp: "chat",
-  instagram: "photo_camera",
+const CHANNEL_ICONS: Record<string, IconName> = {
+  store: "Store",
+  mercadolibre: "ShoppingCart",
+  vendors: "LocalShipping",
+  whatsapp: "Chat",
+  instagram: "PhotoCamera",
 };
 
 /** Shared cell padding for the orders table. */
@@ -91,7 +93,7 @@ export default function OrdersClient() {
               onClick={() => setShowCreate(true)}
               className="min-h-11 flex-1 sm:flex-initial"
             >
-              <span className="material-symbols-outlined text-lg">add</span>
+              <Icons.Add className="size-4.5" />
               Nueva Orden
             </Button>
           </div>
@@ -108,7 +110,7 @@ export default function OrdersClient() {
         <StatCard
           label="Órdenes"
           value={isLoading ? "—" : list.length.toLocaleString("es-VE")}
-          icon="list_alt"
+          icon="ListAlt"
         />
         <StatCard
           label="Total Ingresos"
@@ -120,7 +122,7 @@ export default function OrdersClient() {
               ? undefined
               : formatDualCurrency(totalIngresos, bcv.rate).bs
           }
-          icon="payments"
+          icon="Payments"
           tone="primary"
         />
         <StatCard
@@ -133,7 +135,7 @@ export default function OrdersClient() {
               ? undefined
               : formatDualCurrency(totalCobrado, bcv.rate).bs
           }
-          icon="check_circle"
+          icon="CheckCircle"
           tone="success"
         />
       </div>
@@ -181,14 +183,12 @@ export default function OrdersClient() {
                 >
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2">
-                      <span
-                        aria-hidden
-                        className="material-symbols-outlined text-muted-foreground text-lg"
+                      <Icon
+                        name={CHANNEL_ICONS[order.channel] ?? "ListAlt"}
+                        className="text-muted-foreground size-4.5"
                         title={order.channel}
-                      >
-                        {CHANNEL_ICONS[order.channel] ?? "list_alt"}
-                      </span>
-                      <span className="text-primary font-mono text-sm font-semibold tabular-nums">
+                      />
+                      <span className="text-primary font-mono text-sm font-medium tabular-nums">
                         {order.orderNumber}
                       </span>
                     </div>
@@ -201,7 +201,7 @@ export default function OrdersClient() {
                       <p className="text-muted-foreground text-xs font-medium tracking-wider uppercase">
                         Total
                       </p>
-                      <p className="text-foreground font-mono font-semibold tabular-nums">
+                      <p className="text-foreground font-mono font-medium tabular-nums">
                         ${Number(order.total).toFixed(2)}
                       </p>
                       {bcv.rate > 0 && (
@@ -215,7 +215,7 @@ export default function OrdersClient() {
                         Pagado
                       </p>
                       <p
-                        className={`font-mono font-semibold tabular-nums ${
+                        className={`font-mono font-medium tabular-nums ${
                           isPaid ? "text-success-soft" : "text-warning-soft"
                         }`}
                       >
@@ -231,7 +231,7 @@ export default function OrdersClient() {
             })}
         {!isLoading && list.length === 0 && (
           <EmptyState
-            icon="shopping_cart_off"
+            icon="ShoppingCartOff"
             title="No se encontraron órdenes"
             description="Ajusta el filtro de estado o crea una nueva orden para comenzar."
           />
@@ -300,19 +300,17 @@ export default function OrdersClient() {
                       <td className={cellPx}>
                         <Link
                           href={`/orders/${order.id}`}
-                          className="text-primary font-mono text-xs font-semibold tabular-nums hover:underline"
+                          className="text-primary font-mono text-xs font-medium tabular-nums hover:underline"
                         >
                           {order.orderNumber}
                         </Link>
                       </td>
                       <td className={cellPx}>
-                        <span
-                          aria-hidden
-                          className="material-symbols-outlined text-muted-foreground text-lg"
+                        <Icon
+                          name={CHANNEL_ICONS[order.channel] ?? "ListAlt"}
+                          className="text-muted-foreground size-4.5"
                           title={order.channel}
-                        >
-                          {CHANNEL_ICONS[order.channel] ?? "list_alt"}
-                        </span>
+                        />
                       </td>
                       <td className={`${cellPx} text-center`}>
                         <StatusBadge tone={statusCfg.tone}>
@@ -320,7 +318,7 @@ export default function OrdersClient() {
                         </StatusBadge>
                       </td>
                       <td
-                        className={`text-foreground ${cellPx} text-right font-mono font-semibold tabular-nums`}
+                        className={`text-foreground ${cellPx} text-right font-mono font-medium tabular-nums`}
                       >
                         ${Number(order.total).toFixed(2)}
                         {bcv.rate > 0 && (
@@ -333,7 +331,7 @@ export default function OrdersClient() {
                         )}
                       </td>
                       <td
-                        className={`${cellPx} text-right font-mono font-semibold tabular-nums ${
+                        className={`${cellPx} text-right font-mono font-medium tabular-nums ${
                           isPaid ? "text-success-soft" : "text-warning-soft"
                         }`}
                       >
@@ -361,7 +359,7 @@ export default function OrdersClient() {
               <tr className="hover:bg-transparent">
                 <td colSpan={6} className="px-4 py-6">
                   <EmptyState
-                    icon="shopping_cart_off"
+                    icon="ShoppingCartOff"
                     title="No se encontraron órdenes"
                     description="Ajusta el filtro de estado o crea una nueva orden para comenzar."
                   />

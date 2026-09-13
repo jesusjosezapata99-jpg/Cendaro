@@ -29,43 +29,17 @@
   --landing-glow-opacity: 0.06;
 }
 
-@keyframes count-pulse {
-  0%,
-  100% {
-    transform: scale(1);
-  }
-  50% {
-    transform: scale(1.05);
-  }
-}
-
-@keyframes row-highlight {
-  0%,
-  100% {
-    background: transparent;
-  }
-  50% {
-    background: oklch(0.75 0.1 145 / 0.08);
-  }
-}
-
+/* Skeleton shimmer (M-16): background-position sweep, 2.5s linear infinite */
 @keyframes shimmer {
   0% {
-    background-position: -200% 0;
-  }
-  100% {
     background-position: 200% 0;
   }
-}
-
-@keyframes float-y {
-  0%,
   100% {
-    transform: translateY(0);
+    background-position: -200% 0;
   }
-  50% {
-    transform: translateY(-4px);
-  }
+}
+@utility animate-shimmer {
+  animation: shimmer 2.5s linear infinite;
 }
 
 @keyframes marquee {
@@ -95,93 +69,83 @@
 
 @custom-variant dark (&:is(.dark, .dark *));
 
-/* ================================================================
-   Premium depth system — surfaces, glass, page glow
-   ================================================================ */
-
-/* Card surface: low-contrast vertical gradient + (dark) inner top light.
-   Reads as "machined" instead of flat — the Linear/Vercel card look. */
+/* Compatibility alias for the retired "premium" gradient card surface —
+   flat background now, per the Midday monochrome system (D2). Removed
+   entirely once every call site migrates to plain `bg-background`/`bg-card`
+   in F7 (T7.9). */
 .surface-card {
-  background: linear-gradient(180deg, oklch(1 0 0), oklch(0.988 0.002 250));
-}
-.dark .surface-card {
-  background: linear-gradient(
-    180deg,
-    oklch(0.185 0.014 254),
-    oklch(0.172 0.014 254)
-  );
-  box-shadow: inset 0 1px 0 0 oklch(1 0 0 / 0.04);
+  background: var(--background);
 }
 
-/* Glass chrome — blur reserved for fixed/small surfaces (sidebar, topbar,
-   overlays). @supports fallback keeps solid backgrounds usable everywhere. */
-.glass-sidebar {
-  background-color: color-mix(in oklab, var(--sidebar) 72%, transparent);
-  -webkit-backdrop-filter: blur(20px) saturate(1.5);
-  backdrop-filter: blur(20px) saturate(1.5);
-}
-.glass-topbar {
-  background-color: color-mix(in oklab, var(--background) 60%, transparent);
-  -webkit-backdrop-filter: blur(20px) saturate(1.5);
-  backdrop-filter: blur(20px) saturate(1.5);
-}
-.glass-overlay {
-  background-color: color-mix(in oklab, var(--popover) 85%, transparent);
-  -webkit-backdrop-filter: blur(12px) saturate(1.4);
-  backdrop-filter: blur(12px) saturate(1.4);
-}
-@supports not (
-  (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))
-) {
-  .glass-sidebar {
-    background-color: var(--sidebar);
+/* Dialog show/hide (M-13) */
+@keyframes dialog-overlay-show {
+  from {
+    opacity: 0;
   }
-  .glass-topbar {
-    background-color: var(--background);
+  to {
+    opacity: 1;
   }
-  .glass-overlay {
-    background-color: var(--popover);
+}
+@keyframes dialog-overlay-hide {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+@keyframes dialog-content-show {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+@keyframes dialog-content-hide {
+  from {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.97);
   }
 }
 
-/* Page glow (dark): one static radial paint at the top of the viewport.
-   No background-attachment: fixed — that repaints on every mobile scroll. */
-.dark body {
-  background-image: radial-gradient(
-    ellipse 90% 40% at 50% -10%,
-    oklch(0.623 0.214 262 / 0.07),
-    transparent
-  );
-  background-repeat: no-repeat;
+/* Loading ellipsis (M-21) — steps(4,end) so the dots appear one at a time */
+.loading-ellipsis::after {
+  overflow: hidden;
+  display: inline-block;
+  vertical-align: bottom;
+  animation: loading-ellipsis-grow steps(4, end) 900ms infinite;
+  content: "\2026";
+  width: 0;
+}
+@keyframes loading-ellipsis-grow {
+  to {
+    width: 1.25em;
+  }
 }
 
-/* ================================================================
-   Material Symbols — self-hosted icon font (subset, ~14 KB)
-   Subset generated via the official Google Fonts `icon_names` param
-   (136 ligatures, see fonts/material-symbols-subset.txt) with axes
-   pinned to Google defaults (24/400/0/0).
-   Rendering rules per developers.google.com/fonts/docs/material_symbols.
-   font-size intentionally omitted — set per usage with Tailwind text-*.
-   ================================================================ */
+/* Global reduced-motion guard (M-26) — every animation/transition on the
+   site collapses to effectively-instant when the OS requests it. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 @layer base {
-  .material-symbols-outlined {
-    font-family: var(--font-material-symbols), sans-serif;
-    font-weight: normal;
-    font-style: normal;
-    line-height: 1;
-    letter-spacing: normal;
-    text-transform: none;
-    display: inline-block;
-    white-space: nowrap;
-    word-wrap: normal;
-    direction: ltr;
-    font-feature-settings: "liga";
-    font-variation-settings:
-      "FILL" 0,
-      "wght" 400,
-      "GRAD" 0,
-      "opsz" 24;
-    -webkit-font-smoothing: antialiased;
+  * {
+    border-color: var(--border);
   }
 }
 

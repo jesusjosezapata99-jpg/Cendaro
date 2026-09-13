@@ -154,7 +154,7 @@ export function RegisterPaymentDialog({
           <div className="border-border-subtle surface-card rounded-lg border p-3">
             <div className="flex items-center justify-between text-xs">
               <span className="text-muted-foreground">Total Orden:</span>
-              <span className="text-foreground font-mono font-semibold tabular-nums">
+              <span className="text-foreground font-mono font-medium tabular-nums">
                 ${Number(selectedOrder.total).toFixed(2)}
               </span>
             </div>
@@ -169,7 +169,7 @@ export function RegisterPaymentDialog({
                 Saldo Pendiente:
               </span>
               <div className="flex items-center gap-2">
-                <span className="text-primary font-mono font-bold tabular-nums">
+                <span className="text-primary font-mono font-medium tabular-nums">
                   ${pendingBalance.toFixed(2)}
                 </span>
                 {pendingBalance > 0 && (
@@ -227,7 +227,7 @@ export function RegisterPaymentDialog({
         {parsedAmount > 0 && bcv.rate > 0 && (
           <div className="border-border-subtle surface-card flex items-center justify-between rounded-lg border px-3 py-2 text-xs">
             <span className="text-muted-foreground">Equivalente BCV:</span>
-            <span className="text-primary font-mono font-semibold tabular-nums">
+            <span className="text-primary font-mono font-medium tabular-nums">
               {formatDualCurrency(parsedAmount, bcv.rate).bs}
             </span>
           </div>

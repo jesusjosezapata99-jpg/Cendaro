@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 
+import { Icons } from "@cendaro/ui/icons";
+
 import type { StatusTone } from "~/components/status-badge";
 import { Dialog } from "~/components/dialog";
 import { StatusBadge } from "~/components/status-badge";
@@ -106,13 +108,11 @@ export function AuditDetailsDialog({
 
           <div className="border-border/50 grid grid-cols-1 gap-2 border-t pt-2 text-xs sm:grid-cols-2">
             <div>
-              <span className="text-muted-foreground block text-[10px] font-bold tracking-wider uppercase">
+              <span className="text-muted-foreground block text-[10px] font-medium tracking-wider uppercase">
                 Actor / Responsable
               </span>
               <div className="mt-0.5 flex items-center gap-1.5">
-                <span className="material-symbols-outlined text-muted-foreground text-sm">
-                  person
-                </span>
+                <Icons.Person className="text-muted-foreground size-3.5" />
                 <span className="text-foreground font-medium">
                   {entry.actorName ?? "Sistema Automático"}
                 </span>
@@ -125,7 +125,7 @@ export function AuditDetailsDialog({
             </div>
 
             <div>
-              <span className="text-muted-foreground block text-[10px] font-bold tracking-wider uppercase">
+              <span className="text-muted-foreground block text-[10px] font-medium tracking-wider uppercase">
                 ID de Entidad
               </span>
               <span className="text-foreground mt-0.5 block truncate font-mono text-xs">
@@ -142,13 +142,11 @@ export function AuditDetailsDialog({
             onClick={() => setActiveTab("changes")}
             className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
               activeTab === "changes"
-                ? "bg-primary text-primary-foreground font-semibold"
+                ? "bg-primary text-primary-foreground font-medium"
                 : "text-muted-foreground hover:bg-secondary hover:text-foreground"
             }`}
           >
-            <span className="material-symbols-outlined text-sm">
-              swap_horiz
-            </span>
+            <Icons.SwapHoriz className="size-3.5" />
             Cambios / Datos
           </button>
           <button
@@ -156,13 +154,11 @@ export function AuditDetailsDialog({
             onClick={() => setActiveTab("metadata")}
             className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
               activeTab === "metadata"
-                ? "bg-primary text-primary-foreground font-semibold"
+                ? "bg-primary text-primary-foreground font-medium"
                 : "text-muted-foreground hover:bg-secondary hover:text-foreground"
             }`}
           >
-            <span className="material-symbols-outlined text-sm">
-              description
-            </span>
+            <Icons.Description className="size-3.5" />
             Metadatos Adicionales
           </button>
           <button
@@ -170,11 +166,11 @@ export function AuditDetailsDialog({
             onClick={() => setActiveTab("network")}
             className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
               activeTab === "network"
-                ? "bg-primary text-primary-foreground font-semibold"
+                ? "bg-primary text-primary-foreground font-medium"
                 : "text-muted-foreground hover:bg-secondary hover:text-foreground"
             }`}
           >
-            <span className="material-symbols-outlined text-sm">policy</span>
+            <Icons.Policy className="size-3.5" />
             Traza & Red
           </button>
         </div>
@@ -186,7 +182,7 @@ export function AuditDetailsDialog({
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
                   <div className="mb-1.5 flex items-center justify-between">
-                    <span className="text-muted-foreground text-[11px] font-bold tracking-wider uppercase">
+                    <span className="text-muted-foreground text-[11px] font-medium tracking-wider uppercase">
                       Valor Anterior
                     </span>
                     {entry.oldValue ? (
@@ -195,9 +191,11 @@ export function AuditDetailsDialog({
                         onClick={() => handleCopyJson(entry.oldValue)}
                         className="text-muted-foreground hover:text-foreground flex items-center gap-1 text-[11px]"
                       >
-                        <span className="material-symbols-outlined text-xs">
-                          {copied ? "check" : "description"}
-                        </span>
+                        {copied ? (
+                          <Icons.Check className="size-3" />
+                        ) : (
+                          <Icons.Description className="size-3" />
+                        )}
                         Copiar
                       </button>
                     ) : null}
@@ -211,7 +209,7 @@ export function AuditDetailsDialog({
 
                 <div>
                   <div className="mb-1.5 flex items-center justify-between">
-                    <span className="text-muted-foreground text-[11px] font-bold tracking-wider uppercase">
+                    <span className="text-muted-foreground text-[11px] font-medium tracking-wider uppercase">
                       Nuevo Valor
                     </span>
                     {entry.newValue ? (
@@ -220,9 +218,11 @@ export function AuditDetailsDialog({
                         onClick={() => handleCopyJson(entry.newValue)}
                         className="text-muted-foreground hover:text-foreground flex items-center gap-1 text-[11px]"
                       >
-                        <span className="material-symbols-outlined text-xs">
-                          {copied ? "check" : "description"}
-                        </span>
+                        {copied ? (
+                          <Icons.Check className="size-3" />
+                        ) : (
+                          <Icons.Description className="size-3" />
+                        )}
                         Copiar
                       </button>
                     ) : null}
@@ -236,9 +236,7 @@ export function AuditDetailsDialog({
               </div>
             ) : (
               <div className="bg-muted/30 border-border text-muted-foreground rounded-lg border p-6 text-center text-xs">
-                <span className="material-symbols-outlined text-muted-foreground/60 mb-1 block text-2xl">
-                  info
-                </span>
+                <Icons.Info className="text-muted-foreground/60 mb-1 block size-6" />
                 Este evento fue registrado como una acción de ejecución sin
                 diferencial de estado (sin oldValue ni newValue).
               </div>
@@ -249,7 +247,7 @@ export function AuditDetailsDialog({
         {activeTab === "metadata" && (
           <div className="space-y-2">
             <div className="mb-1.5 flex items-center justify-between">
-              <span className="text-muted-foreground text-[11px] font-bold tracking-wider uppercase">
+              <span className="text-muted-foreground text-[11px] font-medium tracking-wider uppercase">
                 Payload JSON
               </span>
               {entry.metadata ? (
@@ -258,9 +256,11 @@ export function AuditDetailsDialog({
                   onClick={() => handleCopyJson(entry.metadata)}
                   className="text-muted-foreground hover:text-foreground flex items-center gap-1 text-[11px]"
                 >
-                  <span className="material-symbols-outlined text-xs">
-                    {copied ? "check" : "description"}
-                  </span>
+                  {copied ? (
+                    <Icons.Check className="size-3" />
+                  ) : (
+                    <Icons.Description className="size-3" />
+                  )}
                   Copiar JSON
                 </button>
               ) : null}
@@ -279,7 +279,7 @@ export function AuditDetailsDialog({
               <span className="text-muted-foreground font-medium">
                 IP de Origen
               </span>
-              <span className="text-foreground font-mono font-semibold">
+              <span className="text-foreground font-mono font-medium">
                 {entry.ipAddress ?? "127.0.0.1 / Local"}
               </span>
             </div>
@@ -308,7 +308,7 @@ export function AuditDetailsDialog({
           <button
             type="button"
             onClick={onClose}
-            className="border-border bg-secondary text-foreground hover:bg-accent rounded-lg border px-4 py-2 text-xs font-semibold transition-colors"
+            className="border-border bg-secondary text-foreground hover:bg-accent rounded-lg border px-4 py-2 text-xs font-medium transition-colors"
           >
             Cerrar Inspector
           </button>

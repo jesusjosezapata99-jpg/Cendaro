@@ -1,52 +1,40 @@
-import { cn } from "@cendaro/ui";
+import type { StatusTone as PillTone } from "@cendaro/ui/status-pill";
+import { StatusPill } from "@cendaro/ui/status-pill";
 
+/** @deprecated Legacy 5-tone vocabulary — new code should use
+ * `StatusTone` from `@cendaro/ui/status-pill` via `~/lib/status`. Kept only
+ * so the ~90 existing call sites of `StatusBadge` keep compiling until they
+ * migrate (F4/F7). */
 export type StatusTone =
   "neutral" | "primary" | "success" | "warning" | "destructive";
 
-/**
- * Token-based soft chips — the single source of truth for status color
- * (readable in light/dark via the *-soft text tokens).
- */
-const toneStyles: Record<StatusTone, string> = {
-  neutral:
-    "border-border bg-muted/50 text-muted-foreground [&>span]:bg-muted-foreground",
-  primary: "border-primary/20 bg-primary/10 text-primary [&>span]:bg-primary",
-  success:
-    "border-success/20 bg-success/10 text-success-soft [&>span]:bg-success",
-  warning:
-    "border-warning/25 bg-warning/15 text-warning-soft [&>span]:bg-warning",
-  destructive:
-    "border-destructive/20 bg-destructive/10 text-destructive-soft [&>span]:bg-destructive",
+const LEGACY_TONE_MAP: Record<StatusTone, PillTone> = {
+  neutral: "neutral",
+  primary: "default",
+  success: "success",
+  warning: "warning",
+  destructive: "destructive",
 };
 
 interface StatusBadgeProps extends React.ComponentProps<"span"> {
   tone?: StatusTone;
-  /** Shows a small tone-colored dot before the label (default: true). */
+  /** Midday never shows a dot — off by default (§5.3). */
   dot?: boolean;
 }
 
 /**
- * Central status chip for every business state in the ERP.
+ * @deprecated Compatibility wrapper over `StatusPill` (T1.9) — pages migrate
+ * to `StatusPill` + `~/lib/status` directly in F4/F7.
  */
 export function StatusBadge({
   tone = "neutral",
-  dot = true,
-  className,
+  dot = false,
   children,
   ...props
 }: StatusBadgeProps) {
   return (
-    <span
-      data-slot="status-badge"
-      className={cn(
-        "inline-flex w-fit shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium whitespace-nowrap [&>span]:size-1.5 [&>span]:shrink-0 [&>span]:rounded-full",
-        toneStyles[tone],
-        className,
-      )}
-      {...props}
-    >
-      {dot ? <span aria-hidden /> : null}
+    <StatusPill tone={LEGACY_TONE_MAP[tone]} dot={dot} {...props}>
       {children}
-    </span>
+    </StatusPill>
   );
 }

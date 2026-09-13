@@ -11,6 +11,9 @@
  */
 import { useCallback, useMemo, useState } from "react";
 
+import type { IconName } from "@cendaro/ui/icons";
+import { Icon, Icons } from "@cendaro/ui/icons";
+
 import type { ImportState } from "../hooks/use-inventory-import";
 import type { InitializeValidatedRow } from "../lib/inventory-validators";
 
@@ -156,7 +159,7 @@ export function CatalogPreview({
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h2 className="text-foreground text-xl font-bold">
+        <h2 className="text-foreground text-xl font-medium">
           Vista Previa del Catálogo
         </h2>
         <p className="text-muted-foreground mt-1 text-sm">
@@ -170,7 +173,7 @@ export function CatalogPreview({
         <StatCard
           label="Marcas nuevas"
           value={newBrands.length}
-          icon="add_circle"
+          icon="AddCircle"
           color="emerald"
           isActive={catalogFilter === "newBrands"}
           onClick={() => handleFilterClick("newBrands")}
@@ -178,7 +181,7 @@ export function CatalogPreview({
         <StatCard
           label="Marcas existentes"
           value={existingBrands.length}
-          icon="check_circle"
+          icon="CheckCircle"
           color="sky"
           isActive={catalogFilter === "existingBrands"}
           onClick={() => handleFilterClick("existingBrands")}
@@ -186,7 +189,7 @@ export function CatalogPreview({
         <StatCard
           label="Productos nuevos"
           value={newProducts.length}
-          icon="inventory_2"
+          icon="Inventory2"
           color="emerald"
           isActive={catalogFilter === "newProducts"}
           onClick={() => handleFilterClick("newProducts")}
@@ -194,7 +197,7 @@ export function CatalogPreview({
         <StatCard
           label="Productos existentes"
           value={existingProducts.length}
-          icon="inventory"
+          icon="Inventory"
           color="sky"
           isActive={catalogFilter === "existingProducts"}
           onClick={() => handleFilterClick("existingProducts")}
@@ -337,16 +340,14 @@ export function CatalogPreview({
           onClick={onBack}
           className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-sm transition-colors"
         >
-          <span className="material-symbols-outlined text-lg">arrow_back</span>
+          <Icons.ArrowBack className="size-4.5" />
           Volver
         </button>
         <button
           onClick={onProceed}
-          className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-6 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:bg-emerald-700 hover:shadow-lg active:scale-95"
+          className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-6 py-2.5 text-sm font-medium text-white shadow-md transition-all hover:bg-emerald-700 hover:shadow-lg active:scale-95"
         >
-          <span className="material-symbols-outlined text-lg">
-            check_circle
-          </span>
+          <Icons.CheckCircle className="size-4.5" />
           Continuar al Resumen
         </button>
       </div>
@@ -408,9 +409,7 @@ function EditableCell({
       title="Haz clic para editar"
     >
       <span className="min-w-0 truncate">{value}</span>
-      <span className="material-symbols-outlined text-muted-foreground shrink-0 text-xs opacity-0 transition-opacity group-hover:opacity-100">
-        edit
-      </span>
+      <Icons.Edit className="text-muted-foreground size-3 shrink-0 opacity-0 transition-opacity group-hover:opacity-100" />
     </button>
   );
 }
@@ -425,7 +424,7 @@ function StatCard({
 }: {
   label: string;
   value: number;
-  icon: string;
+  icon: IconName;
   color: "emerald" | "sky";
   isActive?: boolean;
   onClick?: () => void;
@@ -453,8 +452,8 @@ function StatCard({
       className={`rounded-lg border p-3 text-left ${colorClasses} ${activeClasses} ${hoverClasses}`}
     >
       <div className="flex items-center gap-2">
-        <span className="material-symbols-outlined text-xl">{icon}</span>
-        <span className="text-2xl font-bold">{value}</span>
+        <Icon name={icon} className="size-5" />
+        <span className="text-2xl font-medium">{value}</span>
       </div>
       <p className="mt-1 text-xs font-medium opacity-80">{label}</p>
     </Tag>
@@ -465,14 +464,14 @@ function StatusBadge({ isNew }: { isNew: boolean }) {
   if (isNew) {
     return (
       <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
-        <span className="material-symbols-outlined text-sm">add_circle</span>
+        <Icons.AddCircle className="size-3.5" />
         Nueva
       </span>
     );
   }
   return (
     <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-400">
-      <span className="material-symbols-outlined text-sm">check_circle</span>
+      <Icons.CheckCircle className="size-3.5" />
       Existente
     </span>
   );

@@ -11,6 +11,8 @@ import { useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 
 import type { ImportMode, ValidatedRow } from "@cendaro/api";
+import type { IconName } from "@cendaro/ui/icons";
+import { Icon, Icons } from "@cendaro/ui/icons";
 
 import type {
   InitializeValidatedRow,
@@ -51,11 +53,19 @@ const MODE_LABELS: Record<ImportMode, string> = {
 
 // ── Stat card styling per type ───────────────────
 
-const BASE_STAT_CONFIGS = [
+const BASE_STAT_CONFIGS: {
+  label: string;
+  filterKey: FilterTab;
+  icon: IconName;
+  iconColor: string;
+  ringColor: string;
+  borderColor: string;
+  bgActive: string;
+}[] = [
   {
     label: "Válidos",
-    filterKey: "valid" as FilterTab,
-    icon: "check_circle",
+    filterKey: "valid",
+    icon: "CheckCircle",
     iconColor: "text-emerald-500 dark:text-emerald-400",
     ringColor: "ring-emerald-500/50",
     borderColor: "border-emerald-500/30",
@@ -63,8 +73,8 @@ const BASE_STAT_CONFIGS = [
   },
   {
     label: "Advertencias",
-    filterKey: "warning" as FilterTab,
-    icon: "warning",
+    filterKey: "warning",
+    icon: "Warning",
     iconColor: "text-amber-500 dark:text-amber-400",
     ringColor: "ring-amber-500/50",
     borderColor: "border-amber-500/30",
@@ -72,8 +82,8 @@ const BASE_STAT_CONFIGS = [
   },
   {
     label: "Errores",
-    filterKey: "error" as FilterTab,
-    icon: "error",
+    filterKey: "error",
+    icon: "Error",
     iconColor: "text-red-500 dark:text-red-400",
     ringColor: "ring-red-500/50",
     borderColor: "border-red-500/30",
@@ -86,7 +96,7 @@ function getTotalStatConfig(mode: ImportMode) {
   return {
     label: isInit ? "Total Bultos" : "Total Filas",
     filterKey: "all" as FilterTab,
-    icon: isInit ? "package_2" : "inventory_2",
+    icon: (isInit ? "Package2" : "Inventory2") as IconName,
     iconColor: "text-blue-500 dark:text-blue-400",
     ringColor: "ring-blue-500/50",
     borderColor: "border-blue-500/30",
@@ -114,17 +124,17 @@ const TAB_LABELS: Record<FilterTab, string> = {
 
 const MESSAGE_STYLES = {
   valid: {
-    icon: "check_circle",
+    icon: "CheckCircle",
     textColor: "text-emerald-600 dark:text-emerald-400",
     bgColor: "",
   },
   warning: {
-    icon: "warning",
+    icon: "Warning",
     textColor: "text-amber-600 dark:text-amber-400",
     bgColor: "",
   },
   error: {
-    icon: "error",
+    icon: "Error",
     textColor: "text-red-600 dark:text-red-400",
     bgColor: "",
   },
@@ -207,7 +217,7 @@ export function ValidationPreview({
     <div className="space-y-6">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-foreground text-xl font-bold">
+          <h2 className="text-foreground text-xl font-medium">
             Vista Previa de Validación
           </h2>
           <p className="text-muted-foreground mt-1 text-sm">
@@ -233,11 +243,10 @@ export function ValidationPreview({
               }`}
             >
               <div className="flex items-center gap-1.5">
-                <span
-                  className={`material-symbols-outlined text-lg transition-transform duration-200 group-hover:scale-110 ${cfg.iconColor}`}
-                >
-                  {cfg.icon}
-                </span>
+                <Icon
+                  name={cfg.icon}
+                  className={`size-4.5 transition-transform duration-200 group-hover:scale-110 ${cfg.iconColor}`}
+                />
                 <span className="text-muted-foreground text-xs font-medium">
                   {cfg.label}
                 </span>
@@ -258,7 +267,7 @@ export function ValidationPreview({
             <button
               key={tab}
               onClick={() => setFilter(tab)}
-              className={`flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-2 text-xs font-semibold transition-all duration-150 ${
+              className={`flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-2 text-xs font-medium transition-all duration-150 ${
                 isActive
                   ? "bg-card text-foreground shadow-sm"
                   : "text-muted-foreground hover:bg-card/50 hover:text-foreground"
@@ -271,7 +280,7 @@ export function ValidationPreview({
               />
               <span>{TAB_LABELS[tab]}</span>
               <span
-                className={`rounded-full px-1.5 py-0.5 text-[10px] leading-none font-bold ${
+                className={`rounded-full px-1.5 py-0.5 text-[10px] leading-none font-medium ${
                   isActive
                     ? "bg-muted text-foreground"
                     : "bg-muted/80 text-muted-foreground"
@@ -287,7 +296,7 @@ export function ValidationPreview({
       {/* All errors warning */}
       {allErrors && (
         <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-900/20 dark:text-red-400">
-          <span className="material-symbols-outlined text-lg">error</span>
+          <Icons.Error className="size-4.5" />
           Todas las filas tienen errores. Corrija los datos y vuelva a intentar.
         </div>
       )}
@@ -298,58 +307,58 @@ export function ValidationPreview({
           <table className="w-full text-sm">
             <thead className="bg-muted/50 sticky top-0 z-10">
               <tr className="border-border border-b text-left">
-                <th className="text-muted-foreground px-3 py-2.5 font-semibold">
+                <th className="text-muted-foreground px-3 py-2.5 font-medium">
                   Fila
                 </th>
-                <th className="text-muted-foreground px-3 py-2.5 font-semibold">
+                <th className="text-muted-foreground px-3 py-2.5 font-medium">
                   SKU
                 </th>
                 {isInitialize ? (
                   <>
-                    <th className="text-muted-foreground px-3 py-2.5 font-semibold">
+                    <th className="text-muted-foreground px-3 py-2.5 font-medium">
                       Marca
                     </th>
-                    <th className="text-muted-foreground px-3 py-2.5 font-semibold">
+                    <th className="text-muted-foreground px-3 py-2.5 font-medium">
                       Producto
                     </th>
-                    <th className="text-muted-foreground px-3 py-2.5 text-right font-semibold">
+                    <th className="text-muted-foreground px-3 py-2.5 text-right font-medium">
                       Bultos
                     </th>
-                    <th className="text-muted-foreground px-3 py-2.5 font-semibold">
+                    <th className="text-muted-foreground px-3 py-2.5 font-medium">
                       Presentación
                     </th>
-                    <th className="text-muted-foreground px-3 py-2.5 text-right font-semibold">
+                    <th className="text-muted-foreground px-3 py-2.5 text-right font-medium">
                       Total Uds
                     </th>
                   </>
                 ) : (
                   <>
-                    <th className="text-muted-foreground px-3 py-2.5 font-semibold">
+                    <th className="text-muted-foreground px-3 py-2.5 font-medium">
                       Producto
                     </th>
-                    <th className="text-muted-foreground px-3 py-2.5 text-right font-semibold">
+                    <th className="text-muted-foreground px-3 py-2.5 text-right font-medium">
                       Actual
                     </th>
                     {mode === "replace" ? (
-                      <th className="text-muted-foreground px-3 py-2.5 text-right font-semibold">
+                      <th className="text-muted-foreground px-3 py-2.5 text-right font-medium">
                         Nuevo
                       </th>
                     ) : (
                       <>
-                        <th className="text-muted-foreground px-3 py-2.5 text-right font-semibold">
+                        <th className="text-muted-foreground px-3 py-2.5 text-right font-medium">
                           Delta
                         </th>
-                        <th className="text-muted-foreground px-3 py-2.5 text-right font-semibold">
+                        <th className="text-muted-foreground px-3 py-2.5 text-right font-medium">
                           Nuevo
                         </th>
                       </>
                     )}
                   </>
                 )}
-                <th className="text-muted-foreground px-3 py-2.5 text-center font-semibold">
+                <th className="text-muted-foreground px-3 py-2.5 text-center font-medium">
                   Estado
                 </th>
-                <th className="text-muted-foreground min-w-55 px-3 py-2.5 font-semibold">
+                <th className="text-muted-foreground min-w-55 px-3 py-2.5 font-medium">
                   Mensaje
                 </th>
               </tr>
@@ -393,7 +402,7 @@ export function ValidationPreview({
                         <td className="px-3 py-2.5 text-sm">
                           {(row as InitializeValidatedRow).presentacion}
                         </td>
-                        <td className="text-foreground px-3 py-2.5 text-right font-mono font-bold">
+                        <td className="text-foreground px-3 py-2.5 text-right font-mono font-medium">
                           {row.status !== "error"
                             ? (row as InitializeValidatedRow).totalUnits
                             : "—"}
@@ -410,7 +419,7 @@ export function ValidationPreview({
                             : "—"}
                         </td>
                         {mode === "replace" ? (
-                          <td className="text-foreground px-3 py-2.5 text-right font-mono font-bold">
+                          <td className="text-foreground px-3 py-2.5 text-right font-mono font-medium">
                             {row.status !== "error"
                               ? (row as ValidatedRow).quantity
                               : "—"}
@@ -418,7 +427,7 @@ export function ValidationPreview({
                         ) : (
                           <>
                             <td
-                              className={`px-3 py-2.5 text-right font-mono font-bold ${
+                              className={`px-3 py-2.5 text-right font-mono font-medium ${
                                 (row as ValidatedRow).quantity > 0
                                   ? "text-emerald-600"
                                   : (row as ValidatedRow).quantity < 0
@@ -430,7 +439,7 @@ export function ValidationPreview({
                                 ? `${(row as ValidatedRow).quantity > 0 ? "+" : ""}${(row as ValidatedRow).quantity}`
                                 : "—"}
                             </td>
-                            <td className="text-foreground px-3 py-2.5 text-right font-mono font-bold">
+                            <td className="text-foreground px-3 py-2.5 text-right font-mono font-medium">
                               {row.status !== "error"
                                 ? (row as ValidatedRow).currentQuantity +
                                   (row as ValidatedRow).quantity
@@ -442,15 +451,15 @@ export function ValidationPreview({
                     )}
                     <td className="px-3 py-2.5 text-center">
                       <span
-                        className={`inline-flex items-center justify-center rounded-full p-1 text-xs font-semibold ${STATUS_COLORS[row.status]}`}
+                        className={`inline-flex items-center justify-center rounded-full p-1 text-xs font-medium ${STATUS_COLORS[row.status]}`}
                       >
-                        <span className="material-symbols-outlined text-sm">
-                          {row.status === "valid"
-                            ? "check"
-                            : row.status === "warning"
-                              ? "warning"
-                              : "close"}
-                        </span>
+                        {row.status === "valid" ? (
+                          <Icons.Check className="size-3.5" />
+                        ) : row.status === "warning" ? (
+                          <Icons.Warning className="size-3.5" />
+                        ) : (
+                          <Icons.Close className="size-3.5" />
+                        )}
                       </span>
                     </td>
                     {/* ── Message cell — full text, no truncation ── */}
@@ -459,9 +468,10 @@ export function ValidationPreview({
                         <div
                           className={`flex items-start gap-1.5 ${MESSAGE_STYLES[row.status].textColor}`}
                         >
-                          <span className="material-symbols-outlined mt-0.5 shrink-0 text-sm">
-                            {MESSAGE_STYLES[row.status].icon}
-                          </span>
+                          <Icon
+                            name={MESSAGE_STYLES[row.status].icon}
+                            className="mt-0.5 size-3.5 shrink-0"
+                          />
                           <span className="text-xs leading-relaxed wrap-break-word whitespace-normal">
                             {row.message}
                           </span>
@@ -492,17 +502,15 @@ export function ValidationPreview({
           onClick={onBack}
           className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5 text-sm font-medium transition-colors"
         >
-          <span className="material-symbols-outlined text-lg">arrow_back</span>
+          <Icons.ArrowBack className="size-4.5" />
           Volver
         </button>
         <button
           onClick={onProceed}
           disabled={!hasValidRows}
-          className="bg-primary hover:bg-primary/90 inline-flex items-center gap-2 rounded-lg px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+          className="bg-primary hover:bg-primary/90 inline-flex items-center gap-2 rounded-lg px-6 py-2.5 text-sm font-medium text-white shadow-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50"
         >
-          <span className="material-symbols-outlined text-lg">
-            arrow_forward
-          </span>
+          <Icons.ArrowForward className="size-4.5" />
           Continuar al Resumen
         </button>
       </div>

@@ -5,7 +5,9 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 
+import type { IconName } from "@cendaro/ui/icons";
 import { Button } from "@cendaro/ui";
+import { Icon, Icons } from "@cendaro/ui/icons";
 
 import type { StatusTone } from "~/components/status-badge";
 import { EmptyState } from "~/components/empty-state";
@@ -35,12 +37,12 @@ const STATUS_CONFIG: Record<string, { label: string; tone: StatusTone }> = {
   converted: { label: "Convertida", tone: "success" },
 };
 
-const CHANNEL_ICONS: Record<string, string> = {
-  store: "store",
-  mercadolibre: "shopping_cart",
-  vendors: "local_shipping",
-  whatsapp: "chat",
-  instagram: "photo_camera",
+const CHANNEL_ICONS: Record<string, IconName> = {
+  store: "Store",
+  mercadolibre: "ShoppingCart",
+  vendors: "LocalShipping",
+  whatsapp: "Chat",
+  instagram: "PhotoCamera",
 };
 
 /** Shared cell padding for the quotes table. */
@@ -85,7 +87,7 @@ export default function QuotesClient() {
               onClick={() => setShowCreate(true)}
               className="min-h-11 flex-1 sm:flex-initial"
             >
-              <span className="material-symbols-outlined text-lg">add</span>
+              <Icons.Add className="size-4.5" />
               Nueva Cotización
             </Button>
           </div>
@@ -102,7 +104,7 @@ export default function QuotesClient() {
         <StatCard
           label="Cotizaciones"
           value={isLoading ? "—" : list.length.toLocaleString("es-VE")}
-          icon="request_quote"
+          icon="RequestQuote"
         />
         <StatCard
           label="Total Cotizado"
@@ -110,13 +112,13 @@ export default function QuotesClient() {
           sub={
             isLoading ? undefined : formatDualCurrency(totalMonto, bcv.rate).bs
           }
-          icon="payments"
+          icon="Payments"
           tone="primary"
         />
         <StatCard
           label="Aceptadas / Conv."
           value={isLoading ? "—" : aceptadasCount.toLocaleString("es-VE")}
-          icon="check_circle"
+          icon="CheckCircle"
           tone="success"
         />
       </div>
@@ -171,14 +173,12 @@ export default function QuotesClient() {
                 >
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2">
-                      <span
-                        aria-hidden
-                        className="material-symbols-outlined text-muted-foreground text-lg"
+                      <Icon
+                        name={CHANNEL_ICONS[quote.channel] ?? "RequestQuote"}
+                        className="text-muted-foreground size-4.5"
                         title={quote.channel}
-                      >
-                        {CHANNEL_ICONS[quote.channel] ?? "request_quote"}
-                      </span>
-                      <span className="text-primary font-mono text-sm font-semibold tabular-nums">
+                      />
+                      <span className="text-primary font-mono text-sm font-medium tabular-nums">
                         {quote.quoteNumber}
                       </span>
                     </div>
@@ -191,7 +191,7 @@ export default function QuotesClient() {
                       <p className="text-muted-foreground text-xs font-medium tracking-wider uppercase">
                         Total
                       </p>
-                      <p className="text-foreground font-mono font-semibold tabular-nums">
+                      <p className="text-foreground font-mono font-medium tabular-nums">
                         ${Number(quote.total).toFixed(2)}
                       </p>
                       {bcv.rate > 0 && (
@@ -221,7 +221,7 @@ export default function QuotesClient() {
             })}
         {!isLoading && list.length === 0 && (
           <EmptyState
-            icon="request_quote"
+            icon="RequestQuote"
             title="No se encontraron cotizaciones"
             description="Ajusta el filtro de estado o crea una nueva cotización para comenzar."
           />
@@ -289,19 +289,17 @@ export default function QuotesClient() {
                       <td className={cellPx}>
                         <Link
                           href={`/quotes/${quote.id}`}
-                          className="text-primary font-mono text-xs font-semibold tabular-nums hover:underline"
+                          className="text-primary font-mono text-xs font-medium tabular-nums hover:underline"
                         >
                           {quote.quoteNumber}
                         </Link>
                       </td>
                       <td className={cellPx}>
-                        <span
-                          aria-hidden
-                          className="material-symbols-outlined text-muted-foreground text-lg"
+                        <Icon
+                          name={CHANNEL_ICONS[quote.channel] ?? "RequestQuote"}
+                          className="text-muted-foreground size-4.5"
                           title={quote.channel}
-                        >
-                          {CHANNEL_ICONS[quote.channel] ?? "request_quote"}
-                        </span>
+                        />
                       </td>
                       <td className={`${cellPx} text-center`}>
                         <StatusBadge tone={statusCfg.tone}>
@@ -309,7 +307,7 @@ export default function QuotesClient() {
                         </StatusBadge>
                       </td>
                       <td
-                        className={`text-foreground ${cellPx} text-right font-mono font-semibold tabular-nums`}
+                        className={`text-foreground ${cellPx} text-right font-mono font-medium tabular-nums`}
                       >
                         ${Number(quote.total).toFixed(2)}
                         {bcv.rate > 0 && (
@@ -342,7 +340,7 @@ export default function QuotesClient() {
               <tr className="hover:bg-transparent">
                 <td colSpan={6} className="px-4 py-6">
                   <EmptyState
-                    icon="request_quote"
+                    icon="RequestQuote"
                     title="No se encontraron cotizaciones"
                     description="Ajusta el filtro de estado o crea una nueva cotización para comenzar."
                   />

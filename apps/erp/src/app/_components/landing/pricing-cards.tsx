@@ -120,19 +120,19 @@ export function PricingCards() {
                     : "border-border bg-card"
                 }`}
               >
-                <h3 className="text-lg font-semibold">{plan.name}</h3>
+                <h3 className="text-lg font-medium">{plan.name}</h3>
                 <p className="text-muted-foreground mt-1 text-sm">
                   {plan.description}
                 </p>
 
                 <div className="mt-6">
                   {plan.priceLabel ? (
-                    <span className="text-4xl font-bold tabular-nums">
+                    <span className="text-4xl font-medium tabular-nums">
                       {plan.priceLabel}
                     </span>
                   ) : (
                     <div className="flex items-baseline gap-1">
-                      <span className="text-4xl font-bold tabular-nums">
+                      <span className="text-4xl font-medium tabular-nums">
                         ${annual ? plan.annualPrice : plan.monthlyPrice}
                       </span>
                       <span className="text-muted-foreground">/mes</span>

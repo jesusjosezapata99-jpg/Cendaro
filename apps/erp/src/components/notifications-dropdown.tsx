@@ -4,20 +4,22 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import type { IconName } from "@cendaro/ui/icons";
 import { cn } from "@cendaro/ui";
+import { Icon, Icons } from "@cendaro/ui/icons";
 
 import { useTRPC } from "~/trpc/client";
 
 /* ─── Type Config (mirrored from alerts page) ─────────── */
-const TYPE_CONFIG: Record<string, { label: string; icon: string }> = {
-  low_stock: { label: "Stock Bajo", icon: "inventory_2" },
-  inventory_diff: { label: "Dif. Inventario", icon: "balance" },
-  product_blocked: { label: "Producto Bloqueado", icon: "block" },
-  rate_change: { label: "Cambio Tasa", icon: "trending_up" },
-  vendor_under_target: { label: "Vendedor Bajo Meta", icon: "trending_down" },
-  order_late: { label: "Pedido Atrasado", icon: "schedule" },
-  ml_failure: { label: "Falla ML", icon: "error_outline" },
-  ar_overdue: { label: "CxC Vencida", icon: "credit_card_off" },
+const TYPE_CONFIG: Record<string, { label: string; icon: IconName }> = {
+  low_stock: { label: "Stock Bajo", icon: "Inventory2" },
+  inventory_diff: { label: "Dif. Inventario", icon: "Balance" },
+  product_blocked: { label: "Producto Bloqueado", icon: "Block" },
+  rate_change: { label: "Cambio Tasa", icon: "TrendingUp" },
+  vendor_under_target: { label: "Vendedor Bajo Meta", icon: "TrendingDown" },
+  order_late: { label: "Pedido Atrasado", icon: "Schedule" },
+  ml_failure: { label: "Falla ML", icon: "ErrorOutline" },
+  ar_overdue: { label: "CxC Vencida", icon: "CreditCardOff" },
 };
 
 const SEVERITY_COLORS: Record<string, string> = {
@@ -145,11 +147,11 @@ export function NotificationsDropdown() {
         aria-expanded={open}
         aria-haspopup="true"
       >
-        <span className="material-symbols-outlined text-xl">notifications</span>
+        <Icons.Notifications className="size-5" />
 
         {/* Badge */}
         {activeCount > 0 && (
-          <span className="bg-destructive ring-card absolute top-1 right-1 flex size-[18px] items-center justify-center rounded-full text-[10px] font-bold text-white ring-2">
+          <span className="bg-destructive ring-card absolute top-1 right-1 flex size-4.5 items-center justify-center rounded-full text-[10px] font-medium text-white ring-2">
             {activeCount > 9 ? "9+" : activeCount}
           </span>
         )}
@@ -161,14 +163,12 @@ export function NotificationsDropdown() {
           {/* Header */}
           <div className="border-border flex items-center justify-between border-b px-4 py-3">
             <div className="flex items-center gap-2">
-              <span className="material-symbols-outlined text-foreground text-lg">
-                notifications
-              </span>
-              <h3 className="text-foreground text-sm font-bold">
+              <Icons.Notifications className="text-foreground size-4.5" />
+              <h3 className="text-foreground text-sm font-medium">
                 Notificaciones
               </h3>
               {activeCount > 0 && (
-                <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-600 dark:bg-red-500/20 dark:text-red-400">
+                <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-medium text-red-600 dark:bg-red-500/20 dark:text-red-400">
                   {activeCount}
                 </span>
               )}
@@ -178,7 +178,7 @@ export function NotificationsDropdown() {
               className="text-muted-foreground hover:text-foreground flex size-7 items-center justify-center rounded-md transition-colors"
               aria-label="Cerrar notificaciones"
             >
-              <span className="material-symbols-outlined text-base">close</span>
+              <Icons.Close className="size-4" />
             </button>
           </div>
 
@@ -189,12 +189,10 @@ export function NotificationsDropdown() {
             /* ── Empty state ── */
             <div className="flex flex-col items-center gap-3 px-4 py-8">
               <div className="bg-secondary flex size-12 items-center justify-center rounded-full">
-                <span className="material-symbols-outlined text-muted-foreground text-2xl">
-                  notifications_off
-                </span>
+                <Icons.NotificationsOff className="text-muted-foreground size-6" />
               </div>
               <div className="text-center">
-                <p className="text-foreground text-sm font-semibold">
+                <p className="text-foreground text-sm font-medium">
                   No hay alertas activas
                 </p>
                 <p className="text-muted-foreground mt-1 text-xs">
@@ -203,18 +201,18 @@ export function NotificationsDropdown() {
               </div>
               <button
                 onClick={handleNav}
-                className="bg-primary text-primary-foreground hover:bg-primary/90 mt-1 rounded-lg px-4 py-2 text-xs font-bold transition-colors"
+                className="bg-primary text-primary-foreground hover:bg-primary/90 mt-1 rounded-lg px-4 py-2 text-xs font-medium transition-colors"
               >
                 Ver todas las alertas
               </button>
             </div>
           ) : (
             /* ── Alert list ── */
-            <div className="max-h-[360px] overflow-y-auto">
+            <div className="max-h-90 overflow-y-auto">
               {alerts.map((alert) => {
                 const typeCfg = TYPE_CONFIG[alert.alertType] ?? {
                   label: alert.alertType,
-                  icon: "info",
+                  icon: "Info" as const,
                 };
                 const borderColor =
                   SEVERITY_COLORS[alert.severity] ?? "border-l-border";
@@ -226,11 +224,12 @@ export function NotificationsDropdown() {
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex min-w-0 items-start gap-2.5">
-                        <span className="material-symbols-outlined text-muted-foreground mt-0.5 shrink-0 text-base">
-                          {typeCfg.icon}
-                        </span>
+                        <Icon
+                          name={typeCfg.icon}
+                          className="text-muted-foreground mt-0.5 size-4 shrink-0"
+                        />
                         <div className="min-w-0">
-                          <p className="text-foreground truncate text-xs font-semibold">
+                          <p className="text-foreground truncate text-xs font-medium">
                             {alert.title}
                           </p>
                           <p className="text-muted-foreground mt-0.5 line-clamp-2 text-[11px]">
@@ -240,7 +239,7 @@ export function NotificationsDropdown() {
                             <span className="text-muted-foreground/70 text-[10px]">
                               {timeAgo(new Date(alert.createdAt))}
                             </span>
-                            <span className="bg-secondary text-muted-foreground rounded px-1.5 py-0.5 text-[9px] font-bold">
+                            <span className="bg-secondary text-muted-foreground rounded px-1.5 py-0.5 text-[9px] font-medium">
                               {typeCfg.label}
                             </span>
                           </div>
@@ -256,9 +255,7 @@ export function NotificationsDropdown() {
                         aria-label="Descartar alerta"
                         title="Descartar"
                       >
-                        <span className="material-symbols-outlined text-sm">
-                          close
-                        </span>
+                        <Icons.Close className="size-3.5" />
                       </button>
                     </div>
                   </div>
@@ -271,11 +268,9 @@ export function NotificationsDropdown() {
           <div className="border-border border-t">
             <button
               onClick={handleNav}
-              className="text-primary hover:bg-accent/50 flex min-h-[44px] w-full items-center justify-center gap-2 px-4 py-2.5 text-xs font-bold transition-colors"
+              className="text-primary hover:bg-accent/50 flex min-h-11 w-full items-center justify-center gap-2 px-4 py-2.5 text-xs font-medium transition-colors"
             >
-              <span className="material-symbols-outlined text-sm">
-                open_in_new
-              </span>
+              <Icons.OpenInNew className="size-3.5" />
               Ver todas las alertas
             </button>
           </div>

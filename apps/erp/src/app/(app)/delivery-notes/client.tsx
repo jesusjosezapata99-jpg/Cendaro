@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import type { IconName } from "@cendaro/ui/icons";
 import {
   Button,
   Table,
@@ -14,6 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from "@cendaro/ui";
+import { Icon, Icons } from "@cendaro/ui/icons";
 
 import type { StatusTone } from "~/components/status-badge";
 import { EmptyState } from "~/components/empty-state";
@@ -46,12 +48,12 @@ const STATUS_CONFIG: Record<string, { label: string; tone: StatusTone }> = {
   returned: { label: "Devuelto", tone: "neutral" },
 };
 
-const CHANNEL_ICONS: Record<string, string> = {
-  store: "store",
-  mercadolibre: "shopping_cart",
-  vendors: "local_shipping",
-  whatsapp: "chat",
-  instagram: "photo_camera",
+const CHANNEL_ICONS: Record<string, IconName> = {
+  store: "Store",
+  mercadolibre: "ShoppingCart",
+  vendors: "LocalShipping",
+  whatsapp: "Chat",
+  instagram: "PhotoCamera",
 };
 
 const CHANNEL_LABELS: Record<string, string> = {
@@ -172,14 +174,12 @@ export default function DeliveryNotesClient() {
               onClick={() => setSelectedOrderId("preview")}
               className="min-h-11 flex-1 sm:flex-initial"
             >
-              <span className="material-symbols-outlined text-lg">
-                local_shipping
-              </span>
+              <Icons.LocalShipping className="size-4.5" />
               Modelo Guía
             </Button>
             <Button asChild className="min-h-11 flex-1 sm:flex-initial">
               <Link href="/orders">
-                <span className="material-symbols-outlined text-lg">add</span>
+                <Icons.Add className="size-4.5" />
                 Nuevo Despacho / Pedido
               </Link>
             </Button>
@@ -192,26 +192,26 @@ export default function DeliveryNotesClient() {
         <StatCard
           label="Total Despachos"
           value={ordersLoading ? "—" : totalDespachos.toLocaleString("es-VE")}
-          icon="local_shipping"
+          icon="LocalShipping"
         />
         <StatCard
           label="Por Despachar"
           value={
             ordersLoading ? "—" : porDespacharCount.toLocaleString("es-VE")
           }
-          icon="schedule"
+          icon="Schedule"
           tone="warning"
         />
         <StatCard
           label="En Tránsito"
           value={ordersLoading ? "—" : enTransitoCount.toLocaleString("es-VE")}
-          icon="flight_takeoff"
+          icon="FlightTakeoff"
           tone="primary"
         />
         <StatCard
           label="Entregadas"
           value={ordersLoading ? "—" : entregadasCount.toLocaleString("es-VE")}
-          icon="check_circle"
+          icon="CheckCircle"
           tone="success"
         />
       </div>
@@ -219,9 +219,7 @@ export default function DeliveryNotesClient() {
       {/* Search & Filter Bar */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="relative flex-1">
-          <span className="material-symbols-outlined text-muted-foreground absolute top-1/2 left-3 -translate-y-1/2 text-lg">
-            search
-          </span>
+          <Icons.Search className="text-muted-foreground absolute top-1/2 left-3 size-4.5 -translate-y-1/2" />
           <input
             type="text"
             placeholder="Buscar por Nota #, Orden # o Destinatario..."
@@ -270,7 +268,7 @@ export default function DeliveryNotesClient() {
           ))
         ) : filteredNotes.length === 0 ? (
           <EmptyState
-            icon="local_shipping"
+            icon="LocalShipping"
             title="No se encontraron notas de entrega"
             description="No hay guías de despacho que coincidan con los criterios de búsqueda o filtro."
             action={
@@ -309,13 +307,12 @@ export default function DeliveryNotesClient() {
               >
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
-                    <span
-                      className="material-symbols-outlined text-muted-foreground text-lg"
+                    <Icon
+                      name={CHANNEL_ICONS[order.channel] ?? "LocalShipping"}
+                      className="text-muted-foreground size-4.5"
                       title={order.channel}
-                    >
-                      {CHANNEL_ICONS[order.channel] ?? "local_shipping"}
-                    </span>
-                    <span className="text-primary font-mono text-sm font-bold tabular-nums">
+                    />
+                    <span className="text-primary font-mono text-sm font-medium tabular-nums">
                       NE-{order.orderNumber}
                     </span>
                   </div>
@@ -325,7 +322,7 @@ export default function DeliveryNotesClient() {
                 </div>
 
                 <div className="space-y-1 text-xs">
-                  <p className="text-foreground text-sm font-semibold">
+                  <p className="text-foreground text-sm font-medium">
                     {customerName}
                   </p>
                   <p className="text-muted-foreground font-mono">
@@ -336,10 +333,10 @@ export default function DeliveryNotesClient() {
 
                 <div className="border-border-subtle flex items-baseline justify-between border-t pt-2">
                   <div>
-                    <span className="text-muted-foreground text-[10px] font-bold uppercase">
+                    <span className="text-muted-foreground text-[10px] font-medium uppercase">
                       Valor Carga
                     </span>
-                    <p className="text-foreground font-mono text-base font-bold tabular-nums">
+                    <p className="text-foreground font-mono text-base font-medium tabular-nums">
                       ${Number(order.total).toFixed(2)} USD
                     </p>
                     <p className="text-muted-foreground font-mono text-xs tabular-nums">
@@ -356,9 +353,7 @@ export default function DeliveryNotesClient() {
                         }
                         className="min-h-9 text-xs"
                       >
-                        <span className="material-symbols-outlined text-base">
-                          flight_takeoff
-                        </span>
+                        <Icons.FlightTakeoff className="size-4" />
                         Despachar
                       </Button>
                     )}
@@ -371,9 +366,7 @@ export default function DeliveryNotesClient() {
                         }
                         className="min-h-9 text-xs"
                       >
-                        <span className="material-symbols-outlined text-base">
-                          check_circle
-                        </span>
+                        <Icons.CheckCircle className="size-4" />
                         Entregar
                       </Button>
                     )}
@@ -383,9 +376,7 @@ export default function DeliveryNotesClient() {
                       onClick={() => setSelectedOrderId(order.id)}
                       className="min-h-9 text-xs"
                     >
-                      <span className="material-symbols-outlined text-base">
-                        local_shipping
-                      </span>
+                      <Icons.LocalShipping className="size-4" />
                       Guía
                     </Button>
                     <Button
@@ -395,9 +386,7 @@ export default function DeliveryNotesClient() {
                       className="min-h-9 text-xs"
                     >
                       <Link href={`/orders/${order.id}`}>
-                        <span className="material-symbols-outlined text-base">
-                          open_in_new
-                        </span>
+                        <Icons.OpenInNew className="size-4" />
                       </Link>
                     </Button>
                   </div>
@@ -414,31 +403,31 @@ export default function DeliveryNotesClient() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="px-4 py-3 text-xs font-semibold uppercase">
+                <TableHead className="px-4 py-3 text-xs font-medium uppercase">
                   Nota #
                 </TableHead>
-                <TableHead className="px-4 py-3 text-xs font-semibold uppercase">
+                <TableHead className="px-4 py-3 text-xs font-medium uppercase">
                   Orden Ref.
                 </TableHead>
-                <TableHead className="px-4 py-3 text-xs font-semibold uppercase">
+                <TableHead className="px-4 py-3 text-xs font-medium uppercase">
                   Cliente / Destino
                 </TableHead>
-                <TableHead className="px-4 py-3 text-xs font-semibold uppercase">
+                <TableHead className="px-4 py-3 text-xs font-medium uppercase">
                   Canal
                 </TableHead>
-                <TableHead className="px-4 py-3 text-xs font-semibold uppercase">
+                <TableHead className="px-4 py-3 text-xs font-medium uppercase">
                   Fecha Emisión
                 </TableHead>
-                <TableHead className="px-4 py-3 text-right text-xs font-semibold uppercase">
+                <TableHead className="px-4 py-3 text-right text-xs font-medium uppercase">
                   Valor Declarado
                 </TableHead>
-                <TableHead className="px-4 py-3 text-center text-xs font-semibold uppercase">
+                <TableHead className="px-4 py-3 text-center text-xs font-medium uppercase">
                   Estado
                 </TableHead>
-                <TableHead className="px-4 py-3 text-center text-xs font-semibold uppercase">
+                <TableHead className="px-4 py-3 text-center text-xs font-medium uppercase">
                   Acción Rápida
                 </TableHead>
-                <TableHead className="px-4 py-3 text-right text-xs font-semibold uppercase">
+                <TableHead className="px-4 py-3 text-right text-xs font-medium uppercase">
                   Guía / Detalle
                 </TableHead>
               </TableRow>
@@ -458,7 +447,7 @@ export default function DeliveryNotesClient() {
                 <TableRow>
                   <TableCell colSpan={9} className="py-12">
                     <EmptyState
-                      icon="local_shipping"
+                      icon="LocalShipping"
                       title="No se encontraron notas de entrega"
                       description="No hay registros de despacho para los filtros seleccionados."
                       action={
@@ -496,7 +485,7 @@ export default function DeliveryNotesClient() {
                   return (
                     <TableRow key={order.id} className="text-xs">
                       {/* Nota # */}
-                      <TableCell className="text-primary px-4 py-3 font-mono font-bold tabular-nums">
+                      <TableCell className="text-primary px-4 py-3 font-mono font-medium tabular-nums">
                         NE-{order.orderNumber}
                       </TableCell>
 
@@ -513,9 +502,12 @@ export default function DeliveryNotesClient() {
                       {/* Canal */}
                       <TableCell className="px-4 py-3">
                         <div className="text-muted-foreground flex items-center gap-1.5">
-                          <span className="material-symbols-outlined text-base">
-                            {CHANNEL_ICONS[order.channel] ?? "local_shipping"}
-                          </span>
+                          <Icon
+                            name={
+                              CHANNEL_ICONS[order.channel] ?? "LocalShipping"
+                            }
+                            className="size-4"
+                          />
                           <span>
                             {CHANNEL_LABELS[order.channel] ?? order.channel}
                           </span>
@@ -529,7 +521,7 @@ export default function DeliveryNotesClient() {
 
                       {/* Valor Declarado */}
                       <TableCell className="px-4 py-3 text-right">
-                        <p className="text-foreground font-mono font-bold tabular-nums">
+                        <p className="text-foreground font-mono font-medium tabular-nums">
                           ${Number(order.total).toFixed(2)}
                         </p>
                         <p className="text-muted-foreground font-mono text-[11px] tabular-nums">
@@ -555,9 +547,7 @@ export default function DeliveryNotesClient() {
                             }
                             className="min-h-8 px-2.5 text-xs"
                           >
-                            <span className="material-symbols-outlined mr-1 text-base">
-                              flight_takeoff
-                            </span>
+                            <Icons.FlightTakeoff className="mr-1 size-4" />
                             Despachar
                           </Button>
                         ) : canDeliver ? (
@@ -569,9 +559,7 @@ export default function DeliveryNotesClient() {
                             }
                             className="min-h-8 px-2.5 text-xs"
                           >
-                            <span className="material-symbols-outlined mr-1 text-base">
-                              check_circle
-                            </span>
+                            <Icons.CheckCircle className="mr-1 size-4" />
                             Entregar
                           </Button>
                         ) : (
@@ -591,9 +579,7 @@ export default function DeliveryNotesClient() {
                             className="min-h-8 px-2.5 text-xs"
                             title="Ver Guía de Despacho Imprimible"
                           >
-                            <span className="material-symbols-outlined mr-1 text-base">
-                              local_shipping
-                            </span>
+                            <Icons.LocalShipping className="mr-1 size-4" />
                             Guía
                           </Button>
                           <Button
@@ -604,9 +590,7 @@ export default function DeliveryNotesClient() {
                             title="Ver Detalle de Pedido"
                           >
                             <Link href={`/orders/${order.id}`}>
-                              <span className="material-symbols-outlined text-base">
-                                open_in_new
-                              </span>
+                              <Icons.OpenInNew className="size-4" />
                             </Link>
                           </Button>
                         </div>

@@ -12,6 +12,8 @@ import Link from "next/link";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 
+import { Icons } from "@cendaro/ui/icons";
+
 import type { CatalogImportStep } from "./hooks/use-catalog-import";
 import { useTRPC } from "~/trpc/client";
 import { useCatalogImport } from "./hooks/use-catalog-import";
@@ -65,7 +67,7 @@ function StepIndicator({
         const isActive = current === s.key;
 
         const sharedClasses =
-          "flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-all";
+          "flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-all";
         const colorClasses = isActive
           ? "bg-primary text-white"
           : isDone
@@ -80,7 +82,7 @@ function StepIndicator({
                 className={`${sharedClasses} ${colorClasses} cursor-pointer hover:scale-105 hover:shadow-sm active:scale-95`}
                 title={`Volver a ${s.label}`}
               >
-                <span className="material-symbols-outlined text-xs">check</span>
+                <Icons.Check className="size-3" />
                 <span className="hidden sm:inline">{s.label}</span>
               </button>
             ) : (
@@ -412,9 +414,7 @@ export function CatalogImportWizard() {
         >
           Catálogo
         </Link>
-        <span className="material-symbols-outlined text-base">
-          chevron_right
-        </span>
+        <Icons.ChevronRight className="size-4" />
         <span className="text-foreground font-medium">Importar</span>
       </div>
 
@@ -429,9 +429,7 @@ export function CatalogImportWizard() {
             disabled={state.isLoading}
             className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-sm transition-colors disabled:opacity-50"
           >
-            <span className="material-symbols-outlined text-lg">
-              restart_alt
-            </span>
+            <Icons.RestartAlt className="size-4.5" />
             Reiniciar
           </button>
         )}
@@ -450,7 +448,7 @@ export function CatalogImportWizard() {
       {/* Global error */}
       {state.serverError && (
         <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-900/20 dark:text-red-400">
-          <span className="material-symbols-outlined text-lg">error</span>
+          <Icons.Error className="size-4.5" />
           {state.serverError}
         </div>
       )}
@@ -459,14 +457,14 @@ export function CatalogImportWizard() {
       {wasRestored && state.step !== "upload" && state.step !== "result" && (
         <div className="flex items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-400">
           <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-lg">restore</span>
+            <Icons.Restore className="size-4.5" />
             Sesión restaurada — los datos de tu archivo ya están cargados.
           </div>
           <button
             onClick={() => setWasRestored(false)}
             className="text-amber-500 transition-colors hover:text-amber-700 dark:hover:text-amber-300"
           >
-            <span className="material-symbols-outlined text-lg">close</span>
+            <Icons.Close className="size-4.5" />
           </button>
         </div>
       )}

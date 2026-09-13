@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import type { UserRole } from "@cendaro/validators";
+import { Icons } from "@cendaro/ui/icons";
 
 import { Dialog } from "~/components/dialog";
 import { useTRPC } from "~/trpc/client";
@@ -103,7 +104,7 @@ export function EditUserDialog({
       >
         {update.error && (
           <div className="bg-destructive/10 text-destructive border-destructive/15 flex items-center gap-2 rounded-xl border px-4 py-3 text-sm">
-            <span className="material-symbols-outlined text-base">error</span>
+            <Icons.Error className="size-4" />
             <span className="font-medium">{update.error.message}</span>
           </div>
         )}
@@ -124,7 +125,7 @@ export function EditUserDialog({
           {isRoleDisabled ? (
             <div>
               <div className="border-border bg-secondary text-muted-foreground flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-sm">
-                <span className="material-symbols-outlined text-xs">lock</span>
+                <Icons.Lock className="size-3" />
                 {ALL_ROLES.find((r) => r.value === user.role)?.label ??
                   user.role}
               </div>
@@ -172,7 +173,7 @@ export function EditUserDialog({
         <button
           type="submit"
           disabled={update.isPending}
-          className="bg-primary text-primary-foreground hover:bg-primary/90 w-full rounded-lg py-2.5 text-sm font-bold transition-colors disabled:opacity-50"
+          className="bg-primary text-primary-foreground hover:bg-primary/90 w-full rounded-lg py-2.5 text-sm font-medium transition-colors disabled:opacity-50"
         >
           {update.isPending ? "Guardando..." : "Guardar Cambios"}
         </button>

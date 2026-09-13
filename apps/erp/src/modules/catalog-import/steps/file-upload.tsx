@@ -10,6 +10,8 @@
 import { useCallback, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import { Icons } from "@cendaro/ui/icons";
+
 import { downloadProductTemplate } from "../lib/catalog-template-builder";
 import { ACCEPTED_EXTENSIONS } from "../lib/catalog-validators";
 
@@ -75,12 +77,10 @@ export function FileUpload({
       <div className="from-primary/10 via-primary/5 to-primary/10 border-primary/20 flex items-center justify-between gap-4 rounded-2xl border bg-linear-to-r p-5">
         <div className="flex items-center gap-3">
           <div className="bg-primary/15 text-primary flex h-12 w-12 shrink-0 items-center justify-center rounded-xl">
-            <span className="material-symbols-outlined text-2xl">
-              description
-            </span>
+            <Icons.Description className="size-6" />
           </div>
           <div>
-            <p className="text-foreground text-sm font-semibold">
+            <p className="text-foreground text-sm font-medium">
               ¿Primera vez importando?
             </p>
             <p className="text-muted-foreground text-xs">
@@ -92,7 +92,7 @@ export function FileUpload({
         <button
           onClick={handleDownloadTemplate}
           disabled={isDownloading}
-          className="bg-primary text-primary-foreground hover:bg-primary/90 flex shrink-0 items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold shadow-sm transition-all hover:shadow-md active:scale-[0.97] disabled:opacity-60"
+          className="bg-primary text-primary-foreground hover:bg-primary/90 flex shrink-0 items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-medium shadow-sm transition-all hover:shadow-md active:scale-[0.97] disabled:opacity-60"
         >
           {isDownloading ? (
             <>
@@ -101,9 +101,7 @@ export function FileUpload({
             </>
           ) : (
             <>
-              <span className="material-symbols-outlined text-lg">
-                download
-              </span>
+              <Icons.Download className="size-4.5" />
               Descargar Plantilla
             </>
           )}
@@ -137,19 +135,17 @@ export function FileUpload({
           {isParsing ? (
             <>
               <div className="border-primary h-12 w-12 animate-spin rounded-full border-4 border-t-transparent" />
-              <p className="text-foreground text-lg font-semibold">
+              <p className="text-foreground text-lg font-medium">
                 Procesando archivo...
               </p>
             </>
           ) : (
             <>
               <div className="bg-primary/10 text-primary flex h-16 w-16 items-center justify-center rounded-2xl">
-                <span className="material-symbols-outlined text-3xl">
-                  upload_file
-                </span>
+                <Icons.UploadFile className="size-7.5" />
               </div>
               <div>
-                <p className="text-foreground text-lg font-semibold">
+                <p className="text-foreground text-lg font-medium">
                   Arrastra tu archivo aquí
                 </p>
                 <p className="text-muted-foreground mt-1 text-sm">
@@ -164,34 +160,28 @@ export function FileUpload({
       {/* Error */}
       {error && (
         <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-900/20 dark:text-red-400">
-          <span className="material-symbols-outlined text-lg">error</span>
+          <Icons.Error className="size-4.5" />
           {error}
         </div>
       )}
 
       {/* Format info */}
       <div className="bg-muted/30 rounded-xl p-4">
-        <h3 className="text-foreground mb-2 text-sm font-semibold">
+        <h3 className="text-foreground mb-2 text-sm font-medium">
           Formato esperado
         </h3>
         <ul className="text-muted-foreground space-y-1 text-xs">
           <li className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-sm text-emerald-500">
-              check_circle
-            </span>
+            <Icons.CheckCircle className="size-3.5 text-emerald-500" />
             Columnas obligatorias: <strong>SKU/Referencia</strong> y{" "}
             <strong>Nombre</strong>
           </li>
           <li className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-sm text-blue-500">
-              info
-            </span>
+            <Icons.Info className="size-3.5 text-blue-500" />
             Opcionales: Categoría, Marca, Costo, Cantidad, Código de barras
           </li>
           <li className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-sm text-amber-500">
-              lightbulb
-            </span>
+            <Icons.Lightbulb className="size-3.5 text-amber-500" />
             Se aceptan encabezados en español, inglés o chino
           </li>
         </ul>

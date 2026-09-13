@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useQueries } from "@tanstack/react-query";
 
+import type { IconName } from "@cendaro/ui/icons";
 import {
   Card,
   CardAction,
@@ -18,6 +19,7 @@ import {
   TableHeader,
   TableRow,
 } from "@cendaro/ui";
+import { Icon, Icons } from "@cendaro/ui/icons";
 
 import type { ClosureSalesPoint } from "./charts";
 import type { StatTone } from "~/components/stat-card";
@@ -57,14 +59,14 @@ interface Kpi {
   label: string;
   value: string | number;
   sub?: string;
-  icon: string;
+  icon: IconName;
   tone: StatTone;
   href: string;
 }
 
 interface SummaryRow {
   label: string;
-  icon: string;
+  icon: IconName;
   href: string;
   value: string | number;
   /** "success" tints the value with the success token (money in). */
@@ -105,7 +107,7 @@ export default function DashboardClient() {
     {
       label: "Órdenes",
       value: summary?.orders.total ?? 0,
-      icon: "receipt_long",
+      icon: "ReceiptLong",
       tone: "primary",
       href: "/orders",
     },
@@ -113,7 +115,7 @@ export default function DashboardClient() {
       label: "Ingresos",
       value: revenue.usd,
       sub: revenue.bs || undefined,
-      icon: "payments",
+      icon: "Payments",
       tone: "primary",
       href: "/orders",
     },
@@ -122,14 +124,14 @@ export default function DashboardClient() {
       value: formatDualCurrency(summary?.orders.paid ?? 0, bcv.rate).usd,
       sub:
         formatDualCurrency(summary?.orders.paid ?? 0, bcv.rate).bs || undefined,
-      icon: "trending_up",
+      icon: "TrendingUp",
       tone: "success",
       href: "/payments",
     },
     {
       label: "Pagos",
       value: summary?.payments.total ?? 0,
-      icon: "credit_card",
+      icon: "CreditCard",
       tone: "default",
       href: "/payments",
     },
@@ -137,14 +139,14 @@ export default function DashboardClient() {
       label: "Por Cobrar",
       value: receivable.usd,
       sub: receivable.bs || undefined,
-      icon: "account_balance_wallet",
+      icon: "AccountBalanceWallet",
       tone: "warning",
       href: "/accounts-receivable",
     },
     {
       label: "Alertas",
       value: alertCount ?? 0,
-      icon: "notifications_active",
+      icon: "NotificationsActive",
       tone: (alertCount ?? 0) > 0 ? "destructive" : "default",
       href: "/alerts",
     },
@@ -154,19 +156,19 @@ export default function DashboardClient() {
     {
       label: "Órdenes",
       value: summary?.orders.total ?? 0,
-      icon: "receipt_long",
+      icon: "ReceiptLong",
       href: "/orders",
     },
     {
       label: "Pagos Procesados",
       value: summary?.payments.total ?? 0,
-      icon: "credit_card",
+      icon: "CreditCard",
       href: "/payments",
     },
     {
       label: "CxC Abiertas",
       value: summary?.accountsReceivable.total ?? 0,
-      icon: "assignment",
+      icon: "Assignment",
       href: "/accounts-receivable",
     },
     {
@@ -174,7 +176,7 @@ export default function DashboardClient() {
       value: collected.usd,
       sub: collected.bs || undefined,
       valueTone: "success",
-      icon: "attach_money",
+      icon: "AttachMoney",
       href: "/cash-closure",
     },
   ];
@@ -298,13 +300,14 @@ export default function DashboardClient() {
             {summaryRows.map((item) => (
               <Link key={item.label} href={item.href} className={rowClasses}>
                 <span className="text-foreground flex items-center gap-2 text-sm">
-                  <span className="material-symbols-outlined text-muted-foreground text-lg">
-                    {item.icon}
-                  </span>
+                  <Icon
+                    name={item.icon}
+                    className="text-muted-foreground size-4.5"
+                  />
                   {item.label}
                 </span>
                 <span
-                  className={`font-mono text-sm font-semibold tabular-nums ${
+                  className={`font-mono text-sm font-medium tabular-nums ${
                     item.valueTone === "success"
                       ? "text-success-soft"
                       : "text-foreground"
@@ -335,9 +338,7 @@ export default function DashboardClient() {
           <CardContent className="space-y-3">
             <div className="border-border-subtle flex min-h-11 items-center justify-between gap-3 rounded-lg border p-3">
               <span className="text-foreground flex items-center gap-2 text-sm">
-                <span className="material-symbols-outlined text-muted-foreground text-lg">
-                  attach_money
-                </span>
+                <Icons.AttachMoney className="text-muted-foreground size-4.5" />
                 BCV Oficial
                 {bcv.date ? (
                   <span className="text-muted-foreground text-xs">
@@ -348,22 +349,20 @@ export default function DashboardClient() {
               {bcv.isLoading ? (
                 <Skeleton className="h-5 w-24" />
               ) : (
-                <span className="text-foreground font-mono text-sm font-semibold tabular-nums">
+                <span className="text-foreground font-mono text-sm font-medium tabular-nums">
                   {bcv.rate > 0 ? `Bs ${bcv.rate.toFixed(2)}` : "—"}
                 </span>
               )}
             </div>
             <div className="border-border-subtle flex min-h-11 items-center justify-between gap-3 rounded-lg border p-3">
               <span className="text-foreground flex items-center gap-2 text-sm">
-                <span className="material-symbols-outlined text-muted-foreground text-lg">
-                  credit_card
-                </span>
+                <Icons.CreditCard className="text-muted-foreground size-4.5" />
                 Paralelo (USDT)
               </span>
               {bcv.isLoading ? (
                 <Skeleton className="h-5 w-24" />
               ) : (
-                <span className="text-foreground font-mono text-sm font-semibold tabular-nums">
+                <span className="text-foreground font-mono text-sm font-medium tabular-nums">
                   {ves.paralelo.rate > 0
                     ? `Bs ${ves.paralelo.rate.toFixed(2)}`
                     : "—"}
@@ -372,15 +371,13 @@ export default function DashboardClient() {
             </div>
             <div className="border-border-subtle flex min-h-11 items-center justify-between gap-3 rounded-lg border p-3">
               <span className="text-foreground flex items-center gap-2 text-sm">
-                <span className="material-symbols-outlined text-muted-foreground text-lg">
-                  trending_up
-                </span>
+                <Icons.TrendingUp className="text-muted-foreground size-4.5" />
                 Brecha
               </span>
               {bcv.isLoading ? (
                 <Skeleton className="h-5 w-16" />
               ) : (
-                <span className="text-warning-soft font-mono text-sm font-semibold tabular-nums">
+                <span className="text-warning-soft font-mono text-sm font-medium tabular-nums">
                   {ves.spread.percentage !== 0
                     ? `${ves.spread.percentage.toFixed(1)}%`
                     : "—"}
@@ -389,9 +386,7 @@ export default function DashboardClient() {
             </div>
             <Link href="/alerts" className={rowClasses}>
               <span className="text-foreground flex items-center gap-2 text-sm">
-                <span className="material-symbols-outlined text-muted-foreground text-lg">
-                  notifications_active
-                </span>
+                <Icons.NotificationsActive className="text-muted-foreground size-4.5" />
                 Alertas Activas
               </span>
               <StatusBadge
@@ -416,9 +411,7 @@ export default function DashboardClient() {
                 className="text-primary hover:text-primary/80 inline-flex items-center gap-1 text-sm font-medium transition-colors"
               >
                 Ver todos
-                <span className="material-symbols-outlined text-base">
-                  arrow_forward
-                </span>
+                <Icons.ArrowForward className="size-4" />
               </Link>
             </CardAction>
           </CardHeader>
@@ -469,7 +462,7 @@ export default function DashboardClient() {
                           ${Number(c.totalDigital).toFixed(2)}
                         </TableCell>
                         <TableCell
-                          className={`px-3 py-2.5 text-right font-mono font-semibold tabular-nums ${
+                          className={`px-3 py-2.5 text-right font-mono font-medium tabular-nums ${
                             diff === 0
                               ? "text-success-soft"
                               : diff < 0
@@ -487,7 +480,7 @@ export default function DashboardClient() {
               </Table>
             ) : (
               <EmptyState
-                icon="lock_clock"
+                icon="LockClock"
                 title="No hay cierres de caja registrados"
                 description="Los cierres de caja recientes aparecerán aquí."
               />

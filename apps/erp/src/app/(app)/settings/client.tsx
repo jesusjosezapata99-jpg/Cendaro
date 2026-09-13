@@ -3,30 +3,39 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import type { IconName } from "@cendaro/ui/icons";
+import { Icon, Icons } from "@cendaro/ui/icons";
+
 import { PageHeader } from "~/components/page-header";
 import { StatCard } from "~/components/stat-card";
 import { StatusBadge } from "~/components/status-badge";
 import { useTRPC } from "~/trpc/client";
 
-const DEFAULT_MODULES = [
+const DEFAULT_MODULES: {
+  key: string;
+  name: string;
+  icon: IconName;
+  description: string;
+  defaultOn: boolean;
+}[] = [
   {
     key: "catalog",
     name: "Catálogo & Productos",
-    icon: "inventory_2",
+    icon: "Inventory2",
     description: "Maestro de SKUs, marcas, categorías y variantes",
     defaultOn: true,
   },
   {
     key: "inventory",
     name: "Inventario & Almacenes",
-    icon: "warehouse",
+    icon: "Warehouse",
     description: "Control multialmacén, existencias y movimientos",
     defaultOn: true,
   },
   {
     key: "containers",
     name: "Importaciones & Contenedores",
-    icon: "local_shipping",
+    icon: "LocalShipping",
     description:
       "Cadena de suministro marítima, costeo FOB/CIF y packing lists",
     defaultOn: true,
@@ -34,42 +43,42 @@ const DEFAULT_MODULES = [
   {
     key: "pricing",
     name: "Motor de Precios & Repricing",
-    icon: "sell",
+    icon: "Sell",
     description: "Reglas de margen dinámico y conversión oficial BCV",
     defaultOn: true,
   },
   {
     key: "pos",
     name: "Punto de Venta Mostrador (POS)",
-    icon: "shopping_cart",
+    icon: "ShoppingCart",
     description: "Terminal de venta física rápida con multi-pago",
     defaultOn: true,
   },
   {
     key: "marketplace",
     name: "Mercado Libre B2B",
-    icon: "storefront",
+    icon: "Storefront",
     description: "Sincronización bidireccional de publicaciones y órdenes",
     defaultOn: false,
   },
   {
     key: "whatsapp",
     name: "Ventas WhatsApp CRM",
-    icon: "chat",
+    icon: "Chat",
     description: "Gestión de pedidos conversacionales y enlaces directos",
     defaultOn: false,
   },
   {
     key: "vendors",
     name: "Fuerza de Ventas & Comisiones",
-    icon: "group",
+    icon: "Group",
     description: "Liquidación y seguimiento de asesores comerciales",
     defaultOn: false,
   },
   {
     key: "audit",
     name: "Auditoría & Trazabilidad",
-    icon: "policy",
+    icon: "Policy",
     description: "Log inmutable de eventos forenses y mutaciones del ERP",
     defaultOn: true,
   },
@@ -181,28 +190,28 @@ export default function SettingsClient() {
         <StatCard
           label="Módulos Activos"
           value={`${activeModulesCount} / ${DEFAULT_MODULES.length}`}
-          icon="deployed_code"
+          icon="DeployedCode"
           tone="primary"
           sub="Arquitectura operativa"
         />
         <StatCard
           label="Plan del Workspace"
           value={workspaceData?.plan ? workspaceData.plan.toUpperCase() : "PRO"}
-          icon="verified"
+          icon="Verified"
           tone="success"
           sub="Suscripción empresarial"
         />
         <StatCard
           label="Zona Horaria"
           value="VET (-04:00)"
-          icon="schedule"
+          icon="Schedule"
           tone="default"
           sub="Caracas, Venezuela"
         />
         <StatCard
           label="Moneda Primaria"
           value="USD ($)"
-          icon="payments"
+          icon="Payments"
           tone="default"
           sub="Tasa Operativa: BCV"
         />
@@ -212,7 +221,7 @@ export default function SettingsClient() {
       {profile && (
         <div className="surface-card flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex min-w-0 items-center gap-4">
-            <div className="bg-primary text-primary-foreground flex size-12 shrink-0 items-center justify-center rounded-full text-sm font-bold uppercase shadow-sm">
+            <div className="bg-primary text-primary-foreground flex size-12 shrink-0 items-center justify-center rounded-full text-sm font-medium uppercase shadow-sm">
               {profile.fullName
                 .split(" ")
                 .map((n: string) => n[0])
@@ -221,7 +230,7 @@ export default function SettingsClient() {
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <p className="text-foreground truncate text-sm font-semibold">
+                <p className="text-foreground truncate text-sm font-medium">
                   {profile.fullName}
                 </p>
                 <StatusBadge tone="primary">{profile.role}</StatusBadge>
@@ -233,7 +242,7 @@ export default function SettingsClient() {
           </div>
 
           <div className="text-muted-foreground border-border/50 flex items-center gap-2 border-t pt-3 font-mono text-xs sm:border-t-0 sm:pt-0">
-            <span className="material-symbols-outlined text-sm">shield</span>
+            <Icons.Shield className="size-3.5" />
             <span>Sesión Autenticada</span>
           </div>
         </div>
@@ -242,10 +251,8 @@ export default function SettingsClient() {
       {/* Organization Settings */}
       <div className="surface-card p-6">
         <div className="border-border/60 mb-5 border-b pb-4">
-          <h2 className="text-foreground flex items-center gap-2 text-base font-semibold">
-            <span className="material-symbols-outlined text-primary text-lg">
-              business
-            </span>
+          <h2 className="text-foreground flex items-center gap-2 text-base font-medium">
+            <Icons.Business className="text-primary size-4.5" />
             Datos de la Organización & Empresa
           </h2>
           <p className="text-muted-foreground mt-0.5 text-xs">
@@ -326,27 +333,21 @@ export default function SettingsClient() {
             <button
               type="submit"
               disabled={updateWorkspaceMutation.isPending}
-              className="bg-primary text-primary-foreground hover:bg-primary/90 flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-semibold shadow-xs transition-colors disabled:opacity-50"
+              className="bg-primary text-primary-foreground hover:bg-primary/90 flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-medium shadow-xs transition-colors disabled:opacity-50"
             >
               {updateWorkspaceMutation.isPending ? (
                 <>
-                  <span className="material-symbols-outlined animate-spin text-sm">
-                    progress_activity
-                  </span>
+                  <Icons.ProgressActivity className="size-3.5 animate-spin" />
                   Guardando...
                 </>
               ) : orgSaved ? (
                 <>
-                  <span className="material-symbols-outlined text-sm">
-                    check
-                  </span>
+                  <Icons.Check className="size-3.5" />
                   Guardado Correctamente
                 </>
               ) : (
                 <>
-                  <span className="material-symbols-outlined text-sm">
-                    check
-                  </span>
+                  <Icons.Check className="size-3.5" />
                   Guardar Organización
                 </>
               )}
@@ -360,10 +361,8 @@ export default function SettingsClient() {
         <div className="border-border/60 mb-5 border-b pb-4">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-foreground flex items-center gap-2 text-base font-semibold">
-                <span className="material-symbols-outlined text-primary text-lg">
-                  deployed_code
-                </span>
+              <h2 className="text-foreground flex items-center gap-2 text-base font-medium">
+                <Icons.DeployedCode className="text-primary size-4.5" />
                 Arquitectura de Módulos ERP
               </h2>
               <p className="text-muted-foreground mt-0.5 text-xs">
@@ -399,12 +398,10 @@ export default function SettingsClient() {
                         : "bg-muted text-muted-foreground"
                     }`}
                   >
-                    <span className="material-symbols-outlined text-base">
-                      {mod.icon}
-                    </span>
+                    <Icon name={mod.icon} className="size-4" />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-foreground truncate text-xs font-semibold">
+                    <p className="text-foreground truncate text-xs font-medium">
                       {mod.name}
                     </p>
                     <p className="text-muted-foreground mt-0.5 line-clamp-2 text-[11px] leading-relaxed">
@@ -433,10 +430,8 @@ export default function SettingsClient() {
       {/* Pricing Engine & Exchange Rates Policies */}
       <div className="surface-card p-6">
         <div className="border-border/60 mb-5 border-b pb-4">
-          <h2 className="text-foreground flex items-center gap-2 text-base font-semibold">
-            <span className="material-symbols-outlined text-primary text-lg">
-              sell
-            </span>
+          <h2 className="text-foreground flex items-center gap-2 text-base font-medium">
+            <Icons.Sell className="text-primary size-4.5" />
             Políticas del Motor de Precios & BCV
           </h2>
           <p className="text-muted-foreground mt-0.5 text-xs">
@@ -515,20 +510,16 @@ export default function SettingsClient() {
 
             <button
               type="submit"
-              className="bg-primary text-primary-foreground hover:bg-primary/90 flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-semibold shadow-xs transition-colors"
+              className="bg-primary text-primary-foreground hover:bg-primary/90 flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-medium shadow-xs transition-colors"
             >
               {pricingSaved ? (
                 <>
-                  <span className="material-symbols-outlined text-sm">
-                    check
-                  </span>
+                  <Icons.Check className="size-3.5" />
                   Políticas Guardadas
                 </>
               ) : (
                 <>
-                  <span className="material-symbols-outlined text-sm">
-                    tune
-                  </span>
+                  <Icons.Tune className="size-3.5" />
                   Guardar Políticas
                 </>
               )}

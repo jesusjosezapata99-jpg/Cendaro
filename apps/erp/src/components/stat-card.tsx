@@ -1,6 +1,8 @@
 import Link from "next/link";
 
+import type { IconName } from "@cendaro/ui/icons";
 import { cn } from "@cendaro/ui";
+import { Icon } from "@cendaro/ui/icons";
 
 export type StatTone =
   "default" | "primary" | "success" | "warning" | "destructive";
@@ -10,8 +12,7 @@ interface StatCardProps {
   value: React.ReactNode;
   /** Secondary line — e.g. the Bs. amount under the USD total. */
   sub?: React.ReactNode;
-  /** Material Symbols ligature (e.g. "receipt_long"). */
-  icon?: string;
+  icon?: IconName;
   tone?: StatTone;
   /** Makes the card a navigable link with hover affordance. */
   href?: string;
@@ -49,15 +50,15 @@ export function StatCard({
           <span
             aria-hidden
             className={cn(
-              "material-symbols-outlined flex size-7 shrink-0 items-center justify-center rounded-lg text-lg",
+              "flex size-7 shrink-0 items-center justify-center rounded-lg",
               toneIconStyles[tone],
             )}
           >
-            {icon}
+            <Icon name={icon} className="size-4.5" />
           </span>
         ) : null}
       </div>
-      <div className="text-foreground text-2xl font-semibold tracking-tight tabular-nums">
+      <div className="text-foreground text-2xl font-medium tracking-tight tabular-nums">
         {value}
       </div>
       {sub ? (

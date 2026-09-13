@@ -4,6 +4,8 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 
+import { Icons } from "@cendaro/ui/icons";
+
 import type { StatusTone } from "~/components/status-badge";
 import { EmptyState } from "~/components/empty-state";
 import { CreateOrderDialog } from "~/components/forms/create-order";
@@ -147,9 +149,9 @@ export default function WhatsAppPage() {
           <button
             type="button"
             onClick={() => setCreateOrderOpen(true)}
-            className="bg-primary text-primary-foreground hover:bg-primary/90 flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold shadow-sm transition-all active:scale-[0.98]"
+            className="bg-primary text-primary-foreground hover:bg-primary/90 flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium shadow-sm transition-all active:scale-[0.98]"
           >
-            <span className="material-symbols-outlined text-base">add</span>
+            <Icons.Add className="size-4" />
             Registrar Venta WhatsApp
           </button>
         }
@@ -160,38 +162,36 @@ export default function WhatsAppPage() {
         <StatCard
           label="Pedidos WhatsApp Hoy"
           value={todayOrders.length}
-          icon="chat"
+          icon="Chat"
           tone="primary"
         />
         <StatCard
           label="Facturación Hoy"
           value={ordersLoading ? "—" : dualToday.usd}
           sub={bcv.rate > 0 ? dualToday.bs : undefined}
-          icon="payments"
+          icon="Payments"
           tone="primary"
         />
         <StatCard
           label="Total Histórico WhatsApp"
           value={ordersLoading ? "—" : dualTotal.usd}
           sub={bcv.rate > 0 ? dualTotal.bs : undefined}
-          icon="receipt_long"
+          icon="ReceiptLong"
           tone="success"
         />
         <StatCard
           label="Pedidos Pendientes"
           value={pendingOrders}
-          icon="schedule"
+          icon="Schedule"
           tone={pendingOrders > 0 ? "warning" : "default"}
         />
       </div>
 
       {/* Omnichannel Architecture Banner */}
       <div className="surface-card border-border flex items-start gap-3 rounded-xl border p-4">
-        <span className="material-symbols-outlined text-primary mt-0.5 shrink-0 text-xl">
-          info
-        </span>
+        <Icons.Info className="text-primary mt-0.5 size-5 shrink-0" />
         <div className="space-y-0.5 text-xs">
-          <p className="text-foreground font-semibold">
+          <p className="text-foreground font-medium">
             Canal Híbrido Asistido: WhatsApp consume stock en tiempo real
           </p>
           <p className="text-muted-foreground">
@@ -240,7 +240,7 @@ export default function WhatsAppPage() {
             >
               {tab.label}
               <span
-                className={`py-0.2 rounded-full px-1.5 text-[10px] font-semibold ${
+                className={`py-0.2 rounded-full px-1.5 text-[10px] font-medium ${
                   activeFilter === tab.key
                     ? "bg-primary-foreground/20 text-primary-foreground"
                     : "bg-muted text-muted-foreground"
@@ -253,9 +253,7 @@ export default function WhatsAppPage() {
         </div>
 
         <div className="relative w-full sm:w-72">
-          <span className="material-symbols-outlined text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-lg">
-            search
-          </span>
+          <Icons.Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4.5 -translate-y-1/2" />
           <input
             type="text"
             value={search}
@@ -275,16 +273,16 @@ export default function WhatsAppPage() {
         </div>
       ) : filteredOrders.length === 0 ? (
         <EmptyState
-          icon="chat"
+          icon="Chat"
           title="No hay ventas de WhatsApp registradas"
           description="Las ventas originadas o asistidas por mensajería aparecerán registradas en este panel comercial."
           action={
             <button
               type="button"
               onClick={() => setCreateOrderOpen(true)}
-              className="bg-primary text-primary-foreground hover:bg-primary/90 mt-2 flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold shadow-sm transition-all active:scale-[0.98]"
+              className="bg-primary text-primary-foreground hover:bg-primary/90 mt-2 flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium shadow-sm transition-all active:scale-[0.98]"
             >
-              <span className="material-symbols-outlined text-base">add</span>
+              <Icons.Add className="size-4" />
               Registrar Primera Venta
             </button>
           }
@@ -310,10 +308,10 @@ export default function WhatsAppPage() {
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <span className="text-primary font-mono text-xs font-semibold">
+                      <span className="text-primary font-mono text-xs font-medium">
                         {o.orderNumber}
                       </span>
-                      <p className="text-foreground mt-0.5 text-sm font-semibold">
+                      <p className="text-foreground mt-0.5 text-sm font-medium">
                         {customerName}
                       </p>
                     </div>
@@ -325,7 +323,7 @@ export default function WhatsAppPage() {
                       <p className="text-muted-foreground text-[10px] tracking-wider uppercase">
                         Total Pedido
                       </p>
-                      <p className="text-foreground font-mono text-sm font-bold">
+                      <p className="text-foreground font-mono text-sm font-medium">
                         {dual.usd}
                       </p>
                       {bcv.rate > 0 && (
@@ -355,9 +353,7 @@ export default function WhatsAppPage() {
                           rel="noopener noreferrer"
                           className="surface-card border-border flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-medium text-emerald-400 transition-colors hover:text-emerald-300"
                         >
-                          <span className="material-symbols-outlined text-sm">
-                            chat
-                          </span>
+                          <Icons.Chat className="size-3.5" />
                           Chat
                         </a>
                       )}
@@ -366,9 +362,7 @@ export default function WhatsAppPage() {
                           href={`tel:${cust.phone}`}
                           className="surface-card border-border text-muted-foreground hover:text-foreground flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors"
                         >
-                          <span className="material-symbols-outlined text-sm">
-                            phone
-                          </span>
+                          <Icons.Phone className="size-3.5" />
                           Llamar
                         </a>
                       )}
@@ -377,7 +371,7 @@ export default function WhatsAppPage() {
                       <button
                         type="button"
                         onClick={() => setSelectedVoucherOrderId(o.id)}
-                        className="surface-card border-border text-foreground hover:bg-accent flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-semibold transition-all active:scale-[0.98]"
+                        className="surface-card border-border text-foreground hover:bg-accent flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-medium transition-all active:scale-[0.98]"
                       >
                         Comprobante
                       </button>
@@ -385,9 +379,7 @@ export default function WhatsAppPage() {
                         href={`/orders/${o.id}`}
                         className="surface-card border-border text-muted-foreground hover:text-foreground rounded-lg border p-1.5 transition-colors"
                       >
-                        <span className="material-symbols-outlined text-base">
-                          arrow_forward
-                        </span>
+                        <Icons.ArrowForward className="size-4" />
                       </Link>
                     </div>
                   </div>
@@ -431,7 +423,7 @@ export default function WhatsAppPage() {
                       <td className="px-4 py-3">
                         <Link
                           href={`/orders/${o.id}`}
-                          className="text-primary font-mono text-xs font-semibold hover:underline"
+                          className="text-primary font-mono text-xs font-medium hover:underline"
                         >
                           {o.orderNumber}
                         </Link>
@@ -449,9 +441,7 @@ export default function WhatsAppPage() {
                             rel="noopener noreferrer"
                             className="inline-flex items-center gap-1.5 font-mono text-xs font-medium text-emerald-400 hover:text-emerald-300"
                           >
-                            <span className="material-symbols-outlined text-sm">
-                              chat
-                            </span>
+                            <Icons.Chat className="size-3.5" />
                             {cust?.phone}
                           </a>
                         ) : (
@@ -461,7 +451,7 @@ export default function WhatsAppPage() {
                         )}
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <p className="text-foreground font-mono text-sm font-bold">
+                        <p className="text-foreground font-mono text-sm font-medium">
                           {dual.usd}
                         </p>
                         {bcv.rate > 0 && (
@@ -481,7 +471,7 @@ export default function WhatsAppPage() {
                           <button
                             type="button"
                             onClick={() => setSelectedVoucherOrderId(o.id)}
-                            className="surface-card border-border text-foreground hover:bg-accent flex items-center gap-1 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-all active:scale-[0.98]"
+                            className="surface-card border-border text-foreground hover:bg-accent flex items-center gap-1 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all active:scale-[0.98]"
                           >
                             Comprobante
                           </button>
@@ -489,9 +479,7 @@ export default function WhatsAppPage() {
                             href={`/orders/${o.id}`}
                             className="surface-card border-border text-muted-foreground hover:text-foreground rounded-lg border p-1.5 transition-colors"
                           >
-                            <span className="material-symbols-outlined text-base">
-                              arrow_forward
-                            </span>
+                            <Icons.ArrowForward className="size-4" />
                           </Link>
                         </div>
                       </td>

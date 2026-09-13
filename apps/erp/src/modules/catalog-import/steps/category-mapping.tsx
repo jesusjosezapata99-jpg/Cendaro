@@ -11,6 +11,8 @@
  */
 import { useState } from "react";
 
+import { Icons } from "@cendaro/ui/icons";
+
 import type { CategoryMapping } from "../hooks/use-catalog-import";
 
 // ── Component ────────────────────────────────────
@@ -81,7 +83,7 @@ export function CategoryMappingStep({
       <div className="bg-muted/30 rounded-xl px-4 py-3">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-foreground text-sm font-semibold">
+            <h3 className="text-foreground text-sm font-medium">
               Resolver categorías no reconocidas
             </h3>
             <p className="text-muted-foreground mt-0.5 text-xs">
@@ -127,18 +129,16 @@ export function CategoryMappingStep({
               {/* Raw category label */}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <span
-                    className={`material-symbols-outlined text-base ${
-                      isResolved ? "text-emerald-500" : "text-amber-500"
-                    }`}
-                  >
-                    {isResolved ? "check_circle" : "help"}
-                  </span>
-                  <span className="text-foreground text-sm font-semibold">
+                  {isResolved ? (
+                    <Icons.CheckCircle className="size-4 text-emerald-500" />
+                  ) : (
+                    <Icons.Help className="size-4 text-amber-500" />
+                  )}
+                  <span className="text-foreground text-sm font-medium">
                     &quot;{rawCategory}&quot;
                   </span>
                   {cat.newCategoryName && (
-                    <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                    <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
                       NUEVA
                     </span>
                   )}
@@ -189,7 +189,7 @@ export function CategoryMappingStep({
                               ({Math.round(sug.score * 100)}%)
                             </span>
                             {isRecommended && (
-                              <span className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700 dark:bg-emerald-800/40 dark:text-emerald-300">
+                              <span className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[9px] font-medium text-emerald-700 dark:bg-emerald-800/40 dark:text-emerald-300">
                                 RECOMENDADO
                               </span>
                             )}
@@ -231,11 +231,9 @@ export function CategoryMappingStep({
                   <button
                     onClick={() => confirmCreating(rawCategory)}
                     disabled={!creatingMap[rawCategory].trim()}
-                    className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white transition-all hover:bg-emerald-700 active:scale-95 disabled:opacity-50"
+                    className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-medium text-white transition-all hover:bg-emerald-700 active:scale-95 disabled:opacity-50"
                   >
-                    <span className="material-symbols-outlined text-sm">
-                      check
-                    </span>
+                    <Icons.Check className="size-3.5" />
                     Crear
                   </button>
                   <button
@@ -279,11 +277,9 @@ export function CategoryMappingStep({
                         cat.suggestedNewName ?? rawCategory,
                       )
                     }
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-blue-400 bg-blue-50 px-3 py-2 text-xs font-semibold whitespace-nowrap text-blue-700 transition-all hover:bg-blue-100 active:scale-95 dark:border-blue-600 dark:bg-blue-900/20 dark:text-blue-300 dark:hover:bg-blue-900/30"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-blue-400 bg-blue-50 px-3 py-2 text-xs font-medium whitespace-nowrap text-blue-700 transition-all hover:bg-blue-100 active:scale-95 dark:border-blue-600 dark:bg-blue-900/20 dark:text-blue-300 dark:hover:bg-blue-900/30"
                   >
-                    <span className="material-symbols-outlined text-sm">
-                      add
-                    </span>
+                    <Icons.Add className="size-3.5" />
                     Crear categoría
                   </button>
                 </div>
@@ -299,14 +295,14 @@ export function CategoryMappingStep({
           onClick={onBack}
           className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-sm transition-colors"
         >
-          <span className="material-symbols-outlined text-lg">arrow_back</span>
+          <Icons.ArrowBack className="size-4.5" />
           Volver
         </button>
 
         <button
           onClick={onComplete}
           disabled={!allResolved || isLoading}
-          className="bg-primary hover:bg-primary/90 inline-flex items-center gap-2 rounded-xl px-6 py-3 text-sm font-semibold text-white transition-all hover:shadow-lg active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+          className="bg-primary hover:bg-primary/90 inline-flex items-center gap-2 rounded-xl px-6 py-3 text-sm font-medium text-white transition-all hover:shadow-lg active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
         >
           {isLoading ? (
             <>
@@ -315,9 +311,7 @@ export function CategoryMappingStep({
             </>
           ) : (
             <>
-              <span className="material-symbols-outlined text-lg">
-                arrow_forward
-              </span>
+              <Icons.ArrowForward className="size-4.5" />
               Continuar al resumen
             </>
           )}

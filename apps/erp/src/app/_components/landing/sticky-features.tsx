@@ -227,7 +227,7 @@ export function StickyFeatures() {
             <ScrollEntrance key={feature.id} delay={index * 0.08}>
               <div className="overflow-hidden rounded-xl border border-(--landing-card-border) bg-(--landing-card-bg)">
                 <div className="p-6">
-                  <h3 className="font-serif text-lg font-semibold tracking-tight">
+                  <h3 className="font-serif text-lg font-medium tracking-tight">
                     {feature.title}
                   </h3>
                   <p className="text-muted-foreground/60 mt-2 text-sm leading-relaxed">

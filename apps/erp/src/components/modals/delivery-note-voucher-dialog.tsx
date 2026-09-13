@@ -12,6 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from "@cendaro/ui";
+import { Icons } from "@cendaro/ui/icons";
 
 import type { StatusTone } from "~/components/status-badge";
 import { Dialog } from "~/components/dialog";
@@ -188,10 +189,8 @@ export function DeliveryNoteVoucherDialog({
         </div>
       ) : !order ? (
         <div className="py-12 text-center">
-          <span className="material-symbols-outlined text-muted-foreground mx-auto mb-2 block text-4xl">
-            local_shipping
-          </span>
-          <p className="text-foreground font-semibold">
+          <Icons.LocalShipping className="text-muted-foreground mx-auto mb-2 block size-9" />
+          <p className="text-foreground font-medium">
             Nota de entrega no encontrada
           </p>
           <p className="text-muted-foreground mt-1 text-sm">
@@ -204,7 +203,7 @@ export function DeliveryNoteVoucherDialog({
           <div className="border-border-subtle bg-accent/20 rounded-xl border p-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <span className="text-muted-foreground text-[10px] font-bold tracking-widest uppercase">
+                <span className="text-muted-foreground text-[10px] font-medium tracking-widest uppercase">
                   Guía de Despacho / Nota de Entrega
                 </span>
                 <p className="text-primary font-mono text-xl font-black tracking-tight tabular-nums">
@@ -227,10 +226,10 @@ export function DeliveryNoteVoucherDialog({
           <div className="grid grid-cols-1 gap-4 text-xs sm:grid-cols-2">
             {/* Destinatario Box */}
             <div className="border-border-subtle surface-card space-y-1.5 rounded-xl border p-3.5">
-              <span className="text-muted-foreground text-[10px] font-bold tracking-widest uppercase">
+              <span className="text-muted-foreground text-[10px] font-medium tracking-widest uppercase">
                 Consignatario / Destino
               </span>
-              <p className="text-foreground text-sm font-semibold">
+              <p className="text-foreground text-sm font-medium">
                 {customer?.name ?? "Cliente Mostrador / Retiro"}
               </p>
               <div className="text-muted-foreground space-y-0.5 pt-1">
@@ -261,7 +260,7 @@ export function DeliveryNoteVoucherDialog({
 
             {/* Logistics & Origin Box */}
             <div className="border-border-subtle surface-card space-y-1.5 rounded-xl border p-3.5">
-              <span className="text-muted-foreground text-[10px] font-bold tracking-widest uppercase">
+              <span className="text-muted-foreground text-[10px] font-medium tracking-widest uppercase">
                 Control de Despacho
               </span>
               <div className="text-muted-foreground space-y-1">
@@ -281,7 +280,7 @@ export function DeliveryNoteVoucherDialog({
                   <span className="text-foreground font-medium">
                     Bultos / Piezas:
                   </span>{" "}
-                  <span className="text-foreground font-mono font-semibold tabular-nums">
+                  <span className="text-foreground font-mono font-medium tabular-nums">
                     {totalItemsCount} unidades
                   </span>
                 </p>
@@ -298,7 +297,7 @@ export function DeliveryNoteVoucherDialog({
           {/* Items to dispatch table */}
           <div>
             <div className="mb-2 flex items-center justify-between">
-              <h4 className="text-foreground text-xs font-bold tracking-wider uppercase">
+              <h4 className="text-foreground text-xs font-medium tracking-wider uppercase">
                 Mercancía a Despachar ({order.items.length} renglones)
               </h4>
             </div>
@@ -306,16 +305,16 @@ export function DeliveryNoteVoucherDialog({
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="px-3 py-2 text-xs font-semibold uppercase">
+                    <TableHead className="px-3 py-2 text-xs font-medium uppercase">
                       Ítem / Producto
                     </TableHead>
-                    <TableHead className="px-3 py-2 text-right text-xs font-semibold uppercase">
+                    <TableHead className="px-3 py-2 text-right text-xs font-medium uppercase">
                       Cant. Solicitada
                     </TableHead>
-                    <TableHead className="px-3 py-2 text-right text-xs font-semibold uppercase">
+                    <TableHead className="px-3 py-2 text-right text-xs font-medium uppercase">
                       Cant. Despachada
                     </TableHead>
-                    <TableHead className="px-3 py-2 text-center text-xs font-semibold uppercase">
+                    <TableHead className="px-3 py-2 text-center text-xs font-medium uppercase">
                       Verificación
                     </TableHead>
                   </TableRow>
@@ -339,13 +338,11 @@ export function DeliveryNoteVoucherDialog({
                           <TableCell className="px-3 py-2 text-right font-mono tabular-nums">
                             {item.quantity}
                           </TableCell>
-                          <TableCell className="text-foreground px-3 py-2 text-right font-mono font-bold tabular-nums">
+                          <TableCell className="text-foreground px-3 py-2 text-right font-mono font-medium tabular-nums">
                             {item.quantity}
                           </TableCell>
                           <TableCell className="px-3 py-2 text-center">
-                            <span className="material-symbols-outlined text-base text-emerald-500">
-                              check_circle
-                            </span>
+                            <Icons.CheckCircle className="size-4 text-emerald-500" />
                           </TableCell>
                         </TableRow>
                       );
@@ -371,7 +368,7 @@ export function DeliveryNoteVoucherDialog({
               Valor Comercial Declarado:
             </span>
             <div className="text-right">
-              <span className="text-foreground font-mono text-sm font-bold tabular-nums">
+              <span className="text-foreground font-mono text-sm font-medium tabular-nums">
                 ${Number(order.total).toFixed(2)} USD
               </span>
               <span className="text-muted-foreground ml-2 font-mono tabular-nums">
@@ -382,12 +379,12 @@ export function DeliveryNoteVoucherDialog({
 
           {/* Delivery Signatures Box */}
           <div className="space-y-2">
-            <span className="text-muted-foreground text-[10px] font-bold tracking-widest uppercase">
+            <span className="text-muted-foreground text-[10px] font-medium tracking-widest uppercase">
               Control de Entrega y Firmas de Conformidad
             </span>
             <div className="grid grid-cols-1 gap-3 text-xs sm:grid-cols-3">
               <div className="border-border-subtle surface-card flex h-24 flex-col justify-between rounded-lg border p-3">
-                <span className="text-muted-foreground text-[10px] font-semibold uppercase">
+                <span className="text-muted-foreground text-[10px] font-medium uppercase">
                   1. Despachado por (Almacén)
                 </span>
                 <div className="border-border-subtle text-muted-foreground border-t pt-1 text-[11px]">
@@ -395,7 +392,7 @@ export function DeliveryNoteVoucherDialog({
                 </div>
               </div>
               <div className="border-border-subtle surface-card flex h-24 flex-col justify-between rounded-lg border p-3">
-                <span className="text-muted-foreground text-[10px] font-semibold uppercase">
+                <span className="text-muted-foreground text-[10px] font-medium uppercase">
                   2. Transportista / Chofer
                 </span>
                 <div className="border-border-subtle text-muted-foreground border-t pt-1 text-[11px]">
@@ -403,7 +400,7 @@ export function DeliveryNoteVoucherDialog({
                 </div>
               </div>
               <div className="border-border-subtle surface-card flex h-24 flex-col justify-between rounded-lg border p-3">
-                <span className="text-muted-foreground text-[10px] font-semibold uppercase">
+                <span className="text-muted-foreground text-[10px] font-medium uppercase">
                   3. Recibido Conforme (Cliente)
                 </span>
                 <div className="border-border-subtle text-muted-foreground border-t pt-1 text-[11px]">
@@ -422,9 +419,7 @@ export function DeliveryNoteVoucherDialog({
                 onClick={handleAdvanceStatus}
                 className="min-h-10 text-xs"
               >
-                <span className="material-symbols-outlined text-base">
-                  flight_takeoff
-                </span>
+                <Icons.FlightTakeoff className="size-4" />
                 {updateStatus.isPending
                   ? "Actualizando..."
                   : "Marcar en Tránsito"}
@@ -437,9 +432,7 @@ export function DeliveryNoteVoucherDialog({
                 onClick={handleAdvanceStatus}
                 className="min-h-10 text-xs"
               >
-                <span className="material-symbols-outlined text-base">
-                  check_circle
-                </span>
+                <Icons.CheckCircle className="size-4" />
                 {updateStatus.isPending
                   ? "Actualizando..."
                   : "Confirmar Entrega"}
@@ -450,16 +443,12 @@ export function DeliveryNoteVoucherDialog({
               onClick={handlePrint}
               className="min-h-10 text-xs"
             >
-              <span className="material-symbols-outlined text-base">
-                local_shipping
-              </span>
+              <Icons.LocalShipping className="size-4" />
               Imprimir Guía
             </Button>
             <Button variant="outline" asChild className="min-h-10 text-xs">
               <Link href={`/orders/${order.id}`}>
-                <span className="material-symbols-outlined text-base">
-                  open_in_new
-                </span>
+                <Icons.OpenInNew className="size-4" />
                 Ver Pedido
               </Link>
             </Button>
@@ -468,7 +457,7 @@ export function DeliveryNoteVoucherDialog({
               onClick={onClose}
               className="min-h-10 text-xs"
             >
-              <span className="material-symbols-outlined text-base">close</span>
+              <Icons.Close className="size-4" />
               Cerrar
             </Button>
           </div>

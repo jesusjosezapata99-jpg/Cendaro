@@ -3,6 +3,9 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
+import type { IconName } from "@cendaro/ui/icons";
+import { Icon, Icons } from "@cendaro/ui/icons";
+
 import type { AuditEntry } from "~/components/modals/audit-details-dialog";
 import type { StatusTone } from "~/components/status-badge";
 import { EmptyState } from "~/components/empty-state";
@@ -16,29 +19,29 @@ function Skeleton({ className = "" }: { className?: string }) {
   return <div className={`bg-muted animate-pulse rounded-lg ${className}`} />;
 }
 
-const ACTION_ICONS: Record<string, string> = {
-  "user.create": "person_add",
-  "user.update": "edit",
-  "price.update": "attach_money",
-  "inventory.adjust": "package_2",
-  "container.close": "local_shipping",
-  "cash.close": "lock",
-  "rate.update": "trending_up",
-  "stock.transfer": "swap_horiz",
-  "stock.lock": "lock",
-  "stock.unlock": "lock_open",
-  "repricing.approve": "check_circle",
-  "payment.create": "payments",
-  "payment.validate": "verified",
-  "commission.pay": "attach_money",
-  "count.create": "assignment",
-  "count.approve": "task_alt",
-  "warehouse.create": "warehouse",
-  "ar.create": "receipt_long",
-  "ar.payment": "paid",
-  "ml.sync": "sync",
-  "ml.import_order": "inbox",
-  "integration.resolve": "check",
+const ACTION_ICONS: Record<string, IconName> = {
+  "user.create": "PersonAdd",
+  "user.update": "Edit",
+  "price.update": "AttachMoney",
+  "inventory.adjust": "Package2",
+  "container.close": "LocalShipping",
+  "cash.close": "Lock",
+  "rate.update": "TrendingUp",
+  "stock.transfer": "SwapHoriz",
+  "stock.lock": "Lock",
+  "stock.unlock": "LockOpen",
+  "repricing.approve": "CheckCircle",
+  "payment.create": "Payments",
+  "payment.validate": "Verified",
+  "commission.pay": "AttachMoney",
+  "count.create": "Assignment",
+  "count.approve": "TaskAlt",
+  "warehouse.create": "Warehouse",
+  "ar.create": "ReceiptLong",
+  "ar.payment": "Paid",
+  "ml.sync": "Sync",
+  "ml.import_order": "Inbox",
+  "integration.resolve": "Check",
 };
 
 const ACTION_TONES: Record<string, StatusTone> = {
@@ -161,17 +164,17 @@ export default function AuditPage() {
               id="btn-inspect-model"
               type="button"
               onClick={() => setSelectedEntry(SAMPLE_AUDIT_ENTRY)}
-              className="border-border bg-card text-foreground hover:bg-accent flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-semibold shadow-xs transition-colors"
+              className="border-border bg-card text-foreground hover:bg-accent flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium shadow-xs transition-colors"
             >
-              <span className="material-symbols-outlined text-sm">preview</span>
+              <Icons.Preview className="size-3.5" />
               Modelo Inspector
             </button>
             <button
               type="button"
               onClick={() => void refetch()}
-              className="border-border bg-secondary text-foreground hover:bg-accent flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-semibold shadow-xs transition-colors"
+              className="border-border bg-secondary text-foreground hover:bg-accent flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium shadow-xs transition-colors"
             >
-              <span className="material-symbols-outlined text-sm">refresh</span>
+              <Icons.Refresh className="size-3.5" />
               Actualizar
             </button>
           </div>
@@ -183,28 +186,28 @@ export default function AuditPage() {
         <StatCard
           label="Eventos Registrados"
           value={isLoading ? "—" : items.length}
-          icon="history"
+          icon="History"
           tone="default"
           sub="Últimos 100 logs"
         />
         <StatCard
           label="Entidades Auditadas"
           value={isLoading ? "—" : uniqueEntities}
-          icon="database"
+          icon="Database"
           tone="primary"
           sub="Tablas & recursos"
         />
         <StatCard
           label="Actores Únicos"
           value={isLoading ? "—" : uniqueActors}
-          icon="group"
+          icon="Group"
           tone="default"
           sub="Usuarios y procesos"
         />
         <StatCard
           label="Eventos Críticos"
           value={isLoading ? "—" : criticalEventsCount}
-          icon="shield"
+          icon="Shield"
           tone={criticalEventsCount > 0 ? "warning" : "success"}
           sub="Aprobaciones & cierres"
         />
@@ -213,9 +216,7 @@ export default function AuditPage() {
       {/* Filters & Search */}
       <div className="surface-card flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="relative max-w-md flex-1">
-          <span className="material-symbols-outlined text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-lg">
-            search
-          </span>
+          <Icons.Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4.5 -translate-y-1/2" />
           <input
             type="text"
             placeholder="Buscar por actor, acción, entidad o ID..."
@@ -275,7 +276,7 @@ export default function AuditPage() {
       ) : filteredItems.length === 0 ? (
         <div className="surface-card">
           <EmptyState
-            icon="history"
+            icon="History"
             title="No se encontraron registros de auditoría"
             description={
               search || entityFilter
@@ -286,11 +287,9 @@ export default function AuditPage() {
               <button
                 type="button"
                 onClick={() => setSelectedEntry(SAMPLE_AUDIT_ENTRY)}
-                className="border-border bg-secondary text-foreground hover:bg-accent inline-flex items-center gap-1.5 rounded-lg border px-3.5 py-1.5 text-xs font-semibold shadow-xs transition-colors"
+                className="border-border bg-secondary text-foreground hover:bg-accent inline-flex items-center gap-1.5 rounded-lg border px-3.5 py-1.5 text-xs font-medium shadow-xs transition-colors"
               >
-                <span className="material-symbols-outlined text-sm">
-                  visibility
-                </span>
+                <Icons.Visibility className="size-3.5" />
                 Previsualizar Inspector Forense
               </button>
             }
@@ -302,19 +301,17 @@ export default function AuditPage() {
           <div className="space-y-2.5 md:hidden">
             {filteredItems.map((entry) => {
               const tone = ACTION_TONES[entry.action] ?? "neutral";
-              const iconName = ACTION_ICONS[entry.action] ?? "description";
+              const iconName = ACTION_ICONS[entry.action] ?? "Description";
 
               return (
                 <div key={entry.id} className="surface-card space-y-2.5 p-3.5">
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex min-w-0 items-center gap-2">
                       <div className="bg-muted text-muted-foreground flex size-8 shrink-0 items-center justify-center rounded-lg">
-                        <span className="material-symbols-outlined text-sm">
-                          {iconName}
-                        </span>
+                        <Icon name={iconName} className="size-3.5" />
                       </div>
                       <div className="min-w-0">
-                        <p className="text-foreground truncate text-xs font-semibold">
+                        <p className="text-foreground truncate text-xs font-medium">
                           {entry.action}
                         </p>
                         <p className="text-muted-foreground truncate text-[11px]">
@@ -349,9 +346,7 @@ export default function AuditPage() {
                     onClick={() => setSelectedEntry(entry)}
                     className="border-border bg-secondary text-foreground hover:bg-accent flex w-full items-center justify-center gap-1.5 rounded-lg border py-2 text-xs font-medium transition-colors"
                   >
-                    <span className="material-symbols-outlined text-sm">
-                      visibility
-                    </span>
+                    <Icons.Visibility className="size-3.5" />
                     Ver Detalle Forense
                   </button>
                 </div>
@@ -364,7 +359,7 @@ export default function AuditPage() {
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead>
-                  <tr className="border-border text-muted-foreground border-b text-[10px] font-bold tracking-wider uppercase">
+                  <tr className="border-border text-muted-foreground border-b text-[10px] font-medium tracking-wider uppercase">
                     <th className="px-5 py-3.5">Fecha y Hora</th>
                     <th className="px-5 py-3.5">Acción</th>
                     <th className="px-5 py-3.5">Entidad Afectada</th>
@@ -376,7 +371,7 @@ export default function AuditPage() {
                   {filteredItems.map((entry) => {
                     const tone = ACTION_TONES[entry.action] ?? "neutral";
                     const iconName =
-                      ACTION_ICONS[entry.action] ?? "description";
+                      ACTION_ICONS[entry.action] ?? "Description";
 
                     return (
                       <tr
@@ -398,9 +393,7 @@ export default function AuditPage() {
                         <td className="px-5 py-3.5 whitespace-nowrap">
                           <div className="flex items-center gap-2">
                             <span className="bg-muted text-muted-foreground flex size-6 shrink-0 items-center justify-center rounded">
-                              <span className="material-symbols-outlined text-xs">
-                                {iconName}
-                              </span>
+                              <Icon name={iconName} className="size-3" />
                             </span>
                             <StatusBadge tone={tone}>
                               {entry.action}
@@ -435,11 +428,9 @@ export default function AuditPage() {
                           <button
                             type="button"
                             onClick={() => setSelectedEntry(entry)}
-                            className="text-primary hover:bg-primary/10 inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-semibold transition-colors"
+                            className="text-primary hover:bg-primary/10 inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-medium transition-colors"
                           >
-                            <span className="material-symbols-outlined text-sm">
-                              visibility
-                            </span>
+                            <Icons.Visibility className="size-3.5" />
                             Inspeccionar
                           </button>
                         </td>

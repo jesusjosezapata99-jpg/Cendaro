@@ -1,6 +1,7 @@
 {
   "extends": "../../tooling/typescript/base.json",
   "compilerOptions": {
+    "lib": ["ES2024", "dom", "dom.iterable"],
     "jsx": "react-jsx"
   },
   "include": ["src"]

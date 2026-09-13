@@ -1,5 +1,7 @@
 "use client";
 
+import { Icons } from "@cendaro/ui/icons";
+
 /**
  * Cendaro — Error Boundary
  *
@@ -19,12 +21,10 @@ export default function AppError({
     <div className="flex h-full items-center justify-center p-8">
       <div className="flex max-w-md flex-col items-center gap-4 text-center">
         <div className="bg-destructive/10 flex h-16 w-16 items-center justify-center rounded-2xl">
-          <span className="material-symbols-outlined text-destructive text-3xl">
-            error
-          </span>
+          <Icons.Error className="text-destructive size-7.5" />
         </div>
 
-        <h2 className="text-foreground text-xl font-bold">Algo salió mal</h2>
+        <h2 className="text-foreground text-xl font-medium">Algo salió mal</h2>
 
         <p className="text-muted-foreground text-sm">
           {error.message || "Ocurrió un error inesperado. Intenta de nuevo."}
@@ -38,9 +38,9 @@ export default function AppError({
 
         <button
           onClick={reset}
-          className="bg-primary text-primary-foreground hover:bg-primary/90 flex items-center gap-2 rounded-lg px-6 py-2.5 text-sm font-bold transition-colors"
+          className="bg-primary text-primary-foreground hover:bg-primary/90 flex items-center gap-2 rounded-lg px-6 py-2.5 text-sm font-medium transition-colors"
         >
-          <span className="material-symbols-outlined text-base">refresh</span>
+          <Icons.Refresh className="size-4" />
           Intentar de nuevo
         </button>
       </div>

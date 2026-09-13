@@ -4,6 +4,7 @@ import { lazy, Suspense, useMemo, useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 
+import type { IconName } from "@cendaro/ui/icons";
 import {
   Button,
   Table,
@@ -13,6 +14,7 @@ import {
   TableHeader,
   TableRow,
 } from "@cendaro/ui";
+import { Icon, Icons } from "@cendaro/ui/icons";
 
 import type { StatusTone } from "~/components/status-badge";
 import { EmptyState } from "~/components/empty-state";
@@ -32,27 +34,27 @@ const CreateContainerDialog = lazy(() =>
 
 const STATUS_CONFIG: Record<
   string,
-  { label: string; tone: StatusTone; icon: string }
+  { label: string; tone: StatusTone; icon: IconName }
 > = {
   created: {
     label: "Creado",
     tone: "neutral",
-    icon: "draft",
+    icon: "Draft",
   },
   in_transit: {
     label: "En Tránsito",
     tone: "primary",
-    icon: "directions_boat",
+    icon: "DirectionsBoat",
   },
   received: {
     label: "Recibido",
     tone: "warning",
-    icon: "move_to_inbox",
+    icon: "MoveToInbox",
   },
   closed: {
     label: "Cerrado",
     tone: "success",
-    icon: "check_circle",
+    icon: "CheckCircle",
   },
 };
 
@@ -112,7 +114,7 @@ export default function ContainersPage() {
           onClick={() => setShowCreate(true)}
           className="min-h-11 w-full gap-2 sm:w-auto"
         >
-          <span className="material-symbols-outlined text-lg">add</span>
+          <Icons.Add className="size-4.5" />
           Nuevo Contenedor
         </Button>
       </PageHeader>
@@ -122,28 +124,28 @@ export default function ContainersPage() {
         <StatCard
           label="Total Contenedores"
           value={isLoading ? "—" : list.length}
-          icon="package_2"
+          icon="Package2"
           tone="default"
           sub="En todas las fases del flujo"
         />
         <StatCard
           label="En Tránsito"
           value={isLoading ? "—" : inTransit}
-          icon="directions_boat"
+          icon="DirectionsBoat"
           tone="primary"
           sub="Carga marítima / aérea en curso"
         />
         <StatCard
           label="En Puerto / Recepción"
           value={isLoading ? "—" : received}
-          icon="move_to_inbox"
+          icon="MoveToInbox"
           tone="warning"
           sub="Pendientes por descargar o verificar"
         />
         <StatCard
           label="Inversión FOB Total"
           value={isLoading ? "—" : dualFob.usd}
-          icon="attach_money"
+          icon="AttachMoney"
           tone="success"
           sub={`Equivalente oficial: ${dualFob.bs}`}
         />
@@ -162,7 +164,7 @@ export default function ContainersPage() {
             <button
               key={tab.key}
               onClick={() => setStatusFilter(tab.key)}
-              className={`flex min-h-11 shrink-0 items-center gap-2 rounded-lg px-4 py-2 text-xs font-semibold transition-all ${
+              className={`flex min-h-11 shrink-0 items-center gap-2 rounded-lg px-4 py-2 text-xs font-medium transition-all ${
                 isActive
                   ? "bg-primary text-primary-foreground shadow-sm"
                   : "bg-surface-card text-muted-foreground hover:bg-accent hover:text-foreground border-border-subtle border"
@@ -198,7 +200,7 @@ export default function ContainersPage() {
               const cfg = STATUS_CONFIG[container.status] ?? {
                 label: container.status,
                 tone: "neutral" as StatusTone,
-                icon: "draft",
+                icon: "Draft" as const,
               };
               const dual = formatDualCurrency(
                 Number(container.costFob ?? 0),
@@ -214,12 +216,10 @@ export default function ContainersPage() {
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-center gap-2.5">
                       <div className="bg-primary/10 text-primary flex size-9 items-center justify-center rounded-lg">
-                        <span className="material-symbols-outlined text-lg">
-                          {cfg.icon}
-                        </span>
+                        <Icon name={cfg.icon} className="size-4.5" />
                       </div>
                       <div>
-                        <p className="text-foreground font-mono text-base font-bold">
+                        <p className="text-foreground font-mono text-base font-medium">
                           {container.containerNumber}
                         </p>
                         <p className="text-muted-foreground text-xs">
@@ -234,7 +234,7 @@ export default function ContainersPage() {
 
                   <div className="border-border-subtle/60 mt-3.5 grid grid-cols-2 gap-2 border-t pt-3 text-xs">
                     <div>
-                      <p className="text-muted-foreground text-[10px] font-semibold tracking-wider uppercase">
+                      <p className="text-muted-foreground text-[10px] font-medium tracking-wider uppercase">
                         Llegada Estimada
                       </p>
                       <p className="text-foreground mt-0.5 font-medium">
@@ -246,10 +246,10 @@ export default function ContainersPage() {
                       </p>
                     </div>
                     <div className="text-right">
-                      <p className="text-muted-foreground text-[10px] font-semibold tracking-wider uppercase">
+                      <p className="text-muted-foreground text-[10px] font-medium tracking-wider uppercase">
                         Costo FOB
                       </p>
-                      <p className="text-foreground mt-0.5 font-mono font-bold tabular-nums">
+                      <p className="text-foreground mt-0.5 font-mono font-medium tabular-nums">
                         {dual.usd}
                       </p>
                       <p className="text-muted-foreground font-mono text-[10px] tabular-nums">
@@ -283,7 +283,7 @@ export default function ContainersPage() {
                   const cfg = STATUS_CONFIG[container.status] ?? {
                     label: container.status,
                     tone: "neutral" as StatusTone,
-                    icon: "draft",
+                    icon: "Draft" as const,
                   };
                   const dual = formatDualCurrency(
                     Number(container.costFob ?? 0),
@@ -301,14 +301,12 @@ export default function ContainersPage() {
                       <TableCell>
                         <div className="flex items-center gap-2.5">
                           <div className="bg-primary/10 text-primary flex size-8 shrink-0 items-center justify-center rounded-md">
-                            <span className="material-symbols-outlined text-base">
-                              {cfg.icon}
-                            </span>
+                            <Icon name={cfg.icon} className="size-4" />
                           </div>
                           <div>
                             <Link
                               href={`/containers/${container.id}`}
-                              className="text-foreground hover:text-primary font-mono text-sm font-bold transition-colors"
+                              className="text-foreground hover:text-primary font-mono text-sm font-medium transition-colors"
                             >
                               {container.containerNumber}
                             </Link>
@@ -338,7 +336,7 @@ export default function ContainersPage() {
                           : "—"}
                       </TableCell>
                       <TableCell className="text-right font-mono tabular-nums">
-                        <span className="text-foreground font-bold">
+                        <span className="text-foreground font-medium">
                           {dual.usd}
                         </span>
                         <span className="text-muted-foreground block text-[11px]">
@@ -351,9 +349,7 @@ export default function ContainersPage() {
                           className="border-border-subtle text-muted-foreground hover:border-primary hover:bg-primary/10 hover:text-primary inline-flex size-9 items-center justify-center rounded-lg border transition-all"
                           title="Ver detalle de contenedor"
                         >
-                          <span className="material-symbols-outlined text-lg">
-                            chevron_right
-                          </span>
+                          <Icons.ChevronRight className="size-4.5" />
                         </Link>
                       </TableCell>
                     </TableRow>
@@ -365,7 +361,7 @@ export default function ContainersPage() {
         </>
       ) : (
         <EmptyState
-          icon="package_2"
+          icon="Package2"
           title="No hay contenedores registrados"
           description={
             statusFilter === "all"
@@ -374,7 +370,7 @@ export default function ContainersPage() {
           }
           action={
             <Button onClick={() => setShowCreate(true)} className="gap-2">
-              <span className="material-symbols-outlined text-base">add</span>
+              <Icons.Add className="size-4" />
               Registrar Contenedor
             </Button>
           }

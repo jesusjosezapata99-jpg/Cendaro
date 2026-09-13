@@ -9,6 +9,8 @@
  */
 import Link from "next/link";
 
+import { Icons } from "@cendaro/ui/icons";
+
 import type { ImportResult } from "../hooks/use-catalog-import";
 
 // ── Component ────────────────────────────────────
@@ -33,9 +35,11 @@ export function ResultSummary({ result, onNewImport }: ResultSummaryProps) {
               : "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400"
           }`}
         >
-          <span className="material-symbols-outlined text-4xl">
-            {hasFailures ? "warning" : "check_circle"}
-          </span>
+          {hasFailures ? (
+            <Icons.Warning className="size-9" />
+          ) : (
+            <Icons.CheckCircle className="size-9" />
+          )}
         </div>
         <h2 className="text-foreground text-xl font-black">
           {hasFailures ? "Importación parcial" : "Importación exitosa"}
@@ -86,10 +90,10 @@ export function ResultSummary({ result, onNewImport }: ResultSummaryProps) {
       {/* Error details */}
       {result.errors.length > 0 && (
         <div className="space-y-2 rounded-xl border border-red-200 bg-red-50 p-4 dark:border-red-900 dark:bg-red-900/20">
-          <h3 className="text-sm font-semibold text-red-700 dark:text-red-400">
+          <h3 className="text-sm font-medium text-red-700 dark:text-red-400">
             Errores ({result.errors.length})
           </h3>
-          <div className="max-h-[200px] space-y-1 overflow-auto">
+          <div className="max-h-50 space-y-1 overflow-auto">
             {result.errors.map((err, idx) => (
               <div
                 key={idx}
@@ -98,7 +102,7 @@ export function ResultSummary({ result, onNewImport }: ResultSummaryProps) {
                 <span className="rounded bg-red-200 px-1.5 py-0.5 font-mono dark:bg-red-800">
                   Fila {err.rowNumber}
                 </span>
-                <span className="font-semibold">{err.sku}</span>
+                <span className="font-medium">{err.sku}</span>
                 <span className="truncate">{err.message}</span>
               </div>
             ))}
@@ -110,16 +114,16 @@ export function ResultSummary({ result, onNewImport }: ResultSummaryProps) {
       <div className="flex items-center justify-center gap-4 pt-2">
         <Link
           href="/catalog"
-          className="border-border hover:bg-muted/50 inline-flex items-center gap-2 rounded-xl border px-6 py-3 text-sm font-semibold transition-all"
+          className="border-border hover:bg-muted/50 inline-flex items-center gap-2 rounded-xl border px-6 py-3 text-sm font-medium transition-all"
         >
-          <span className="material-symbols-outlined text-lg">inventory_2</span>
+          <Icons.Inventory2 className="size-4.5" />
           Ver catálogo
         </Link>
         <button
           onClick={onNewImport}
-          className="bg-primary hover:bg-primary/90 inline-flex items-center gap-2 rounded-xl px-6 py-3 text-sm font-semibold text-white transition-all hover:shadow-lg active:scale-[0.98]"
+          className="bg-primary hover:bg-primary/90 inline-flex items-center gap-2 rounded-xl px-6 py-3 text-sm font-medium text-white transition-all hover:shadow-lg active:scale-[0.98]"
         >
-          <span className="material-symbols-outlined text-lg">upload_file</span>
+          <Icons.UploadFile className="size-4.5" />
           Nueva importación
         </button>
       </div>

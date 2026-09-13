@@ -7,6 +7,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { Button, Input } from "@cendaro/ui";
+import { Icons } from "@cendaro/ui/icons";
 
 import { CreatableSelect } from "~/components/creatable-select";
 import { PageHeader } from "~/components/page-header";
@@ -228,9 +229,7 @@ export default function CreateProductPage() {
       allow={["owner", "admin", "supervisor"]}
       fallback={
         <div className="flex flex-col items-center justify-center gap-3 py-20">
-          <span className="material-symbols-outlined text-muted-foreground text-5xl">
-            lock
-          </span>
+          <Icons.Lock className="text-muted-foreground text-5xl" />
           <p className="text-muted-foreground text-sm">
             No tienes permisos para crear productos.
           </p>
@@ -252,9 +251,7 @@ export default function CreateProductPage() {
           >
             Catálogo
           </Link>
-          <span aria-hidden className="material-symbols-outlined text-base">
-            chevron_right
-          </span>
+          <Icons.ChevronRight className="size-4" aria-hidden />
           <span className="text-foreground font-medium">Nuevo Producto</span>
         </div>
 
@@ -266,9 +263,7 @@ export default function CreateProductPage() {
         {/* Session counter */}
         {createdCount > 0 && (
           <div className="border-success/20 bg-success/10 flex items-center gap-2 rounded-lg border px-4 py-2.5">
-            <span className="material-symbols-outlined text-success text-lg">
-              check_circle
-            </span>
+            <Icons.CheckCircle className="text-success size-4.5" />
             <span className="text-success-soft text-sm font-medium tabular-nums">
               {createdCount} producto{createdCount !== 1 ? "s" : ""} creado
               {createdCount !== 1 ? "s" : ""} en esta sesión
@@ -547,7 +542,7 @@ export default function CreateProductPage() {
                 <div
                   className={`${inputBase} bg-secondary/50 flex items-center justify-between`}
                 >
-                  <span className="font-mono text-sm font-semibold tabular-nums">
+                  <span className="font-mono text-sm font-medium tabular-nums">
                     {ves.oficial.isLoading
                       ? "Cargando…"
                       : effectiveRate > 0
@@ -555,7 +550,7 @@ export default function CreateProductPage() {
                         : "Sin tasa"}
                   </span>
                   {effectiveRate > 0 && (
-                    <span className="bg-primary/10 text-primary rounded-md px-1.5 py-0.5 text-xs font-semibold">
+                    <span className="bg-primary/10 text-primary rounded-md px-1.5 py-0.5 text-xs font-medium">
                       {ves.oficial.source === "dolarapi-oficial"
                         ? "DolarAPI"
                         : ves.oficial.source === "database"
@@ -569,7 +564,7 @@ export default function CreateProductPage() {
                 <div
                   className={`${inputBase} bg-secondary/50 flex items-center justify-between`}
                 >
-                  <span className="font-mono text-base font-semibold tabular-nums">
+                  <span className="font-mono text-base font-medium tabular-nums">
                     {priceBs > 0
                       ? `Bs ${priceBs.toLocaleString("es-VE", {
                           minimumFractionDigits: 2,
@@ -578,7 +573,7 @@ export default function CreateProductPage() {
                       : "—"}
                   </span>
                   {effectiveRate > 0 && (
-                    <span className="bg-primary/10 text-primary rounded-md px-1.5 py-0.5 text-xs font-semibold">
+                    <span className="bg-primary/10 text-primary rounded-md px-1.5 py-0.5 text-xs font-medium">
                       BCV Oficial
                     </span>
                   )}
@@ -630,13 +625,9 @@ export default function CreateProductPage() {
             >
               {create.isPending &&
                 submitModeRef.current === "save-and-continue" && (
-                  <span className="material-symbols-outlined animate-spin text-sm">
-                    progress_activity
-                  </span>
+                  <Icons.ProgressActivity className="size-3.5 animate-spin" />
                 )}
-              <span className="material-symbols-outlined text-lg">
-                playlist_add
-              </span>
+              <Icons.PlaylistAdd className="size-4.5" />
               Crear y Agregar Otro
             </Button>
             <Button
@@ -648,9 +639,7 @@ export default function CreateProductPage() {
               className="min-h-11"
             >
               {create.isPending && submitModeRef.current === "save" && (
-                <span className="material-symbols-outlined animate-spin text-sm">
-                  progress_activity
-                </span>
+                <Icons.ProgressActivity className="size-3.5 animate-spin" />
               )}
               Crear Producto
             </Button>

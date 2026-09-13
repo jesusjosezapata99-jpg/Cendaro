@@ -5,22 +5,21 @@ import { Slot as SlotPrimitive } from "radix-ui";
 import { cn } from "@cendaro/ui";
 
 const badgeVariants = cva(
-  "focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 inline-flex w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-full border px-2 py-0.5 text-xs font-medium whitespace-nowrap transition-[color,box-shadow] focus-visible:ring-[3px] [&>svg]:pointer-events-none [&>svg]:size-3",
+  "focus-visible:border-ring inline-flex w-fit shrink-0 items-center justify-center gap-1 overflow-hidden whitespace-nowrap transition-colors focus-visible:ring-1 [&>svg]:pointer-events-none [&>svg]:size-3",
   {
     variants: {
       variant: {
         default:
-          "bg-primary text-primary-foreground [a&]:hover:bg-primary/90 border-transparent",
+          "bg-primary text-primary-foreground [a&]:hover:bg-primary/90 rounded-full border-transparent px-2 py-0.5 text-xs font-medium",
         secondary:
-          "bg-secondary text-secondary-foreground [a&]:hover:bg-secondary/90 border-transparent",
+          "bg-secondary text-secondary-foreground [a&]:hover:bg-secondary/90 rounded-full border-transparent px-2 py-0.5 text-xs font-medium",
         destructive:
-          "bg-destructive [a&]:hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:bg-destructive/60 dark:focus-visible:ring-destructive/40 border-transparent text-white",
+          "bg-destructive [a&]:hover:bg-destructive/90 rounded-full border-transparent px-2 py-0.5 text-xs font-medium text-white",
         outline:
-          "text-foreground [a&]:hover:bg-accent [a&]:hover:text-accent-foreground",
-        success:
-          "bg-success text-success-foreground [a&]:hover:bg-success/90 border-transparent",
-        warning:
-          "bg-warning text-warning-foreground [a&]:hover:bg-warning/90 border-transparent",
+          "text-primary rounded-full border bg-transparent px-2 py-0.5 text-[10px] font-normal",
+        tag: "text-tag-foreground bg-tag border-none px-2 py-0.5 text-[10px] font-normal",
+        "tag-rounded":
+          "text-tag-foreground bg-tag rounded-full border-none px-3 py-1 text-xs font-normal",
       },
     },
     defaultVariants: {

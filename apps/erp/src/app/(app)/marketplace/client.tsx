@@ -4,6 +4,8 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
+import { Icons } from "@cendaro/ui/icons";
+
 import { EmptyState } from "~/components/empty-state";
 import { SyncMlListingDialog } from "~/components/modals/sync-ml-listing-dialog";
 import { PageHeader } from "~/components/page-header";
@@ -173,9 +175,9 @@ export default function MarketplacePage() {
           <button
             type="button"
             onClick={handleSyncAll}
-            className="surface-card border-border text-foreground hover:bg-accent flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold transition-all active:scale-[0.98]"
+            className="surface-card border-border text-foreground hover:bg-accent flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-medium transition-all active:scale-[0.98]"
           >
-            <span className="material-symbols-outlined text-base">sync</span>
+            <Icons.Sync className="size-4" />
             Sincronizar Todo
           </button>
         }
@@ -186,25 +188,25 @@ export default function MarketplacePage() {
         <StatCard
           label="Publicaciones Activas"
           value={activeListings}
-          icon="storefront"
+          icon="Storefront"
           tone="success"
         />
         <StatCard
           label="Total Publicadas"
           value={listingItems.length}
-          icon="inventory_2"
+          icon="Inventory2"
           tone="default"
         />
         <StatCard
           label="Órdenes Pendientes"
           value={pendingImport}
-          icon="move_to_inbox"
+          icon="MoveToInbox"
           tone={pendingImport > 0 ? "warning" : "default"}
         />
         <StatCard
           label="Alertas Activas"
           value={activeAlerts}
-          icon="warning"
+          icon="Warning"
           tone={activeAlerts > 0 ? "destructive" : "default"}
         />
       </div>
@@ -213,11 +215,9 @@ export default function MarketplacePage() {
       {activeAlerts > 0 && (
         <div className="surface-card flex items-center justify-between gap-3 rounded-xl border border-rose-500/30 bg-rose-500/10 p-4">
           <div className="flex items-center gap-3">
-            <span className="material-symbols-outlined text-xl text-rose-400">
-              warning
-            </span>
+            <Icons.Warning className="size-5 text-rose-400" />
             <div>
-              <p className="text-sm font-semibold text-rose-400">
+              <p className="text-sm font-medium text-rose-400">
                 {activeAlerts} alerta{activeAlerts > 1 ? "s" : ""} de
                 integración requieren atención
               </p>
@@ -230,7 +230,7 @@ export default function MarketplacePage() {
           <button
             type="button"
             onClick={() => setTab("logs")}
-            className="surface-card rounded-lg border border-rose-500/30 px-3 py-1.5 text-xs font-semibold text-rose-400 transition-colors hover:bg-rose-500/20"
+            className="surface-card rounded-lg border border-rose-500/30 px-3 py-1.5 text-xs font-medium text-rose-400 transition-colors hover:bg-rose-500/20"
           >
             Ver Logs
           </button>
@@ -249,12 +249,10 @@ export default function MarketplacePage() {
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            <span className="material-symbols-outlined text-base">
-              package_2
-            </span>
+            <Icons.Package2 className="size-4" />
             Publicaciones
             <span
-              className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+              className={`rounded-full px-2 py-0.5 text-xs font-medium ${
                 tab === "listings"
                   ? "bg-primary-foreground/20 text-primary-foreground"
                   : "bg-muted text-muted-foreground"
@@ -272,12 +270,10 @@ export default function MarketplacePage() {
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            <span className="material-symbols-outlined text-base">
-              shopping_cart
-            </span>
+            <Icons.ShoppingCart className="size-4" />
             Órdenes ML
             <span
-              className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+              className={`rounded-full px-2 py-0.5 text-xs font-medium ${
                 tab === "orders"
                   ? "bg-primary-foreground/20 text-primary-foreground"
                   : "bg-muted text-muted-foreground"
@@ -295,12 +291,10 @@ export default function MarketplacePage() {
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            <span className="material-symbols-outlined text-base">
-              list_alt
-            </span>
+            <Icons.ListAlt className="size-4" />
             Logs & Eventos
             <span
-              className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+              className={`rounded-full px-2 py-0.5 text-xs font-medium ${
                 tab === "logs"
                   ? "bg-primary-foreground/20 text-primary-foreground"
                   : "bg-muted text-muted-foreground"
@@ -312,9 +306,7 @@ export default function MarketplacePage() {
         </div>
 
         <div className="relative w-full sm:w-72">
-          <span className="material-symbols-outlined text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-lg">
-            search
-          </span>
+          <Icons.Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4.5 -translate-y-1/2" />
           <input
             type="text"
             value={search}
@@ -360,7 +352,7 @@ export default function MarketplacePage() {
             </div>
           ) : filteredListings.length === 0 ? (
             <EmptyState
-              icon="storefront"
+              icon="Storefront"
               title="No se encontraron publicaciones"
               description="No hay artículos sincronizados que coincidan con los filtros seleccionados."
             />
@@ -377,10 +369,10 @@ export default function MarketplacePage() {
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0 flex-1">
-                          <span className="text-primary font-mono text-xs font-semibold">
+                          <span className="text-primary font-mono text-xs font-medium">
                             {l.mlItemId}
                           </span>
-                          <p className="text-foreground mt-0.5 line-clamp-2 text-sm font-semibold">
+                          <p className="text-foreground mt-0.5 line-clamp-2 text-sm font-medium">
                             {l.title}
                           </p>
                         </div>
@@ -394,7 +386,7 @@ export default function MarketplacePage() {
                           <p className="text-muted-foreground text-[10px] tracking-wider uppercase">
                             Precio de Venta
                           </p>
-                          <p className="text-foreground font-mono text-sm font-bold">
+                          <p className="text-foreground font-mono text-sm font-medium">
                             {dual.usd}
                           </p>
                           {bcv.rate > 0 && (
@@ -407,7 +399,7 @@ export default function MarketplacePage() {
                           <p className="text-muted-foreground text-[10px] tracking-wider uppercase">
                             Stock ML
                           </p>
-                          <p className="text-foreground font-mono text-sm font-bold">
+                          <p className="text-foreground font-mono text-sm font-medium">
                             {l.stockSynced ?? 0} uds
                           </p>
                         </div>
@@ -422,11 +414,9 @@ export default function MarketplacePage() {
                         <button
                           type="button"
                           onClick={() => setSyncingListing(l)}
-                          className="surface-card border-border text-foreground hover:bg-accent flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-semibold transition-all active:scale-[0.98]"
+                          className="surface-card border-border text-foreground hover:bg-accent flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-medium transition-all active:scale-[0.98]"
                         >
-                          <span className="material-symbols-outlined text-sm">
-                            sync
-                          </span>
+                          <Icons.Sync className="size-3.5" />
                           Ajustar
                         </button>
                       </div>
@@ -459,14 +449,14 @@ export default function MarketplacePage() {
                           key={l.id}
                           className="hover:bg-accent/40 transition-colors"
                         >
-                          <td className="text-primary px-4 py-3 font-mono text-xs font-semibold">
+                          <td className="text-primary px-4 py-3 font-mono text-xs font-medium">
                             {l.mlItemId}
                           </td>
                           <td className="text-foreground max-w-md truncate px-4 py-3 font-medium">
                             {l.title}
                           </td>
                           <td className="px-4 py-3 text-right">
-                            <p className="text-foreground font-mono text-sm font-bold">
+                            <p className="text-foreground font-mono text-sm font-medium">
                               {dual.usd}
                             </p>
                             {bcv.rate > 0 && (
@@ -480,7 +470,7 @@ export default function MarketplacePage() {
                               {getListingLabel(l.status)}
                             </StatusBadge>
                           </td>
-                          <td className="text-foreground px-4 py-3 text-right font-mono font-bold">
+                          <td className="text-foreground px-4 py-3 text-right font-mono font-medium">
                             {l.stockSynced ?? 0}
                           </td>
                           <td className="text-muted-foreground px-4 py-3 font-mono text-xs">
@@ -492,11 +482,9 @@ export default function MarketplacePage() {
                             <button
                               type="button"
                               onClick={() => setSyncingListing(l)}
-                              className="surface-card border-border text-foreground hover:bg-accent ml-auto flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-all active:scale-[0.98]"
+                              className="surface-card border-border text-foreground hover:bg-accent ml-auto flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all active:scale-[0.98]"
                             >
-                              <span className="material-symbols-outlined text-sm">
-                                sync
-                              </span>
+                              <Icons.Sync className="size-3.5" />
                               Sincronizar
                             </button>
                           </td>
@@ -522,7 +510,7 @@ export default function MarketplacePage() {
             </div>
           ) : filteredOrders.length === 0 ? (
             <EmptyState
-              icon="shopping_cart"
+              icon="ShoppingCart"
               title="No hay órdenes de Mercado Libre"
               description="Las ventas originadas en Mercado Libre se sincronizarán y mostrarán aquí para su importación al ERP."
             />
@@ -540,10 +528,10 @@ export default function MarketplacePage() {
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div>
-                          <span className="text-primary font-mono text-xs font-semibold">
+                          <span className="text-primary font-mono text-xs font-medium">
                             {o.mlOrderId}
                           </span>
-                          <p className="text-foreground mt-0.5 text-sm font-semibold">
+                          <p className="text-foreground mt-0.5 text-sm font-medium">
                             {o.buyerNickname ?? "Comprador anónimo"}
                           </p>
                         </div>
@@ -559,7 +547,7 @@ export default function MarketplacePage() {
                           <p className="text-muted-foreground text-[10px] tracking-wider uppercase">
                             Total Orden
                           </p>
-                          <p className="text-foreground font-mono text-sm font-bold">
+                          <p className="text-foreground font-mono text-sm font-medium">
                             {dual.usd}
                           </p>
                           {bcv.rate > 0 && (
@@ -572,7 +560,7 @@ export default function MarketplacePage() {
                           <p className="text-muted-foreground text-[10px] tracking-wider uppercase">
                             Cantidad
                           </p>
-                          <p className="text-foreground font-mono text-sm font-bold">
+                          <p className="text-foreground font-mono text-sm font-medium">
                             {o.quantity} uds (${o.unitPrice.toFixed(2)} c/u)
                           </p>
                         </div>
@@ -587,11 +575,9 @@ export default function MarketplacePage() {
                             type="button"
                             onClick={() => importOrder.mutate({ id: o.id })}
                             disabled={importOrder.isPending}
-                            className="bg-primary text-primary-foreground hover:bg-primary/90 flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold shadow-sm transition-all active:scale-[0.98] disabled:opacity-50"
+                            className="bg-primary text-primary-foreground hover:bg-primary/90 flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium shadow-sm transition-all active:scale-[0.98] disabled:opacity-50"
                           >
-                            <span className="material-symbols-outlined text-sm">
-                              cloud_upload
-                            </span>
+                            <Icons.CloudUpload className="size-3.5" />
                             Importar
                           </button>
                         )}
@@ -625,7 +611,7 @@ export default function MarketplacePage() {
                           key={o.id}
                           className="hover:bg-accent/40 transition-colors"
                         >
-                          <td className="text-primary px-4 py-3 font-mono text-xs font-semibold">
+                          <td className="text-primary px-4 py-3 font-mono text-xs font-medium">
                             {o.mlOrderId}
                           </td>
                           <td className="text-foreground px-4 py-3 font-medium">
@@ -638,7 +624,7 @@ export default function MarketplacePage() {
                             {o.quantity}
                           </td>
                           <td className="px-4 py-3 text-right">
-                            <p className="text-foreground font-mono text-sm font-bold">
+                            <p className="text-foreground font-mono text-sm font-medium">
                               {dual.usd}
                             </p>
                             {bcv.rate > 0 && (
@@ -663,17 +649,13 @@ export default function MarketplacePage() {
                                 type="button"
                                 onClick={() => importOrder.mutate({ id: o.id })}
                                 disabled={importOrder.isPending}
-                                className="bg-primary text-primary-foreground hover:bg-primary/90 ml-auto flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold shadow-sm transition-all active:scale-[0.98] disabled:opacity-50"
+                                className="bg-primary text-primary-foreground hover:bg-primary/90 ml-auto flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium shadow-sm transition-all active:scale-[0.98] disabled:opacity-50"
                               >
-                                <span className="material-symbols-outlined text-sm">
-                                  cloud_upload
-                                </span>
+                                <Icons.CloudUpload className="size-3.5" />
                                 Importar
                               </button>
                             ) : (
-                              <span className="material-symbols-outlined text-base text-emerald-400">
-                                check_circle
-                              </span>
+                              <Icons.CheckCircle className="size-4 text-emerald-400" />
                             )}
                           </td>
                         </tr>
@@ -698,7 +680,7 @@ export default function MarketplacePage() {
             </div>
           ) : filteredLogs.length === 0 ? (
             <EmptyState
-              icon="list_alt"
+              icon="ListAlt"
               title="Sin registros de eventos"
               description="No hay incidencias o registros de sincronización de Mercado Libre."
             />
@@ -745,11 +727,9 @@ export default function MarketplacePage() {
                         type="button"
                         onClick={() => resolveLog.mutate({ id: log.id })}
                         disabled={resolveLog.isPending}
-                        className="surface-card border-border text-foreground hover:bg-accent flex items-center gap-1.5 self-start rounded-lg border px-3 py-1.5 text-xs font-semibold transition-all active:scale-[0.98] disabled:opacity-50 sm:self-auto"
+                        className="surface-card border-border text-foreground hover:bg-accent flex items-center gap-1.5 self-start rounded-lg border px-3 py-1.5 text-xs font-medium transition-all active:scale-[0.98] disabled:opacity-50 sm:self-auto"
                       >
-                        <span className="material-symbols-outlined text-sm">
-                          check_circle
-                        </span>
+                        <Icons.CheckCircle className="size-3.5" />
                         Resolver
                       </button>
                     )}

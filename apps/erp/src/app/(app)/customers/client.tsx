@@ -15,6 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from "@cendaro/ui";
+import { Icons } from "@cendaro/ui/icons";
 
 import type { StatusTone } from "~/components/status-badge";
 import { EmptyState } from "~/components/empty-state";
@@ -117,7 +118,7 @@ export default function CustomersClient() {
           onClick={() => setShowCreate(true)}
           className="min-h-11 w-full gap-2 sm:w-auto"
         >
-          <span className="material-symbols-outlined text-lg">person_add</span>
+          <Icons.PersonAdd className="size-4.5" />
           Nuevo Cliente
         </Button>
       </PageHeader>
@@ -127,28 +128,28 @@ export default function CustomersClient() {
         <StatCard
           label="Total Clientes"
           value={isLoading ? "—" : list.length}
-          icon="group"
+          icon="Group"
           tone="default"
           sub="Directorio consolidado"
         />
         <StatCard
           label="Con Línea de Crédito"
           value={isLoading ? "—" : totalWithCredit}
-          icon="account_balance"
+          icon="AccountBalance"
           tone="success"
           sub="Cuentas con crédito habilitado"
         />
         <StatCard
           label="Mayoristas & Distribuidores"
           value={isLoading ? "—" : totalWholesale}
-          icon="business"
+          icon="Business"
           tone="primary"
           sub="Cuentas corporativas B2B"
         />
         <StatCard
           label="Línea de Crédito Total"
           value={isLoading ? "—" : dualCredit.usd}
-          icon="attach_money"
+          icon="AttachMoney"
           tone="warning"
           sub={`Equivalente oficial: ${dualCredit.bs}`}
         />
@@ -157,9 +158,7 @@ export default function CustomersClient() {
       {/* Search & Filter Bar */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="relative w-full sm:max-w-xs">
-          <span className="material-symbols-outlined text-muted-foreground absolute top-1/2 left-3 -translate-y-1/2 text-lg">
-            search
-          </span>
+          <Icons.Search className="text-muted-foreground absolute top-1/2 left-3 size-4.5 -translate-y-1/2" />
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -181,7 +180,7 @@ export default function CustomersClient() {
               <button
                 key={tab.key}
                 onClick={() => setTypeFilter(tab.key)}
-                className={`flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
+                className={`flex min-h-9 shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${
                   isActive
                     ? "bg-primary text-primary-foreground shadow-sm"
                     : "bg-surface-card text-muted-foreground hover:bg-accent hover:text-foreground border-border-subtle border"
@@ -235,7 +234,7 @@ export default function CustomersClient() {
                       href={`/customers/${c.id}`}
                       className="group min-w-0 flex-1"
                     >
-                      <p className="text-foreground group-hover:text-primary truncate font-bold transition-colors">
+                      <p className="text-foreground group-hover:text-primary truncate font-medium transition-colors">
                         {c.name}
                       </p>
                       <p className="text-muted-foreground mt-0.5 font-mono text-xs">
@@ -257,9 +256,7 @@ export default function CustomersClient() {
                             className="border-border-subtle text-muted-foreground hover:text-foreground inline-flex items-center gap-1 rounded-md border px-2 py-1"
                             title="Llamar"
                           >
-                            <span className="material-symbols-outlined text-sm">
-                              phone
-                            </span>
+                            <Icons.Phone className="size-3.5" />
                             {c.phone}
                           </a>
                           {phoneClean && (
@@ -270,9 +267,7 @@ export default function CustomersClient() {
                               className="inline-flex size-7 items-center justify-center rounded-md border border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10"
                               title="Abrir WhatsApp"
                             >
-                              <span className="material-symbols-outlined text-sm">
-                                chat
-                              </span>
+                              <Icons.Chat className="size-3.5" />
                             </a>
                           )}
                         </>
@@ -286,7 +281,7 @@ export default function CustomersClient() {
                     <div className="text-right">
                       {Number(c.creditLimit ?? 0) > 0 ? (
                         <div>
-                          <span className="text-foreground block font-mono text-xs font-bold tabular-nums">
+                          <span className="text-foreground block font-mono text-xs font-medium tabular-nums">
                             {dual.usd}
                           </span>
                           <span className="text-muted-foreground block font-mono text-[10px] tabular-nums">
@@ -344,7 +339,7 @@ export default function CustomersClient() {
                       <TableCell>
                         <Link
                           href={`/customers/${c.id}`}
-                          className="text-foreground hover:text-primary block font-semibold transition-colors"
+                          className="text-foreground hover:text-primary block font-medium transition-colors"
                         >
                           {c.name}
                         </Link>
@@ -372,9 +367,7 @@ export default function CustomersClient() {
                                   className="inline-flex size-6 items-center justify-center rounded text-emerald-600 transition-colors hover:bg-emerald-500/10"
                                   title="Enviar WhatsApp"
                                 >
-                                  <span className="material-symbols-outlined text-sm">
-                                    chat
-                                  </span>
+                                  <Icons.Chat className="size-3.5" />
                                 </a>
                               )}
                             </>
@@ -388,7 +381,7 @@ export default function CustomersClient() {
                       <TableCell className="text-right font-mono tabular-nums">
                         {Number(c.creditLimit ?? 0) > 0 ? (
                           <div>
-                            <span className="text-foreground font-bold">
+                            <span className="text-foreground font-medium">
                               {dual.usd}
                             </span>
                             <span className="text-muted-foreground block text-[11px]">
@@ -407,9 +400,7 @@ export default function CustomersClient() {
                           className="border-border-subtle text-muted-foreground hover:border-primary hover:bg-primary/10 hover:text-primary inline-flex size-8 items-center justify-center rounded-lg border transition-all"
                           title="Ver ficha de cliente"
                         >
-                          <span className="material-symbols-outlined text-base">
-                            chevron_right
-                          </span>
+                          <Icons.ChevronRight className="size-4" />
                         </Link>
                       </TableCell>
                     </TableRow>
@@ -421,7 +412,7 @@ export default function CustomersClient() {
         </>
       ) : (
         <EmptyState
-          icon="person_off"
+          icon="PersonOff"
           title="No se encontraron clientes"
           description={
             search
@@ -432,9 +423,7 @@ export default function CustomersClient() {
           }
           action={
             <Button onClick={() => setShowCreate(true)} className="gap-2">
-              <span className="material-symbols-outlined text-base">
-                person_add
-              </span>
+              <Icons.PersonAdd className="size-4" />
               Crear Nuevo Cliente
             </Button>
           }

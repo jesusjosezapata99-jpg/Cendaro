@@ -10,7 +10,7 @@ export function FinalCTA() {
         className="pointer-events-none absolute inset-0 flex items-center justify-center"
         aria-hidden="true"
       >
-        <span className="font-serif text-[20vw] leading-none font-bold opacity-[0.03] select-none">
+        <span className="font-serif text-[20vw] leading-none font-medium opacity-[0.03] select-none">
           Cendaro
         </span>
       </div>
