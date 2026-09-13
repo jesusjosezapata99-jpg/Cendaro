@@ -367,3 +367,27 @@ Las 27 rutas `(app)` **no se pudieron capturar** — requieren sesión autentica
 **No hay cambios de comportamiento fuera de `page-header.tsx` + los 2 call sites corregidos** — el resto de las 25 páginas restantes siguen renderizando exactamente el mismo `title`/`description`/`actions` que antes, solo con el layout de barra en vez de encabezado.
 
 **Siguiente**: T2.11 — `search.global` (tRPC).
+
+### T2.11 — `search.global` (`packages/api/src/modules/search.ts`) · 2026-09-13
+
+**El router**: `workspaceReadProcedure` con input `z.object({ q: z.string().trim().min(2).max(64) })`. Abanica en paralelo (`Promise.all`) a 6 buscadores — `product`, `customer`, `order`, `quote`, `container`, `supplier` — cada uno `limit(5)`. Facturas y notas de entrega **no son un tipo propio**: `searchOrders()` corre 3 sub-queries en paralelo (`SalesOrder`, `DeliveryNote`, `InternalInvoice`, cada una `ilike` sobre su propio número), las etiqueta todas `type: "order"` con su propio estado, y recorta a 5 tras combinarlas — tal como especifica el plan ("son pedidos: su resultado se etiqueta con el estado y enlaza a la vista que corresponda"). Ni `DeliveryNote` ni `InternalInvoice` tienen ruta de detalle propia, así que su `href` apunta a `/orders/${orderId}` (la orden padre), que sí tiene vista; documentado inline con un comentario. `supplier` tampoco tiene ruta `[id]` todavía — su `href` apunta a la lista `/catalog/suppliers`.
+
+**Redacción por rol, en el servidor**: `canSearchContainers`/`canSearchInvoices`/`canSearchDeliveryNotes` son funciones puras que espejan `NAV_ROLE_RULES.containers`/`.invoices`/`.deliveryNotes` — si el rol no calza, la sub-query correspondiente **ni se ejecuta** (no se filtra después de traerla). `container` como tipo completo se omite del `Promise.all` si el rol no califica; `deliveryNote`/`invoice` se omiten dentro de `searchOrders()` de la misma forma.
+
+**Rate limit**: token bucket en memoria por `user.id` (mismo patrón que `permissionCache` de `trpc.ts`), 20 req/10s, `TRPCError({code: "TOO_MANY_REQUESTS"})` al exceder — verificado en vivo (ver Gate abajo), no solo en test.
+
+**`escapeLike()`**: escapa `\`, `%`, `_` en ese orden (el backslash primero, para no doble-escapar los propios escapes de `%`/`_`) — extraído como función exportada y testeada, a diferencia del escape inline ya existente en `catalog.ts` (no tocado, fuera de alcance de esta tarea).
+
+**Bug real encontrado y corregido durante el desarrollo, antes del Gate**: la primera versión combinaba `eq(Tabla.workspaceId, ...) && or(...)` con el operador `&&` de JavaScript en vez de `and(...)` de Drizzle. Como ambos operandos son objetos (verdaderos siempre), `&&` simplemente devuelve el segundo operando — **el filtro de `workspaceId` se descartaba en silencio** en las 8 queries del módulo, lo cual habría sido una fuga de aislamiento entre workspaces (cualquier miembro autenticado habría podido ver resultados de búsqueda de otros workspaces). Detectado en autorevisión antes de correr el Gate (no por el usuario esta vez), corregido importando y usando `and()` en las 8 ocurrencias, reverificado con `grep` que no quedara ningún `workspaceId) &&` suelto.
+
+**Gate G1** (`pnpm exec turbo run typecheck lint test build --filter=@cendaro/api --filter=@cendaro/erp --force`): 11/11 ✅. `packages/api/src/modules/search.test.ts` (nuevo, 15 tests): `escapeLike` (4), schema `q.min(2)` (4), redacción de rol (3), rate limit incl. reseteo de ventana con fake timers y aislamiento entre usuarios (4). `router.test.ts` actualizado: 19→20 routers de nivel superior, + assertion de `search.global`.
+
+**No cubierto por test automatizado — aislamiento de workspace real contra Postgres**: no existe un harness de test-DB en este monorepo (ninguno de los módulos de `packages/api` lo tiene todavía). La garantía de aislamiento aquí es por **revisión estática**: las 8 queries del módulo combinan `eq(<Tabla>.workspaceId, ctx.workspace.workspaceId)` vía `and()` (nunca `&&`, el bug ya corregido arriba). Documentado explícitamente en el propio archivo de test como brecha de cobertura, no como "hecho".
+
+**Gate G2 — verificación en vivo con agent-browser** (login real `jesusjz`, llamadas `fetch` directas a `/api/trpc/search.global` con la cookie de sesión + `x-workspace-id` reales del `localStorage`):
+
+- `q: "a"` (1 char) → `400 BAD_REQUEST`, error de Zod `too_small` en `q` — confirma `min(2)` real, no solo en el schema aislado.
+- `q: "coca"` → `200 OK`, `[]` — vacío porque el workspace de prueba no tiene clientes/órdenes/productos que calcen (coherente con las capturas de T2.10, que ya mostraban "No se encontraron clientes" y KPIs en 0 en este workspace).
+- 22 llamadas consecutivas con `q: "test"` → la request #21 devuelve `429`, `code: "TOO_MANY_REQUESTS"`, mismo mensaje que el código — rate limit confirmado end-to-end, no solo en el test con timers falsos.
+
+**Siguiente**: T2.12 — Paleta de búsqueda (`components/search/*`), reemplaza el contenido de `command-search.tsx` y elimina su lista `ROUTES` duplicada.

@@ -115,6 +115,14 @@
   }
 }
 
+/* Search palette results panel (M-19) — height tracks its measured content
+   (`search.tsx` sets --search-list-height via ResizeObserver), capped at
+   450px, animating between sizes instead of jumping. */
+.search-results-list {
+  height: min(450px, var(--search-list-height, 0px));
+  transition: height 100ms ease;
+}
+
 /* Loading ellipsis (M-21) — steps(4,end) so the dots appear one at a time */
 .loading-ellipsis::after {
   overflow: hidden;

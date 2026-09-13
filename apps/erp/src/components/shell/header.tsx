@@ -3,7 +3,7 @@
 import { cn } from "@cendaro/ui";
 import { Icons } from "@cendaro/ui/icons";
 
-import { CommandSearch } from "~/components/command-search";
+import { SearchModal } from "~/components/search/search-modal";
 import { NotificationCenter } from "./notification-center";
 import { UserMenu } from "./user-menu";
 
@@ -37,7 +37,7 @@ export function Header({ onToggleMobileMenu }: HeaderProps) {
             <Icons.Menu className="size-5" />
           </button>
         )}
-        <CommandSearch />
+        <SearchModal />
       </div>
 
       <div className="ml-auto flex items-center space-x-2">
