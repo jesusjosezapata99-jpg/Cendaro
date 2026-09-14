@@ -23,9 +23,9 @@ catalog:
 catalogs:
   react19:
     "@types/react": ~19.2.0
-    "@types/react-dom": ~19.2.0
+    "@types/react-dom": ~19.3.0
     react: 19.2.8
-    react-dom: 19.2.8
+    react-dom: 19.3.0
 
 linkWorkspacePackages: true
 
