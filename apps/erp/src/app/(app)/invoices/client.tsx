@@ -1,28 +1,24 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
+import { useCallback, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 
-import {
-  Button,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@cendaro/ui";
+import type { IconName } from "@cendaro/ui/icons";
+import type { StatusTone } from "@cendaro/ui/status-pill";
+import { Button } from "@cendaro/ui";
+import { Icon, Icons } from "@cendaro/ui/icons";
+import { StatusPill } from "@cendaro/ui/status-pill";
 
-import type { StatusTone } from "~/components/status-badge";
-import { EmptyState } from "~/components/empty-state";
+import { DataTable } from "~/components/data-table/data-table";
 import { PageHeader } from "~/components/page-header";
-import { Skeleton } from "~/components/skeleton";
 import { StatCard } from "~/components/stat-card";
-import { StatusBadge } from "~/components/status-badge";
 import { useBcvRate } from "~/hooks/use-bcv-rate";
 import { formatDualCurrency } from "~/lib/format-currency";
+import { getStatus } from "~/lib/status";
 import { useTRPC } from "~/trpc/client";
 
 const InvoiceVoucherDialog = dynamic(
@@ -33,25 +29,12 @@ const InvoiceVoucherDialog = dynamic(
   { ssr: false },
 );
 
-const STATUS_CONFIG: Record<string, { label: string; tone: StatusTone }> = {
-  draft: { label: "Borrador", tone: "neutral" },
-  pending: { label: "Pendiente", tone: "warning" },
-  pending_confirmation: { label: "Por Confirmar", tone: "warning" },
-  confirmed: { label: "Confirmado", tone: "primary" },
-  prepared: { label: "Preparado", tone: "primary" },
-  dispatched: { label: "Despachado", tone: "primary" },
-  delivered: { label: "Entregado", tone: "success" },
-  invoiced: { label: "Facturado", tone: "primary" },
-  cancelled: { label: "Anulado", tone: "destructive" },
-  returned: { label: "Devuelto", tone: "neutral" },
-};
-
-const CHANNEL_ICONS: Record<string, string> = {
-  store: "store",
-  mercadolibre: "shopping_cart",
-  vendors: "local_shipping",
-  whatsapp: "chat",
-  instagram: "photo_camera",
+const CHANNEL_ICONS: Record<string, IconName> = {
+  store: "Store",
+  mercadolibre: "ShoppingCart",
+  vendors: "LocalShipping",
+  whatsapp: "Chat",
+  instagram: "PhotoCamera",
 };
 
 const CHANNEL_LABELS: Record<string, string> = {
@@ -62,7 +45,19 @@ const CHANNEL_LABELS: Record<string, string> = {
   instagram: "Instagram",
 };
 
+interface InvoiceItem {
+  id: string;
+  orderNumber: string;
+  customerId: string | null;
+  status: string;
+  channel: string;
+  total: string | number;
+  totalPaid?: string | number | null;
+  createdAt: Date | string;
+}
+
 export default function InvoicesClient() {
+  const router = useRouter();
   const trpc = useTRPC();
   const bcv = useBcvRate();
 
@@ -70,9 +65,12 @@ export default function InvoicesClient() {
   const [filter, setFilter] = useState<string>("all");
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
 
-  const { data: ordersData, isLoading: ordersLoading } = useQuery(
-    trpc.sales.listOrders.queryOptions({ limit: 100 }),
-  );
+  const {
+    data: ordersData,
+    isLoading: ordersLoading,
+    isError,
+    refetch,
+  } = useQuery(trpc.sales.listOrders.queryOptions({ limit: 100 }));
 
   const { data: customersData } = useQuery(
     trpc.sales.listCustomers.queryOptions({ limit: 100 }),
@@ -82,7 +80,10 @@ export default function InvoicesClient() {
     return new Map((customersData ?? []).map((c) => [c.id, c.name]));
   }, [customersData]);
 
-  const orders = useMemo(() => ordersData ?? [], [ordersData]);
+  const orders = useMemo(
+    () => (ordersData ?? []) as InvoiceItem[],
+    [ordersData],
+  );
 
   // Filter invoices based on selection and search
   const filteredInvoices = useMemo(() => {
@@ -127,8 +128,211 @@ export default function InvoicesClient() {
   );
   const totalPendienteUsd = Math.max(0, totalFacturadoUsd - totalCobradoUsd);
 
+  const columns = useMemo<ColumnDef<InvoiceItem>[]>(
+    () => [
+      {
+        accessorKey: "orderNumber",
+        header: "Factura #",
+        meta: { sticky: true, className: "w-36" },
+        cell: ({ row }) => (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setSelectedOrderId(row.original.id);
+            }}
+            className="text-primary font-mono text-xs font-medium tabular-nums hover:underline"
+          >
+            FAC-{row.original.orderNumber}
+          </button>
+        ),
+      },
+      {
+        id: "orderRef",
+        header: "Orden Ref.",
+        meta: { className: "w-32" },
+        cell: ({ row }) => (
+          <Link
+            href={`/orders/${row.original.id}`}
+            onClick={(e) => e.stopPropagation()}
+            className="text-muted-foreground hover:text-foreground font-mono text-xs tabular-nums hover:underline"
+          >
+            {row.original.orderNumber}
+          </Link>
+        ),
+      },
+      {
+        id: "customer",
+        header: "Cliente",
+        meta: { className: "min-w-44" },
+        cell: ({ row }) => {
+          const customerName =
+            (row.original.customerId
+              ? customerMap.get(row.original.customerId)
+              : null) ?? "Cliente Ocasional";
+          return (
+            <span className="text-foreground truncate text-xs font-medium">
+              {customerName}
+            </span>
+          );
+        },
+      },
+      {
+        accessorKey: "channel",
+        header: "Canal",
+        meta: { className: "w-36" },
+        cell: ({ row }) => {
+          const ch = row.original.channel;
+          return (
+            <div className="text-muted-foreground flex items-center gap-1.5 text-xs">
+              <Icon
+                name={CHANNEL_ICONS[ch] ?? "Store"}
+                className="size-4 shrink-0"
+              />
+              <span className="truncate">{CHANNEL_LABELS[ch] ?? ch}</span>
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "createdAt",
+        header: "Fecha",
+        meta: {
+          className:
+            "w-28 font-mono text-xs tabular-nums text-muted-foreground",
+        },
+        cell: ({ row }) => (
+          <span className="text-muted-foreground font-mono text-xs tabular-nums">
+            {new Date(row.original.createdAt).toLocaleDateString("es-VE")}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "total",
+        header: "Total",
+        meta: {
+          numeric: true,
+          align: "right",
+          className: "w-36 text-right font-mono tabular-nums",
+        },
+        cell: ({ row }) => {
+          const val = Number(row.original.total);
+          return (
+            <div className="text-right font-mono tabular-nums">
+              <span className="text-foreground font-medium">
+                ${val.toFixed(2)}
+              </span>
+              {bcv.rate > 0 ? (
+                <span className="text-muted-foreground ml-1.5 text-[10px] font-normal">
+                  {formatDualCurrency(val, bcv.rate).bs}
+                </span>
+              ) : null}
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "totalPaid",
+        header: "Cobrado",
+        meta: {
+          numeric: true,
+          align: "right",
+          className: "w-36 text-right font-mono tabular-nums",
+        },
+        cell: ({ row }) => {
+          const paid = Number(row.original.totalPaid ?? 0);
+          return (
+            <div className="text-right font-mono tabular-nums">
+              <span className="text-foreground font-medium">
+                ${paid.toFixed(2)}
+              </span>
+              {bcv.rate > 0 ? (
+                <span className="text-muted-foreground ml-1.5 text-[10px] font-normal">
+                  {formatDualCurrency(paid, bcv.rate).bs}
+                </span>
+              ) : null}
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "status",
+        header: "Estado",
+        meta: { align: "center", className: "w-32 text-center" },
+        cell: ({ row }) => {
+          const s = getStatus("order", row.original.status);
+          return <StatusPill tone={s.tone}>{s.label}</StatusPill>;
+        },
+      },
+      {
+        id: "payment",
+        header: "Cobro",
+        meta: { align: "center", className: "w-28 text-center" },
+        cell: ({ row }) => {
+          const isPaid =
+            Number(row.original.totalPaid) >= Number(row.original.total);
+          const isPartial =
+            Number(row.original.totalPaid) > 0 &&
+            Number(row.original.totalPaid) < Number(row.original.total);
+          const paymentTone: StatusTone = isPaid
+            ? "success"
+            : isPartial
+              ? "warning"
+              : "neutral";
+          const paymentLabel = isPaid
+            ? "Pagada"
+            : isPartial
+              ? "Parcial"
+              : "Pendiente";
+          return <StatusPill tone={paymentTone}>{paymentLabel}</StatusPill>;
+        },
+      },
+      {
+        id: "actions",
+        header: "Acciones",
+        meta: { align: "right", className: "w-28 text-right" },
+        cell: ({ row }) => (
+          <div
+            className="flex items-center justify-end gap-1"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setSelectedOrderId(row.original.id)}
+              className="min-h-7 px-2 text-[11px]"
+              title="Ver Comprobante de Facturación"
+            >
+              <Icons.ReceiptLong className="mr-1 size-3.5" />
+              Comprobante
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              asChild
+              className="min-h-7 px-1.5 text-xs"
+              title="Ir a Detalle de Pedido"
+            >
+              <Link href={`/orders/${row.original.id}`}>
+                <Icons.OpenInNew className="size-3.5" />
+              </Link>
+            </Button>
+          </div>
+        ),
+      },
+    ],
+    [bcv.rate, customerMap],
+  );
+
+  const handleRowClick = useCallback(
+    (order: InvoiceItem) => {
+      router.push(`/orders/${order.id}`);
+    },
+    [router],
+  );
+
   return (
-    <div className="animate-in fade-in slide-in-from-bottom-1 space-y-6 p-4 duration-200 lg:p-8">
+    <div className="animate-in fade-in slide-in-from-bottom-1 space-y-6 py-4 duration-200 lg:py-8">
       {/* Page Header */}
       <PageHeader
         title="Facturas Internas"
@@ -140,14 +344,12 @@ export default function InvoicesClient() {
               onClick={() => setSelectedOrderId("preview")}
               className="min-h-11 flex-1 sm:flex-initial"
             >
-              <span className="material-symbols-outlined text-lg">
-                receipt_long
-              </span>
+              <Icons.ReceiptLong className="size-4.5" />
               Modelo Comprobante
             </Button>
             <Button asChild className="min-h-11 flex-1 sm:flex-initial">
               <Link href="/orders">
-                <span className="material-symbols-outlined text-lg">add</span>
+                <Icons.Add className="size-4.5" />
                 Nueva Factura / Venta
               </Link>
             </Button>
@@ -160,7 +362,7 @@ export default function InvoicesClient() {
         <StatCard
           label="Total Facturas"
           value={ordersLoading ? "—" : totalFacturas.toLocaleString("es-VE")}
-          icon="receipt_long"
+          icon="ReceiptLong"
         />
         <StatCard
           label="Total Facturado"
@@ -174,7 +376,7 @@ export default function InvoicesClient() {
               ? undefined
               : formatDualCurrency(totalFacturadoUsd, bcv.rate).bs
           }
-          icon="payments"
+          icon="Payments"
           tone="primary"
         />
         <StatCard
@@ -189,7 +391,7 @@ export default function InvoicesClient() {
               ? undefined
               : formatDualCurrency(totalCobradoUsd, bcv.rate).bs
           }
-          icon="check_circle"
+          icon="CheckCircle"
           tone="success"
         />
         <StatCard
@@ -204,7 +406,7 @@ export default function InvoicesClient() {
               ? undefined
               : formatDualCurrency(totalPendienteUsd, bcv.rate).bs
           }
-          icon="pending"
+          icon="Pending"
           tone="warning"
         />
       </div>
@@ -212,20 +414,18 @@ export default function InvoicesClient() {
       {/* Search & Filter Bar */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="relative flex-1">
-          <span className="material-symbols-outlined text-muted-foreground absolute top-1/2 left-3 -translate-y-1/2 text-lg">
-            search
-          </span>
+          <Icons.Search className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
           <input
             type="text"
             placeholder="Buscar por Factura #, Orden # o Cliente..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="border-border bg-card text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/20 w-full rounded-xl border py-2.5 pr-4 pl-10 text-sm focus:ring-2 focus:outline-none"
+            className="border-border bg-card text-foreground placeholder:text-muted-foreground focus:border-primary w-full border py-2 pr-4 pl-9 text-xs focus:outline-none"
           />
         </div>
 
-        {/* Filter chips */}
-        <div className="mobile-scroll-x flex gap-2 pb-1">
+        {/* Filter chips — Clean sharp style */}
+        <div className="mobile-scroll-x flex items-center gap-1.5">
           {[
             { key: "all", label: "Todas" },
             { key: "invoiced", label: "Facturadas" },
@@ -237,11 +437,12 @@ export default function InvoicesClient() {
           ].map((f) => (
             <button
               key={f.key}
+              type="button"
               onClick={() => setFilter(f.key)}
-              className={`min-h-9 shrink-0 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+              className={`flex min-h-8 items-center border px-3 py-1 text-xs font-medium whitespace-nowrap transition-colors ${
                 filter === f.key
                   ? "border-primary bg-primary text-primary-foreground"
-                  : "border-border-subtle text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+                  : "bg-card text-muted-foreground hover:bg-secondary hover:text-foreground border-[--line] hover:border-[--line-hover]"
               }`}
             >
               {f.label}
@@ -250,351 +451,25 @@ export default function InvoicesClient() {
         </div>
       </div>
 
-      {/* ── Mobile: Card View ─────────────────────── */}
-      <div className="space-y-3 md:hidden">
-        {ordersLoading ? (
-          Array.from({ length: 4 }).map((_, i) => (
-            <div
-              key={i}
-              className="border-border-subtle surface-card space-y-2 rounded-xl border p-4"
-            >
-              <Skeleton className="h-5 w-1/2" />
-              <Skeleton className="h-4 w-3/4" />
-              <Skeleton className="h-6 w-1/3" />
-            </div>
-          ))
-        ) : filteredInvoices.length === 0 ? (
-          <EmptyState
-            icon="receipt_long"
-            title="No se encontraron facturas"
-            description="No hay comprobantes que coincidan con los criterios de búsqueda o filtro."
-            action={
-              filter !== "all" || search ? (
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setFilter("all");
-                    setSearch("");
-                  }}
-                >
-                  Restablecer Filtros
-                </Button>
-              ) : undefined
-            }
-          />
-        ) : (
-          filteredInvoices.map((order) => {
-            const isPaid = Number(order.totalPaid) >= Number(order.total);
-            const isPartial =
-              Number(order.totalPaid) > 0 &&
-              Number(order.totalPaid) < Number(order.total);
-            const customerName =
-              (order.customerId ? customerMap.get(order.customerId) : null) ??
-              "Cliente Ocasional";
-
-            const paymentTone: StatusTone = isPaid
-              ? "success"
-              : isPartial
-                ? "warning"
-                : "neutral";
-            const paymentLabel = isPaid
-              ? "Pagada"
-              : isPartial
-                ? "Pago Parcial"
-                : "Por Cobrar";
-
-            const orderStatusCfg = STATUS_CONFIG[order.status] ?? {
-              label: order.status,
-              tone: "neutral" as StatusTone,
-            };
-
-            return (
-              <div
-                key={order.id}
-                className="border-border-subtle surface-card space-y-3 rounded-xl border p-4"
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <span
-                      className="material-symbols-outlined text-muted-foreground text-lg"
-                      title={order.channel}
-                    >
-                      {CHANNEL_ICONS[order.channel] ?? "receipt_long"}
-                    </span>
-                    <span className="text-primary font-mono text-sm font-bold tabular-nums">
-                      FAC-{order.orderNumber}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <StatusBadge tone={orderStatusCfg.tone}>
-                      {orderStatusCfg.label}
-                    </StatusBadge>
-                    <StatusBadge tone={paymentTone}>{paymentLabel}</StatusBadge>
-                  </div>
-                </div>
-
-                <div className="space-y-1 text-xs">
-                  <p className="text-foreground text-sm font-semibold">
-                    {customerName}
-                  </p>
-                  <p className="text-muted-foreground font-mono">
-                    Ref: {order.orderNumber} ·{" "}
-                    {new Date(order.createdAt).toLocaleDateString("es-VE")}
-                  </p>
-                </div>
-
-                <div className="border-border-subtle flex items-baseline justify-between border-t pt-2">
-                  <div>
-                    <span className="text-muted-foreground text-[10px] font-bold uppercase">
-                      Total Facturado
-                    </span>
-                    <p className="text-foreground font-mono text-base font-bold tabular-nums">
-                      ${Number(order.total).toFixed(2)} USD
-                    </p>
-                    <p className="text-muted-foreground font-mono text-xs tabular-nums">
-                      {formatDualCurrency(order.total, bcv.rate).bs}
-                    </p>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setSelectedOrderId(order.id)}
-                      className="min-h-9 text-xs"
-                    >
-                      <span className="material-symbols-outlined text-base">
-                        receipt_long
-                      </span>
-                      Comprobante
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      asChild
-                      className="min-h-9 text-xs"
-                    >
-                      <Link href={`/orders/${order.id}`}>
-                        <span className="material-symbols-outlined text-base">
-                          open_in_new
-                        </span>
-                      </Link>
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            );
-          })
-        )}
-      </div>
-
-      {/* ── Desktop: Table View ───────────────────── */}
-      <div className="hidden md:block">
-        <div className="border-border-subtle surface-card overflow-hidden rounded-xl border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="px-4 py-3 text-xs font-semibold uppercase">
-                  Factura #
-                </TableHead>
-                <TableHead className="px-4 py-3 text-xs font-semibold uppercase">
-                  Orden Ref.
-                </TableHead>
-                <TableHead className="px-4 py-3 text-xs font-semibold uppercase">
-                  Cliente
-                </TableHead>
-                <TableHead className="px-4 py-3 text-xs font-semibold uppercase">
-                  Canal
-                </TableHead>
-                <TableHead className="px-4 py-3 text-xs font-semibold uppercase">
-                  Fecha
-                </TableHead>
-                <TableHead className="px-4 py-3 text-right text-xs font-semibold uppercase">
-                  Total
-                </TableHead>
-                <TableHead className="px-4 py-3 text-right text-xs font-semibold uppercase">
-                  Cobrado
-                </TableHead>
-                <TableHead className="px-4 py-3 text-center text-xs font-semibold uppercase">
-                  Estado
-                </TableHead>
-                <TableHead className="px-4 py-3 text-center text-xs font-semibold uppercase">
-                  Cobro
-                </TableHead>
-                <TableHead className="px-4 py-3 text-right text-xs font-semibold uppercase">
-                  Acciones
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {ordersLoading ? (
-                Array.from({ length: 5 }).map((_, i) => (
-                  <TableRow key={i}>
-                    {Array.from({ length: 10 }).map((_, j) => (
-                      <TableCell key={j} className="px-4 py-3">
-                        <Skeleton className="h-4 w-full" />
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                ))
-              ) : filteredInvoices.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={10} className="py-12">
-                    <EmptyState
-                      icon="receipt_long"
-                      title="No se encontraron facturas"
-                      description="No hay comprobantes que coincidan con los filtros seleccionados."
-                      action={
-                        filter !== "all" || search ? (
-                          <Button
-                            variant="outline"
-                            onClick={() => {
-                              setFilter("all");
-                              setSearch("");
-                            }}
-                          >
-                            Restablecer Filtros
-                          </Button>
-                        ) : undefined
-                      }
-                    />
-                  </TableCell>
-                </TableRow>
-              ) : (
-                filteredInvoices.map((order) => {
-                  const isPaid = Number(order.totalPaid) >= Number(order.total);
-                  const isPartial =
-                    Number(order.totalPaid) > 0 &&
-                    Number(order.totalPaid) < Number(order.total);
-                  const customerName =
-                    (order.customerId
-                      ? customerMap.get(order.customerId)
-                      : null) ?? "Cliente Ocasional";
-
-                  const paymentTone: StatusTone = isPaid
-                    ? "success"
-                    : isPartial
-                      ? "warning"
-                      : "neutral";
-                  const paymentLabel = isPaid
-                    ? "Pagada"
-                    : isPartial
-                      ? "Parcial"
-                      : "Pendiente";
-
-                  const orderStatusCfg = STATUS_CONFIG[order.status] ?? {
-                    label: order.status,
-                    tone: "neutral" as StatusTone,
-                  };
-
-                  return (
-                    <TableRow key={order.id} className="text-xs">
-                      {/* Factura # */}
-                      <TableCell className="text-primary px-4 py-3 font-mono font-bold tabular-nums">
-                        FAC-{order.orderNumber}
-                      </TableCell>
-
-                      {/* Orden Ref */}
-                      <TableCell className="text-muted-foreground px-4 py-3 font-mono tabular-nums">
-                        {order.orderNumber}
-                      </TableCell>
-
-                      {/* Cliente */}
-                      <TableCell className="text-foreground px-4 py-3 font-medium">
-                        {customerName}
-                      </TableCell>
-
-                      {/* Canal */}
-                      <TableCell className="px-4 py-3">
-                        <div className="text-muted-foreground flex items-center gap-1.5">
-                          <span className="material-symbols-outlined text-base">
-                            {CHANNEL_ICONS[order.channel] ?? "store"}
-                          </span>
-                          <span>
-                            {CHANNEL_LABELS[order.channel] ?? order.channel}
-                          </span>
-                        </div>
-                      </TableCell>
-
-                      {/* Fecha */}
-                      <TableCell className="text-muted-foreground px-4 py-3 font-mono">
-                        {new Date(order.createdAt).toLocaleDateString("es-VE")}
-                      </TableCell>
-
-                      {/* Total */}
-                      <TableCell className="px-4 py-3 text-right">
-                        <p className="text-foreground font-mono font-bold tabular-nums">
-                          ${Number(order.total).toFixed(2)}
-                        </p>
-                        <p className="text-muted-foreground font-mono text-[11px] tabular-nums">
-                          {formatDualCurrency(order.total, bcv.rate).bs}
-                        </p>
-                      </TableCell>
-
-                      {/* Cobrado */}
-                      <TableCell className="px-4 py-3 text-right font-mono tabular-nums">
-                        <p className="font-medium text-emerald-500">
-                          ${Number(order.totalPaid ?? 0).toFixed(2)}
-                        </p>
-                        <p className="text-muted-foreground text-[11px]">
-                          {
-                            formatDualCurrency(order.totalPaid ?? 0, bcv.rate)
-                              .bs
-                          }
-                        </p>
-                      </TableCell>
-
-                      {/* Estado Factura */}
-                      <TableCell className="px-4 py-3 text-center">
-                        <StatusBadge tone={orderStatusCfg.tone}>
-                          {orderStatusCfg.label}
-                        </StatusBadge>
-                      </TableCell>
-
-                      {/* Estado Cobro */}
-                      <TableCell className="px-4 py-3 text-center">
-                        <StatusBadge tone={paymentTone}>
-                          {paymentLabel}
-                        </StatusBadge>
-                      </TableCell>
-
-                      {/* Acciones */}
-                      <TableCell className="px-4 py-3 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setSelectedOrderId(order.id)}
-                            className="min-h-8 px-2.5 text-xs"
-                            title="Ver Comprobante de Facturación"
-                          >
-                            <span className="material-symbols-outlined mr-1 text-base">
-                              receipt_long
-                            </span>
-                            Comprobante
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            asChild
-                            className="min-h-8 px-2 text-xs"
-                            title="Ir a Detalle de Pedido"
-                          >
-                            <Link href={`/orders/${order.id}`}>
-                              <span className="material-symbols-outlined text-base">
-                                open_in_new
-                              </span>
-                            </Link>
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })
-              )}
-            </TableBody>
-          </Table>
-        </div>
-      </div>
+      {/* Main Data Table with 45px rows */}
+      <DataTable
+        columns={columns}
+        data={filteredInvoices}
+        isLoading={ordersLoading}
+        isError={isError}
+        onRetry={() => void refetch()}
+        onRowClick={handleRowClick}
+        onResetFilters={
+          filter !== "all" || search
+            ? () => {
+                setFilter("all");
+                setSearch("");
+              }
+            : undefined
+        }
+        emptyTitle="No se encontraron facturas"
+        emptyDescription="No hay comprobantes que coincidan con los filtros seleccionados."
+      />
 
       {/* Invoice Voucher Modal */}
       <InvoiceVoucherDialog

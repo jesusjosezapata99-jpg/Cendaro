@@ -4,7 +4,8 @@
  * Separated from sales.ts per Module/API Blueprint.
  * PRD §19: Payment processing, validation, and cash closure.
  */
-import { desc, eq, sql } from "drizzle-orm";
+import { TRPCError } from "@trpc/server";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import {
@@ -32,9 +33,10 @@ export const paymentsRouter = createTRPCRouter({
       }),
     )
     .query(async ({ ctx, input }) => {
-      const where = input.onlyPending
-        ? eq(Payment.isValidated, false)
-        : undefined;
+      const conditions = [eq(Payment.workspaceId, ctx.workspace.workspaceId)];
+      if (input.onlyPending) {
+        conditions.push(eq(Payment.isValidated, false));
+      }
 
       return ctx.db
         .select({
@@ -49,7 +51,7 @@ export const paymentsRouter = createTRPCRouter({
           createdAt: Payment.createdAt,
         })
         .from(Payment)
-        .where(where)
+        .where(and(...conditions))
         .orderBy(desc(Payment.createdAt))
         .limit(input.limit);
     }),
@@ -68,14 +70,44 @@ export const paymentsRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const [payment] = await ctx.db.insert(Payment).values(input).returning();
+      // Verify order belongs to current workspace
+      const [order] = await ctx.db
+        .select()
+        .from(SalesOrder)
+        .where(
+          and(
+            eq(SalesOrder.id, input.orderId),
+            eq(SalesOrder.workspaceId, ctx.workspace.workspaceId),
+          ),
+        )
+        .limit(1);
+
+      if (!order) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Order not found in this workspace",
+        });
+      }
+
+      const [payment] = await ctx.db
+        .insert(Payment)
+        .values({
+          ...input,
+          workspaceId: ctx.workspace.workspaceId,
+        })
+        .returning();
 
       await ctx.db
         .update(SalesOrder)
         .set({
           totalPaid: sql`COALESCE(${SalesOrder.totalPaid}, 0) + ${input.amount}`,
         })
-        .where(eq(SalesOrder.id, input.orderId));
+        .where(
+          and(
+            eq(SalesOrder.id, input.orderId),
+            eq(SalesOrder.workspaceId, ctx.workspace.workspaceId),
+          ),
+        );
 
       await logAudit(ctx.db, ctx.user, {
         action: "payment.create",
@@ -90,11 +122,30 @@ export const paymentsRouter = createTRPCRouter({
   validate: workspaceProcedure
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
+      if (!["owner", "admin", "supervisor"].includes(ctx.workspace.role)) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Insufficient permissions to validate payments",
+        });
+      }
+
       const [updated] = await ctx.db
         .update(Payment)
         .set({ isValidated: true, validatedBy: ctx.user.id })
-        .where(eq(Payment.id, input.id))
+        .where(
+          and(
+            eq(Payment.id, input.id),
+            eq(Payment.workspaceId, ctx.workspace.workspaceId),
+          ),
+        )
         .returning();
+
+      if (!updated) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Payment not found in this workspace",
+        });
+      }
 
       await logAudit(ctx.db, ctx.user, {
         action: "payment.validate",
@@ -121,6 +172,7 @@ export const paymentsRouter = createTRPCRouter({
         status: CashClosure.status,
       })
       .from(CashClosure)
+      .where(eq(CashClosure.workspaceId, ctx.workspace.workspaceId))
       .orderBy(desc(CashClosure.closureDate))
       .limit(100);
   }),
@@ -142,6 +194,7 @@ export const paymentsRouter = createTRPCRouter({
       const [closure] = await ctx.db
         .insert(CashClosure)
         .values({
+          workspaceId: ctx.workspace.workspaceId,
           closureDate: new Date(input.closureDate),
           totalSales: input.totalSales,
           totalCash: input.totalCash,
@@ -171,14 +224,33 @@ export const paymentsRouter = createTRPCRouter({
   reviewClosure: workspaceProcedure
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
+      if (!["owner", "admin", "supervisor"].includes(ctx.workspace.role)) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Insufficient permissions to review cash closures",
+        });
+      }
+
       const [updated] = await ctx.db
         .update(CashClosure)
         .set({
           status: "reviewed",
           reviewedBy: ctx.user.id,
         })
-        .where(eq(CashClosure.id, input.id))
+        .where(
+          and(
+            eq(CashClosure.id, input.id),
+            eq(CashClosure.workspaceId, ctx.workspace.workspaceId),
+          ),
+        )
         .returning();
+
+      if (!updated) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Cash closure not found in this workspace",
+        });
+      }
 
       await logAudit(ctx.db, ctx.user, {
         action: "cash.review",

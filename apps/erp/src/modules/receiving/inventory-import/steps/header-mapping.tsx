@@ -7,6 +7,8 @@
  * PRD: FEATURE_PRD_INVENTORY_IMPORT.md §15, §20, §23
  */
 import type { ImportMode } from "@cendaro/api";
+import { Icons } from "@cendaro/ui/icons";
+import { StatusPill } from "@cendaro/ui/status-pill";
 
 import type { ImportField } from "../lib/inventory-header-aliases";
 import { getRequiredFieldsForMode } from "../lib/inventory-header-aliases";
@@ -77,7 +79,9 @@ export function HeaderMapping({
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <div className="text-center">
-        <h2 className="text-foreground text-xl font-bold">Mapeo de Columnas</h2>
+        <h2 className="text-foreground text-xl font-medium">
+          Mapeo de Columnas
+        </h2>
         <p className="text-muted-foreground mt-1 text-sm">
           Hoja: <span className="font-medium">{sheetName}</span> —{" "}
           {totalRows.toLocaleString()} filas detectadas
@@ -86,10 +90,8 @@ export function HeaderMapping({
 
       {/* Missing required columns warning */}
       {missingRequired.length > 0 && (
-        <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-900/20 dark:text-red-400">
-          <span className="material-symbols-outlined mt-0.5 text-lg">
-            error
-          </span>
+        <div className="border-destructive/30 bg-destructive/10 text-destructive flex items-start gap-2 border px-4 py-3 text-sm">
+          <Icons.Error className="mt-0.5 size-4.5" />
           <div>
             <p className="font-medium">Columnas requeridas no encontradas:</p>
             <p>
@@ -111,8 +113,8 @@ export function HeaderMapping({
 
       {/* Unmapped columns info */}
       {unmapped.length > 0 && (
-        <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700 dark:border-amber-900 dark:bg-amber-900/20 dark:text-amber-400">
-          <span className="material-symbols-outlined mt-0.5 text-lg">info</span>
+        <div className="border-warning/30 bg-warning/10 text-warning flex items-start gap-2 border px-4 py-3 text-sm">
+          <Icons.Info className="mt-0.5 size-4.5" />
           <div>
             <p className="font-medium">
               Columnas no reconocidas (serán ignoradas):
@@ -123,20 +125,18 @@ export function HeaderMapping({
       )}
 
       {/* Mapping table */}
-      <div className="border-border bg-card overflow-hidden rounded-xl border">
+      <div className="border-border bg-card overflow-hidden border">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-border bg-muted/50 border-b text-left">
-              <th className="text-muted-foreground px-4 py-3 font-semibold">
-                #
-              </th>
-              <th className="text-muted-foreground px-4 py-3 font-semibold">
+              <th className="text-muted-foreground px-4 py-3 font-medium">#</th>
+              <th className="text-muted-foreground px-4 py-3 font-medium">
                 Encabezado Detectado
               </th>
-              <th className="text-muted-foreground px-4 py-3 font-semibold">
+              <th className="text-muted-foreground px-4 py-3 font-medium">
                 Campo Asignado
               </th>
-              <th className="text-muted-foreground px-4 py-3 text-center font-semibold">
+              <th className="text-muted-foreground px-4 py-3 text-center font-medium">
                 Estado
               </th>
             </tr>
@@ -162,7 +162,7 @@ export function HeaderMapping({
                     <select
                       value={mappedField}
                       onChange={(e) => handleFieldChange(i, e.target.value)}
-                      className="border-border bg-card focus:border-primary w-full rounded-lg border px-3 py-1.5 text-sm outline-none"
+                      className="border-border bg-card focus:border-primary w-full border px-3 py-1.5 text-xs outline-none"
                     >
                       {FIELD_OPTIONS.map((opt) => (
                         <option key={opt.value} value={opt.value}>
@@ -173,18 +173,9 @@ export function HeaderMapping({
                   </td>
                   <td className="px-4 py-3 text-center">
                     {mappedField ? (
-                      <span
-                        className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ${
-                          isRequired
-                            ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
-                            : "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
-                        }`}
-                      >
-                        <span className="material-symbols-outlined text-xs">
-                          check
-                        </span>
+                      <StatusPill tone={isRequired ? "success" : "info"}>
                         {isRequired ? "Requerido" : "Opcional"}
-                      </span>
+                      </StatusPill>
                     ) : (
                       <span className="text-muted-foreground text-xs">
                         Ignorado
@@ -203,11 +194,9 @@ export function HeaderMapping({
         <button
           onClick={onConfirm}
           disabled={!canConfirm}
-          className="bg-primary hover:bg-primary/90 inline-flex items-center gap-2 rounded-lg px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+          className="bg-primary hover:bg-primary/90 inline-flex h-9 items-center gap-2 px-4 text-xs font-medium text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50"
         >
-          <span className="material-symbols-outlined text-lg">
-            check_circle
-          </span>
+          <Icons.CheckCircle className="size-4.5" />
           Confirmar Mapeo
         </button>
       </div>

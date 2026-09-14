@@ -17,20 +17,31 @@ const config = {
   cacheComponents: true,
   experimental: {
     optimizePackageImports: [
+      "@cendaro/ui",
+      "@dnd-kit/core",
+      "@dnd-kit/sortable",
+      "@supabase/ssr",
+      "@supabase/supabase-js",
+      "@tanstack/react-query",
+      "@tanstack/react-table",
       "@trpc/client",
       "@trpc/tanstack-react-query",
-      "@tanstack/react-query",
-      "@supabase/supabase-js",
-      "@supabase/ssr",
       "clsx",
+      "framer-motion",
+      "nuqs",
+      "react-icons",
+      "recharts",
       "sonner",
       "superjson",
       "zod",
     ],
-    // Persist the Turbopack dev cache across dev-server restarts —
-    // cold starts reuse the compiled graph instead of recompiling.
-    // Next.js 16 option; production builds are unaffected.
-    turbopackFileSystemCacheForDev: true,
+    // Turbopack's persistent dev cache is disabled deliberately (2026-09-14).
+    // It caused two distinct dev-server crashes in one session: a restore
+    // panic with missing `.sst` files, and an internal `turbo-tasks`
+    // aggregation panic. Both surfaced as 500s on every route, which reads
+    // as an application bug and undermines any verification done against
+    // the dev server. Re-enable once the option stabilises upstream.
+    // turbopackFileSystemCacheForDev: true,
   },
   /** Sharp uses native binaries — must not be bundled */
   serverExternalPackages: ["sharp"],
@@ -71,6 +82,9 @@ const config = {
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "X-Frame-Options", value: "DENY" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
+          { key: "Cross-Origin-Resource-Policy", value: "same-origin" },
+          { key: "X-DNS-Prefetch-Control", value: "off" },
           {
             key: "Permissions-Policy",
             value: "camera=(), microphone=(), geolocation=(), payment=()",

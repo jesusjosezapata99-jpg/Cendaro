@@ -34,7 +34,11 @@ export const integrationsRouter = createTRPCRouter({
       }),
     )
     .query(async ({ ctx, input }) => {
-      let query = ctx.db
+      const conditions = [eq(MlListing.workspaceId, ctx.workspace.workspaceId)];
+      if (input.status) {
+        conditions.push(eq(MlListing.status, input.status));
+      }
+      return ctx.db
         .select({
           id: MlListing.id,
           productId: MlListing.productId,
@@ -47,11 +51,9 @@ export const integrationsRouter = createTRPCRouter({
           createdAt: MlListing.createdAt,
         })
         .from(MlListing)
-        .$dynamic();
-      if (input.status) {
-        query = query.where(eq(MlListing.status, input.status));
-      }
-      return query.orderBy(desc(MlListing.createdAt)).limit(input.limit);
+        .where(and(...conditions))
+        .orderBy(desc(MlListing.createdAt))
+        .limit(input.limit);
     }),
 
   syncMlListing: workspaceProcedure
@@ -71,10 +73,16 @@ export const integrationsRouter = createTRPCRouter({
           lastSyncAt: new Date(),
           status: input.stock === 0 ? "out_of_stock" : "active",
         })
-        .where(eq(MlListing.id, input.id))
+        .where(
+          and(
+            eq(MlListing.id, input.id),
+            eq(MlListing.workspaceId, ctx.workspace.workspaceId),
+          ),
+        )
         .returning();
 
       await logAudit(ctx.db, ctx.user, {
+        workspaceId: ctx.workspace.workspaceId,
         action: "ml.sync",
         entity: "ml_listing",
         entityId: input.id,
@@ -94,7 +102,11 @@ export const integrationsRouter = createTRPCRouter({
       }),
     )
     .query(async ({ ctx, input }) => {
-      let query = ctx.db
+      const conditions = [eq(MlOrder.workspaceId, ctx.workspace.workspaceId)];
+      if (input.imported !== undefined) {
+        conditions.push(eq(MlOrder.isImported, input.imported));
+      }
+      return ctx.db
         .select({
           id: MlOrder.id,
           mlOrderId: MlOrder.mlOrderId,
@@ -106,11 +118,9 @@ export const integrationsRouter = createTRPCRouter({
           createdAt: MlOrder.createdAt,
         })
         .from(MlOrder)
-        .$dynamic();
-      if (input.imported !== undefined) {
-        query = query.where(eq(MlOrder.isImported, input.imported));
-      }
-      return query.orderBy(desc(MlOrder.createdAt)).limit(input.limit);
+        .where(and(...conditions))
+        .orderBy(desc(MlOrder.createdAt))
+        .limit(input.limit);
     }),
 
   importMlOrder: workspaceProcedure
@@ -119,10 +129,16 @@ export const integrationsRouter = createTRPCRouter({
       const [updated] = await ctx.db
         .update(MlOrder)
         .set({ isImported: true, importedAt: new Date() })
-        .where(eq(MlOrder.id, input.id))
+        .where(
+          and(
+            eq(MlOrder.id, input.id),
+            eq(MlOrder.workspaceId, ctx.workspace.workspaceId),
+          ),
+        )
         .returning();
 
       await logAudit(ctx.db, ctx.user, {
+        workspaceId: ctx.workspace.workspaceId,
         action: "ml.import_order",
         entity: "ml_order",
         entityId: input.id,
@@ -143,7 +159,19 @@ export const integrationsRouter = createTRPCRouter({
       }),
     )
     .query(async ({ ctx, input }) => {
-      let query = ctx.db
+      const conditions = [
+        eq(IntegrationLog.workspaceId, ctx.workspace.workspaceId),
+      ];
+      if (input.source) {
+        conditions.push(eq(IntegrationLog.source, input.source));
+      }
+      if (input.level) {
+        conditions.push(eq(IntegrationLog.level, input.level));
+      }
+      if (input.resolved !== undefined) {
+        conditions.push(eq(IntegrationLog.isResolved, input.resolved));
+      }
+      return ctx.db
         .select({
           id: IntegrationLog.id,
           source: IntegrationLog.source,
@@ -154,17 +182,9 @@ export const integrationsRouter = createTRPCRouter({
           createdAt: IntegrationLog.createdAt,
         })
         .from(IntegrationLog)
-        .$dynamic();
-      if (input.source) {
-        query = query.where(eq(IntegrationLog.source, input.source));
-      }
-      if (input.level) {
-        query = query.where(eq(IntegrationLog.level, input.level));
-      }
-      if (input.resolved !== undefined) {
-        query = query.where(eq(IntegrationLog.isResolved, input.resolved));
-      }
-      return query.orderBy(desc(IntegrationLog.createdAt)).limit(input.limit);
+        .where(and(...conditions))
+        .orderBy(desc(IntegrationLog.createdAt))
+        .limit(input.limit);
     }),
 
   unresolvedAlerts: workspaceReadProcedure.query(async ({ ctx }) => {
@@ -179,6 +199,7 @@ export const integrationsRouter = createTRPCRouter({
       .from(IntegrationLog)
       .where(
         and(
+          eq(IntegrationLog.workspaceId, ctx.workspace.workspaceId),
           eq(IntegrationLog.isResolved, false),
           eq(IntegrationLog.level, "error"),
         ),
@@ -193,10 +214,16 @@ export const integrationsRouter = createTRPCRouter({
       const [updated] = await ctx.db
         .update(IntegrationLog)
         .set({ isResolved: true, resolvedBy: ctx.user.id })
-        .where(eq(IntegrationLog.id, input.id))
+        .where(
+          and(
+            eq(IntegrationLog.id, input.id),
+            eq(IntegrationLog.workspaceId, ctx.workspace.workspaceId),
+          ),
+        )
         .returning();
 
       await logAudit(ctx.db, ctx.user, {
+        workspaceId: ctx.workspace.workspaceId,
         action: "integration.resolve",
         entity: "integration_log",
         entityId: input.id,

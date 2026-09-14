@@ -1,28 +1,23 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
+import { useCallback, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import {
-  Button,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@cendaro/ui";
+import type { IconName } from "@cendaro/ui/icons";
+import { Button } from "@cendaro/ui";
+import { Icon, Icons } from "@cendaro/ui/icons";
+import { StatusPill } from "@cendaro/ui/status-pill";
 
-import type { StatusTone } from "~/components/status-badge";
-import { EmptyState } from "~/components/empty-state";
+import { DataTable } from "~/components/data-table/data-table";
 import { PageHeader } from "~/components/page-header";
-import { Skeleton } from "~/components/skeleton";
 import { StatCard } from "~/components/stat-card";
-import { StatusBadge } from "~/components/status-badge";
 import { useBcvRate } from "~/hooks/use-bcv-rate";
 import { formatDualCurrency } from "~/lib/format-currency";
+import { getStatus } from "~/lib/status";
 import { useTRPC } from "~/trpc/client";
 
 const DeliveryNoteVoucherDialog = dynamic(
@@ -33,25 +28,12 @@ const DeliveryNoteVoucherDialog = dynamic(
   { ssr: false },
 );
 
-const STATUS_CONFIG: Record<string, { label: string; tone: StatusTone }> = {
-  draft: { label: "Borrador", tone: "neutral" },
-  pending: { label: "Pendiente", tone: "warning" },
-  pending_confirmation: { label: "Por Confirmar", tone: "warning" },
-  confirmed: { label: "Por Preparar", tone: "primary" },
-  prepared: { label: "Listo p/ Despacho", tone: "warning" },
-  dispatched: { label: "En Tránsito", tone: "primary" },
-  delivered: { label: "Entregado", tone: "success" },
-  invoiced: { label: "Completado", tone: "success" },
-  cancelled: { label: "Anulado", tone: "destructive" },
-  returned: { label: "Devuelto", tone: "neutral" },
-};
-
-const CHANNEL_ICONS: Record<string, string> = {
-  store: "store",
-  mercadolibre: "shopping_cart",
-  vendors: "local_shipping",
-  whatsapp: "chat",
-  instagram: "photo_camera",
+const CHANNEL_ICONS: Record<string, IconName> = {
+  store: "Store",
+  mercadolibre: "ShoppingCart",
+  vendors: "LocalShipping",
+  whatsapp: "Chat",
+  instagram: "PhotoCamera",
 };
 
 const CHANNEL_LABELS: Record<string, string> = {
@@ -62,7 +44,19 @@ const CHANNEL_LABELS: Record<string, string> = {
   instagram: "Instagram",
 };
 
+interface OrderItem {
+  id: string;
+  orderNumber: string;
+  customerId: string | null;
+  status: string;
+  channel: string;
+  total: string | number;
+  totalPaid?: string | number | null;
+  createdAt: Date | string;
+}
+
 export default function DeliveryNotesClient() {
+  const router = useRouter();
   const trpc = useTRPC();
   const qc = useQueryClient();
   const bcv = useBcvRate();
@@ -71,9 +65,12 @@ export default function DeliveryNotesClient() {
   const [filter, setFilter] = useState<string>("all");
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
 
-  const { data: ordersData, isLoading: ordersLoading } = useQuery(
-    trpc.sales.listOrders.queryOptions({ limit: 100 }),
-  );
+  const {
+    data: ordersData,
+    isLoading: ordersLoading,
+    isError,
+    refetch,
+  } = useQuery(trpc.sales.listOrders.queryOptions({ limit: 100 }));
 
   const { data: customersData } = useQuery(
     trpc.sales.listCustomers.queryOptions({ limit: 100 }),
@@ -91,7 +88,7 @@ export default function DeliveryNotesClient() {
     return new Map((customersData ?? []).map((c) => [c.id, c.name]));
   }, [customersData]);
 
-  const orders = useMemo(() => ordersData ?? [], [ordersData]);
+  const orders = useMemo(() => (ordersData ?? []) as OrderItem[], [ordersData]);
 
   // Filter notes based on selection and search
   const filteredNotes = useMemo(() => {
@@ -151,16 +148,224 @@ export default function DeliveryNotesClient() {
     (o) => o.status === "delivered" || o.status === "invoiced",
   ).length;
 
-  const handleAdvanceStatus = (orderId: string, currentStatus: string) => {
-    if (currentStatus === "confirmed" || currentStatus === "prepared") {
-      updateStatus.mutate({ id: orderId, status: "dispatched" });
-    } else if (currentStatus === "dispatched") {
-      updateStatus.mutate({ id: orderId, status: "delivered" });
-    }
-  };
+  const handleAdvanceStatus = useCallback(
+    (orderId: string, currentStatus: string) => {
+      if (currentStatus === "confirmed" || currentStatus === "prepared") {
+        updateStatus.mutate({ id: orderId, status: "dispatched" });
+      } else if (currentStatus === "dispatched") {
+        updateStatus.mutate({ id: orderId, status: "delivered" });
+      }
+    },
+    [updateStatus],
+  );
+
+  const columns = useMemo<ColumnDef<OrderItem>[]>(
+    () => [
+      {
+        accessorKey: "orderNumber",
+        header: "Nota #",
+        meta: { sticky: true, className: "w-36" },
+        cell: ({ row }) => (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setSelectedOrderId(row.original.id);
+            }}
+            className="text-primary font-mono text-xs font-medium tabular-nums hover:underline"
+          >
+            NE-{row.original.orderNumber}
+          </button>
+        ),
+      },
+      {
+        id: "orderRef",
+        header: "Orden Ref.",
+        meta: { className: "w-32" },
+        cell: ({ row }) => (
+          <Link
+            href={`/orders/${row.original.id}`}
+            onClick={(e) => e.stopPropagation()}
+            className="text-muted-foreground hover:text-foreground font-mono text-xs tabular-nums hover:underline"
+          >
+            {row.original.orderNumber}
+          </Link>
+        ),
+      },
+      {
+        id: "customer",
+        header: "Cliente / Destino",
+        meta: { className: "min-w-44" },
+        cell: ({ row }) => {
+          const customerName =
+            (row.original.customerId
+              ? customerMap.get(row.original.customerId)
+              : null) ?? "Cliente Mostrador";
+          return (
+            <span className="text-foreground truncate text-xs font-medium">
+              {customerName}
+            </span>
+          );
+        },
+      },
+      {
+        accessorKey: "channel",
+        header: "Canal",
+        meta: { className: "w-36" },
+        cell: ({ row }) => {
+          const ch = row.original.channel;
+          return (
+            <div className="text-muted-foreground flex items-center gap-1.5 text-xs">
+              <Icon
+                name={CHANNEL_ICONS[ch] ?? "LocalShipping"}
+                className="size-4 shrink-0"
+              />
+              <span className="truncate">{CHANNEL_LABELS[ch] ?? ch}</span>
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "createdAt",
+        header: "Emisión",
+        meta: {
+          className:
+            "w-28 font-mono text-xs tabular-nums text-muted-foreground",
+        },
+        cell: ({ row }) => (
+          <span className="text-muted-foreground font-mono text-xs tabular-nums">
+            {new Date(row.original.createdAt).toLocaleDateString("es-VE")}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "total",
+        header: "Valor Carga",
+        meta: {
+          numeric: true,
+          align: "right",
+          className: "w-36 text-right font-mono tabular-nums",
+        },
+        cell: ({ row }) => {
+          const val = Number(row.original.total);
+          return (
+            <div className="text-right font-mono tabular-nums">
+              <span className="text-foreground font-medium">
+                ${val.toFixed(2)}
+              </span>
+              {bcv.rate > 0 ? (
+                <span className="text-muted-foreground ml-1.5 text-[10px] font-normal">
+                  {formatDualCurrency(val, bcv.rate).bs}
+                </span>
+              ) : null}
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "status",
+        header: "Estado",
+        meta: { align: "center", className: "w-36 text-center" },
+        cell: ({ row }) => {
+          const s = getStatus("deliveryNote", row.original.status);
+          return <StatusPill tone={s.tone}>{s.label}</StatusPill>;
+        },
+      },
+      {
+        id: "quickAction",
+        header: "Acción Rápida",
+        meta: { align: "center", className: "w-32 text-center" },
+        cell: ({ row }) => {
+          const o = row.original;
+          const canDispatch =
+            o.status === "confirmed" || o.status === "prepared";
+          const canDeliver = o.status === "dispatched";
+
+          if (canDispatch) {
+            return (
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={updateStatus.isPending}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleAdvanceStatus(o.id, o.status);
+                }}
+                className="min-h-7 px-2 text-[11px]"
+              >
+                <Icons.FlightTakeoff className="mr-1 size-3.5" />
+                Despachar
+              </Button>
+            );
+          }
+          if (canDeliver) {
+            return (
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={updateStatus.isPending}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleAdvanceStatus(o.id, o.status);
+                }}
+                className="min-h-7 px-2 text-[11px]"
+              >
+                <Icons.CheckCircle className="mr-1 size-3.5" />
+                Entregar
+              </Button>
+            );
+          }
+          return (
+            <span className="text-muted-foreground font-mono text-xs">—</span>
+          );
+        },
+      },
+      {
+        id: "actions",
+        header: "Guía",
+        meta: { align: "right", className: "w-28 text-right" },
+        cell: ({ row }) => (
+          <div
+            className="flex items-center justify-end gap-1"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setSelectedOrderId(row.original.id)}
+              className="min-h-7 px-2 text-[11px]"
+              title="Ver Guía de Despacho Imprimible"
+            >
+              <Icons.LocalShipping className="mr-1 size-3.5" />
+              Guía
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              asChild
+              className="min-h-7 px-1.5 text-xs"
+              title="Ver Detalle de Pedido"
+            >
+              <Link href={`/orders/${row.original.id}`}>
+                <Icons.OpenInNew className="size-3.5" />
+              </Link>
+            </Button>
+          </div>
+        ),
+      },
+    ],
+    [bcv.rate, customerMap, handleAdvanceStatus, updateStatus.isPending],
+  );
+
+  const handleRowClick = useCallback(
+    (order: OrderItem) => {
+      router.push(`/orders/${order.id}`);
+    },
+    [router],
+  );
 
   return (
-    <div className="animate-in fade-in slide-in-from-bottom-1 space-y-6 p-4 duration-200 lg:p-8">
+    <div className="animate-in fade-in slide-in-from-bottom-1 space-y-6 py-4 duration-200 lg:py-8">
       {/* Page Header */}
       <PageHeader
         title="Notas de Entrega & Despacho"
@@ -172,14 +377,12 @@ export default function DeliveryNotesClient() {
               onClick={() => setSelectedOrderId("preview")}
               className="min-h-11 flex-1 sm:flex-initial"
             >
-              <span className="material-symbols-outlined text-lg">
-                local_shipping
-              </span>
+              <Icons.LocalShipping className="size-4.5" />
               Modelo Guía
             </Button>
             <Button asChild className="min-h-11 flex-1 sm:flex-initial">
               <Link href="/orders">
-                <span className="material-symbols-outlined text-lg">add</span>
+                <Icons.Add className="size-4.5" />
                 Nuevo Despacho / Pedido
               </Link>
             </Button>
@@ -192,26 +395,26 @@ export default function DeliveryNotesClient() {
         <StatCard
           label="Total Despachos"
           value={ordersLoading ? "—" : totalDespachos.toLocaleString("es-VE")}
-          icon="local_shipping"
+          icon="LocalShipping"
         />
         <StatCard
           label="Por Despachar"
           value={
             ordersLoading ? "—" : porDespacharCount.toLocaleString("es-VE")
           }
-          icon="schedule"
+          icon="Schedule"
           tone="warning"
         />
         <StatCard
           label="En Tránsito"
           value={ordersLoading ? "—" : enTransitoCount.toLocaleString("es-VE")}
-          icon="flight_takeoff"
+          icon="FlightTakeoff"
           tone="primary"
         />
         <StatCard
           label="Entregadas"
           value={ordersLoading ? "—" : entregadasCount.toLocaleString("es-VE")}
-          icon="check_circle"
+          icon="CheckCircle"
           tone="success"
         />
       </div>
@@ -219,20 +422,18 @@ export default function DeliveryNotesClient() {
       {/* Search & Filter Bar */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="relative flex-1">
-          <span className="material-symbols-outlined text-muted-foreground absolute top-1/2 left-3 -translate-y-1/2 text-lg">
-            search
-          </span>
+          <Icons.Search className="text-muted-foreground absolute top-1/2 left-3 size-4 -translate-y-1/2" />
           <input
             type="text"
             placeholder="Buscar por Nota #, Orden # o Destinatario..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="border-border bg-card text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-primary/20 w-full rounded-xl border py-2.5 pr-4 pl-10 text-sm focus:ring-2 focus:outline-none"
+            className="border-border bg-card text-foreground placeholder:text-muted-foreground focus:border-primary w-full border py-2 pr-4 pl-9 text-xs focus:outline-none"
           />
         </div>
 
-        {/* Filter chips */}
-        <div className="mobile-scroll-x flex gap-2 pb-1">
+        {/* Filter chips — Clean sharp style */}
+        <div className="mobile-scroll-x flex items-center gap-1.5">
           {[
             { key: "all", label: "Todas" },
             { key: "to_dispatch", label: "Por Despachar" },
@@ -242,11 +443,12 @@ export default function DeliveryNotesClient() {
           ].map((f) => (
             <button
               key={f.key}
+              type="button"
               onClick={() => setFilter(f.key)}
-              className={`min-h-9 shrink-0 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+              className={`flex min-h-8 items-center border px-3 py-1 text-xs font-medium whitespace-nowrap transition-colors ${
                 filter === f.key
                   ? "border-primary bg-primary text-primary-foreground"
-                  : "border-border-subtle text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+                  : "bg-card text-muted-foreground hover:bg-secondary hover:text-foreground border-[--line] hover:border-[--line-hover]"
               }`}
             >
               {f.label}
@@ -255,370 +457,25 @@ export default function DeliveryNotesClient() {
         </div>
       </div>
 
-      {/* ── Mobile: Card View ─────────────────────── */}
-      <div className="space-y-3 md:hidden">
-        {ordersLoading ? (
-          Array.from({ length: 4 }).map((_, i) => (
-            <div
-              key={i}
-              className="border-border-subtle surface-card space-y-2 rounded-xl border p-4"
-            >
-              <Skeleton className="h-5 w-1/2" />
-              <Skeleton className="h-4 w-3/4" />
-              <Skeleton className="h-6 w-1/3" />
-            </div>
-          ))
-        ) : filteredNotes.length === 0 ? (
-          <EmptyState
-            icon="local_shipping"
-            title="No se encontraron notas de entrega"
-            description="No hay guías de despacho que coincidan con los criterios de búsqueda o filtro."
-            action={
-              filter !== "all" || search ? (
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setFilter("all");
-                    setSearch("");
-                  }}
-                >
-                  Restablecer Filtros
-                </Button>
-              ) : undefined
-            }
-          />
-        ) : (
-          filteredNotes.map((order) => {
-            const customerName =
-              (order.customerId ? customerMap.get(order.customerId) : null) ??
-              "Cliente Mostrador";
-
-            const statusCfg = STATUS_CONFIG[order.status] ?? {
-              label: order.status,
-              tone: "neutral" as StatusTone,
-            };
-
-            const canDispatch =
-              order.status === "confirmed" || order.status === "prepared";
-            const canDeliver = order.status === "dispatched";
-
-            return (
-              <div
-                key={order.id}
-                className="border-border-subtle surface-card space-y-3 rounded-xl border p-4"
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <span
-                      className="material-symbols-outlined text-muted-foreground text-lg"
-                      title={order.channel}
-                    >
-                      {CHANNEL_ICONS[order.channel] ?? "local_shipping"}
-                    </span>
-                    <span className="text-primary font-mono text-sm font-bold tabular-nums">
-                      NE-{order.orderNumber}
-                    </span>
-                  </div>
-                  <StatusBadge tone={statusCfg.tone}>
-                    {statusCfg.label}
-                  </StatusBadge>
-                </div>
-
-                <div className="space-y-1 text-xs">
-                  <p className="text-foreground text-sm font-semibold">
-                    {customerName}
-                  </p>
-                  <p className="text-muted-foreground font-mono">
-                    Orden: {order.orderNumber} ·{" "}
-                    {new Date(order.createdAt).toLocaleDateString("es-VE")}
-                  </p>
-                </div>
-
-                <div className="border-border-subtle flex items-baseline justify-between border-t pt-2">
-                  <div>
-                    <span className="text-muted-foreground text-[10px] font-bold uppercase">
-                      Valor Carga
-                    </span>
-                    <p className="text-foreground font-mono text-base font-bold tabular-nums">
-                      ${Number(order.total).toFixed(2)} USD
-                    </p>
-                    <p className="text-muted-foreground font-mono text-xs tabular-nums">
-                      {formatDualCurrency(order.total, bcv.rate).bs}
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap justify-end gap-2">
-                    {canDispatch && (
-                      <Button
-                        size="sm"
-                        disabled={updateStatus.isPending}
-                        onClick={() =>
-                          handleAdvanceStatus(order.id, order.status)
-                        }
-                        className="min-h-9 text-xs"
-                      >
-                        <span className="material-symbols-outlined text-base">
-                          flight_takeoff
-                        </span>
-                        Despachar
-                      </Button>
-                    )}
-                    {canDeliver && (
-                      <Button
-                        size="sm"
-                        disabled={updateStatus.isPending}
-                        onClick={() =>
-                          handleAdvanceStatus(order.id, order.status)
-                        }
-                        className="min-h-9 text-xs"
-                      >
-                        <span className="material-symbols-outlined text-base">
-                          check_circle
-                        </span>
-                        Entregar
-                      </Button>
-                    )}
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setSelectedOrderId(order.id)}
-                      className="min-h-9 text-xs"
-                    >
-                      <span className="material-symbols-outlined text-base">
-                        local_shipping
-                      </span>
-                      Guía
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      asChild
-                      className="min-h-9 text-xs"
-                    >
-                      <Link href={`/orders/${order.id}`}>
-                        <span className="material-symbols-outlined text-base">
-                          open_in_new
-                        </span>
-                      </Link>
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            );
-          })
-        )}
-      </div>
-
-      {/* ── Desktop: Table View ───────────────────── */}
-      <div className="hidden md:block">
-        <div className="border-border-subtle surface-card overflow-hidden rounded-xl border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="px-4 py-3 text-xs font-semibold uppercase">
-                  Nota #
-                </TableHead>
-                <TableHead className="px-4 py-3 text-xs font-semibold uppercase">
-                  Orden Ref.
-                </TableHead>
-                <TableHead className="px-4 py-3 text-xs font-semibold uppercase">
-                  Cliente / Destino
-                </TableHead>
-                <TableHead className="px-4 py-3 text-xs font-semibold uppercase">
-                  Canal
-                </TableHead>
-                <TableHead className="px-4 py-3 text-xs font-semibold uppercase">
-                  Fecha Emisión
-                </TableHead>
-                <TableHead className="px-4 py-3 text-right text-xs font-semibold uppercase">
-                  Valor Declarado
-                </TableHead>
-                <TableHead className="px-4 py-3 text-center text-xs font-semibold uppercase">
-                  Estado
-                </TableHead>
-                <TableHead className="px-4 py-3 text-center text-xs font-semibold uppercase">
-                  Acción Rápida
-                </TableHead>
-                <TableHead className="px-4 py-3 text-right text-xs font-semibold uppercase">
-                  Guía / Detalle
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {ordersLoading ? (
-                Array.from({ length: 5 }).map((_, i) => (
-                  <TableRow key={i}>
-                    {Array.from({ length: 9 }).map((_, j) => (
-                      <TableCell key={j} className="px-4 py-3">
-                        <Skeleton className="h-4 w-full" />
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                ))
-              ) : filteredNotes.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={9} className="py-12">
-                    <EmptyState
-                      icon="local_shipping"
-                      title="No se encontraron notas de entrega"
-                      description="No hay registros de despacho para los filtros seleccionados."
-                      action={
-                        filter !== "all" || search ? (
-                          <Button
-                            variant="outline"
-                            onClick={() => {
-                              setFilter("all");
-                              setSearch("");
-                            }}
-                          >
-                            Restablecer Filtros
-                          </Button>
-                        ) : undefined
-                      }
-                    />
-                  </TableCell>
-                </TableRow>
-              ) : (
-                filteredNotes.map((order) => {
-                  const customerName =
-                    (order.customerId
-                      ? customerMap.get(order.customerId)
-                      : null) ?? "Cliente Mostrador";
-
-                  const statusCfg = STATUS_CONFIG[order.status] ?? {
-                    label: order.status,
-                    tone: "neutral" as StatusTone,
-                  };
-
-                  const canDispatch =
-                    order.status === "confirmed" || order.status === "prepared";
-                  const canDeliver = order.status === "dispatched";
-
-                  return (
-                    <TableRow key={order.id} className="text-xs">
-                      {/* Nota # */}
-                      <TableCell className="text-primary px-4 py-3 font-mono font-bold tabular-nums">
-                        NE-{order.orderNumber}
-                      </TableCell>
-
-                      {/* Orden Ref */}
-                      <TableCell className="text-muted-foreground px-4 py-3 font-mono tabular-nums">
-                        {order.orderNumber}
-                      </TableCell>
-
-                      {/* Cliente / Destino */}
-                      <TableCell className="text-foreground px-4 py-3 font-medium">
-                        {customerName}
-                      </TableCell>
-
-                      {/* Canal */}
-                      <TableCell className="px-4 py-3">
-                        <div className="text-muted-foreground flex items-center gap-1.5">
-                          <span className="material-symbols-outlined text-base">
-                            {CHANNEL_ICONS[order.channel] ?? "local_shipping"}
-                          </span>
-                          <span>
-                            {CHANNEL_LABELS[order.channel] ?? order.channel}
-                          </span>
-                        </div>
-                      </TableCell>
-
-                      {/* Fecha Emisión */}
-                      <TableCell className="text-muted-foreground px-4 py-3 font-mono">
-                        {new Date(order.createdAt).toLocaleDateString("es-VE")}
-                      </TableCell>
-
-                      {/* Valor Declarado */}
-                      <TableCell className="px-4 py-3 text-right">
-                        <p className="text-foreground font-mono font-bold tabular-nums">
-                          ${Number(order.total).toFixed(2)}
-                        </p>
-                        <p className="text-muted-foreground font-mono text-[11px] tabular-nums">
-                          {formatDualCurrency(order.total, bcv.rate).bs}
-                        </p>
-                      </TableCell>
-
-                      {/* Estado Logístico */}
-                      <TableCell className="px-4 py-3 text-center">
-                        <StatusBadge tone={statusCfg.tone}>
-                          {statusCfg.label}
-                        </StatusBadge>
-                      </TableCell>
-
-                      {/* Acción Rápida */}
-                      <TableCell className="px-4 py-3 text-center">
-                        {canDispatch ? (
-                          <Button
-                            size="sm"
-                            disabled={updateStatus.isPending}
-                            onClick={() =>
-                              handleAdvanceStatus(order.id, order.status)
-                            }
-                            className="min-h-8 px-2.5 text-xs"
-                          >
-                            <span className="material-symbols-outlined mr-1 text-base">
-                              flight_takeoff
-                            </span>
-                            Despachar
-                          </Button>
-                        ) : canDeliver ? (
-                          <Button
-                            size="sm"
-                            disabled={updateStatus.isPending}
-                            onClick={() =>
-                              handleAdvanceStatus(order.id, order.status)
-                            }
-                            className="min-h-8 px-2.5 text-xs"
-                          >
-                            <span className="material-symbols-outlined mr-1 text-base">
-                              check_circle
-                            </span>
-                            Entregar
-                          </Button>
-                        ) : (
-                          <span className="text-muted-foreground font-mono text-xs">
-                            —
-                          </span>
-                        )}
-                      </TableCell>
-
-                      {/* Guía / Detalle */}
-                      <TableCell className="px-4 py-3 text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setSelectedOrderId(order.id)}
-                            className="min-h-8 px-2.5 text-xs"
-                            title="Ver Guía de Despacho Imprimible"
-                          >
-                            <span className="material-symbols-outlined mr-1 text-base">
-                              local_shipping
-                            </span>
-                            Guía
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            asChild
-                            className="min-h-8 px-2 text-xs"
-                            title="Ver Detalle de Pedido"
-                          >
-                            <Link href={`/orders/${order.id}`}>
-                              <span className="material-symbols-outlined text-base">
-                                open_in_new
-                              </span>
-                            </Link>
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })
-              )}
-            </TableBody>
-          </Table>
-        </div>
-      </div>
+      {/* Main Data Table with 45px rows */}
+      <DataTable
+        columns={columns}
+        data={filteredNotes}
+        isLoading={ordersLoading}
+        isError={isError}
+        onRetry={() => void refetch()}
+        onRowClick={handleRowClick}
+        onResetFilters={
+          filter !== "all" || search
+            ? () => {
+                setFilter("all");
+                setSearch("");
+              }
+            : undefined
+        }
+        emptyTitle="No se encontraron notas de entrega"
+        emptyDescription="No hay guías de despacho que coincidan con los criterios de búsqueda o filtro."
+      />
 
       {/* Delivery Note Voucher Modal */}
       <DeliveryNoteVoucherDialog

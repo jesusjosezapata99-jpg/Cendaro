@@ -3,14 +3,13 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { Field, Input, Select, TextArea } from "~/components/dialog";
 import {
-  Dialog,
-  Field,
-  FormActions,
-  Input,
-  Select,
-  TextArea,
-} from "~/components/dialog";
+  SheetBody,
+  SheetFooter,
+  SheetFormActions,
+  SheetModal,
+} from "~/components/sheet-modal";
 import { useTRPC } from "~/trpc/client";
 
 interface Props {
@@ -56,60 +55,66 @@ export function CycleCountDialog({ open, onClose }: Props) {
   };
 
   return (
-    <Dialog
+    <SheetModal
       open={open}
       onClose={onClose}
       title="Nuevo Conteo Cíclico"
       description="Programa un conteo de inventario en un almacén."
     >
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <Field label="Almacén" required>
-          <Select
-            value={form.warehouseId}
-            onChange={(e) => set("warehouseId", e.target.value)}
-            required
+      <form onSubmit={handleSubmit} className="flex h-full flex-col">
+        <SheetBody>
+          <Field label="Almacén" required>
+            <Select
+              value={form.warehouseId}
+              onChange={(e) => set("warehouseId", e.target.value)}
+              required
+            >
+              <option value="">Seleccionar almacén...</option>
+              {(warehouses ?? []).map((w) => (
+                <option key={w.id} value={w.id}>
+                  {w.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+
+          <Field
+            label="Fecha Programada"
+            hint="Dejar vacío para conteo inmediato"
           >
-            <option value="">Seleccionar almacén...</option>
-            {(warehouses ?? []).map((w) => (
-              <option key={w.id} value={w.id}>
-                {w.name}
-              </option>
-            ))}
-          </Select>
-        </Field>
+            <Input
+              type="datetime-local"
+              value={form.scheduledAt}
+              onChange={(e) => set("scheduledAt", e.target.value)}
+            />
+          </Field>
 
-        <Field
-          label="Fecha Programada"
-          hint="Dejar vacío para conteo inmediato"
-        >
-          <Input
-            type="datetime-local"
-            value={form.scheduledAt}
-            onChange={(e) => set("scheduledAt", e.target.value)}
+          <Field label="Notas">
+            <TextArea
+              value={form.notes}
+              onChange={(e) => set("notes", e.target.value)}
+              rows={3}
+              placeholder="Observaciones del conteo..."
+            />
+          </Field>
+
+          {create.error && (
+            <div className="border-destructive/30 bg-destructive/10 text-destructive border p-3 text-sm">
+              {create.error.message}
+            </div>
+          )}
+        </SheetBody>
+
+        <SheetFooter>
+          <SheetFormActions
+            onCancel={onClose}
+            submitting={create.isPending}
+            submitLabel="Crear Conteo"
           />
-        </Field>
-
-        <Field label="Notas">
-          <TextArea
-            value={form.notes}
-            onChange={(e) => set("notes", e.target.value)}
-            rows={3}
-            placeholder="Observaciones del conteo..."
-          />
-        </Field>
-
-        {create.error && (
-          <div className="border-destructive/30 bg-destructive/10 text-destructive rounded-lg border p-3 text-sm">
-            {create.error.message}
-          </div>
-        )}
-
-        <FormActions
-          onCancel={onClose}
-          submitting={create.isPending}
-          submitLabel="Crear Conteo"
-        />
+        </SheetFooter>
       </form>
-    </Dialog>
+    </SheetModal>
   );
 }
+
+export const CycleCountSheet = CycleCountDialog;

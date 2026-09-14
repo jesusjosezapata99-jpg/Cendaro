@@ -5,9 +5,16 @@ import JSZip from "jszip";
 import sharp from "sharp";
 
 import { createSupabaseServerClient } from "@cendaro/auth/server";
-import { desc, eq } from "@cendaro/db";
+import { and, desc, eq } from "@cendaro/db";
 import { getDb } from "@cendaro/db/client";
-import { AiPromptConfig, Brand, Category, Product } from "@cendaro/db/schema";
+import {
+  AiPromptConfig,
+  Brand,
+  Category,
+  Container,
+  Product,
+  WorkspaceMember,
+} from "@cendaro/db/schema";
 
 import { env } from "~/env";
 
@@ -131,17 +138,22 @@ function similarity(a: string, b: string): number {
 }
 
 // ── Context Engine ─────────────────────────────────────
-async function loadPromptConfig() {
+async function loadPromptConfig(workspaceId: string) {
   const db = getDb();
   const configs = await db
     .select()
     .from(AiPromptConfig)
-    .where(eq(AiPromptConfig.active, true))
+    .where(
+      and(
+        eq(AiPromptConfig.workspaceId, workspaceId),
+        eq(AiPromptConfig.active, true),
+      ),
+    )
     .limit(1);
   return configs[0] ?? null;
 }
 
-async function buildCatalogContext(): Promise<{
+async function buildCatalogContext(workspaceId: string): Promise<{
   context: string;
   products: CatalogProduct[];
 }> {
@@ -155,16 +167,19 @@ async function buildCatalogContext(): Promise<{
       brandId: Product.brandId,
     })
     .from(Product)
+    .where(eq(Product.workspaceId, workspaceId))
     .orderBy(desc(Product.createdAt))
     .limit(100);
 
   const categories = await db
     .select({ id: Category.id, name: Category.name })
     .from(Category)
+    .where(eq(Category.workspaceId, workspaceId))
     .limit(200);
   const brands = await db
     .select({ id: Brand.id, name: Brand.name })
     .from(Brand)
+    .where(eq(Brand.workspaceId, workspaceId))
     .limit(100);
 
   const catMap = new Map<string, string>();
@@ -468,7 +483,7 @@ async function analyzeImagesWithVision(
             content: [
               {
                 type: "text",
-                text: `Analiza ${batch.length} imagen(es) de productos del packing list. Índices: ${batch.map((b) => b.index).join(", ")}.`,
+                text: `Analiza ${batch.length === 1 ? "1 imagen" : `${batch.length} imágenes`} de productos del packing list. Índices: ${batch.map((b) => b.index).join(", ")}.`,
               },
               ...imageContent,
             ],
@@ -726,6 +741,32 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "No autenticado" }, { status: 401 });
   }
 
+  // ── Multi-Tenant Workspace Resolution Guard ──
+  const db = getDb();
+  const headerWsId = request.headers.get("x-workspace-id");
+  const memberQuery = headerWsId
+    ? and(
+        eq(WorkspaceMember.userId, user.id),
+        eq(WorkspaceMember.workspaceId, headerWsId),
+      )
+    : eq(WorkspaceMember.userId, user.id);
+
+  const [member] = await db
+    .select({
+      workspaceId: WorkspaceMember.workspaceId,
+      role: WorkspaceMember.role,
+    })
+    .from(WorkspaceMember)
+    .where(memberQuery)
+    .limit(1);
+
+  if (!member) {
+    return NextResponse.json(
+      { error: "Usuario no pertenece a un workspace activo" },
+      { status: 403 },
+    );
+  }
+
   // ── Per-user Rate Limit ──
   // 3 parse requests per 60s per authenticated user.
   // Prevents a compromised session from draining the Groq API quota.
@@ -852,6 +893,25 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // ── Multi-Tenant Container Ownership Verification ──
+    const [container] = await db
+      .select({ id: Container.id })
+      .from(Container)
+      .where(
+        and(
+          eq(Container.id, containerId),
+          eq(Container.workspaceId, member.workspaceId),
+        ),
+      )
+      .limit(1);
+
+    if (!container) {
+      return NextResponse.json(
+        { error: "Contenedor no encontrado o no pertenece a su workspace" },
+        { status: 404 },
+      );
+    }
+
     if (rows.length === 0) {
       return NextResponse.json(
         { error: "El archivo está vacío o no se pudo parsear" },
@@ -860,11 +920,11 @@ export async function POST(request: NextRequest) {
     }
 
     // ── 1. Load AI Config from DB ──
-    const config = await loadPromptConfig();
+    const config = await loadPromptConfig(member.workspaceId);
 
     // ── 2. Build catalog context ──
     const { context: catalogContext, products: catalogProducts } =
-      await buildCatalogContext();
+      await buildCatalogContext(member.workspaceId);
 
     // ── 3. Build few-shot examples ──
     const fewShotText = config

@@ -3,7 +3,13 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { Dialog, Field, FormActions, Input, Select } from "~/components/dialog";
+import { Field, Input, Select } from "~/components/dialog";
+import {
+  SheetBody,
+  SheetFooter,
+  SheetFormActions,
+  SheetModal,
+} from "~/components/sheet-modal";
 import { useTRPC } from "~/trpc/client";
 
 interface Props {
@@ -63,77 +69,86 @@ export function TransferStockDialog({ open, onClose }: Props) {
   };
 
   return (
-    <Dialog
+    <SheetModal
       open={open}
       onClose={onClose}
       title="Transferir Stock"
       description="Mueve stock entre canales de venta."
     >
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <Field label="Producto" required>
-          <Select
-            value={form.productId}
-            onChange={(e) => set("productId", e.target.value)}
-            required
-          >
-            <option value="">Seleccionar producto...</option>
-            {productList.map((p: { id: string; name: string; sku: string }) => (
-              <option key={p.id} value={p.id}>
-                {p.name} ({p.sku})
-              </option>
-            ))}
-          </Select>
-        </Field>
-
-        <div className="grid grid-cols-2 gap-4">
-          <Field label="Desde" required>
+      <form onSubmit={handleSubmit} className="flex h-full flex-col">
+        <SheetBody>
+          <Field label="Producto" required>
             <Select
-              value={form.fromChannel}
-              onChange={(e) => set("fromChannel", e.target.value)}
+              value={form.productId}
+              onChange={(e) => set("productId", e.target.value)}
+              required
             >
-              {CHANNELS.map((ch) => (
-                <option key={ch.value} value={ch.value}>
-                  {ch.label}
-                </option>
-              ))}
+              <option value="">Seleccionar producto...</option>
+              {productList.map(
+                (p: { id: string; name: string; sku: string }) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name} ({p.sku})
+                  </option>
+                ),
+              )}
             </Select>
           </Field>
-          <Field label="Hacia" required>
-            <Select
-              value={form.toChannel}
-              onChange={(e) => set("toChannel", e.target.value)}
-            >
-              {CHANNELS.map((ch) => (
-                <option key={ch.value} value={ch.value}>
-                  {ch.label}
-                </option>
-              ))}
-            </Select>
-          </Field>
-        </div>
 
-        <Field label="Cantidad" required>
-          <Input
-            type="number"
-            min="1"
-            value={form.quantity}
-            onChange={(e) => set("quantity", e.target.value)}
-            required
-          />
-        </Field>
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="Desde" required>
+              <Select
+                value={form.fromChannel}
+                onChange={(e) => set("fromChannel", e.target.value)}
+              >
+                {CHANNELS.map((ch) => (
+                  <option key={ch.value} value={ch.value}>
+                    {ch.label}
+                  </option>
+                ))}
+              </Select>
+            </Field>
 
-        {transfer.error && (
-          <div className="border-destructive/30 bg-destructive/10 text-destructive rounded-lg border p-3 text-sm">
-            {transfer.error.message}
+            <Field label="Hacia" required>
+              <Select
+                value={form.toChannel}
+                onChange={(e) => set("toChannel", e.target.value)}
+              >
+                {CHANNELS.map((ch) => (
+                  <option key={ch.value} value={ch.value}>
+                    {ch.label}
+                  </option>
+                ))}
+              </Select>
+            </Field>
           </div>
-        )}
 
-        <FormActions
-          onCancel={onClose}
-          submitting={transfer.isPending}
-          submitLabel="Transferir"
-        />
+          <Field label="Cantidad" required>
+            <Input
+              type="number"
+              min="1"
+              value={form.quantity}
+              onChange={(e) => set("quantity", e.target.value)}
+              required
+            />
+          </Field>
+
+          {transfer.error && (
+            <div className="border-destructive/30 bg-destructive/10 text-destructive border p-3 text-sm">
+              {transfer.error.message}
+            </div>
+          )}
+        </SheetBody>
+
+        <SheetFooter>
+          <SheetFormActions
+            onCancel={onClose}
+            submitting={transfer.isPending}
+            submitLabel="Transferir"
+          />
+        </SheetFooter>
       </form>
-    </Dialog>
+    </SheetModal>
   );
 }
+
+export const TransferStockSheet = TransferStockDialog;

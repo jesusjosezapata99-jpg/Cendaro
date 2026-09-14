@@ -2,60 +2,61 @@
 
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 
-import type { StatusTone } from "~/components/status-badge";
+import type { IconName } from "@cendaro/ui/icons";
+import type { StatusTone } from "@cendaro/ui/status-pill";
+import { Button } from "@cendaro/ui";
+import { Icon, Icons } from "@cendaro/ui/icons";
+import { StatusPill } from "@cendaro/ui/status-pill";
+
 import { EmptyState } from "~/components/empty-state";
 import { PageHeader } from "~/components/page-header";
 import { StatCard } from "~/components/stat-card";
-import { StatusBadge } from "~/components/status-badge";
 import { useTRPC } from "~/trpc/client";
-
-function Skeleton({ className = "" }: { className?: string }) {
-  return <div className={`bg-muted animate-pulse rounded-lg ${className}`} />;
-}
 
 const TYPE_CONFIG: Record<
   string,
-  { label: string; icon: string; tone: StatusTone }
+  { label: string; icon: IconName; tone: StatusTone }
 > = {
   low_stock: {
     label: "Stock Bajo",
-    icon: "inventory_2",
+    icon: "Inventory2",
     tone: "warning",
   },
   inventory_diff: {
     label: "Dif. Inventario",
-    icon: "balance",
+    icon: "Balance",
     tone: "destructive",
   },
   product_blocked: {
     label: "Producto Bloqueado",
-    icon: "block",
+    icon: "Block",
     tone: "destructive",
   },
   rate_change: {
     label: "Cambio Tasa",
-    icon: "trending_up",
-    tone: "primary",
+    icon: "TrendingUp",
+    tone: "default",
   },
   vendor_under_target: {
     label: "Vendedor Bajo Meta",
-    icon: "trending_down",
+    icon: "TrendingDown",
     tone: "warning",
   },
   order_late: {
     label: "Pedido Atrasado",
-    icon: "schedule",
+    icon: "Schedule",
     tone: "warning",
   },
   ml_failure: {
     label: "Falla ML",
-    icon: "error_outline",
+    icon: "ErrorOutline",
     tone: "destructive",
   },
   ar_overdue: {
     label: "CxC Vencida",
-    icon: "credit_card_off",
+    icon: "CreditCardOff",
     tone: "destructive",
   },
 };
@@ -80,8 +81,36 @@ export default function AlertsPage() {
 
   const dismiss = useMutation(
     trpc.dashboard.dismissAlert.mutationOptions({
-      onSuccess: () => {
-        void qc.invalidateQueries({ queryKey: [["dashboard"]] });
+      onMutate: async (variables) => {
+        await qc.cancelQueries({ queryKey: [["dashboard"]] });
+        const queryKey = trpc.dashboard.listAlerts.queryKey({ limit: 100 });
+        const previousAlerts = qc.getQueryData(queryKey);
+        if (previousAlerts) {
+          qc.setQueryData(queryKey, (old) =>
+            old
+              ? old.map((a) =>
+                  a.id === variables.id
+                    ? {
+                        ...a,
+                        isDismissed: true,
+                        dismissedAt: new Date(),
+                      }
+                    : a,
+                )
+              : old,
+          );
+        }
+        toast.success("Alerta descartada");
+        return { previousAlerts, queryKey };
+      },
+      onError: (err, _variables, context) => {
+        if (context?.queryKey && context.previousAlerts) {
+          qc.setQueryData(context.queryKey, context.previousAlerts);
+        }
+        toast.error(err.message || "Error al descartar la alerta");
+      },
+      onSettled: async () => {
+        await qc.invalidateQueries({ queryKey: [["dashboard"]] });
       },
     }),
   );
@@ -115,20 +144,20 @@ export default function AlertsPage() {
   }, [items, filter]);
 
   return (
-    <div className="space-y-6 p-4 lg:p-8">
+    <div className="space-y-6 py-4 lg:py-8">
       {/* Header */}
       <PageHeader
         title="Centro de Alertas & Notificaciones Operativas"
         description="Monitoreo y respuesta temprana ante anomalías de inventario, tasas cambiarias y riesgos comerciales"
         actions={
-          <button
-            type="button"
+          <Button
+            variant="outline"
             onClick={() => void refetch()}
-            className="border-border bg-secondary text-foreground hover:bg-accent flex items-center gap-2 rounded-lg border px-3.5 py-2 text-xs font-semibold shadow-xs transition-colors"
+            className="border-border h-9 text-xs font-medium"
           >
-            <span className="material-symbols-outlined text-sm">refresh</span>
+            <Icons.Refresh className="mr-1.5 size-3.5" />
             Actualizar
-          </button>
+          </Button>
         }
       />
 
@@ -137,49 +166,47 @@ export default function AlertsPage() {
         <StatCard
           label="Alertas Activas"
           value={isLoading ? "—" : activeCount}
-          icon="notifications_active"
+          icon="NotificationsActive"
           tone={activeCount > 0 ? "warning" : "default"}
           sub={activeCount > 0 ? "Requieren atención" : "Sin incidentes"}
         />
         <StatCard
           label="Alta Prioridad"
           value={isLoading ? "—" : highCount}
-          icon="priority_high"
+          icon="PriorityHigh"
           tone={highCount > 0 ? "destructive" : "success"}
           sub="Impacto operativo directo"
         />
         <StatCard
           label="Resueltas / Archivadas"
           value={isLoading ? "—" : dismissedCount}
-          icon="check_circle"
+          icon="CheckCircle"
           tone="success"
           sub="Descartadas por operadores"
         />
         <StatCard
           label="Categorías Activas"
           value={isLoading ? "—" : activeTypes}
-          icon="category"
+          icon="Category"
           tone="default"
           sub="Tipos de eventos detectados"
         />
       </div>
 
       {/* Filter Tabs */}
-      <div className="mobile-scroll-x flex items-center gap-2 pb-1">
+      <div className="mobile-scroll-x flex items-center gap-1.5 pb-1">
         <button
           type="button"
           onClick={() => setFilter("active")}
-          className={`flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+          className={`h-8 shrink-0 border px-3 text-xs font-medium transition-colors ${
             filter === "active"
-              ? "bg-primary text-primary-foreground font-semibold"
-              : "border-border bg-card text-muted-foreground hover:bg-accent hover:text-foreground border"
+              ? "border-primary bg-primary text-primary-foreground"
+              : "border-border text-muted-foreground hover:bg-muted/40 hover:text-foreground"
           }`}
         >
-          <span className="material-symbols-outlined text-sm">
-            notifications
-          </span>
+          <Icons.Notifications className="mr-1.5 inline size-3.5" />
           Activas
-          <span className="bg-background/20 py-0.2 ml-1 rounded-full px-1.5 font-mono text-[10px]">
+          <span className="ml-1.5 font-mono text-[10px] tabular-nums">
             {activeCount}
           </span>
         </button>
@@ -187,17 +214,15 @@ export default function AlertsPage() {
         <button
           type="button"
           onClick={() => setFilter("dismissed")}
-          className={`flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+          className={`h-8 shrink-0 border px-3 text-xs font-medium transition-colors ${
             filter === "dismissed"
-              ? "bg-primary text-primary-foreground font-semibold"
-              : "border-border bg-card text-muted-foreground hover:bg-accent hover:text-foreground border"
+              ? "border-primary bg-primary text-primary-foreground"
+              : "border-border text-muted-foreground hover:bg-muted/40 hover:text-foreground"
           }`}
         >
-          <span className="material-symbols-outlined text-sm">
-            check_circle
-          </span>
+          <Icons.CheckCircle className="mr-1.5 inline size-3.5" />
           Descartadas
-          <span className="bg-background/20 py-0.2 ml-1 rounded-full px-1.5 font-mono text-[10px]">
+          <span className="ml-1.5 font-mono text-[10px] tabular-nums">
             {dismissedCount}
           </span>
         </button>
@@ -214,18 +239,16 @@ export default function AlertsPage() {
               key={key}
               type="button"
               onClick={() => setFilter(key)}
-              className={`flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+              className={`h-8 shrink-0 border px-2.5 text-xs font-medium transition-colors ${
                 filter === key
-                  ? "bg-primary text-primary-foreground font-semibold"
-                  : "border-border bg-card text-muted-foreground hover:bg-accent hover:text-foreground border"
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-border text-muted-foreground hover:bg-muted/40 hover:text-foreground"
               }`}
             >
-              <span className="material-symbols-outlined text-sm">
-                {cfg.icon}
-              </span>
+              <Icon name={cfg.icon} className="mr-1.5 inline size-3.5" />
               {cfg.label}
               {count > 0 ? (
-                <span className="bg-warning/20 text-warning-soft py-0.2 ml-1 rounded-full px-1.5 font-mono text-[10px]">
+                <span className="ml-1.5 font-mono text-[10px] tabular-nums">
                   {count}
                 </span>
               ) : null}
@@ -238,13 +261,19 @@ export default function AlertsPage() {
       {isLoading ? (
         <div className="space-y-3">
           {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-24 w-full" />
+            <div
+              key={i}
+              className="border-border bg-card animate-pulse border p-4"
+            >
+              <div className="bg-muted h-4 w-48" />
+              <div className="bg-muted mt-2 h-3 w-full" />
+            </div>
           ))}
         </div>
       ) : filtered.length === 0 ? (
-        <div className="surface-card">
+        <div className="border-border bg-card border p-12">
           <EmptyState
-            icon="notifications"
+            icon="Notifications"
             title="Sin alertas en esta categoría"
             description={
               filter === "active"
@@ -258,7 +287,7 @@ export default function AlertsPage() {
           {filtered.map((alert) => {
             const typeCfg = TYPE_CONFIG[alert.alertType] ?? {
               label: alert.alertType,
-              icon: "info",
+              icon: "Info" as const,
               tone: "neutral" as StatusTone,
             };
             const severityBorder =
@@ -267,22 +296,20 @@ export default function AlertsPage() {
             return (
               <div
                 key={alert.id}
-                className={`surface-card border-l-4 ${severityBorder} p-4 transition-all ${
-                  alert.isDismissed ? "bg-muted/20 opacity-60" : ""
+                className={`border-border bg-card border border-l-2 ${severityBorder} p-4 transition-colors ${
+                  alert.isDismissed ? "opacity-60" : ""
                 }`}
               >
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div className="flex min-w-0 items-start gap-3">
-                    <div className="bg-muted text-muted-foreground mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg">
-                      <span className="material-symbols-outlined text-base">
-                        {typeCfg.icon}
-                      </span>
+                    <div className="bg-muted text-muted-foreground mt-0.5 flex size-8 shrink-0 items-center justify-center">
+                      <Icon name={typeCfg.icon} className="size-4" />
                     </div>
 
                     <div className="min-w-0 space-y-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <h3
-                          className={`truncate text-sm font-semibold ${
+                          className={`truncate text-sm font-medium ${
                             alert.isDismissed
                               ? "text-muted-foreground line-through"
                               : "text-foreground"
@@ -290,10 +317,10 @@ export default function AlertsPage() {
                         >
                           {alert.title}
                         </h3>
-                        <StatusBadge tone={typeCfg.tone}>
+                        <StatusPill tone={typeCfg.tone}>
                           {typeCfg.label}
-                        </StatusBadge>
-                        <span className="bg-secondary text-muted-foreground rounded px-1.5 py-0.5 font-mono text-[10px] tracking-wider uppercase">
+                        </StatusPill>
+                        <span className="border-border bg-background text-muted-foreground border px-1.5 py-0.5 font-mono text-[10px] tracking-wider uppercase">
                           {alert.severity}
                         </span>
                       </div>
@@ -309,9 +336,7 @@ export default function AlertsPage() {
                       </p>
 
                       <div className="text-muted-foreground flex items-center gap-2 pt-1 font-mono text-[11px] tabular-nums">
-                        <span className="material-symbols-outlined text-xs">
-                          schedule
-                        </span>
+                        <Icons.Schedule className="size-3" />
                         <time>
                           {new Date(alert.createdAt).toLocaleString("es-VE", {
                             day: "2-digit",
@@ -327,28 +352,25 @@ export default function AlertsPage() {
 
                   {!alert.isDismissed && (
                     <div className="flex justify-end pt-2 sm:shrink-0 sm:pt-0">
-                      <button
-                        type="button"
+                      <Button
+                        variant="outline"
+                        size="sm"
                         onClick={() => dismiss.mutate({ id: alert.id })}
                         disabled={dismiss.isPending}
-                        className="border-border bg-secondary text-foreground hover:bg-accent flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold shadow-xs transition-colors disabled:opacity-50"
+                        className="border-border h-7 px-2 text-xs font-medium"
                       >
                         {dismiss.isPending ? (
                           <>
-                            <span className="material-symbols-outlined animate-spin text-sm">
-                              progress_activity
-                            </span>
+                            <Icons.ProgressActivity className="mr-1 size-3 animate-spin" />
                             Descartando...
                           </>
                         ) : (
                           <>
-                            <span className="material-symbols-outlined text-sm">
-                              check
-                            </span>
+                            <Icons.Check className="mr-1 size-3" />
                             Descartar
                           </>
                         )}
-                      </button>
+                      </Button>
                     </div>
                   )}
                 </div>

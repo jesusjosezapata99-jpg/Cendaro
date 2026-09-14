@@ -1,13 +1,19 @@
 "use client";
 
-/**
- * Cendaro — Error Boundary
- *
- * Next.js error boundary for the (app) layout.
- * Catches unhandled errors in page components and provides
- * a user-friendly recovery UI instead of a white screen.
- */
+import Link from "next/link";
 
+import { Button } from "@cendaro/ui";
+import { Icons } from "@cendaro/ui/icons";
+
+/**
+ * Cendaro — App Error Boundary (Cendaro Spec M-Error)
+ *
+ * Catches unhandled runtime exceptions inside the app layout.
+ * Conforms to Cendaro design rules:
+ * - Title: text-lg font-medium
+ * - Description: text-sm text-muted-foreground
+ * - Buttons: outline styling
+ */
 export default function AppError({
   error,
   reset,
@@ -16,33 +22,37 @@ export default function AppError({
   reset: () => void;
 }) {
   return (
-    <div className="flex h-full items-center justify-center p-8">
-      <div className="flex max-w-md flex-col items-center gap-4 text-center">
-        <div className="bg-destructive/10 flex h-16 w-16 items-center justify-center rounded-2xl">
-          <span className="material-symbols-outlined text-destructive text-3xl">
-            error
-          </span>
+    <div className="flex h-[calc(100vh-8rem)] w-full items-center justify-center p-6">
+      <div className="flex max-w-md flex-col items-center text-center">
+        <div className="border-border bg-card mb-6 flex size-12 items-center justify-center border">
+          <Icons.Warning className="text-muted-foreground size-5" />
         </div>
 
-        <h2 className="text-foreground text-xl font-bold">Algo salió mal</h2>
+        <h2 className="text-foreground text-lg font-medium tracking-tight">
+          Algo salió mal
+        </h2>
 
-        <p className="text-muted-foreground text-sm">
-          {error.message || "Ocurrió un error inesperado. Intenta de nuevo."}
+        <p className="text-muted-foreground mt-2 text-sm leading-relaxed">
+          {error.message ||
+            "Ocurrió un error inesperado al procesar la solicitud. Intenta de nuevo o regresa al panel principal."}
         </p>
 
-        {error.digest && (
-          <p className="text-muted-foreground/60 font-mono text-xs">
-            Código: {error.digest}
+        {error.digest ? (
+          <p className="text-muted-foreground/60 mt-2 font-mono text-xs tabular-nums">
+            Ref: {error.digest}
           </p>
-        )}
+        ) : null}
 
-        <button
-          onClick={reset}
-          className="bg-primary text-primary-foreground hover:bg-primary/90 flex items-center gap-2 rounded-lg px-6 py-2.5 text-sm font-bold transition-colors"
-        >
-          <span className="material-symbols-outlined text-base">refresh</span>
-          Intentar de nuevo
-        </button>
+        <div className="mt-6 flex items-center gap-3">
+          <Button variant="outline" onClick={reset} className="gap-2">
+            <Icons.Refresh className="size-4" />
+            Intentar de nuevo
+          </Button>
+
+          <Button variant="outline" asChild>
+            <Link href="/dashboard">Ir al Dashboard</Link>
+          </Button>
+        </div>
       </div>
     </div>
   );

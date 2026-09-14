@@ -7,6 +7,8 @@ import { useParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
+import type { IconName } from "@cendaro/ui/icons";
+import type { StatusTone } from "@cendaro/ui/status-pill";
 import {
   Button,
   Table,
@@ -16,15 +18,16 @@ import {
   TableHeader,
   TableRow,
 } from "@cendaro/ui";
+import { Icon, Icons } from "@cendaro/ui/icons";
+import { StatusPill } from "@cendaro/ui/status-pill";
 
-import type { StatusTone } from "~/components/status-badge";
 import { EmptyState } from "~/components/empty-state";
 import { RoleGuard } from "~/components/role-guard";
 import { Skeleton } from "~/components/skeleton";
 import { StatCard } from "~/components/stat-card";
-import { StatusBadge } from "~/components/status-badge";
 import { useBcvRate } from "~/hooks/use-bcv-rate";
 import { formatDualCurrency } from "~/lib/format-currency";
+import { getStatus } from "~/lib/status";
 import { useTRPC } from "~/trpc/client";
 
 // ── Types ──────────────────────────────────────────────
@@ -68,31 +71,12 @@ interface AIResponse {
   promptSource: string;
 }
 
-// ── Status Config ──────────────────────────────────────
-const STATUS_CONFIG: Record<
-  string,
-  { label: string; tone: StatusTone; icon: string }
-> = {
-  created: {
-    label: "Creado",
-    tone: "neutral",
-    icon: "draft",
-  },
-  in_transit: {
-    label: "En Tránsito",
-    tone: "primary",
-    icon: "directions_boat",
-  },
-  received: {
-    label: "Recibido",
-    tone: "warning",
-    icon: "move_to_inbox",
-  },
-  closed: {
-    label: "Cerrado",
-    tone: "success",
-    icon: "check_circle",
-  },
+// ── Container Icons ─────────────────────────────────────
+const CONTAINER_ICONS: Record<string, IconName> = {
+  created: "Draft",
+  in_transit: "DirectionsBoat",
+  received: "MoveToInbox",
+  closed: "CheckCircle",
 };
 
 const ACCEPTED_FORMATS = ".xlsx,.xls,.pdf";
@@ -142,15 +126,28 @@ export default function ContainerDetailPage() {
 
   const statusMutation = useMutation(
     trpc.container.updateStatus.mutationOptions({
-      onSuccess: (_data, variables) => {
-        toast.success(
-          `Estado actualizado a ${STATUS_CONFIG[variables.status]?.label ?? variables.status}`,
-        );
-        void refetch();
-        void qc.invalidateQueries({ queryKey: [["container"]] });
+      onMutate: async (variables) => {
+        await qc.cancelQueries({ queryKey: [["container"]] });
+        const queryKey = trpc.container.byId.queryKey({ id });
+        const previousContainer = qc.getQueryData(queryKey);
+        if (previousContainer) {
+          qc.setQueryData(queryKey, (old) =>
+            old ? { ...old, status: variables.status } : old,
+          );
+        }
+        const newStatus = getStatus("container", variables.status);
+        toast.success(`Estado actualizado a ${newStatus.label}`);
+        return { previousContainer, queryKey };
       },
-      onError: (err) => {
+      onError: (err, _variables, context) => {
+        if (context?.queryKey && context.previousContainer) {
+          qc.setQueryData(context.queryKey, context.previousContainer);
+        }
         toast.error(`Error al actualizar estado: ${err.message}`);
+      },
+      onSettled: async () => {
+        void refetch();
+        await qc.invalidateQueries({ queryKey: [["container"]] });
       },
     }),
   );
@@ -454,24 +451,24 @@ export default function ContainerDetailPage() {
   // ── Loading ──────────────────────────────────────────
   if (isLoading) {
     return (
-      <div className="space-y-6 p-4 lg:p-8">
+      <div className="space-y-6 py-4 lg:py-8">
         <Skeleton className="h-6 w-48" />
-        <Skeleton className="h-32 w-full rounded-xl" />
+        <Skeleton className="border-border h-32 w-full border" />
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-24 rounded-xl" />
+            <Skeleton key={i} className="border-border h-24 border" />
           ))}
         </div>
-        <Skeleton className="h-96 w-full rounded-xl" />
+        <Skeleton className="border-border h-96 w-full border" />
       </div>
     );
   }
 
   if (!container) {
     return (
-      <div className="p-4 lg:p-8">
+      <div className="py-4 lg:py-8">
         <EmptyState
-          icon="package_2"
+          icon="Package2"
           title="Contenedor no encontrado"
           description="El registro de importación solicitado no existe o fue removido."
           action={
@@ -480,9 +477,7 @@ export default function ContainerDetailPage() {
               onClick={() => window.history.back()}
               className="gap-2"
             >
-              <span className="material-symbols-outlined text-sm">
-                arrow_back
-              </span>
+              <Icons.ArrowBack className="size-3.5" />
               Volver a Contenedores
             </Button>
           }
@@ -491,46 +486,44 @@ export default function ContainerDetailPage() {
     );
   }
 
-  const cfg = STATUS_CONFIG[container.status] ?? {
-    label: container.status,
-    tone: "neutral" as StatusTone,
-    icon: "draft",
-  };
+  const { label: statusLabel, tone: statusTone } = getStatus(
+    "container",
+    container.status,
+  );
+  const statusIcon = CONTAINER_ICONS[container.status] ?? "Draft";
   const canUpload =
     container.status === "created" || container.status === "in_transit";
 
   return (
-    <div className="space-y-6 p-4 lg:p-8">
+    <div className="space-y-6 py-4 lg:py-8">
       {/* Breadcrumb */}
       <div className="text-muted-foreground flex items-center gap-2 text-xs">
         <Link
           href="/containers"
           className="hover:text-foreground flex items-center gap-1 font-medium transition-colors"
         >
-          <span className="material-symbols-outlined text-sm">arrow_back</span>
+          <Icons.ArrowBack className="size-3.5" />
           Contenedores
         </Link>
-        <span className="material-symbols-outlined text-xs">chevron_right</span>
-        <span className="text-foreground font-mono font-bold">
+        <Icons.ChevronRight className="size-3" />
+        <span className="text-foreground font-mono font-medium">
           #{container.containerNumber}
         </span>
       </div>
 
       {/* Executive Card Header */}
-      <div className="surface-card border-border-subtle rounded-xl border p-6">
+      <div className="border-border bg-card border p-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
-            <div className="bg-primary/10 text-primary flex size-12 shrink-0 items-center justify-center rounded-xl">
-              <span className="material-symbols-outlined text-2xl">
-                {cfg.icon}
-              </span>
+            <div className="bg-primary/10 text-primary border-border flex size-12 shrink-0 items-center justify-center border">
+              <Icon name={statusIcon} className="size-6" />
             </div>
             <div>
               <div className="flex items-center gap-3">
-                <h1 className="text-foreground font-mono text-2xl font-bold tracking-tight">
+                <h1 className="text-foreground font-mono text-2xl font-medium tracking-tight">
                   {container.containerNumber}
                 </h1>
-                <StatusBadge tone={cfg.tone}>{cfg.label}</StatusBadge>
+                <StatusPill tone={statusTone}>{statusLabel}</StatusPill>
               </div>
               <p className="text-muted-foreground mt-0.5 text-xs">
                 Importación registrada el{" "}
@@ -550,9 +543,7 @@ export default function ContainerDetailPage() {
                   disabled={statusMutation.isPending}
                   className="min-h-11 gap-2"
                 >
-                  <span className="material-symbols-outlined text-base">
-                    directions_boat
-                  </span>
+                  <Icons.DirectionsBoat className="size-4" />
                   Marcar en Tránsito
                 </Button>
               )}
@@ -564,9 +555,7 @@ export default function ContainerDetailPage() {
                   disabled={statusMutation.isPending}
                   className="min-h-11 gap-2 bg-amber-600 text-white hover:bg-amber-500"
                 >
-                  <span className="material-symbols-outlined text-base">
-                    move_to_inbox
-                  </span>
+                  <Icons.MoveToInbox className="size-4" />
                   Iniciar Recepción
                 </Button>
               )}
@@ -578,9 +567,7 @@ export default function ContainerDetailPage() {
                   disabled={statusMutation.isPending}
                   className="min-h-11 gap-2 bg-emerald-600 text-white hover:bg-emerald-500"
                 >
-                  <span className="material-symbols-outlined text-base">
-                    check_circle
-                  </span>
+                  <Icons.CheckCircle className="size-4" />
                   Cerrar y Liquidar Carga
                 </Button>
               )}
@@ -593,15 +580,23 @@ export default function ContainerDetailPage() {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           label="Estado Operativo"
-          value={cfg.label}
-          icon={cfg.icon}
-          tone={cfg.tone === "neutral" ? "default" : cfg.tone}
+          value={statusLabel}
+          icon={statusIcon}
+          tone={
+            statusTone === "success" ||
+            statusTone === "warning" ||
+            statusTone === "destructive"
+              ? statusTone
+              : statusTone === "info"
+                ? "primary"
+                : "default"
+          }
           sub="Fase actual en la cadena de importación"
         />
         <StatCard
           label="Inversión FOB"
           value={dualFob.usd}
-          icon="attach_money"
+          icon="AttachMoney"
           tone="success"
           sub={`Oficial BCV: ${dualFob.bs}`}
         />
@@ -612,7 +607,7 @@ export default function ContainerDetailPage() {
               ? new Date(container.departureDate).toLocaleDateString("es-VE")
               : "No definida"
           }
-          icon="flight_takeoff"
+          icon="FlightTakeoff"
           tone="default"
           sub="Zarpe desde puerto de origen"
         />
@@ -623,23 +618,21 @@ export default function ContainerDetailPage() {
               ? new Date(container.arrivalDate).toLocaleDateString("es-VE")
               : "No definida"
           }
-          icon="flight_land"
+          icon="FlightLand"
           tone="primary"
           sub="Arribo a aduana / puerto nacional"
         />
       </div>
 
       {/* ═══ AI Packing List Section ═══ */}
-      <section className="surface-card border-border-subtle overflow-hidden rounded-xl border">
-        <div className="border-border-subtle bg-muted/30 flex flex-col gap-2 border-b p-4 sm:flex-row sm:items-center sm:justify-between">
+      <section className="border-border bg-card overflow-hidden border">
+        <div className="border-border bg-muted/30 flex flex-col gap-2 border-b p-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
-            <div className="bg-primary/10 text-primary flex size-9 items-center justify-center rounded-lg">
-              <span className="material-symbols-outlined text-xl">
-                smart_toy
-              </span>
+            <div className="bg-primary/10 text-primary border-border flex size-9 items-center justify-center border">
+              <Icons.SmartToy className="size-5" />
             </div>
             <div>
-              <h2 className="text-foreground text-sm font-bold tracking-widest uppercase">
+              <h2 className="text-foreground text-sm font-medium tracking-widest uppercase">
                 Packing List Inteligente
               </h2>
               <p className="text-muted-foreground text-xs">
@@ -648,9 +641,9 @@ export default function ContainerDetailPage() {
             </div>
           </div>
           {container.packingListItemCount > 0 && (
-            <StatusBadge tone="success">
+            <StatusPill tone="success">
               {`${container.packingListItemCount} items registrados`}
-            </StatusBadge>
+            </StatusPill>
           )}
         </div>
 
@@ -665,10 +658,10 @@ export default function ContainerDetailPage() {
               onDragLeave={() => setDragActive(false)}
               onDrop={handleDrop}
               onClick={() => fileInputRef.current?.click()}
-              className={`relative cursor-pointer rounded-xl border-2 border-dashed p-8 text-center transition-all ${
+              className={`border-border relative cursor-pointer border border-dashed p-8 text-center transition-all ${
                 dragActive
                   ? "border-primary bg-primary/5"
-                  : "border-border-subtle hover:border-primary/50 hover:bg-muted/40"
+                  : "hover:border-foreground/50 hover:bg-muted/40"
               } ${aiStatus === "processing" ? "pointer-events-none opacity-60" : ""}`}
             >
               <input
@@ -680,12 +673,10 @@ export default function ContainerDetailPage() {
               />
               {aiStatus === "idle" && (
                 <>
-                  <div className="bg-primary/10 text-primary mx-auto mb-3 flex size-12 items-center justify-center rounded-full">
-                    <span className="material-symbols-outlined text-2xl">
-                      cloud_upload
-                    </span>
+                  <div className="bg-primary/10 text-primary border-border mx-auto mb-3 flex size-12 items-center justify-center border">
+                    <Icons.CloudUpload className="size-6" />
                   </div>
-                  <p className="text-foreground text-sm font-bold">
+                  <p className="text-foreground text-sm font-medium">
                     Arrastra el archivo de Packing List aquí o haz clic para
                     seleccionar
                   </p>
@@ -711,12 +702,10 @@ export default function ContainerDetailPage() {
 
           {/* Error Message */}
           {aiStatus === "error" && (
-            <div className="border-destructive/30 bg-destructive/10 flex items-start gap-3 rounded-xl border p-4">
-              <span className="material-symbols-outlined text-destructive text-xl">
-                error
-              </span>
+            <div className="border-destructive/30 bg-destructive/10 flex items-start gap-3 border p-4">
+              <Icons.Error className="text-destructive size-5" />
               <div className="flex-1">
-                <p className="text-destructive text-sm font-bold">
+                <p className="text-destructive text-sm font-medium">
                   Error al procesar el documento
                 </p>
                 <p className="text-muted-foreground mt-0.5 text-xs">
@@ -731,9 +720,7 @@ export default function ContainerDetailPage() {
                   }}
                   className="mt-3 min-h-9 gap-1 text-xs"
                 >
-                  <span className="material-symbols-outlined text-sm">
-                    restart_alt
-                  </span>
+                  <Icons.RestartAlt className="size-3.5" />
                   Intentar de nuevo
                 </Button>
               </div>
@@ -742,11 +729,9 @@ export default function ContainerDetailPage() {
 
           {/* Success Progress Message */}
           {aiStatus === "done" && aiProgress && (
-            <div className="flex items-center gap-2.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3.5 text-emerald-600 dark:text-emerald-400">
-              <span className="material-symbols-outlined text-lg">
-                check_circle
-              </span>
-              <p className="text-xs font-semibold">{aiProgress}</p>
+            <div className="flex items-center gap-2.5 border border-emerald-500/30 bg-emerald-500/10 p-3.5 text-emerald-600 dark:text-emerald-400">
+              <Icons.CheckCircle className="size-4.5" />
+              <p className="text-xs font-medium">{aiProgress}</p>
             </div>
           )}
 
@@ -805,14 +790,14 @@ export default function ContainerDetailPage() {
               ].map((s) => (
                 <div
                   key={s.label}
-                  className="surface-card border-border-subtle rounded-lg border p-2.5 text-center"
+                  className="border-border bg-card border p-2.5 text-center"
                 >
                   <p
-                    className={`font-mono text-base font-bold tabular-nums ${s.tone}`}
+                    className={`font-mono text-base font-medium tabular-nums ${s.tone}`}
                   >
                     {s.value}
                   </p>
-                  <p className="text-muted-foreground mt-0.5 text-[10px] font-semibold tracking-wider uppercase">
+                  <p className="text-muted-foreground mt-0.5 text-[10px] font-medium tracking-wider uppercase">
                     {s.label}
                   </p>
                 </div>
@@ -825,7 +810,7 @@ export default function ContainerDetailPage() {
             <div className="space-y-3">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <h3 className="text-muted-foreground text-xs font-bold tracking-widest uppercase">
+                  <h3 className="text-muted-foreground text-xs font-medium tracking-widest uppercase">
                     Ítems Extraídos ({parsedItems.length})
                   </h3>
                   <p className="text-muted-foreground text-[11px]">
@@ -841,20 +826,18 @@ export default function ContainerDetailPage() {
                   {confirmMutation.isPending ? (
                     <div className="border-primary-foreground size-4 animate-spin rounded-full border-2 border-t-transparent" />
                   ) : (
-                    <span className="material-symbols-outlined text-base">
-                      database
-                    </span>
+                    <Icons.Database className="size-4" />
                   )}
                   Confirmar e Importar al Sistema
                 </Button>
               </div>
 
               {/* Table */}
-              <div className="surface-card border-border-subtle overflow-hidden rounded-xl border">
+              <div className="border-border bg-card overflow-hidden border">
                 <div className="max-h-120 overflow-y-auto">
                   <Table>
                     <TableHeader className="bg-muted/80 sticky top-0 z-10 backdrop-blur-sm">
-                      <TableRow className="border-border-subtle">
+                      <TableRow className="border-border">
                         <TableHead className="w-10 text-center">#</TableHead>
                         <TableHead className="w-12 text-center">Foto</TableHead>
                         <TableHead className="w-20 text-center">
@@ -883,7 +866,7 @@ export default function ContainerDetailPage() {
                         return (
                           <TableRow
                             key={i}
-                            className="border-border-subtle hover:bg-accent/40"
+                            className="border-border hover:bg-accent/40"
                           >
                             <TableCell className="text-muted-foreground text-center font-mono text-xs tabular-nums">
                               {i + 1}
@@ -893,7 +876,7 @@ export default function ContainerDetailPage() {
                                 <button
                                   type="button"
                                   onClick={() => setZoomImage(item.image_url)}
-                                  className="group border-border-subtle hover:ring-primary/40 relative inline-block size-9 overflow-hidden rounded-md border transition-all hover:ring-2"
+                                  className="group border-border hover:border-primary/40 relative inline-block size-9 overflow-hidden border transition-all"
                                   title={item.image_description ?? "Ver imagen"}
                                 >
                                   <Image
@@ -912,9 +895,9 @@ export default function ContainerDetailPage() {
                               )}
                             </TableCell>
                             <TableCell className="text-center">
-                              <StatusBadge tone={confidenceTone}>
+                              <StatusPill tone={confidenceTone}>
                                 {`${Math.round(item.confidence > 1 ? item.confidence : item.confidence * 100)}%`}
-                              </StatusBadge>
+                              </StatusPill>
                             </TableCell>
                             <TableCell
                               className="text-muted-foreground max-w-44 truncate text-xs"
@@ -936,7 +919,7 @@ export default function ContainerDetailPage() {
                                       setEditingIndex(null);
                                   }}
                                   autoFocus
-                                  className="border-primary bg-background focus:ring-primary w-full rounded-md border px-2 py-1 text-xs outline-none focus:ring-1"
+                                  className="border-primary bg-background focus:ring-primary w-full border px-2 py-1 text-xs outline-none focus:ring-1"
                                 />
                               ) : (
                                 <button
@@ -949,17 +932,17 @@ export default function ContainerDetailPage() {
                                 </button>
                               )}
                             </TableCell>
-                            <TableCell className="text-foreground text-right font-mono text-xs font-bold tabular-nums">
+                            <TableCell className="text-foreground text-right font-mono text-xs font-medium tabular-nums">
                               {item.quantity}
                             </TableCell>
-                            <TableCell className="text-foreground text-right font-mono text-xs font-bold tabular-nums">
+                            <TableCell className="text-foreground text-right font-mono text-xs font-medium tabular-nums">
                               {item.unit_cost != null
                                 ? `$${item.unit_cost.toFixed(2)}`
                                 : "—"}
                             </TableCell>
                             <TableCell className="font-mono text-xs">
                               {item.sku_hint ? (
-                                <span className="bg-muted text-foreground rounded px-1.5 py-0.5 font-semibold">
+                                <span className="bg-muted text-foreground border-border border px-1.5 py-0.5 font-medium">
                                   {item.sku_hint}
                                 </span>
                               ) : (
@@ -971,18 +954,18 @@ export default function ContainerDetailPage() {
                             </TableCell>
                             <TableCell>
                               {item.match_type === "exact_sku" && (
-                                <StatusBadge tone="success">
+                                <StatusPill tone="success">
                                   SKU Exacto
-                                </StatusBadge>
+                                </StatusPill>
                               )}
                               {item.match_type === "name_similarity" && (
-                                <StatusBadge tone="primary">
+                                <StatusPill tone="info">
                                   {`~${item.match_confidence}%`}
-                                </StatusBadge>
+                                </StatusPill>
                               )}
                               {(item.match_type === "no_match" ||
                                 item.match_type === "ai_only") && (
-                                <StatusBadge tone="neutral">Nuevo</StatusBadge>
+                                <StatusPill tone="neutral">Nuevo</StatusPill>
                               )}
                             </TableCell>
                           </TableRow>
@@ -1002,18 +985,16 @@ export default function ContainerDetailPage() {
               onClick={() => setZoomImage(null)}
             >
               <div
-                className="bg-card border-border-subtle relative max-h-[85vh] max-w-[90vw] overflow-hidden rounded-2xl border shadow-2xl"
+                className="bg-card border-border relative max-h-[85vh] max-w-[90vw] overflow-hidden border shadow-md"
                 onClick={(e) => e.stopPropagation()}
               >
                 <button
                   type="button"
                   onClick={() => setZoomImage(null)}
-                  className="bg-background/80 text-foreground hover:bg-background absolute top-3 right-3 z-10 flex size-9 items-center justify-center rounded-full shadow-md backdrop-blur-md transition-all"
+                  className="bg-background/80 text-foreground hover:bg-background border-border absolute top-3 right-3 z-10 flex size-9 items-center justify-center border transition-all"
                   title="Cerrar vista previa"
                 >
-                  <span className="material-symbols-outlined text-lg">
-                    close
-                  </span>
+                  <Icons.Close className="size-4.5" />
                 </button>
                 <Image
                   src={zoomImage}
@@ -1030,14 +1011,14 @@ export default function ContainerDetailPage() {
       </section>
 
       {/* Container Details Section */}
-      <section className="surface-card border-border-subtle rounded-xl border p-6">
-        <h2 className="text-muted-foreground text-xs font-bold tracking-widest uppercase">
+      <section className="border-border bg-card border p-6">
+        <h2 className="text-muted-foreground text-xs font-medium tracking-widest uppercase">
           Ficha Técnica del Contenedor
         </h2>
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {[
             { label: "Número de Contenedor", value: container.containerNumber },
-            { label: "Estado Actual", value: cfg.label },
+            { label: "Estado Actual", value: statusLabel },
             {
               label: "Costo FOB Total",
               value: `${dualFob.usd} (${dualFob.bs})`,
@@ -1061,12 +1042,12 @@ export default function ContainerDetailPage() {
           ].map((d) => (
             <div
               key={d.label}
-              className="border-border-subtle/80 bg-muted/20 rounded-lg border p-3.5"
+              className="border-border bg-muted/20 border p-3.5"
             >
-              <span className="text-muted-foreground block text-[11px] font-semibold tracking-wider uppercase">
+              <span className="text-muted-foreground block text-[11px] font-medium tracking-wider uppercase">
                 {d.label}
               </span>
-              <span className="text-foreground mt-1 block font-mono text-sm font-semibold">
+              <span className="text-foreground mt-1 block font-mono text-sm font-medium">
                 {d.value}
               </span>
             </div>

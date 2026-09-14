@@ -5,9 +5,7 @@ import { FAQSection } from "./_components/landing/faq-section";
 import { FinalCTA } from "./_components/landing/final-cta";
 import { Footer } from "./_components/landing/footer";
 import { Hero } from "./_components/landing/hero";
-import { IntegrationsMarquee } from "./_components/landing/integrations-marquee";
 import { Navbar } from "./_components/landing/navbar";
-import { SectionDivider } from "./_components/landing/noise-overlay";
 import { PricingCards } from "./_components/landing/pricing-cards";
 import { StatsSection } from "./_components/landing/stats-section";
 import { StickyFeatures } from "./_components/landing/sticky-features";
@@ -87,20 +85,13 @@ export default function LandingPage() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
       <Navbar />
-      <main>
+      <main className="divide-border divide-y">
         <Hero />
-        <SectionDivider />
         <StickyFeatures />
-        <SectionDivider />
         <BentoGrid />
-        <SectionDivider />
         <ValueProps />
-        <SectionDivider />
         <StatsSection />
         <Testimonials />
-        <SectionDivider />
-        <IntegrationsMarquee />
-        <SectionDivider />
         <PricingCards />
         <FAQSection />
         <FinalCTA />

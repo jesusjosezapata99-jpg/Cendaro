@@ -1,0 +1,29 @@
+# Dependencies and package managers
+node_modules/
+pnpm-lock.yaml
+package-lock.json
+bun.lock
+bun.lockb
+yarn.lock
+
+# Build outputs & caches
+.next/
+.turbo/
+dist/
+build/
+out/
+coverage/
+.cache/
+*.tsbuildinfo
+
+# Version control & internal logs
+.git/
+.system_generated/
+*.log
+
+# Supabase temporary dumps
+supabase/.temp/
+
+# Graphify heavy binary data (keep GRAPH_REPORT.md accessible)
+graphify-out/cache/
+graphify-out/graph.json

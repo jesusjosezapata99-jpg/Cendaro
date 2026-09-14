@@ -3,14 +3,13 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
+import { Field, Input, Select, TextArea } from "~/components/dialog";
 import {
-  Dialog,
-  Field,
-  FormActions,
-  Input,
-  Select,
-  TextArea,
-} from "~/components/dialog";
+  SheetBody,
+  SheetFooter,
+  SheetFormActions,
+  SheetModal,
+} from "~/components/sheet-modal";
 import { useTRPC } from "~/trpc/client";
 
 interface EditProductDialogProps {
@@ -56,7 +55,11 @@ export function EditProductDialog({
   );
 
   return (
-    <Dialog open={open} onClose={onClose} title={`Editar — ${product.name}`}>
+    <SheetModal
+      open={open}
+      onClose={onClose}
+      title={`Editar — ${product.name}`}
+    >
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -74,53 +77,59 @@ export function EditProductDialog({
                 : undefined,
           });
         }}
-        className="space-y-4"
+        className="flex h-full flex-col"
       >
-        <Field label="Nombre" required>
-          <Input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            required
+        <SheetBody>
+          <Field label="Nombre" required>
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+            />
+          </Field>
+
+          <Field label="Código de Barras">
+            <Input
+              value={barcode}
+              onChange={(e) => setBarcode(e.target.value)}
+              className="font-mono"
+            />
+          </Field>
+
+          <Field label="Descripción Corta">
+            <TextArea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={2}
+            />
+          </Field>
+
+          <Field label="Estado">
+            <Select value={status} onChange={(e) => setStatus(e.target.value)}>
+              <option value="active">Activo</option>
+              <option value="draft">Borrador</option>
+              <option value="discontinued">Descontinuado</option>
+              <option value="inactive">Inactivo</option>
+            </Select>
+          </Field>
+
+          {update.error && (
+            <div className="border-destructive/30 bg-destructive/10 text-destructive border p-3 text-sm">
+              {update.error.message}
+            </div>
+          )}
+        </SheetBody>
+
+        <SheetFooter>
+          <SheetFormActions
+            onCancel={onClose}
+            submitting={update.isPending}
+            submitLabel="Guardar Cambios"
           />
-        </Field>
-
-        <Field label="Código de Barras">
-          <Input
-            value={barcode}
-            onChange={(e) => setBarcode(e.target.value)}
-            className="font-mono"
-          />
-        </Field>
-
-        <Field label="Descripción Corta">
-          <TextArea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            rows={2}
-          />
-        </Field>
-
-        <Field label="Estado">
-          <Select value={status} onChange={(e) => setStatus(e.target.value)}>
-            <option value="active">Activo</option>
-            <option value="draft">Borrador</option>
-            <option value="discontinued">Descontinuado</option>
-            <option value="inactive">Inactivo</option>
-          </Select>
-        </Field>
-
-        {update.error && (
-          <div className="border-destructive/30 bg-destructive/10 text-destructive rounded-lg border p-3 text-sm">
-            {update.error.message}
-          </div>
-        )}
-
-        <FormActions
-          onCancel={onClose}
-          submitting={update.isPending}
-          submitLabel="Guardar Cambios"
-        />
+        </SheetFooter>
       </form>
-    </Dialog>
+    </SheetModal>
   );
 }
+
+export const EditProductSheet = EditProductDialog;
