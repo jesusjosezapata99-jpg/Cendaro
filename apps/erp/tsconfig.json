@@ -8,13 +8,7 @@
       "~/*": ["./src/*"]
     }
   },
-  "include": [
-    "src",
-    "next-env.d.ts",
-    ".next/types/**/*.ts",
-    ".next/dev/types/**/*.ts",
-    "*.ts",
-    "*.js"
-  ],
-  "exclude": ["node_modules"]
+  "include": ["src", "next-env.d.ts", ".next/types/**/*.ts", "*.ts", "*.js"],
+  // Exclude .next/dev to avoid Turbopack dev server cache race condition; production .next/types is validated via build
+  "exclude": ["node_modules", ".next/dev"]
 }

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 
 import { Dialog } from "~/components/dialog";
 import { useTRPC } from "~/trpc/client";
@@ -23,9 +24,27 @@ export function UpdateQuoteStatusDialog({
 
   const update = useMutation(
     trpc.quotes.updateStatus.mutationOptions({
-      onSuccess: () => {
-        void qc.invalidateQueries({ queryKey: [["quotes"]] });
+      onMutate: async (variables) => {
+        await qc.cancelQueries({ queryKey: [["quotes"]] });
+        const queryKey = trpc.quotes.byId.queryKey({ id: variables.id });
+        const previousQuote = qc.getQueryData(queryKey);
+        if (previousQuote) {
+          qc.setQueryData(queryKey, (old) =>
+            old ? { ...old, status: variables.status } : old,
+          );
+        }
+        toast.success(`Estado de cotización actualizado a ${variables.status}`);
         onClose();
+        return { previousQuote, queryKey };
+      },
+      onError: (err, _variables, context) => {
+        if (context?.queryKey && context.previousQuote) {
+          qc.setQueryData(context.queryKey, context.previousQuote);
+        }
+        toast.error(`Error al actualizar cotización: ${err.message}`);
+      },
+      onSettled: () => {
+        void qc.invalidateQueries({ queryKey: [["quotes"]] });
       },
     }),
   );
@@ -67,7 +86,7 @@ export function UpdateQuoteStatusDialog({
           <select
             value={status}
             onChange={(e) => setStatus(e.target.value)}
-            className="border-border-subtle bg-background text-foreground focus:border-primary focus:ring-primary/20 min-h-11 w-full rounded-lg border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
+            className="border-border-subtle bg-background text-foreground focus:border-primary focus:ring-primary/20 min-h-11 w-full border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
           >
             {statuses.map((s) => (
               <option key={s.value} value={s.value}>
@@ -81,14 +100,14 @@ export function UpdateQuoteStatusDialog({
           <button
             type="button"
             onClick={onClose}
-            className="border-border-subtle hover:bg-accent min-h-11 rounded-lg border px-4 py-2 text-sm font-medium transition-colors"
+            className="border-border-subtle hover:bg-accent min-h-11 border px-4 py-2 text-sm font-medium transition-colors"
           >
             Cancelar
           </button>
           <button
             type="submit"
             disabled={update.isPending}
-            className="bg-primary text-primary-foreground hover:bg-primary/90 min-h-11 rounded-lg px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-50"
+            className="bg-primary text-primary-foreground hover:bg-primary/90 min-h-11 px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50"
           >
             {update.isPending ? "Guardando..." : "Actualizar"}
           </button>

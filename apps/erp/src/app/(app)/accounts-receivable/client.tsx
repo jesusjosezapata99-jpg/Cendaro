@@ -1,21 +1,23 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 
 import { Button } from "@cendaro/ui";
+import { Icons } from "@cendaro/ui/icons";
+import { StatusPill } from "@cendaro/ui/status-pill";
 
-import type { StatusTone } from "~/components/status-badge";
-import { EmptyState } from "~/components/empty-state";
+import { DataTable } from "~/components/data-table/data-table";
 import { PageHeader } from "~/components/page-header";
 import { RoleGuard } from "~/components/role-guard";
-import { Skeleton } from "~/components/skeleton";
 import { StatCard } from "~/components/stat-card";
-import { StatusBadge } from "~/components/status-badge";
 import { useBcvRate } from "~/hooks/use-bcv-rate";
 import { formatDualCurrency } from "~/lib/format-currency";
+import { getStatus } from "~/lib/status";
 import { useTRPC } from "~/trpc/client";
 
 const RecordArPaymentDialog = dynamic(
@@ -34,37 +36,6 @@ const CreateArDialog = dynamic(
   { ssr: false },
 );
 
-const STATUS_CONFIG: Record<
-  string,
-  { label: string; tone: StatusTone; icon: string }
-> = {
-  pending: {
-    label: "Pendiente",
-    tone: "warning",
-    icon: "schedule",
-  },
-  partial: {
-    label: "Abono Parcial",
-    tone: "primary",
-    icon: "payments",
-  },
-  paid: {
-    label: "Pagada",
-    tone: "success",
-    icon: "check_circle",
-  },
-  overdue: {
-    label: "Vencida",
-    tone: "destructive",
-    icon: "warning",
-  },
-  written_off: {
-    label: "Castigada",
-    tone: "neutral",
-    icon: "error_outline",
-  },
-};
-
 function computeDaysOverdue(dueDate: Date | string): number {
   const now = new Date();
   const diff = Math.floor(
@@ -73,13 +44,33 @@ function computeDaysOverdue(dueDate: Date | string): number {
   return diff > 0 ? diff : 0;
 }
 
-const cellPx = "px-4 py-3";
+interface ReceivableItem {
+  id: string;
+  customerId: string;
+  orderId: string | null;
+  totalAmount: number;
+  paidAmount: number;
+  balance: number;
+  dueDate: Date | string;
+  status: "pending" | "partial" | "paid" | "overdue" | "written_off";
+  createdAt: Date | string;
+}
 
 export default function AccountsReceivableClient() {
+  const router = useRouter();
   const trpc = useTRPC();
   const bcv = useBcvRate();
 
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const searchParams = useSearchParams();
+  const urlStatus = searchParams.get("status");
+  const [statusFilter, setStatusFilter] = useState<string>(urlStatus ?? "all");
+
+  useEffect(() => {
+    if (urlStatus) {
+      setStatusFilter(urlStatus);
+    }
+  }, [urlStatus]);
+
   const [agingFilter, setAgingFilter] = useState<string>("all");
   const [showCreate, setShowCreate] = useState(false);
   const [selectedArForPayment, setSelectedArForPayment] = useState<{
@@ -89,645 +80,423 @@ export default function AccountsReceivableClient() {
     orderId?: string | null;
   } | null>(null);
 
-  const { data: arData, isLoading: isLoadingAR } = useQuery(
-    trpc.vendor.listAR.queryOptions({ limit: 100 }),
-  );
+  const {
+    data: receivables,
+    isLoading,
+    isError,
+    refetch,
+  } = useQuery(trpc.vendor.listAR.queryOptions({}));
 
-  const { data: customersData } = useQuery(
+  const { data: customers } = useQuery(
     trpc.sales.listCustomers.queryOptions({ limit: 100 }),
   );
 
-  const items = useMemo(() => arData ?? [], [arData]);
-  const customers = useMemo(() => customersData ?? [], [customersData]);
-
   const customerMap = useMemo(() => {
-    return new Map(customers.map((c) => [c.id, c]));
+    const map = new Map<string, string>();
+    if (customers) {
+      for (const c of customers) map.set(c.id, c.name);
+    }
+    return map;
   }, [customers]);
 
-  // Overall metrics
-  const activeItems = useMemo(
-    () =>
-      items.filter((a) => a.status !== "paid" && a.status !== "written_off"),
-    [items],
+  const items = useMemo(
+    () => (receivables ?? []) as ReceivableItem[],
+    [receivables],
   );
 
-  const totalPendingBalance = useMemo(
-    () => activeItems.reduce((s, a) => s + Number(a.balance), 0),
-    [activeItems],
-  );
-
-  const totalOriginalAmount = useMemo(
-    () => items.reduce((s, a) => s + Number(a.totalAmount), 0),
-    [items],
-  );
-
-  const totalPaidAmount = useMemo(
-    () => items.reduce((s, a) => s + Number(a.paidAmount), 0),
-    [items],
-  );
-
-  const recoveryRate = useMemo(() => {
-    if (totalOriginalAmount <= 0) return 0;
-    return (totalPaidAmount / totalOriginalAmount) * 100;
-  }, [totalPaidAmount, totalOriginalAmount]);
-
-  // Overdue calculations (status overdue or past due date with balance > 0)
-  const overdueAccounts = useMemo(() => {
-    return items.filter(
-      (a) =>
-        a.status === "overdue" ||
-        (a.balance > 0 && computeDaysOverdue(a.dueDate) > 0),
-    );
-  }, [items]);
-
-  const overdueTotal = useMemo(
-    () => overdueAccounts.reduce((s, a) => s + Number(a.balance), 0),
-    [overdueAccounts],
-  );
-
-  // Aging breakdown
-  const agingBuckets = useMemo(() => {
-    const buckets = {
-      current: { label: "Al Día (0-30d)", count: 0, total: 0 },
-      mora1: { label: "Mora 31-60d", count: 0, total: 0 },
-      mora2: { label: "Mora 61-90d", count: 0, total: 0 },
-      mora3: { label: "Crítica +90d", count: 0, total: 0 },
-    };
-
-    activeItems.forEach((a) => {
-      const days = computeDaysOverdue(a.dueDate);
-      const bal = Number(a.balance);
-      if (days <= 30) {
-        buckets.current.count++;
-        buckets.current.total += bal;
-      } else if (days <= 60) {
-        buckets.mora1.count++;
-        buckets.mora1.total += bal;
-      } else if (days <= 90) {
-        buckets.mora2.count++;
-        buckets.mora2.total += bal;
-      } else {
-        buckets.mora3.count++;
-        buckets.mora3.total += bal;
-      }
-    });
-
-    return buckets;
-  }, [activeItems]);
-
-  // Filtered accounts
-  const filteredItems = useMemo(() => {
+  // Filter pipeline
+  const filtered = useMemo(() => {
     return items.filter((ar) => {
-      // Status filter
-      if (statusFilter !== "all") {
-        if (statusFilter === "overdue") {
-          const isOverdue =
-            ar.status === "overdue" ||
-            (ar.balance > 0 && computeDaysOverdue(ar.dueDate) > 0);
-          if (!isOverdue) return false;
-        } else if (ar.status !== statusFilter) {
-          return false;
-        }
-      }
+      if (statusFilter !== "all" && ar.status !== statusFilter) return false;
 
-      // Aging filter
       if (agingFilter !== "all") {
         const days = computeDaysOverdue(ar.dueDate);
-        if (agingFilter === "current" && days > 30) return false;
-        if (agingFilter === "mora1" && (days <= 30 || days > 60)) return false;
-        if (agingFilter === "mora2" && (days <= 60 || days > 90)) return false;
-        if (agingFilter === "mora3" && days <= 90) return false;
+        if (agingFilter === "current" && days > 0) return false;
+        if (agingFilter === "1-30" && (days < 1 || days > 30)) return false;
+        if (agingFilter === "31-60" && (days < 31 || days > 60)) return false;
+        if (agingFilter === "60+" && days <= 60) return false;
       }
 
       return true;
     });
   }, [items, statusFilter, agingFilter]);
 
+  // Aggregate metrics
+  const totalBalance = useMemo(
+    () =>
+      items
+        .filter((ar) => ar.status !== "paid" && ar.status !== "written_off")
+        .reduce((sum, ar) => sum + ar.balance, 0),
+    [items],
+  );
+
+  const overdueCount = useMemo(
+    () =>
+      items.filter(
+        (ar) =>
+          ar.status !== "paid" &&
+          ar.status !== "written_off" &&
+          computeDaysOverdue(ar.dueDate) > 0,
+      ).length,
+    [items],
+  );
+
+  const totalCollected = useMemo(
+    () => items.reduce((sum, ar) => sum + (ar.totalAmount - ar.balance), 0),
+    [items],
+  );
+
+  const avgDaysToCollect = useMemo(() => {
+    const paid = items.filter((ar) => ar.status === "paid");
+    if (!paid.length) return 0;
+    const totalDays = paid.reduce((sum, ar) => {
+      const created = new Date(ar.createdAt).getTime();
+      const due = new Date(ar.dueDate).getTime();
+      return (
+        sum + Math.max(0, Math.floor((due - created) / (1000 * 60 * 60 * 24)))
+      );
+    }, 0);
+    return Math.round(totalDays / paid.length);
+  }, [items]);
+
+  const dualBalance = useMemo(
+    () => formatDualCurrency(totalBalance, bcv.rate),
+    [totalBalance, bcv.rate],
+  );
+  const dualCollected = useMemo(
+    () => formatDualCurrency(totalCollected, bcv.rate),
+    [totalCollected, bcv.rate],
+  );
+
+  const columns = useMemo<ColumnDef<ReceivableItem>[]>(
+    () => [
+      {
+        accessorKey: "id",
+        header: "Ref #",
+        meta: { sticky: true, className: "w-36" },
+        cell: ({ row }) => (
+          <Link
+            href={`/accounts-receivable/${row.original.id}`}
+            onClick={(e) => e.stopPropagation()}
+            className="text-primary font-mono text-xs font-medium tabular-nums hover:underline"
+          >
+            CXC-{row.original.id.slice(0, 8)}
+          </Link>
+        ),
+      },
+      {
+        id: "customer",
+        header: "Cliente / Deudor",
+        meta: { className: "min-w-44" },
+        cell: ({ row }) => {
+          const customerName =
+            customerMap.get(row.original.customerId) ??
+            `Cliente #${row.original.customerId.slice(0, 8)}`;
+          return (
+            <div className="flex flex-col gap-0.5">
+              <span className="text-foreground truncate text-xs font-medium">
+                {customerName}
+              </span>
+              {row.original.orderId ? (
+                <span className="text-muted-foreground font-mono text-[11px] tabular-nums">
+                  Orden #{row.original.orderId.slice(0, 8)}
+                </span>
+              ) : null}
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "dueDate",
+        header: "Vencimiento",
+        meta: { className: "w-40" },
+        cell: ({ row }) => {
+          const days = computeDaysOverdue(row.original.dueDate);
+          const isOverdue =
+            days > 0 &&
+            row.original.status !== "paid" &&
+            row.original.status !== "written_off";
+          return (
+            <div className="flex items-center gap-1.5 font-mono text-xs tabular-nums">
+              <span
+                className={
+                  isOverdue
+                    ? "text-destructive font-medium"
+                    : "text-muted-foreground"
+                }
+              >
+                {new Date(row.original.dueDate).toLocaleDateString("es-VE")}
+              </span>
+              {isOverdue ? (
+                <span className="text-destructive font-mono text-[10px] font-medium tabular-nums">
+                  (+{days}d)
+                </span>
+              ) : null}
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "totalAmount",
+        header: "Monto Original",
+        meta: {
+          numeric: true,
+          align: "right",
+          className: "w-36 text-right font-mono tabular-nums",
+        },
+        cell: ({ row }) => {
+          const val = Number(row.original.totalAmount);
+          return (
+            <div className="text-right font-mono tabular-nums">
+              <span className="text-foreground font-medium">
+                ${val.toFixed(2)}
+              </span>
+              {bcv.rate > 0 ? (
+                <span className="text-muted-foreground ml-1.5 text-[10px] font-normal">
+                  {formatDualCurrency(val, bcv.rate).bs}
+                </span>
+              ) : null}
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "balance",
+        header: "Saldo Pendiente",
+        meta: {
+          numeric: true,
+          align: "right",
+          className: "w-36 text-right font-mono tabular-nums",
+        },
+        cell: ({ row }) => {
+          const val = Number(row.original.balance);
+          return (
+            <div className="text-right font-mono tabular-nums">
+              <span
+                className={`font-medium ${
+                  val > 0 ? "text-primary" : "text-muted-foreground"
+                }`}
+              >
+                ${val.toFixed(2)}
+              </span>
+              {bcv.rate > 0 && val > 0 ? (
+                <span className="text-muted-foreground ml-1.5 text-[10px] font-normal">
+                  {formatDualCurrency(val, bcv.rate).bs}
+                </span>
+              ) : null}
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "status",
+        header: "Estado",
+        meta: { align: "center", className: "w-32 text-center" },
+        cell: ({ row }) => {
+          const s = getStatus("accountsReceivable", row.original.status);
+          return <StatusPill tone={s.tone}>{s.label}</StatusPill>;
+        },
+      },
+      {
+        id: "actions",
+        header: "Acción",
+        meta: { align: "center", className: "w-28 text-center" },
+        cell: ({ row }) => {
+          const ar = row.original;
+          const canPay = ar.status !== "paid" && ar.status !== "written_off";
+          return (
+            <div
+              className="flex items-center justify-center gap-1"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {canPay ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() =>
+                    setSelectedArForPayment({
+                      id: ar.id,
+                      balance: ar.balance,
+                      customerName: customerMap.get(ar.customerId),
+                      orderId: ar.orderId,
+                    })
+                  }
+                  className="min-h-7 px-2 text-[11px]"
+                >
+                  <Icons.Payments className="mr-1 size-3.5" />
+                  Abonar
+                </Button>
+              ) : (
+                <span className="text-muted-foreground font-mono text-xs italic">
+                  Cerrada
+                </span>
+              )}
+            </div>
+          );
+        },
+      },
+    ],
+    [bcv.rate, customerMap],
+  );
+
+  const handleRowClick = useCallback(
+    (row: ReceivableItem) => {
+      router.push(`/accounts-receivable/${row.id}`);
+    },
+    [router],
+  );
+
   return (
-    <div className="animate-in fade-in slide-in-from-bottom-1 space-y-6 p-4 duration-200 lg:p-8">
+    <div className="animate-in fade-in slide-in-from-bottom-1 space-y-6 py-4 duration-200 lg:py-8">
+      {/* Page Header */}
       <PageHeader
         title="Cuentas por Cobrar"
-        description="Gestión de créditos comerciales, cobranzas, abonos y cartera vencida"
+        description="Gestión y conciliación de cartera de créditos y cobranzas"
         actions={
           <RoleGuard allow={["owner", "admin", "supervisor"]}>
             <Button
               onClick={() => setShowCreate(true)}
-              className="min-h-11 flex-1 sm:flex-initial"
+              className="min-h-11 w-full gap-2 sm:w-auto"
             >
-              <span className="material-symbols-outlined text-lg">add</span>
-              Nueva CxC
+              <Icons.Add className="size-4.5" />
+              Nueva Cuenta por Cobrar
             </Button>
           </RoleGuard>
         }
       />
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+      {/* 4 StatCards */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
-          label="Cartera Total Pendiente"
-          value={
-            isLoadingAR
-              ? "—"
-              : formatDualCurrency(totalPendingBalance, bcv.rate).usd
-          }
-          sub={
-            isLoadingAR
-              ? undefined
-              : formatDualCurrency(totalPendingBalance, bcv.rate).bs
-          }
-          icon="receipt_long"
-          tone="primary"
+          label="Total Deuda Pendiente"
+          value={isLoading ? "—" : dualBalance.usd}
+          sub={isLoading ? undefined : dualBalance.bs}
+          icon="AccountBalance"
+          tone="warning"
         />
         <StatCard
-          label="Cuentas Activas"
-          value={isLoadingAR ? "—" : activeItems.length.toLocaleString("es-VE")}
-          icon="assignment"
+          label="Cuentas Vencidas"
+          value={isLoading ? "—" : overdueCount}
+          icon="Warning"
+          tone={overdueCount > 0 ? "destructive" : "default"}
+          sub={
+            overdueCount > 0
+              ? `${overdueCount} cuentas fuera de plazo`
+              : "Al día"
+          }
         />
         <StatCard
-          label="Cartera Vencida"
-          value={
-            isLoadingAR ? "—" : formatDualCurrency(overdueTotal, bcv.rate).usd
-          }
-          sub={
-            isLoadingAR
-              ? undefined
-              : formatDualCurrency(overdueTotal, bcv.rate).bs
-          }
-          icon="warning"
-          tone={overdueTotal > 0 ? "destructive" : "default"}
+          label="Plazo Prom. Cobro"
+          value={isLoading ? "—" : `${avgDaysToCollect} días`}
+          icon="Schedule"
+          tone="default"
+          sub="Basado en cobros liquidados"
         />
         <StatCard
-          label="Tasa de Cobranza"
-          value={isLoadingAR ? "—" : `${recoveryRate.toFixed(1)}%`}
-          sub={
-            isLoadingAR
-              ? undefined
-              : `Abonado: $${totalPaidAmount.toLocaleString("es-VE", { minimumFractionDigits: 2 })}`
-          }
-          icon="check_circle"
-          tone={recoveryRate >= 70 ? "success" : "default"}
+          label="Total Cobrado"
+          value={isLoading ? "—" : dualCollected.usd}
+          sub={isLoading ? undefined : dualCollected.bs}
+          icon="CheckCircle"
+          tone="success"
         />
       </div>
 
-      {/* Aging Strip (Antigüedad de Deuda) */}
-      <div className="border-border-subtle surface-card rounded-xl border p-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-muted-foreground text-base">
-              schedule
-            </span>
-            <span className="text-foreground text-xs font-semibold tracking-wider uppercase">
-              Antigüedad de Deuda (Aging)
-            </span>
-          </div>
-          {agingFilter !== "all" && (
-            <button
-              type="button"
-              onClick={() => setAgingFilter("all")}
-              className="text-primary text-xs font-medium hover:underline"
-            >
-              Restablecer filtro
-            </button>
-          )}
-        </div>
-
-        <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+      {/* Filter Tabs — Clean sharp style */}
+      <div className="flex flex-col gap-2">
+        {/* Status Filter */}
+        <div className="mobile-scroll-x flex items-center gap-1.5 border-b border-[--line] pb-2">
           {[
-            {
-              id: "current",
-              ...agingBuckets.current,
-              color: "text-emerald-500",
-            },
-            { id: "mora1", ...agingBuckets.mora1, color: "text-blue-500" },
-            { id: "mora2", ...agingBuckets.mora2, color: "text-amber-500" },
-            { id: "mora3", ...agingBuckets.mora3, color: "text-destructive" },
-          ].map((b) => (
-            <button
-              key={b.id}
-              type="button"
-              onClick={() =>
-                setAgingFilter((curr) => (curr === b.id ? "all" : b.id))
-              }
-              className={`border-border-subtle hover:border-primary/40 block rounded-lg border p-2.5 text-left transition-all ${
-                agingFilter === b.id
-                  ? "border-primary bg-primary/5 ring-primary/20 ring-1"
-                  : "bg-card/50"
-              }`}
-            >
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-muted-foreground text-[11px] font-medium">
-                  {b.label}
-                </span>
-                <span className="text-muted-foreground font-mono text-xs tabular-nums">
-                  {b.count} ctas
-                </span>
-              </div>
-              <p
-                className={`mt-1 font-mono text-sm font-bold tabular-nums ${b.color}`}
+            { key: "all", label: "Todas" },
+            { key: "pending", label: "Pendientes" },
+            { key: "partial", label: "Abono Parcial" },
+            { key: "overdue", label: "Vencidas" },
+            { key: "paid", label: "Pagadas" },
+          ].map((tab) => {
+            const isActive = statusFilter === tab.key;
+            return (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => setStatusFilter(tab.key)}
+                className={`flex min-h-8 items-center border px-3 py-1 text-xs font-medium whitespace-nowrap transition-colors ${
+                  isActive
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "bg-card text-muted-foreground hover:bg-secondary hover:text-foreground border-[--line] hover:border-[--line-hover]"
+                }`}
               >
-                ${b.total.toFixed(2)}
-              </p>
-            </button>
-          ))}
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Aging Filter */}
+        <div className="mobile-scroll-x flex items-center gap-1.5 pt-1">
+          <span className="text-muted-foreground mr-1 text-xs font-medium tracking-wider uppercase">
+            Antigüedad:
+          </span>
+          {[
+            { key: "all", label: "Todos los plazos" },
+            { key: "current", label: "Al día (no vencidas)" },
+            { key: "1-30", label: "1 a 30 días" },
+            { key: "31-60", label: "31 a 60 días" },
+            { key: "60+", label: "Más de 60 días" },
+          ].map((tab) => {
+            const isActive = agingFilter === tab.key;
+            return (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => setAgingFilter(tab.key)}
+                className={`flex min-h-7 items-center border px-2.5 py-0.5 text-[11px] font-medium whitespace-nowrap transition-colors ${
+                  isActive
+                    ? "border-foreground bg-foreground text-background"
+                    : "border-border bg-card text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      {/* Critical Overdue Banner */}
-      {overdueAccounts.length > 0 && (
-        <div className="border-destructive/30 bg-destructive/10 text-destructive flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3.5 text-xs">
-          <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-lg">warning</span>
-            <div>
-              <p className="font-semibold">
-                {overdueAccounts.length} cuenta
-                {overdueAccounts.length > 1 ? "s" : ""} vencida
-                {overdueAccounts.length > 1 ? "s" : ""} por un total de $
-                {overdueTotal.toLocaleString("es-VE", {
-                  minimumFractionDigits: 2,
-                })}
-              </p>
-              {bcv.rate > 0 && (
-                <p className="font-mono text-[10px] tabular-nums opacity-90">
-                  Equivalente oficial:{" "}
-                  {formatDualCurrency(overdueTotal, bcv.rate).bs}
-                </p>
-              )}
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={() => setStatusFilter("overdue")}
-            className="border-destructive/40 hover:bg-destructive/20 rounded-lg border px-3 py-1 font-semibold transition-colors"
-          >
-            Filtrar Vencidas
-          </button>
-        </div>
+      {/* Main Data Table with 45px rows */}
+      <DataTable
+        columns={columns}
+        data={filtered}
+        isLoading={isLoading}
+        isError={isError}
+        onRetry={() => void refetch()}
+        onRowClick={handleRowClick}
+        onResetFilters={
+          statusFilter !== "all" || agingFilter !== "all"
+            ? () => {
+                setStatusFilter("all");
+                setAgingFilter("all");
+              }
+            : undefined
+        }
+        emptyTitle="No se encontraron cuentas por cobrar"
+        emptyDescription="No hay registros que coincidan con los filtros seleccionados."
+      />
+
+      {/* Create Dialog */}
+      {showCreate && (
+        <CreateArDialog
+          open={showCreate}
+          onClose={() => setShowCreate(false)}
+        />
       )}
 
-      {/* Filter Chips */}
-      <div className="mobile-scroll-x flex gap-2 pb-1">
-        {[
-          { id: "all", label: "Todas las Cuentas" },
-          { id: "pending", label: "Pendientes" },
-          { id: "partial", label: "Abono Parcial" },
-          { id: "overdue", label: "Vencidas" },
-          { id: "paid", label: "Pagadas" },
-          { id: "written_off", label: "Castigadas" },
-        ].map((f) => (
-          <button
-            key={f.id}
-            onClick={() => setStatusFilter(f.id)}
-            className={`min-h-9 shrink-0 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
-              statusFilter === f.id
-                ? "border-primary bg-primary text-primary-foreground"
-                : "border-border-subtle text-muted-foreground hover:bg-accent/50 hover:text-foreground"
-            }`}
-          >
-            {f.label}
-          </button>
-        ))}
-      </div>
-
-      {/* ── Mobile: Card View ─────────────────────── */}
-      <div className="space-y-3 md:hidden">
-        {isLoadingAR
-          ? Array.from({ length: 4 }).map((_, i) => (
-              <div
-                key={i}
-                className="border-border-subtle surface-card rounded-xl border p-4"
-              >
-                <Skeleton className="h-5 w-3/4" />
-                <Skeleton className="mt-2 h-4 w-24" />
-              </div>
-            ))
-          : filteredItems.map((ar) => {
-              const customer = customerMap.get(ar.customerId);
-              const daysOverdue = computeDaysOverdue(ar.dueDate);
-              const isOverdue =
-                ar.status === "overdue" ||
-                (ar.balance > 0 && daysOverdue > 0 && ar.status !== "paid");
-              const effectiveStatus = isOverdue ? "overdue" : ar.status;
-              const cfg = STATUS_CONFIG[effectiveStatus] ?? {
-                label: effectiveStatus,
-                tone: "neutral" as StatusTone,
-                icon: "receipt_long",
-              };
-              const balNum = Number(ar.balance);
-
-              return (
-                <div
-                  key={ar.id}
-                  className="border-border-subtle surface-card rounded-xl border p-4"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <Link
-                        href={`/accounts-receivable/${ar.id}`}
-                        className="text-foreground hover:text-primary text-sm font-semibold transition-colors"
-                      >
-                        {customer?.name ??
-                          `Cliente ${ar.customerId.slice(0, 8)}`}
-                      </Link>
-                      {customer?.phone && (
-                        <p className="text-muted-foreground font-mono text-[11px]">
-                          Tel: {customer.phone}
-                        </p>
-                      )}
-                    </div>
-                    <StatusBadge tone={cfg.tone}>{cfg.label}</StatusBadge>
-                  </div>
-
-                  <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                    <div>
-                      <p className="text-muted-foreground text-[10px] font-medium tracking-wider uppercase">
-                        Saldo Pendiente
-                      </p>
-                      <p
-                        className={`font-mono text-base font-bold tabular-nums ${
-                          balNum > 0 ? "text-primary" : "text-emerald-500"
-                        }`}
-                      >
-                        ${balNum.toFixed(2)}
-                      </p>
-                      {bcv.rate > 0 && balNum > 0 && (
-                        <p className="text-muted-foreground font-mono text-[10px] tabular-nums">
-                          {formatDualCurrency(balNum, bcv.rate).bs}
-                        </p>
-                      )}
-                    </div>
-                    <div className="text-right">
-                      <p className="text-muted-foreground text-[10px] font-medium tracking-wider uppercase">
-                        Total / Abonado
-                      </p>
-                      <p className="text-foreground font-mono tabular-nums">
-                        ${Number(ar.totalAmount).toFixed(2)}
-                      </p>
-                      <p className="font-mono text-[10px] text-emerald-500 tabular-nums">
-                        Abono: ${Number(ar.paidAmount).toFixed(2)}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="border-border-subtle mt-3 flex items-center justify-between border-t pt-2 text-xs">
-                    <div>
-                      <span className="text-muted-foreground font-mono tabular-nums">
-                        Vence:{" "}
-                        {new Date(ar.dueDate).toLocaleDateString("es-VE")}
-                      </span>
-                      {daysOverdue > 0 && ar.status !== "paid" && (
-                        <span className="text-destructive ml-2 font-mono font-semibold tabular-nums">
-                          ({daysOverdue}d mora)
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      {balNum > 0 && (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setSelectedArForPayment({
-                              id: ar.id,
-                              balance: balNum,
-                              customerName: customer?.name,
-                              orderId: ar.orderId,
-                            })
-                          }
-                          className="bg-primary text-primary-foreground hover:bg-primary/90 min-h-9 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors"
-                        >
-                          Abonar
-                        </button>
-                      )}
-                      <Link
-                        href={`/accounts-receivable/${ar.id}`}
-                        className="border-border-subtle hover:border-primary hover:text-primary flex min-h-9 items-center rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors"
-                      >
-                        Detalle
-                      </Link>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-
-        {!isLoadingAR && filteredItems.length === 0 && (
-          <EmptyState
-            icon="receipt_long"
-            title="No se encontraron cuentas"
-            description="No hay cuentas por cobrar que coincidan con los filtros seleccionados."
-          />
-        )}
-      </div>
-
-      {/* ── Desktop: Table View ───────────────────── */}
-      <div className="border-border-subtle surface-card hidden gap-0 overflow-hidden rounded-xl border py-0 md:block">
-        <table className="w-full text-left text-sm">
-          <thead>
-            <tr className="border-border-subtle border-b">
-              <th
-                className={`text-muted-foreground ${cellPx} text-xs font-medium tracking-widest uppercase`}
-              >
-                Cliente
-              </th>
-              <th
-                className={`text-muted-foreground ${cellPx} text-xs font-medium tracking-widest uppercase`}
-              >
-                Orden / Ref
-              </th>
-              <th
-                className={`text-muted-foreground ${cellPx} text-center text-xs font-medium tracking-widest uppercase`}
-              >
-                Estado
-              </th>
-              <th
-                className={`text-muted-foreground ${cellPx} text-right text-xs font-medium tracking-widest uppercase`}
-              >
-                Monto Original
-              </th>
-              <th
-                className={`text-muted-foreground ${cellPx} text-right text-xs font-medium tracking-widest uppercase`}
-              >
-                Abonado
-              </th>
-              <th
-                className={`text-muted-foreground ${cellPx} text-right text-xs font-medium tracking-widest uppercase`}
-              >
-                Saldo Pendiente
-              </th>
-              <th
-                className={`text-muted-foreground ${cellPx} text-xs font-medium tracking-widest uppercase`}
-              >
-                Vencimiento
-              </th>
-              <th
-                className={`text-muted-foreground ${cellPx} text-right text-xs font-medium tracking-widest uppercase`}
-              >
-                Mora
-              </th>
-              <th
-                className={`text-muted-foreground ${cellPx} text-right text-xs font-medium tracking-widest uppercase`}
-              >
-                Acción
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {isLoadingAR
-              ? Array.from({ length: 5 }).map((_, i) => (
-                  <tr key={i} className="border-border-subtle border-b">
-                    {Array.from({ length: 9 }).map((_, j) => (
-                      <td key={j} className={cellPx}>
-                        <Skeleton className="h-5 w-16" />
-                      </td>
-                    ))}
-                  </tr>
-                ))
-              : filteredItems.map((ar) => {
-                  const customer = customerMap.get(ar.customerId);
-                  const daysOverdue = computeDaysOverdue(ar.dueDate);
-                  const isOverdue =
-                    ar.status === "overdue" ||
-                    (ar.balance > 0 && daysOverdue > 0 && ar.status !== "paid");
-                  const effectiveStatus = isOverdue ? "overdue" : ar.status;
-                  const cfg = STATUS_CONFIG[effectiveStatus] ?? {
-                    label: effectiveStatus,
-                    tone: "neutral" as StatusTone,
-                    icon: "receipt_long",
-                  };
-                  const balNum = Number(ar.balance);
-
-                  return (
-                    <tr
-                      key={ar.id}
-                      className="border-border-subtle hover:bg-accent/50 border-b transition-colors"
-                    >
-                      <td className={cellPx}>
-                        <Link
-                          href={`/accounts-receivable/${ar.id}`}
-                          className="text-foreground hover:text-primary block text-xs font-semibold transition-colors"
-                        >
-                          {customer?.name ?? `ID: ${ar.customerId.slice(0, 8)}`}
-                        </Link>
-                        {customer?.phone && (
-                          <span className="text-muted-foreground font-mono text-[10px]">
-                            {customer.phone}
-                          </span>
-                        )}
-                      </td>
-                      <td
-                        className={`text-muted-foreground ${cellPx} font-mono text-xs tabular-nums`}
-                      >
-                        {ar.orderId ? (
-                          <Link
-                            href={`/orders/${ar.orderId}`}
-                            className="text-primary hover:underline"
-                          >
-                            {ar.orderId.slice(0, 8)}…
-                          </Link>
-                        ) : (
-                          "—"
-                        )}
-                      </td>
-                      <td className={`${cellPx} text-center`}>
-                        <StatusBadge tone={cfg.tone}>{cfg.label}</StatusBadge>
-                      </td>
-                      <td
-                        className={`text-muted-foreground ${cellPx} text-right font-mono text-xs tabular-nums`}
-                      >
-                        ${Number(ar.totalAmount).toFixed(2)}
-                      </td>
-                      <td
-                        className={`text-emerald-500 ${cellPx} text-right font-mono text-xs font-medium tabular-nums`}
-                      >
-                        ${Number(ar.paidAmount).toFixed(2)}
-                      </td>
-                      <td
-                        className={`text-foreground ${cellPx} text-right font-mono font-semibold tabular-nums`}
-                      >
-                        <span
-                          className={
-                            balNum > 0
-                              ? "text-primary font-bold"
-                              : "text-emerald-500"
-                          }
-                        >
-                          ${balNum.toFixed(2)}
-                        </span>
-                        {bcv.rate > 0 && balNum > 0 && (
-                          <p className="text-muted-foreground text-[10px] font-normal tabular-nums">
-                            {formatDualCurrency(balNum, bcv.rate).bs}
-                          </p>
-                        )}
-                      </td>
-                      <td
-                        className={`text-muted-foreground ${cellPx} font-mono text-xs tabular-nums`}
-                      >
-                        {new Date(ar.dueDate).toLocaleDateString("es-VE")}
-                      </td>
-                      <td
-                        className={`${cellPx} text-right font-mono text-xs tabular-nums ${
-                          daysOverdue > 0 && ar.status !== "paid"
-                            ? "text-destructive font-bold"
-                            : "text-muted-foreground"
-                        }`}
-                      >
-                        {daysOverdue > 0 && ar.status !== "paid"
-                          ? `${daysOverdue}d`
-                          : "—"}
-                      </td>
-                      <td className={`${cellPx} text-right`}>
-                        <div className="flex items-center justify-end gap-1.5">
-                          {balNum > 0 && (
-                            <button
-                              type="button"
-                              onClick={() =>
-                                setSelectedArForPayment({
-                                  id: ar.id,
-                                  balance: balNum,
-                                  customerName: customer?.name,
-                                  orderId: ar.orderId,
-                                })
-                              }
-                              className="border-border-subtle hover:border-primary hover:text-primary min-h-8 rounded-lg border px-2 py-1 text-xs font-medium transition-colors"
-                            >
-                              Abonar
-                            </button>
-                          )}
-                          <Link
-                            href={`/accounts-receivable/${ar.id}`}
-                            className="border-border-subtle hover:bg-accent flex min-h-8 items-center rounded-lg border px-2 py-1 text-xs font-medium transition-colors"
-                          >
-                            Ver
-                          </Link>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-
-            {!isLoadingAR && filteredItems.length === 0 && (
-              <tr className="hover:bg-transparent">
-                <td colSpan={9} className="px-4 py-6">
-                  <EmptyState
-                    icon="receipt_long"
-                    title="No se encontraron cuentas"
-                    description="No hay cuentas por cobrar que coincidan con los filtros seleccionados."
-                  />
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Modals */}
-      <CreateArDialog open={showCreate} onClose={() => setShowCreate(false)} />
-
-      <RecordArPaymentDialog
-        open={selectedArForPayment !== null}
-        onClose={() => setSelectedArForPayment(null)}
-        receivable={selectedArForPayment}
-      />
+      {/* Payment Dialog */}
+      {selectedArForPayment && (
+        <RecordArPaymentDialog
+          open={Boolean(selectedArForPayment)}
+          onClose={() => setSelectedArForPayment(null)}
+          receivable={selectedArForPayment}
+        />
+      )}
     </div>
   );
 }

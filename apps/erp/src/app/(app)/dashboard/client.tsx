@@ -1,500 +1,375 @@
 "use client";
 
+import type { DragEndEvent } from "@dnd-kit/core";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
-import Link from "next/link";
-import { useQueries } from "@tanstack/react-query";
-
 import {
-  Card,
-  CardAction,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@cendaro/ui";
+  closestCenter,
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  rectSortingStrategy,
+  SortableContext,
+  sortableKeyboardCoordinates,
+} from "@dnd-kit/sortable";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 
-import type { ClosureSalesPoint } from "./charts";
-import type { StatTone } from "~/components/stat-card";
-import { EmptyState } from "~/components/empty-state";
-import { PageHeader } from "~/components/page-header";
-import { Skeleton } from "~/components/skeleton";
-import { StatCard } from "~/components/stat-card";
-import { StatusBadge } from "~/components/status-badge";
-import { useVesRates } from "~/hooks/use-bcv-rate";
-import { formatDualCurrency } from "~/lib/format-currency";
+import type { DashboardOverview } from "@cendaro/api";
+import type { UiPreferences, WidgetId } from "@cendaro/validators";
+import { Button } from "@cendaro/ui";
+import { Icon } from "@cendaro/ui/icons";
+
+import { useDashboardParams } from "~/hooks/params/use-dashboard-params";
+import { DashboardControls } from "~/modules/dashboard/controls";
+import { buildDashboardInsights } from "~/modules/dashboard/insights";
+import { QuickActions } from "~/modules/dashboard/quick-actions";
+import { SortableWidget } from "~/modules/dashboard/sortable-widget";
+import { Welcome } from "~/modules/dashboard/welcome";
+import { WidgetCardSkeleton } from "~/modules/dashboard/widget-card";
+import {
+  DEFAULT_WIDGET_ORDER,
+  resolveAllowedWidgets,
+  resolveWidgetOrder,
+  toggleWidgetHidden,
+} from "~/modules/dashboard/widget-order";
+import { ContainersInTransitWidget } from "~/modules/dashboard/widgets/containers-in-transit-widget";
+import { GrossProfitWidget } from "~/modules/dashboard/widgets/gross-profit-widget";
+import { LastClosureWidget } from "~/modules/dashboard/widgets/last-closure-widget";
+import { LowStockWidget } from "~/modules/dashboard/widgets/low-stock-widget";
+import { PendingDispatchWidget } from "~/modules/dashboard/widgets/pending-dispatch-widget";
+import { ReceivablesWidget } from "~/modules/dashboard/widgets/receivables-widget";
+import { SalesWidget } from "~/modules/dashboard/widgets/sales-widget";
+import { TopProductsWidget } from "~/modules/dashboard/widgets/top-products-widget";
 import { useTRPC } from "~/trpc/client";
 
-/**
- * Charts hydrate lazily after first paint (ssr: false) — the recharts chunk
- * never competes with LCP, and the h-64 slots below reserve the space so
- * layout shift stays at zero.
- */
-const SalesPerClosureChart = dynamic(
-  () => import("./charts").then((m) => m.SalesPerClosureChart),
-  { ssr: false, loading: () => <ChartPlaceholder /> },
-);
-const CollectionsDonutChart = dynamic(
-  () => import("./charts").then((m) => m.CollectionsDonutChart),
-  { ssr: false, loading: () => <ChartPlaceholder /> },
+const MetricsView = dynamic(
+  () => import("~/modules/dashboard/metrics-view").then((m) => m.MetricsView),
+  {
+    loading: () => (
+      <div className="border-border bg-card text-muted-foreground animate-pulse border p-8 text-center text-sm">
+        Cargando métricas analíticas...
+      </div>
+    ),
+    ssr: false,
+  },
 );
 
-/** Height-reserved chart placeholder — prevents CLS while the chunk loads. */
-function ChartPlaceholder() {
-  return (
-    <div className="flex h-full items-center justify-center">
-      <Skeleton className="h-full w-full rounded-lg" />
-    </div>
-  );
+function renderWidgetContent(
+  id: WidgetId,
+  overview: DashboardOverview,
+  bcvRate: number,
+) {
+  switch (id) {
+    case "sales":
+      return <SalesWidget sales={overview.sales} bcvRate={bcvRate} />;
+    case "grossProfit":
+      return overview.grossProfit ? (
+        <GrossProfitWidget
+          grossProfit={overview.grossProfit}
+          bcvRate={bcvRate}
+        />
+      ) : null;
+    case "receivables":
+      return overview.receivables ? (
+        <ReceivablesWidget
+          receivables={overview.receivables}
+          bcvRate={bcvRate}
+        />
+      ) : null;
+    case "lowStock":
+      return <LowStockWidget lowStock={overview.lowStock} />;
+    case "pendingDispatch":
+      return (
+        <PendingDispatchWidget pendingDispatch={overview.pendingDispatch} />
+      );
+    case "topProducts":
+      return <TopProductsWidget topProducts={overview.topProducts} />;
+    case "lastClosure":
+      return <LastClosureWidget lastClosure={overview.lastClosure} />;
+    case "containersInTransit":
+      return (
+        <ContainersInTransitWidget
+          containersInTransit={overview.containersInTransit}
+        />
+      );
+    default:
+      return null;
+  }
 }
-
-interface Kpi {
-  label: string;
-  value: string | number;
-  sub?: string;
-  icon: string;
-  tone: StatTone;
-  href: string;
-}
-
-interface SummaryRow {
-  label: string;
-  icon: string;
-  href: string;
-  value: string | number;
-  /** "success" tints the value with the success token (money in). */
-  valueTone?: "default" | "success";
-  sub?: string;
-}
-
-/** Shared row style for in-card navigable rows. */
-const rowClasses =
-  "border-border-subtle hover:bg-accent/50 hover:border-primary/30 focus-visible:border-ring focus-visible:ring-ring/50 flex min-h-11 items-center justify-between gap-3 rounded-lg border p-3 outline-none transition-all duration-200 active:scale-[0.99] motion-reduce:active:scale-100";
 
 export default function DashboardClient() {
   const trpc = useTRPC();
-  const [summaryResult, closuresResult, alertResult] = useQueries({
-    queries: [
-      trpc.dashboard.salesSummary.queryOptions(),
-      trpc.dashboard.latestClosures.queryOptions({ limit: 5 }),
-      trpc.dashboard.activeAlertCount.queryOptions(),
-    ],
-  });
-  const { data: summary, isLoading: summaryLoading } = summaryResult;
-  const { data: closures, isLoading: closuresLoading } = closuresResult;
-  const { data: alertCount } = alertResult;
+  const qc = useQueryClient();
+  const [{ period, tab }] = useDashboardParams();
+  const [isCustomizing, setIsCustomizing] = useState(false);
 
-  const ves = useVesRates();
-  const bcv = ves.oficial;
-  const revenue = formatDualCurrency(summary?.orders.revenue ?? 0, bcv.rate);
-  const collected = formatDualCurrency(
-    summary?.payments.collected ?? 0,
-    bcv.rate,
+  // Exit customize mode if user switches to metrics tab
+  useEffect(() => {
+    if (tab !== "overview") {
+      setIsCustomizing(false);
+    }
+  }, [tab]);
+
+  const { data: overview, isLoading } = useQuery(
+    trpc.dashboard.overview.queryOptions({ period }),
   );
-  const receivable = formatDualCurrency(
-    summary?.accountsReceivable.debt ?? 0,
-    bcv.rate,
-  );
+  const uiPreferencesOptions = trpc.users.uiPreferences.queryOptions();
+  const { data: uiPreferences } = useQuery(uiPreferencesOptions);
 
-  const kpis: Kpi[] = [
-    {
-      label: "Órdenes",
-      value: summary?.orders.total ?? 0,
-      icon: "receipt_long",
-      tone: "primary",
-      href: "/orders",
-    },
-    {
-      label: "Ingresos",
-      value: revenue.usd,
-      sub: revenue.bs || undefined,
-      icon: "payments",
-      tone: "primary",
-      href: "/orders",
-    },
-    {
-      label: "Cobrado",
-      value: formatDualCurrency(summary?.orders.paid ?? 0, bcv.rate).usd,
-      sub:
-        formatDualCurrency(summary?.orders.paid ?? 0, bcv.rate).bs || undefined,
-      icon: "trending_up",
-      tone: "success",
-      href: "/payments",
-    },
-    {
-      label: "Pagos",
-      value: summary?.payments.total ?? 0,
-      icon: "credit_card",
-      tone: "default",
-      href: "/payments",
-    },
-    {
-      label: "Por Cobrar",
-      value: receivable.usd,
-      sub: receivable.bs || undefined,
-      icon: "account_balance_wallet",
-      tone: "warning",
-      href: "/accounts-receivable",
-    },
-    {
-      label: "Alertas",
-      value: alertCount ?? 0,
-      icon: "notifications_active",
-      tone: (alertCount ?? 0) > 0 ? "destructive" : "default",
-      href: "/alerts",
-    },
-  ];
+  const bcvRate = overview?.rate.bcv ?? 0;
 
-  const summaryRows: SummaryRow[] = [
-    {
-      label: "Órdenes",
-      value: summary?.orders.total ?? 0,
-      icon: "receipt_long",
-      href: "/orders",
-    },
-    {
-      label: "Pagos Procesados",
-      value: summary?.payments.total ?? 0,
-      icon: "credit_card",
-      href: "/payments",
-    },
-    {
-      label: "CxC Abiertas",
-      value: summary?.accountsReceivable.total ?? 0,
-      icon: "assignment",
-      href: "/accounts-receivable",
-    },
-    {
-      label: "Total Recaudado",
-      value: collected.usd,
-      sub: collected.bs || undefined,
-      valueTone: "success",
-      icon: "attach_money",
-      href: "/cash-closure",
-    },
-  ];
+  // Optimistic UI preferences mutation with automatic rollback on error
+  const updatePreferences = useMutation(
+    trpc.users.updateUiPreferences.mutationOptions({
+      onMutate: async (newInput) => {
+        await qc.cancelQueries({ queryKey: uiPreferencesOptions.queryKey });
+        const previous = qc.getQueryData<UiPreferences>(
+          uiPreferencesOptions.queryKey,
+        );
 
-  const closureSales: ClosureSalesPoint[] = (closures ?? []).map((c) => ({
-    label: new Date(c.closureDate).toLocaleDateString("es-VE", {
-      day: "numeric",
-      month: "short",
+        qc.setQueryData(uiPreferencesOptions.queryKey, (old) => {
+          if (!newInput.dashboard) return old;
+          return {
+            ...(old ?? {}),
+            dashboard: {
+              order: newInput.dashboard.order,
+              hidden: newInput.dashboard.hidden,
+            },
+          };
+        });
+
+        return { previous };
+      },
+      onError: (_err, _newInput, context) => {
+        if (context?.previous !== undefined) {
+          qc.setQueryData(uiPreferencesOptions.queryKey, context.previous);
+        }
+        toast.error("Error al guardar la personalización del dashboard");
+      },
+      onSettled: () => {
+        void qc.invalidateQueries({
+          queryKey: uiPreferencesOptions.queryKey,
+        });
+      },
     }),
-    sales: Number(c.totalSales),
-  }));
+  );
+
+  const insights = useMemo(() => buildDashboardInsights(overview), [overview]);
+
+  // Resolve sanitized full order and hidden set
+  const fullOrder = useMemo(
+    () => resolveWidgetOrder(uiPreferences?.dashboard?.order),
+    [uiPreferences?.dashboard?.order],
+  );
+
+  const hidden = useMemo(
+    () => new Set<WidgetId>(uiPreferences?.dashboard?.hidden ?? []),
+    [uiPreferences?.dashboard?.hidden],
+  );
+
+  // Role-redacted allowed widgets (employee never sees grossProfit / receivables)
+  const allowedOrder = useMemo(
+    () =>
+      resolveAllowedWidgets(
+        fullOrder,
+        Boolean(overview?.grossProfit),
+        Boolean(overview?.receivables),
+      ),
+    [fullOrder, overview?.grossProfit, overview?.receivables],
+  );
+
+  // Widgets visible in regular view mode (not hidden and role-allowed)
+  const visibleWidgets = useMemo(
+    () => allowedOrder.filter((id) => !hidden.has(id)),
+    [allowedOrder, hidden],
+  );
+
+  // In customize mode, show all role-allowed widgets (even if hidden, with visual cue)
+  const widgetsToRender = isCustomizing ? allowedOrder : visibleWidgets;
+
+  // Drag and drop sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 5,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  );
+
+  const handleDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      const { active, over } = event;
+      if (!over || active.id === over.id) return;
+
+      const activeId = active.id as WidgetId;
+      const overId = over.id as WidgetId;
+
+      const oldIndex = allowedOrder.indexOf(activeId);
+      const newIndex = allowedOrder.indexOf(overId);
+      if (oldIndex === -1 || newIndex === -1) return;
+
+      const newAllowed = arrayMove(allowedOrder, oldIndex, newIndex);
+
+      // Reconstruct fullOrder preserving any widgets not visible to current role
+      const newFullOrder = [
+        ...newAllowed,
+        ...fullOrder.filter((id) => !newAllowed.includes(id)),
+      ];
+
+      updatePreferences.mutate({
+        dashboard: {
+          order: newFullOrder,
+          hidden: Array.from(hidden),
+        },
+      });
+    },
+    [allowedOrder, fullOrder, hidden, updatePreferences],
+  );
+
+  const handleToggleVisibility = useCallback(
+    (id: WidgetId) => {
+      const nextHidden = toggleWidgetHidden(hidden, id);
+      updatePreferences.mutate({
+        dashboard: {
+          order: fullOrder,
+          hidden: nextHidden,
+        },
+      });
+    },
+    [fullOrder, hidden, updatePreferences],
+  );
+
+  const handleResetOrder = useCallback(() => {
+    updatePreferences.mutate({
+      dashboard: {
+        order: DEFAULT_WIDGET_ORDER,
+        hidden: [],
+      },
+    });
+    toast.success("Orden y visibilidad restablecidos");
+  }, [updatePreferences]);
 
   return (
-    <div className="animate-in fade-in slide-in-from-bottom-1 space-y-6 p-4 duration-200 lg:p-8">
-      <PageHeader
-        title="Dashboard Ejecutivo"
-        description="Visibilidad operativa completa"
-      >
-        {bcv.rate > 0 ? (
-          <StatusBadge tone="success" className="mt-2 [&>span]:animate-pulse">
-            BCV: {bcv.rate.toFixed(2)} Bs/$ · {bcv.date}
-          </StatusBadge>
-        ) : null}
-      </PageHeader>
-
-      {/* Primary KPIs — 2 cols on mobile, 3 on sm, 6 on lg */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-        {summaryLoading
-          ? Array.from({ length: 6 }).map((_, i) => (
-              <div
-                key={i}
-                className="border-border-subtle surface-card flex flex-col gap-2 rounded-xl border p-4"
-              >
-                <div className="flex items-center justify-between">
-                  <Skeleton className="h-3 w-20" />
-                  <Skeleton className="size-7 rounded-lg" />
-                </div>
-                <Skeleton className="h-7 w-16" />
-              </div>
-            ))
-          : kpis.map((stat) => (
-              <StatCard
-                key={stat.label}
-                label={stat.label}
-                value={stat.value}
-                sub={stat.sub}
-                icon={stat.icon}
-                tone={stat.tone}
-                href={stat.href}
-              />
-            ))}
+    <div className="animate-in fade-in slide-in-from-bottom-1 space-y-6 py-4 duration-200 lg:py-8">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <Welcome insights={insights} />
+        <DashboardControls
+          isCustomizing={isCustomizing}
+          onToggleCustomize={() => setIsCustomizing((prev) => !prev)}
+          disabled={isLoading || !overview}
+        />
       </div>
 
-      {/* Alert strip — horizontally scrollable on mobile */}
-      {(alertCount ?? 0) > 0 && (
-        <div className="mobile-scroll-x flex gap-3">
-          <StatusBadge
-            tone="destructive"
-            dot={false}
-            className="shrink-0 px-3 py-1.5"
-          >
-            Alertas activas · {alertCount}
-          </StatusBadge>
-          {(summary?.accountsReceivable.debt ?? 0) > 0 && (
-            <StatusBadge
-              tone="warning"
-              dot={false}
-              className="shrink-0 px-3 py-1.5"
-            >
-              CxC Pendiente · ${receivable.usd.replace("$", "")}
-            </StatusBadge>
-          )}
-        </div>
-      )}
-
-      {/* Analytics — lazily hydrated charts, height reserved (CLS 0) */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-muted-foreground text-sm font-medium">
-              Ventas por Cierre
-            </CardTitle>
-            <CardDescription className="text-xs">
-              Últimos cierres de caja
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="h-64">
-            <SalesPerClosureChart data={closureSales} />
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-muted-foreground text-sm font-medium">
-              Cobranza
-            </CardTitle>
-            <CardDescription className="text-xs">
-              Cobrado vs por cobrar (período actual)
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="h-64">
-            <CollectionsDonutChart
-              collected={summary?.orders.paid ?? 0}
-              outstanding={summary?.accountsReceivable.debt ?? 0}
-            />
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {/* Summary — real counts and collected money */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-muted-foreground text-sm font-medium">
-              Resumen de Operaciones
-            </CardTitle>
-            <CardDescription className="text-xs">
-              Cifras del período actual
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {summaryRows.map((item) => (
-              <Link key={item.label} href={item.href} className={rowClasses}>
-                <span className="text-foreground flex items-center gap-2 text-sm">
-                  <span className="material-symbols-outlined text-muted-foreground text-lg">
-                    {item.icon}
-                  </span>
-                  {item.label}
+      {tab === "overview" ? (
+        <>
+          {/* Customization mode helper banner */}
+          {isCustomizing ? (
+            <div className="border-line bg-surface animate-in fade-in text-muted-foreground flex flex-wrap items-center justify-between gap-3 border px-4 py-2.5 text-xs duration-150">
+              <div className="flex items-center gap-2">
+                <Icon name="Tune" className="text-foreground size-3.5" />
+                <span>
+                  <strong className="text-foreground font-medium">
+                    Modo personalización activo:
+                  </strong>{" "}
+                  Arrastra desde el asa para reordenar o pulsa en el icono de
+                  visibilidad para ocultar o mostrar widgets.
                 </span>
-                <span
-                  className={`font-mono text-sm font-semibold tabular-nums ${
-                    item.valueTone === "success"
-                      ? "text-success-soft"
-                      : "text-foreground"
-                  }`}
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={handleResetOrder}
+                  title="Restablecer orden y visibilidad por defecto"
                 >
-                  {item.value}
-                  {item.sub ? (
-                    <span className="text-muted-foreground ml-2 text-xs font-normal">
-                      {item.sub}
-                    </span>
-                  ) : null}
-                </span>
-              </Link>
-            ))}
-          </CardContent>
-        </Card>
-
-        {/* Exchange rates — live data (same fetch, zero extra requests) */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-muted-foreground text-sm font-medium">
-              Tasas de Cambio
-            </CardTitle>
-            <CardDescription className="text-xs">
-              Referencias para operaciones en divisas
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="border-border-subtle flex min-h-11 items-center justify-between gap-3 rounded-lg border p-3">
-              <span className="text-foreground flex items-center gap-2 text-sm">
-                <span className="material-symbols-outlined text-muted-foreground text-lg">
-                  attach_money
-                </span>
-                BCV Oficial
-                {bcv.date ? (
-                  <span className="text-muted-foreground text-xs">
-                    {bcv.date}
-                  </span>
-                ) : null}
-              </span>
-              {bcv.isLoading ? (
-                <Skeleton className="h-5 w-24" />
-              ) : (
-                <span className="text-foreground font-mono text-sm font-semibold tabular-nums">
-                  {bcv.rate > 0 ? `Bs ${bcv.rate.toFixed(2)}` : "—"}
-                </span>
-              )}
-            </div>
-            <div className="border-border-subtle flex min-h-11 items-center justify-between gap-3 rounded-lg border p-3">
-              <span className="text-foreground flex items-center gap-2 text-sm">
-                <span className="material-symbols-outlined text-muted-foreground text-lg">
-                  credit_card
-                </span>
-                Paralelo (USDT)
-              </span>
-              {bcv.isLoading ? (
-                <Skeleton className="h-5 w-24" />
-              ) : (
-                <span className="text-foreground font-mono text-sm font-semibold tabular-nums">
-                  {ves.paralelo.rate > 0
-                    ? `Bs ${ves.paralelo.rate.toFixed(2)}`
-                    : "—"}
-                </span>
-              )}
-            </div>
-            <div className="border-border-subtle flex min-h-11 items-center justify-between gap-3 rounded-lg border p-3">
-              <span className="text-foreground flex items-center gap-2 text-sm">
-                <span className="material-symbols-outlined text-muted-foreground text-lg">
-                  trending_up
-                </span>
-                Brecha
-              </span>
-              {bcv.isLoading ? (
-                <Skeleton className="h-5 w-16" />
-              ) : (
-                <span className="text-warning-soft font-mono text-sm font-semibold tabular-nums">
-                  {ves.spread.percentage !== 0
-                    ? `${ves.spread.percentage.toFixed(1)}%`
-                    : "—"}
-                </span>
-              )}
-            </div>
-            <Link href="/alerts" className={rowClasses}>
-              <span className="text-foreground flex items-center gap-2 text-sm">
-                <span className="material-symbols-outlined text-muted-foreground text-lg">
-                  notifications_active
-                </span>
-                Alertas Activas
-              </span>
-              <StatusBadge
-                tone={(alertCount ?? 0) > 0 ? "destructive" : "success"}
-                dot={false}
-              >
-                {alertCount ?? 0}
-              </StatusBadge>
-            </Link>
-          </CardContent>
-        </Card>
-
-        {/* Cash Closures — full-width table */}
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle className="text-muted-foreground text-sm font-medium">
-              Cierres de Caja Recientes
-            </CardTitle>
-            <CardAction>
-              <Link
-                href="/cash-closure"
-                className="text-primary hover:text-primary/80 inline-flex items-center gap-1 text-sm font-medium transition-colors"
-              >
-                Ver todos
-                <span className="material-symbols-outlined text-base">
-                  arrow_forward
-                </span>
-              </Link>
-            </CardAction>
-          </CardHeader>
-          <CardContent>
-            {closuresLoading ? (
-              <div className="space-y-3">
-                {Array.from({ length: 3 }).map((_, i) => (
-                  <Skeleton key={i} className="h-10 w-full" />
-                ))}
+                  <Icon name="Refresh" className="mr-1.5 size-3" />
+                  Restablecer
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-xs"
+                  onClick={() => setIsCustomizing(false)}
+                >
+                  Listo
+                </Button>
               </div>
-            ) : closures && closures.length > 0 ? (
-              <Table className="min-w-125">
-                <TableHeader>
-                  <TableRow className="hover:bg-transparent">
-                    <TableHead className="text-muted-foreground h-9 px-3 text-xs font-medium tracking-widest uppercase">
-                      Fecha
-                    </TableHead>
-                    <TableHead className="text-muted-foreground h-9 px-3 text-right text-xs font-medium tracking-widest uppercase">
-                      Ventas
-                    </TableHead>
-                    <TableHead className="text-muted-foreground h-9 px-3 text-right text-xs font-medium tracking-widest uppercase">
-                      Efectivo
-                    </TableHead>
-                    <TableHead className="text-muted-foreground h-9 px-3 text-right text-xs font-medium tracking-widest uppercase">
-                      Digital
-                    </TableHead>
-                    <TableHead className="text-muted-foreground h-9 px-3 text-right text-xs font-medium tracking-widest uppercase">
-                      Discrepancia
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {closures.map((c) => {
-                    const diff =
-                      Number(c.actualTotal ?? 0) - Number(c.expectedTotal ?? 0);
-                    return (
-                      <TableRow key={c.id}>
-                        <TableCell className="text-foreground px-3 py-2.5 font-medium">
-                          {new Date(c.closureDate).toLocaleDateString("es-VE")}
-                        </TableCell>
-                        <TableCell className="px-3 py-2.5 text-right font-mono tabular-nums">
-                          ${Number(c.totalSales).toFixed(2)}
-                        </TableCell>
-                        <TableCell className="text-success-soft px-3 py-2.5 text-right font-mono tabular-nums">
-                          ${Number(c.totalCash).toFixed(2)}
-                        </TableCell>
-                        <TableCell className="text-primary px-3 py-2.5 text-right font-mono tabular-nums">
-                          ${Number(c.totalDigital).toFixed(2)}
-                        </TableCell>
-                        <TableCell
-                          className={`px-3 py-2.5 text-right font-mono font-semibold tabular-nums ${
-                            diff === 0
-                              ? "text-success-soft"
-                              : diff < 0
-                                ? "text-destructive-soft"
-                                : "text-warning-soft"
-                          }`}
-                        >
-                          {diff >= 0 ? "+" : ""}
-                          {diff.toFixed(2)}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            ) : (
-              <EmptyState
-                icon="lock_clock"
-                title="No hay cierres de caja registrados"
-                description="Los cierres de caja recientes aparecerán aquí."
+            </div>
+          ) : null}
+
+          {/* Widgets Grid */}
+          {isLoading || !overview ? (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <WidgetCardSkeleton key={i} />
+              ))}
+            </div>
+          ) : widgetsToRender.length === 0 ? (
+            <div className="border-line bg-surface flex min-h-47.5 flex-col items-center justify-center gap-2 border p-8 text-center text-sm">
+              <Icon
+                name="VisibilityOff"
+                className="text-muted-foreground size-6"
               />
-            )}
-          </CardContent>
-        </Card>
-      </div>
+              <p className="text-foreground font-medium">
+                Todos los widgets están ocultos
+              </p>
+              <p className="text-muted-foreground text-xs">
+                Pulsa en personalizar para seleccionar qué widgets deseas
+                visualizar.
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-2 text-xs"
+                onClick={() => setIsCustomizing(true)}
+              >
+                <Icon name="DashboardCustomize" className="mr-1.5 size-3.5" />
+                Personalizar widgets
+              </Button>
+            </div>
+          ) : (
+            <DndContext
+              id="dashboard-widgets-dnd"
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
+            >
+              <SortableContext
+                items={widgetsToRender}
+                strategy={rectSortingStrategy}
+              >
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                  {widgetsToRender.map((id) => (
+                    <SortableWidget
+                      key={id}
+                      id={id}
+                      isCustomizing={isCustomizing}
+                      isHidden={hidden.has(id)}
+                      onToggleVisibility={handleToggleVisibility}
+                    >
+                      {renderWidgetContent(id, overview, bcvRate)}
+                    </SortableWidget>
+                  ))}
+                </div>
+              </SortableContext>
+            </DndContext>
+          )}
+
+          <QuickActions />
+        </>
+      ) : (
+        <MetricsView overview={overview} bcvRate={bcvRate} period={period} />
+      )}
     </div>
   );
 }

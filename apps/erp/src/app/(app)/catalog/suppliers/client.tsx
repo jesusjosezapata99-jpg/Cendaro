@@ -1,24 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
+import { useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { useQuery } from "@tanstack/react-query";
 
-import {
-  Button,
-  Input,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@cendaro/ui";
+import { Button, Input } from "@cendaro/ui";
+import { Icons } from "@cendaro/ui/icons";
+import { StatusPill } from "@cendaro/ui/status-pill";
 
-import { EmptyState } from "~/components/empty-state";
+import { DataTable } from "~/components/data-table/data-table";
 import { PageHeader } from "~/components/page-header";
-import { Skeleton } from "~/components/skeleton";
-import { StatusBadge } from "~/components/status-badge";
 import { useTRPC } from "~/trpc/client";
 
 const CreateSupplierDialog = dynamic(
@@ -29,31 +21,112 @@ const CreateSupplierDialog = dynamic(
   { ssr: false },
 );
 
-const cellPx = "px-4 py-3";
+interface SupplierItem {
+  id: string;
+  name: string;
+  country: string;
+  contactName: string | null;
+  contactEmail: string | null;
+  status: string;
+}
 
 export default function SuppliersPage() {
   const trpc = useTRPC();
-  const { data: suppliers, isLoading } = useQuery(
-    trpc.catalog.listSuppliers.queryOptions(),
-  );
+  const {
+    data: suppliers,
+    isLoading,
+    isError,
+    refetch,
+  } = useQuery(trpc.catalog.listSuppliers.queryOptions());
   const [search, setSearch] = useState("");
   const [showCreate, setShowCreate] = useState(false);
 
-  const filtered = (suppliers ?? []).filter(
-    (s) =>
-      !search ||
-      s.name.toLowerCase().includes(search.toLowerCase()) ||
-      (s.contactName ?? "").toLowerCase().includes(search.toLowerCase()),
+  const items = useMemo(() => (suppliers ?? []) as SupplierItem[], [suppliers]);
+
+  const filtered = useMemo(() => {
+    if (!search) return items;
+    const q = search.toLowerCase();
+    return items.filter(
+      (s) =>
+        s.name.toLowerCase().includes(q) ||
+        (s.contactName ?? "").toLowerCase().includes(q) ||
+        (s.contactEmail ?? "").toLowerCase().includes(q) ||
+        s.country.toLowerCase().includes(q),
+    );
+  }, [items, search]);
+
+  const columns = useMemo<ColumnDef<SupplierItem>[]>(
+    () => [
+      {
+        accessorKey: "name",
+        header: "Proveedor",
+        meta: { className: "w-56 font-medium text-foreground" },
+        cell: ({ row }) => (
+          <div className="flex items-center gap-2">
+            <span className="text-foreground truncate text-xs font-medium">
+              {row.original.name}
+            </span>
+          </div>
+        ),
+      },
+      {
+        accessorKey: "country",
+        header: "País",
+        meta: { className: "w-28 font-mono text-xs" },
+        cell: ({ row }) => (
+          <span className="border-border bg-muted/40 text-muted-foreground inline-flex items-center border px-2 py-0.5 font-mono text-[11px] font-medium tracking-wider uppercase">
+            {row.original.country}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "contactName",
+        header: "Contacto",
+        meta: { className: "w-48 text-muted-foreground text-xs" },
+        cell: ({ row }) => (
+          <span className="text-muted-foreground truncate text-xs">
+            {row.original.contactName ?? "—"}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "contactEmail",
+        header: "Email",
+        meta: { className: "w-56 font-mono text-xs text-muted-foreground" },
+        cell: ({ row }) => (
+          <span className="text-muted-foreground truncate font-mono text-xs">
+            {row.original.contactEmail ?? "—"}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "status",
+        header: "Estado",
+        meta: { align: "center", className: "w-28 text-center" },
+        cell: ({ row }) => {
+          const isActive = row.original.status === "active";
+          return (
+            <StatusPill tone={isActive ? "success" : "neutral"}>
+              {isActive ? "Activo" : "Inactivo"}
+            </StatusPill>
+          );
+        },
+      },
+    ],
+    [],
   );
 
   return (
-    <div className="animate-in fade-in slide-in-from-bottom-1 space-y-6 p-4 duration-200 lg:p-8">
+    <div className="animate-in fade-in slide-in-from-bottom-1 space-y-6 py-4 duration-200 lg:py-8">
       <PageHeader
         title="Proveedores"
-        description={`${(suppliers?.length ?? 0).toLocaleString("es-VE")} proveedores registrados`}
+        description={`${items.length.toLocaleString("es-VE")} proveedores registrados`}
         actions={
-          <Button onClick={() => setShowCreate(true)} className="min-h-11">
-            <span className="material-symbols-outlined text-lg">add</span>
+          <Button
+            onClick={() => setShowCreate(true)}
+            className="h-9 px-3 text-xs"
+          >
+            <Icons.Add className="mr-1.5 size-4" />
             Nuevo Proveedor
           </Button>
         }
@@ -66,105 +139,29 @@ export default function SuppliersPage() {
 
       {/* Search */}
       <div className="relative">
-        <span
+        <Icons.Search
+          className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-3.5 -translate-y-1/2"
           aria-hidden
-          className="material-symbols-outlined text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-base"
-        >
-          search
-        </span>
+        />
         <Input
           type="text"
           placeholder="Buscar proveedor o contacto..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="min-h-11 pl-10"
+          className="h-9 pl-9 text-xs"
         />
       </div>
 
-      {isLoading ? (
-        <div className="space-y-2">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <Skeleton key={i} className="h-14 w-full rounded-xl" />
-          ))}
-        </div>
-      ) : (
-        <div className="border-border-subtle surface-card gap-0 overflow-hidden rounded-xl border py-0">
-          <Table>
-            <TableHeader>
-              <TableRow className="hover:bg-transparent">
-                <TableHead
-                  className={`text-muted-foreground ${cellPx} text-xs font-medium tracking-widest uppercase`}
-                >
-                  Proveedor
-                </TableHead>
-                <TableHead
-                  className={`text-muted-foreground ${cellPx} text-xs font-medium tracking-widest uppercase`}
-                >
-                  País
-                </TableHead>
-                <TableHead
-                  className={`text-muted-foreground ${cellPx} text-xs font-medium tracking-widest uppercase`}
-                >
-                  Contacto
-                </TableHead>
-                <TableHead
-                  className={`text-muted-foreground ${cellPx} text-xs font-medium tracking-widest uppercase`}
-                >
-                  Email
-                </TableHead>
-                <TableHead
-                  className={`text-muted-foreground ${cellPx} text-xs font-medium tracking-widest uppercase`}
-                >
-                  Estado
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.map((supplier) => (
-                <TableRow key={supplier.id}>
-                  <TableCell
-                    className={`text-foreground ${cellPx} font-medium`}
-                  >
-                    {supplier.name}
-                  </TableCell>
-                  <TableCell className={cellPx}>
-                    <span className="border-border-subtle bg-muted/50 text-muted-foreground inline-flex items-center rounded-md border px-2 py-0.5 font-mono text-xs font-medium tracking-wider">
-                      {supplier.country}
-                    </span>
-                  </TableCell>
-                  <TableCell
-                    className={`text-muted-foreground ${cellPx} text-sm`}
-                  >
-                    {supplier.contactName ?? "—"}
-                  </TableCell>
-                  <TableCell
-                    className={`text-muted-foreground ${cellPx} text-sm`}
-                  >
-                    {supplier.contactEmail ?? "—"}
-                  </TableCell>
-                  <TableCell className={cellPx}>
-                    <StatusBadge
-                      tone={
-                        supplier.status === "active" ? "success" : "neutral"
-                      }
-                    >
-                      {supplier.status === "active" ? "Activo" : "Inactivo"}
-                    </StatusBadge>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      )}
-
-      {filtered.length === 0 && !isLoading && (
-        <EmptyState
-          icon="local_shipping"
-          title="No se encontraron proveedores"
-          description="Ajusta la búsqueda o registra un nuevo proveedor para empezar."
-        />
-      )}
+      <DataTable
+        columns={columns}
+        data={filtered}
+        isLoading={isLoading}
+        isError={isError}
+        onRetry={() => void refetch()}
+        onResetFilters={search ? () => setSearch("") : undefined}
+        emptyTitle="No se encontraron proveedores"
+        emptyDescription="Ajusta la búsqueda o registra un nuevo proveedor para empezar."
+      />
     </div>
   );
 }

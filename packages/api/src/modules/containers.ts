@@ -4,7 +4,8 @@
  * Container/import lifecycle management.
  * PRD §13: packing list upload, 4-state flow, admin-only release.
  */
-import { desc, eq, sql } from "drizzle-orm";
+import { TRPCError } from "@trpc/server";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import {
@@ -26,7 +27,11 @@ import { logAudit } from "./audit";
 
 export const containerRouter = createTRPCRouter({
   list: workspaceReadProcedure.query(async ({ ctx }) => {
-    return ctx.db.select().from(Container).orderBy(desc(Container.createdAt));
+    return ctx.db
+      .select()
+      .from(Container)
+      .where(eq(Container.workspaceId, ctx.workspace.workspaceId))
+      .orderBy(desc(Container.createdAt));
   }),
 
   byId: workspaceProcedure
@@ -35,7 +40,12 @@ export const containerRouter = createTRPCRouter({
       const [container] = await ctx.db
         .select()
         .from(Container)
-        .where(eq(Container.id, input.id))
+        .where(
+          and(
+            eq(Container.id, input.id),
+            eq(Container.workspaceId, ctx.workspace.workspaceId),
+          ),
+        )
         .limit(1);
 
       if (!container) return null;
@@ -43,7 +53,12 @@ export const containerRouter = createTRPCRouter({
       const items = await ctx.db
         .select()
         .from(ContainerItem)
-        .where(eq(ContainerItem.containerId, input.id));
+        .where(
+          and(
+            eq(ContainerItem.containerId, input.id),
+            eq(ContainerItem.workspaceId, ctx.workspace.workspaceId),
+          ),
+        );
 
       return { ...container, items };
     }),
@@ -64,6 +79,7 @@ export const containerRouter = createTRPCRouter({
         .insert(Container)
         .values({
           ...input,
+          workspaceId: ctx.workspace.workspaceId,
           departureDate: input.departureDate
             ? new Date(input.departureDate)
             : null,
@@ -90,6 +106,16 @@ export const containerRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      if (
+        input.status === "closed" &&
+        !["owner", "admin"].includes(ctx.workspace.role)
+      ) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Solo administradores pueden cerrar o liberar contenedores",
+        });
+      }
+
       const setCols: Record<string, unknown> = { status: input.status };
       if (input.status === "closed") {
         setCols.closedBy = ctx.user.id;
@@ -99,8 +125,20 @@ export const containerRouter = createTRPCRouter({
       const [updated] = await ctx.db
         .update(Container)
         .set(setCols)
-        .where(eq(Container.id, input.id))
+        .where(
+          and(
+            eq(Container.id, input.id),
+            eq(Container.workspaceId, ctx.workspace.workspaceId),
+          ),
+        )
         .returning();
+
+      if (!updated) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Contenedor no encontrado en este workspace",
+        });
+      }
 
       await logAudit(ctx.db, ctx.user, {
         action: `container.status_${input.status}`,
@@ -127,9 +165,28 @@ export const containerRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      const [container] = await ctx.db
+        .select({ id: Container.id })
+        .from(Container)
+        .where(
+          and(
+            eq(Container.id, input.containerId),
+            eq(Container.workspaceId, ctx.workspace.workspaceId),
+          ),
+        )
+        .limit(1);
+
+      if (!container) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Contenedor no encontrado en este workspace",
+        });
+      }
+
       if (input.items.length > 0) {
         await ctx.db.insert(ContainerItem).values(
           input.items.map((item) => ({
+            workspaceId: ctx.workspace.workspaceId,
             containerId: input.containerId,
             ...item,
           })),
@@ -151,7 +208,12 @@ export const containerRouter = createTRPCRouter({
     const [config] = await ctx.db
       .select()
       .from(AiPromptConfig)
-      .where(eq(AiPromptConfig.active, true))
+      .where(
+        and(
+          eq(AiPromptConfig.workspaceId, ctx.workspace.workspaceId),
+          eq(AiPromptConfig.active, true),
+        ),
+      )
       .limit(1);
     return config ?? null;
   }),
@@ -169,7 +231,12 @@ export const containerRouter = createTRPCRouter({
       const [existing] = await ctx.db
         .select()
         .from(AiPromptConfig)
-        .where(eq(AiPromptConfig.configKey, input.configKey))
+        .where(
+          and(
+            eq(AiPromptConfig.workspaceId, ctx.workspace.workspaceId),
+            eq(AiPromptConfig.configKey, input.configKey),
+          ),
+        )
         .limit(1);
 
       if (existing) {
@@ -181,14 +248,22 @@ export const containerRouter = createTRPCRouter({
             categoryRules: input.categoryRules ?? null,
             updatedAt: new Date(),
           })
-          .where(eq(AiPromptConfig.id, existing.id))
+          .where(
+            and(
+              eq(AiPromptConfig.id, existing.id),
+              eq(AiPromptConfig.workspaceId, ctx.workspace.workspaceId),
+            ),
+          )
           .returning();
         return updated;
       }
 
       const [created] = await ctx.db
         .insert(AiPromptConfig)
-        .values(input)
+        .values({
+          ...input,
+          workspaceId: ctx.workspace.workspaceId,
+        })
         .returning();
 
       await logAudit(ctx.db, ctx.user, {
@@ -206,11 +281,13 @@ export const containerRouter = createTRPCRouter({
     const categories = await ctx.db
       .select({ id: Category.id, name: Category.name, slug: Category.slug })
       .from(Category)
+      .where(eq(Category.workspaceId, ctx.workspace.workspaceId))
       .limit(200);
 
     const brands = await ctx.db
       .select({ id: Brand.id, name: Brand.name })
       .from(Brand)
+      .where(eq(Brand.workspaceId, ctx.workspace.workspaceId))
       .limit(100);
 
     const products = await ctx.db
@@ -222,6 +299,7 @@ export const containerRouter = createTRPCRouter({
         brandId: Product.brandId,
       })
       .from(Product)
+      .where(eq(Product.workspaceId, ctx.workspace.workspaceId))
       .orderBy(desc(Product.createdAt))
       .limit(100);
 
@@ -260,6 +338,25 @@ export const containerRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      // Verify container belongs to current workspace
+      const [container] = await ctx.db
+        .select({ id: Container.id })
+        .from(Container)
+        .where(
+          and(
+            eq(Container.id, input.containerId),
+            eq(Container.workspaceId, ctx.workspace.workspaceId),
+          ),
+        )
+        .limit(1);
+
+      if (!container) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Contenedor no encontrado en este workspace",
+        });
+      }
+
       let created = 0;
       let linked = 0;
       let unmatched = 0;
@@ -277,6 +374,7 @@ export const containerRouter = createTRPCRouter({
           const [newProduct] = await ctx.db
             .insert(Product)
             .values({
+              workspaceId: ctx.workspace.workspaceId,
               sku:
                 item.skuHint ??
                 `AI-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
@@ -302,6 +400,7 @@ export const containerRouter = createTRPCRouter({
         const batch = resolvedItems.slice(i, i + batchSize);
         await ctx.db.insert(ContainerItem).values(
           batch.map(({ productId, item }) => ({
+            workspaceId: ctx.workspace.workspaceId,
             containerId: input.containerId,
             productId: productId,
             quantityExpected: item.quantity,
@@ -329,7 +428,12 @@ export const containerRouter = createTRPCRouter({
           packingListProcessedAt: new Date(),
           packingListItemCount: input.items.length,
         })
-        .where(eq(Container.id, input.containerId));
+        .where(
+          and(
+            eq(Container.id, input.containerId),
+            eq(Container.workspaceId, ctx.workspace.workspaceId),
+          ),
+        );
 
       await logAudit(ctx.db, ctx.user, {
         action: "container.confirm_packing_list_v2",
@@ -361,7 +465,12 @@ export const containerRouter = createTRPCRouter({
       const [config] = await ctx.db
         .select()
         .from(AiPromptConfig)
-        .where(eq(AiPromptConfig.active, true))
+        .where(
+          and(
+            eq(AiPromptConfig.workspaceId, ctx.workspace.workspaceId),
+            eq(AiPromptConfig.active, true),
+          ),
+        )
         .limit(1);
 
       if (!config) return { success: false, error: "No prompt config found" };
@@ -386,7 +495,12 @@ export const containerRouter = createTRPCRouter({
           fewShotExamples: sql`${JSON.stringify(trimmed)}::jsonb`,
           updatedAt: new Date(),
         })
-        .where(eq(AiPromptConfig.id, config.id));
+        .where(
+          and(
+            eq(AiPromptConfig.id, config.id),
+            eq(AiPromptConfig.workspaceId, ctx.workspace.workspaceId),
+          ),
+        );
 
       await logAudit(ctx.db, ctx.user, {
         action: "ai.save_correction",
@@ -411,7 +525,12 @@ export const containerRouter = createTRPCRouter({
       const items = await ctx.db
         .select()
         .from(ContainerItem)
-        .where(eq(ContainerItem.containerId, input.containerId))
+        .where(
+          and(
+            eq(ContainerItem.containerId, input.containerId),
+            eq(ContainerItem.workspaceId, ctx.workspace.workspaceId),
+          ),
+        )
         .limit(input.limit)
         .offset(input.offset);
 

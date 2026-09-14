@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, m } from "framer-motion";
 import { ChevronDown } from "lucide-react";
 
 import { ScrollEntrance } from "./scroll-entrance";
@@ -67,17 +67,17 @@ function FAQItem({
           <span className="text-foreground pr-4 text-base font-medium">
             {question}
           </span>
-          <motion.div
+          <m.div
             animate={{ rotate: open ? 180 : 0 }}
             transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
           >
             <ChevronDown className="text-muted-foreground h-5 w-5 shrink-0" />
-          </motion.div>
+          </m.div>
         </button>
 
         <AnimatePresence initial={false}>
           {open && (
-            <motion.div
+            <m.div
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: "auto", opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
@@ -87,7 +87,7 @@ function FAQItem({
               <p className="text-muted-foreground pb-5 text-sm leading-relaxed">
                 {answer}
               </p>
-            </motion.div>
+            </m.div>
           )}
         </AnimatePresence>
       </div>

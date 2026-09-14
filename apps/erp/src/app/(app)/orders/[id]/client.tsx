@@ -6,6 +6,8 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 
+import type { IconName } from "@cendaro/ui/icons";
+import type { StatusTone } from "@cendaro/ui/status-pill";
 import {
   Button,
   Table,
@@ -15,15 +17,16 @@ import {
   TableHeader,
   TableRow,
 } from "@cendaro/ui";
+import { Icon, Icons } from "@cendaro/ui/icons";
+import { StatusPill } from "@cendaro/ui/status-pill";
 
-import type { StatusTone } from "~/components/status-badge";
 import { EmptyState } from "~/components/empty-state";
 import { RoleGuard } from "~/components/role-guard";
 import { Skeleton } from "~/components/skeleton";
 import { StatCard } from "~/components/stat-card";
-import { StatusBadge } from "~/components/status-badge";
 import { useBcvRate } from "~/hooks/use-bcv-rate";
 import { formatDualCurrency } from "~/lib/format-currency";
+import { getStatus } from "~/lib/status";
 import { useTRPC } from "~/trpc/client";
 
 const UpdateOrderStatusDialog = dynamic(
@@ -34,26 +37,12 @@ const UpdateOrderStatusDialog = dynamic(
   { ssr: false },
 );
 
-/** Order status → semantic token chip (single source of truth). */
-const STATUS_MAP: Record<string, { label: string; tone: StatusTone }> = {
-  draft: { label: "Borrador", tone: "neutral" },
-  pending: { label: "Pendiente", tone: "warning" },
-  pending_confirmation: { label: "Por Confirmar", tone: "warning" },
-  confirmed: { label: "Confirmado", tone: "primary" },
-  prepared: { label: "Preparado", tone: "primary" },
-  dispatched: { label: "Despachado", tone: "primary" },
-  delivered: { label: "Entregado", tone: "success" },
-  invoiced: { label: "Facturado", tone: "primary" },
-  cancelled: { label: "Anulado", tone: "destructive" },
-  returned: { label: "Devuelto", tone: "neutral" },
-};
-
 /** Payment method → semantic token chip. */
 const PAYMENT_METHODS: Record<string, { label: string; tone: StatusTone }> = {
   cash: { label: "Efectivo", tone: "success" },
-  transfer: { label: "Transferencia", tone: "primary" },
-  mobile_payment: { label: "Pago Móvil", tone: "primary" },
-  pos_terminal: { label: "Punto de Venta", tone: "primary" },
+  transfer: { label: "Transferencia", tone: "info" },
+  mobile_payment: { label: "Pago Móvil", tone: "info" },
+  pos_terminal: { label: "Punto de Venta", tone: "info" },
   zelle: { label: "Zelle", tone: "warning" },
 };
 
@@ -64,6 +53,15 @@ const CHANNEL_LABELS: Record<string, string> = {
   vendors: "Vendedores",
   whatsapp: "WhatsApp",
   instagram: "Instagram",
+};
+
+/** Sales channels → Material Symbols glyph (mirrors the orders list). */
+const CHANNEL_ICONS: Record<string, IconName> = {
+  store: "Store",
+  mercadolibre: "ShoppingCart",
+  vendors: "LocalShipping",
+  whatsapp: "Chat",
+  instagram: "PhotoCamera",
 };
 
 /** Shared cell padding for tables. */
@@ -84,12 +82,12 @@ export default function OrderDetailPage() {
   /* Loading */
   if (isLoading) {
     return (
-      <div className="animate-in fade-in space-y-6 p-4 duration-200 lg:p-8">
+      <div className="animate-in fade-in space-y-6 py-4 duration-200 lg:py-8">
         <Skeleton className="h-8 w-64" />
-        <Skeleton className="h-40 w-full rounded-xl" />
+        <Skeleton className="border-border h-40 w-full border" />
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-24 rounded-xl" />
+            <Skeleton key={i} className="border-border h-24 border" />
           ))}
         </div>
       </div>
@@ -99,9 +97,9 @@ export default function OrderDetailPage() {
   /* Not found */
   if (!order) {
     return (
-      <div className="p-4 lg:p-8">
+      <div className="py-4 lg:py-8">
         <EmptyState
-          icon="search_off"
+          icon="SearchOff"
           title="Pedido no encontrado"
           description="El pedido que buscas no existe o fue eliminado."
           action={
@@ -114,10 +112,7 @@ export default function OrderDetailPage() {
     );
   }
 
-  const st = STATUS_MAP[order.status] ?? {
-    label: order.status,
-    tone: "neutral" as StatusTone,
-  };
+  const st = getStatus("order", order.status);
   const totalPaid = Number(order.totalPaid);
   const total = Number(order.total);
   const balance = total - totalPaid;
@@ -125,7 +120,7 @@ export default function OrderDetailPage() {
   const items = order.items;
 
   return (
-    <div className="animate-in fade-in slide-in-from-bottom-1 space-y-6 p-4 duration-200 lg:p-8">
+    <div className="animate-in fade-in slide-in-from-bottom-1 space-y-6 py-4 duration-200 lg:py-8">
       {/* Breadcrumb */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="text-muted-foreground flex items-center gap-2 text-sm">
@@ -135,21 +130,20 @@ export default function OrderDetailPage() {
           >
             Pedidos
           </Link>
-          <span aria-hidden className="material-symbols-outlined text-base">
-            chevron_right
-          </span>
-          <span className="text-foreground font-medium">
+          <span>/</span>
+          <span className="text-foreground font-mono font-medium">
             {order.orderNumber}
           </span>
         </div>
         <RoleGuard allow={["owner", "admin", "supervisor"]}>
           <Button
             variant="outline"
+            size="sm"
             onClick={() => setShowStatusDialog(true)}
-            className="min-h-11"
+            className="gap-2"
           >
-            <span className="material-symbols-outlined text-lg">edit</span>
-            Cambiar Estado
+            <Icons.Sync className="size-4" />
+            Cambiar estado
           </Button>
         </RoleGuard>
       </div>
@@ -164,32 +158,25 @@ export default function OrderDetailPage() {
       )}
 
       {/* Header */}
-      <div className="border-border-subtle surface-card rounded-xl border p-6">
+      <div className="border-border bg-card border p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0 space-y-1">
             <div className="flex flex-wrap items-center gap-3">
-              <h1 className="text-foreground text-2xl font-semibold tracking-tight">
+              <h1 className="text-foreground text-2xl font-medium tracking-tight">
                 {order.orderNumber}
               </h1>
-              <StatusBadge tone={st.tone}>{st.label}</StatusBadge>
+              <StatusPill tone={st.tone}>{st.label}</StatusPill>
             </div>
             <p className="text-muted-foreground flex flex-wrap items-center gap-x-6 gap-y-1 text-sm">
               <span className="flex items-center gap-1">
-                <span
-                  aria-hidden
-                  className="material-symbols-outlined text-base"
-                >
-                  store
-                </span>
+                <Icon
+                  name={CHANNEL_ICONS[order.channel] ?? "Store"}
+                  className="size-4"
+                />
                 {CHANNEL_LABELS[order.channel] ?? order.channel}
               </span>
               <span className="flex items-center gap-1">
-                <span
-                  aria-hidden
-                  className="material-symbols-outlined text-base"
-                >
-                  schedule
-                </span>
+                <Icons.Schedule className="size-4" aria-hidden />
                 {new Date(order.createdAt).toLocaleString("es-VE")}
               </span>
             </p>
@@ -205,7 +192,7 @@ export default function OrderDetailPage() {
           sub={
             bcv.rate > 0 ? formatDualCurrency(total, bcv.rate).bs : undefined
           }
-          icon="receipt_long"
+          icon="ReceiptLong"
           tone="primary"
         />
         <StatCard
@@ -216,7 +203,7 @@ export default function OrderDetailPage() {
               ? formatDualCurrency(totalPaid, bcv.rate).bs
               : undefined
           }
-          icon="check_circle"
+          icon="CheckCircle"
           tone="success"
         />
         <StatCard
@@ -225,14 +212,14 @@ export default function OrderDetailPage() {
           sub={
             bcv.rate > 0 ? formatDualCurrency(balance, bcv.rate).bs : undefined
           }
-          icon="account_balance_wallet"
+          icon="AccountBalanceWallet"
           tone={balance > 0 ? "warning" : "success"}
         />
-        <StatCard label="Estado" value={st.label} icon="flag" />
+        <StatCard label="Estado" value={st.label} icon="Flag" />
       </div>
 
       {/* Order metadata */}
-      <section className="border-border-subtle surface-card rounded-xl border p-6">
+      <section className="border-border bg-card border p-6">
         <h2 className="text-muted-foreground mb-4 text-xs font-medium tracking-widest uppercase">
           Información del Pedido
         </h2>
@@ -264,10 +251,10 @@ export default function OrderDetailPage() {
           ].map((a) => (
             <div
               key={a.label}
-              className="border-border-subtle flex items-center justify-between gap-3 rounded-lg border p-3"
+              className="border-border flex items-center justify-between gap-3 border p-3"
             >
               <span className="text-muted-foreground text-sm">{a.label}</span>
-              <span className="text-foreground font-mono text-sm font-semibold tabular-nums">
+              <span className="text-foreground font-mono text-sm font-medium tabular-nums">
                 {a.value}
               </span>
             </div>
@@ -277,7 +264,7 @@ export default function OrderDetailPage() {
 
       {/* Items */}
       {items.length > 0 && (
-        <section className="border-border-subtle surface-card gap-0 overflow-hidden rounded-xl border py-0">
+        <section className="border-border bg-card gap-0 overflow-hidden border py-0">
           <div className="px-4 pt-4 pb-1">
             <h2 className="text-muted-foreground text-xs font-medium tracking-widest uppercase">
               Productos ({items.length})
@@ -317,11 +304,19 @@ export default function OrderDetailPage() {
               {items.map((item, idx) => (
                 <TableRow key={item.id}>
                   <TableCell className={cellPx}>
-                    <span className="text-foreground font-mono text-xs font-medium tabular-nums">
-                      {item.productId
-                        ? `Prod #${item.productId.slice(0, 8)}`
-                        : `Ítem #${idx + 1}`}
-                    </span>
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-foreground text-xs font-medium">
+                        {item.productName ??
+                          (item.productId
+                            ? `Prod #${item.productId.slice(0, 8)}`
+                            : `Ítem #${idx + 1}`)}
+                      </span>
+                      {item.sku ? (
+                        <span className="text-muted-foreground font-mono text-[11px] tabular-nums">
+                          {item.sku}
+                        </span>
+                      ) : null}
+                    </div>
                   </TableCell>
                   <TableCell
                     className={`text-foreground ${cellPx} text-right font-mono text-xs tabular-nums`}
@@ -341,7 +336,7 @@ export default function OrderDetailPage() {
                       : "—"}
                   </TableCell>
                   <TableCell
-                    className={`text-foreground ${cellPx} text-right font-mono text-xs font-semibold tabular-nums`}
+                    className={`text-foreground ${cellPx} text-right font-mono text-xs font-medium tabular-nums`}
                   >
                     ${Number(item.lineTotal).toFixed(2)}
                   </TableCell>
@@ -354,7 +349,7 @@ export default function OrderDetailPage() {
 
       {/* Payments */}
       {payments.length > 0 && (
-        <section className="border-border-subtle surface-card gap-0 overflow-hidden rounded-xl border py-0">
+        <section className="border-border bg-card gap-0 overflow-hidden border py-0">
           <div className="px-4 pt-4 pb-1">
             <h2 className="text-muted-foreground text-xs font-medium tracking-widest uppercase">
               Pagos ({payments.length})
@@ -394,12 +389,10 @@ export default function OrderDetailPage() {
                 return (
                   <TableRow key={p.id}>
                     <TableCell className={cellPx}>
-                      <StatusBadge tone={method.tone}>
-                        {method.label}
-                      </StatusBadge>
+                      <StatusPill tone={method.tone}>{method.label}</StatusPill>
                     </TableCell>
                     <TableCell
-                      className={`text-foreground ${cellPx} text-right font-mono font-semibold tabular-nums`}
+                      className={`text-foreground ${cellPx} text-right font-mono font-medium tabular-nums`}
                     >
                       ${Number(p.amount).toFixed(2)}
                     </TableCell>

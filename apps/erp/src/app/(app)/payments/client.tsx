@@ -1,18 +1,20 @@
 "use client";
 
+import type { ColumnDef } from "@tanstack/react-table";
 import { useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import type { IconName } from "@cendaro/ui/icons";
 import { Button } from "@cendaro/ui";
+import { Icon, Icons } from "@cendaro/ui/icons";
+import { StatusPill } from "@cendaro/ui/status-pill";
 
-import type { StatusTone } from "~/components/status-badge";
-import { EmptyState } from "~/components/empty-state";
+import { DataTable } from "~/components/data-table/data-table";
 import { PageHeader } from "~/components/page-header";
 import { RoleGuard } from "~/components/role-guard";
-import { Skeleton } from "~/components/skeleton";
 import { StatCard } from "~/components/stat-card";
-import { StatusBadge } from "~/components/status-badge";
+import { usePaymentParams } from "~/hooks/params/use-payment-params";
 import { useBcvRate } from "~/hooks/use-bcv-rate";
 import { formatDualCurrency } from "~/lib/format-currency";
 import { useTRPC } from "~/trpc/client";
@@ -25,41 +27,47 @@ const RegisterPaymentDialog = dynamic(
   { ssr: false },
 );
 
+interface PaymentItem {
+  id: string;
+  orderId?: string | null;
+  method: string;
+  amount: string | number;
+  reference?: string | null;
+  payerName?: string | null;
+  payerId?: string | null;
+  bankName?: string | null;
+  isValidated: boolean;
+  notes?: string | null;
+  createdAt: string | Date;
+}
+
 interface MethodMeta {
   label: string;
-  icon: string;
-  tone: StatusTone;
+  icon: IconName;
 }
 
 const METHOD_CONFIG: Record<string, MethodMeta> = {
   mobile_payment: {
     label: "Pago Móvil",
-    icon: "smartphone",
-    tone: "primary",
+    icon: "Smartphone",
   },
   transfer: {
     label: "Transferencia",
-    icon: "account_balance",
-    tone: "primary",
+    icon: "AccountBalance",
   },
   cash: {
     label: "Efectivo",
-    icon: "payments",
-    tone: "success",
+    icon: "Payments",
   },
   pos_terminal: {
     label: "Punto de Venta",
-    icon: "credit_card",
-    tone: "neutral",
+    icon: "CreditCard",
   },
   zelle: {
     label: "Zelle",
-    icon: "bolt",
-    tone: "warning",
+    icon: "Bolt",
   },
 };
-
-const cellPx = "px-4 py-3";
 
 export default function PaymentsClient() {
   const trpc = useTRPC();
@@ -70,11 +78,14 @@ export default function PaymentsClient() {
     "all" | "pending" | "validated"
   >("all");
   const [methodFilter, setMethodFilter] = useState<string>("all");
-  const [showRegister, setShowRegister] = useState(false);
+  const [{ registerPayment }, setPaymentParams] = usePaymentParams();
 
-  const { data: payments, isLoading } = useQuery(
-    trpc.sales.listPayments.queryOptions({ limit: 100 }),
-  );
+  const {
+    data: payments,
+    isLoading,
+    isError,
+    refetch,
+  } = useQuery(trpc.sales.listPayments.queryOptions({ limit: 100 }));
 
   const validate = useMutation(
     trpc.sales.validatePayment.mutationOptions({
@@ -105,7 +116,10 @@ export default function PaymentsClient() {
     }),
   );
 
-  const rawItems = useMemo(() => payments ?? [], [payments]);
+  const rawItems = useMemo(
+    () => (payments ?? []) as unknown as PaymentItem[],
+    [payments],
+  );
 
   // Overall metrics across all loaded payments
   const totalCollected = useMemo(
@@ -145,18 +159,138 @@ export default function PaymentsClient() {
     });
   }, [rawItems, statusFilter, methodFilter]);
 
+  const columns = useMemo<ColumnDef<PaymentItem>[]>(
+    () => [
+      {
+        accessorKey: "method",
+        header: "Método",
+        cell: ({ row }) => {
+          const p = row.original;
+          const cfg = METHOD_CONFIG[p.method] ?? {
+            label: p.method,
+            icon: "Payments" as const,
+          };
+          return (
+            <div className="flex items-center gap-2">
+              <Icon name={cfg.icon} className="text-muted-foreground size-4" />
+              <span className="text-foreground text-xs font-medium">
+                {cfg.label}
+              </span>
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "amount",
+        header: () => <div className="text-right">Monto</div>,
+        cell: ({ row }) => {
+          const amountNum = Number(row.original.amount);
+          return (
+            <div className="text-right font-mono font-medium tabular-nums">
+              ${amountNum.toFixed(2)}
+              {bcv.rate > 0 && (
+                <span className="text-muted-foreground ml-1.5 text-xs font-normal tabular-nums">
+                  {formatDualCurrency(amountNum, bcv.rate).bs}
+                </span>
+              )}
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "reference",
+        header: "Referencia",
+        cell: ({ row }) => (
+          <span className="text-muted-foreground font-mono text-xs tabular-nums">
+            {row.original.reference ?? "—"}
+          </span>
+        ),
+      },
+      {
+        id: "payer",
+        header: "Pagador / Banco",
+        cell: ({ row }) => (
+          <div>
+            <p className="text-foreground text-xs font-medium">
+              {row.original.payerName ?? "—"}
+            </p>
+            {row.original.bankName && (
+              <p className="text-muted-foreground text-[10px]">
+                {row.original.bankName}
+              </p>
+            )}
+          </div>
+        ),
+      },
+      {
+        id: "status",
+        header: () => <div className="text-center">Estado</div>,
+        cell: ({ row }) => (
+          <div className="text-center">
+            <StatusPill tone={row.original.isValidated ? "success" : "warning"}>
+              {row.original.isValidated ? "Validado" : "Por Validar"}
+            </StatusPill>
+          </div>
+        ),
+      },
+      {
+        accessorKey: "createdAt",
+        header: "Fecha",
+        cell: ({ row }) => (
+          <span className="text-muted-foreground font-mono text-xs tabular-nums">
+            {new Date(row.original.createdAt).toLocaleDateString("es-VE")}
+          </span>
+        ),
+      },
+      {
+        id: "actions",
+        header: () => <div className="text-right">Acción</div>,
+        cell: ({ row }) => {
+          const p = row.original;
+          if (p.isValidated) {
+            return (
+              <div className="text-right">
+                <span className="font-mono text-xs text-emerald-500 tabular-nums">
+                  Conciliado
+                </span>
+              </div>
+            );
+          }
+          return (
+            <div className="text-right">
+              <RoleGuard allow={["owner", "admin", "supervisor", "employee"]}>
+                <button
+                  type="button"
+                  disabled={validate.isPending}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    validate.mutate({ id: p.id });
+                  }}
+                  className="border-border hover:border-primary hover:text-primary h-8 border px-2.5 text-xs font-medium transition-colors disabled:opacity-50"
+                >
+                  Validar
+                </button>
+              </RoleGuard>
+            </div>
+          );
+        },
+      },
+    ],
+    [bcv.rate, validate],
+  );
+
   return (
-    <div className="animate-in fade-in slide-in-from-bottom-1 space-y-6 p-4 duration-200 lg:p-8">
+    <div className="animate-in fade-in slide-in-from-bottom-1 space-y-6 py-4 duration-200 lg:py-8">
       <PageHeader
         title="Pagos"
         description="Gestión, registro y conciliación de cobros comerciales"
         actions={
           <RoleGuard allow={["owner", "admin", "supervisor", "employee"]}>
             <Button
-              onClick={() => setShowRegister(true)}
+              onClick={() => void setPaymentParams({ registerPayment: true })}
               className="min-h-11 flex-1 sm:flex-initial"
             >
-              <span className="material-symbols-outlined text-lg">add</span>
+              <Icons.Add className="size-4.5" />
               Registrar Pago
             </Button>
           </RoleGuard>
@@ -164,8 +298,8 @@ export default function PaymentsClient() {
       />
 
       <RegisterPaymentDialog
-        open={showRegister}
-        onClose={() => setShowRegister(false)}
+        open={registerPayment}
+        onClose={() => void setPaymentParams({ registerPayment: false })}
       />
 
       {/* KPI Cards */}
@@ -180,24 +314,24 @@ export default function PaymentsClient() {
               ? undefined
               : formatDualCurrency(totalCollected, bcv.rate).bs
           }
-          icon="payments"
+          icon="Payments"
           tone="primary"
         />
         <StatCard
           label="Transacciones"
           value={isLoading ? "—" : rawItems.length.toLocaleString("es-VE")}
-          icon="receipt_long"
+          icon="ReceiptLong"
         />
         <StatCard
           label="Validados"
           value={isLoading ? "—" : validatedCount.toLocaleString("es-VE")}
-          icon="check_circle"
+          icon="CheckCircle"
           tone="success"
         />
         <StatCard
           label="Por Validar"
           value={isLoading ? "—" : pendingValidation.toLocaleString("es-VE")}
-          icon="pending"
+          icon="Pending"
           tone={pendingValidation > 0 ? "warning" : "default"}
         />
       </div>
@@ -215,19 +349,20 @@ export default function PaymentsClient() {
               onClick={() =>
                 setMethodFilter((curr) => (curr === key ? "all" : key))
               }
-              className={`border-border-subtle surface-card hover:border-primary/40 block rounded-xl border p-3.5 text-left transition-all ${
-                isSelected ? "border-primary ring-primary/20 ring-2" : ""
+              className={`border-border bg-card hover:border-primary/40 block border p-3.5 text-left transition-colors ${
+                isSelected ? "border-primary ring-primary/20 ring-1" : ""
               }`}
             >
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground text-xs font-medium">
                   {cfg.label}
                 </span>
-                <span className="material-symbols-outlined text-muted-foreground text-lg">
-                  {cfg.icon}
-                </span>
+                <Icon
+                  name={cfg.icon}
+                  className="text-muted-foreground size-4.5"
+                />
               </div>
-              <p className="text-foreground mt-2 font-mono text-xl font-bold tabular-nums">
+              <p className="text-foreground mt-2 font-mono text-xl font-medium tabular-nums">
                 {group?.count ?? 0}
               </p>
               <div className="mt-1">
@@ -257,24 +392,24 @@ export default function PaymentsClient() {
             onClick={() =>
               setStatusFilter(f.id as "all" | "pending" | "validated")
             }
-            className={`min-h-9 shrink-0 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+            className={`h-9 shrink-0 border px-3 text-xs font-medium transition-colors ${
               statusFilter === f.id
                 ? "border-primary bg-primary text-primary-foreground"
-                : "border-border-subtle text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+                : "border-border text-muted-foreground hover:bg-muted/40 hover:text-foreground"
             }`}
           >
             {f.label}
           </button>
         ))}
 
-        <div className="bg-border-subtle my-auto h-4 w-px shrink-0" />
+        <div className="bg-border my-auto h-4 w-px shrink-0" />
 
         <button
           onClick={() => setMethodFilter("all")}
-          className={`min-h-9 shrink-0 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+          className={`h-9 shrink-0 border px-3 text-xs font-medium transition-colors ${
             methodFilter === "all"
               ? "border-primary bg-primary text-primary-foreground"
-              : "border-border-subtle text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+              : "border-border text-muted-foreground hover:bg-muted/40 hover:text-foreground"
           }`}
         >
           Todos los Métodos
@@ -283,10 +418,10 @@ export default function PaymentsClient() {
           <button
             key={key}
             onClick={() => setMethodFilter(key)}
-            className={`min-h-9 shrink-0 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+            className={`h-9 shrink-0 border px-3 text-xs font-medium transition-colors ${
               methodFilter === key
                 ? "border-primary bg-primary text-primary-foreground"
-                : "border-border-subtle text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+                : "border-border text-muted-foreground hover:bg-muted/40 hover:text-foreground"
             }`}
           >
             {cfg.label}
@@ -294,271 +429,24 @@ export default function PaymentsClient() {
         ))}
       </div>
 
-      {/* ── Mobile: Card View ─────────────────────── */}
-      <div className="space-y-3 md:hidden">
-        {isLoading
-          ? Array.from({ length: 4 }).map((_, i) => (
-              <div
-                key={i}
-                className="border-border-subtle surface-card rounded-xl border p-4"
-              >
-                <Skeleton className="h-5 w-3/4" />
-                <Skeleton className="mt-2 h-4 w-24" />
-              </div>
-            ))
-          : filteredItems.map((p) => {
-              const cfg = METHOD_CONFIG[p.method] ?? {
-                label: p.method,
-                icon: "payments",
-                tone: "neutral" as StatusTone,
-              };
-              const amountNum = Number(p.amount);
-              return (
-                <div
-                  key={p.id}
-                  className="border-border-subtle surface-card rounded-xl border p-4"
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-2">
-                      <span
-                        aria-hidden
-                        className="material-symbols-outlined text-muted-foreground text-lg"
-                      >
-                        {cfg.icon}
-                      </span>
-                      <StatusBadge tone={cfg.tone}>{cfg.label}</StatusBadge>
-                    </div>
-                    {p.isValidated ? (
-                      <StatusBadge tone="success">Validado</StatusBadge>
-                    ) : (
-                      <StatusBadge tone="warning">Por Validar</StatusBadge>
-                    )}
-                  </div>
-
-                  <div className="mt-3 flex items-center justify-between">
-                    <div>
-                      <p className="text-muted-foreground text-xs font-medium tracking-wider uppercase">
-                        Monto
-                      </p>
-                      <p className="text-foreground font-mono text-base font-bold tabular-nums">
-                        ${amountNum.toFixed(2)}
-                      </p>
-                      {bcv.rate > 0 && (
-                        <p className="text-muted-foreground font-mono text-xs tabular-nums">
-                          {formatDualCurrency(amountNum, bcv.rate).bs}
-                        </p>
-                      )}
-                    </div>
-                    {p.reference && (
-                      <div className="text-right">
-                        <p className="text-muted-foreground text-xs font-medium tracking-wider uppercase">
-                          Referencia
-                        </p>
-                        <p className="text-foreground font-mono text-xs font-semibold tabular-nums">
-                          {p.reference}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-
-                  {(p.payerName ?? p.bankName) && (
-                    <div className="border-border-subtle mt-3 flex items-center justify-between border-t pt-2 text-xs">
-                      <span className="text-muted-foreground truncate">
-                        {p.payerName ?? "—"}
-                      </span>
-                      {p.bankName && (
-                        <span className="text-muted-foreground shrink-0 font-medium">
-                          {p.bankName}
-                        </span>
-                      )}
-                    </div>
-                  )}
-
-                  <div className="mt-3 flex items-center justify-between">
-                    <p className="text-muted-foreground font-mono text-xs tabular-nums">
-                      {new Date(p.createdAt).toLocaleDateString("es-VE")}
-                    </p>
-                    {!p.isValidated && (
-                      <RoleGuard
-                        allow={["owner", "admin", "supervisor", "employee"]}
-                      >
-                        <button
-                          type="button"
-                          disabled={validate.isPending}
-                          onClick={() => validate.mutate({ id: p.id })}
-                          className="bg-primary text-primary-foreground hover:bg-primary/90 min-h-9 rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors disabled:opacity-50"
-                        >
-                          Validar
-                        </button>
-                      </RoleGuard>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-
-        {!isLoading && filteredItems.length === 0 && (
-          <EmptyState
-            icon="payments"
-            title="No se encontraron pagos"
-            description="Ajusta los filtros seleccionados o registra un nuevo cobro comercial."
-          />
-        )}
-      </div>
-
-      {/* ── Desktop: Table View ───────────────────── */}
-      <div className="border-border-subtle surface-card hidden gap-0 overflow-hidden rounded-xl border py-0 md:block">
-        <table className="w-full text-left text-sm">
-          <thead>
-            <tr className="border-border-subtle border-b">
-              <th
-                className={`text-muted-foreground ${cellPx} text-xs font-medium tracking-widest uppercase`}
-              >
-                Método
-              </th>
-              <th
-                className={`text-muted-foreground ${cellPx} text-right text-xs font-medium tracking-widest uppercase`}
-              >
-                Monto
-              </th>
-              <th
-                className={`text-muted-foreground ${cellPx} text-xs font-medium tracking-widest uppercase`}
-              >
-                Referencia
-              </th>
-              <th
-                className={`text-muted-foreground ${cellPx} text-xs font-medium tracking-widest uppercase`}
-              >
-                Pagador / Banco
-              </th>
-              <th
-                className={`text-muted-foreground ${cellPx} text-center text-xs font-medium tracking-widest uppercase`}
-              >
-                Estado
-              </th>
-              <th
-                className={`text-muted-foreground ${cellPx} text-xs font-medium tracking-widest uppercase`}
-              >
-                Fecha
-              </th>
-              <th
-                className={`text-muted-foreground ${cellPx} text-right text-xs font-medium tracking-widest uppercase`}
-              >
-                Acción
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {isLoading
-              ? Array.from({ length: 5 }).map((_, i) => (
-                  <tr key={i} className="border-border-subtle border-b">
-                    {Array.from({ length: 7 }).map((_, j) => (
-                      <td key={j} className={cellPx}>
-                        <Skeleton className="h-5 w-16" />
-                      </td>
-                    ))}
-                  </tr>
-                ))
-              : filteredItems.map((p) => {
-                  const cfg = METHOD_CONFIG[p.method] ?? {
-                    label: p.method,
-                    icon: "payments",
-                    tone: "neutral" as StatusTone,
-                  };
-                  const amountNum = Number(p.amount);
-                  return (
-                    <tr
-                      key={p.id}
-                      className="border-border-subtle hover:bg-accent/50 border-b transition-colors"
-                    >
-                      <td className={cellPx}>
-                        <div className="flex items-center gap-2">
-                          <span
-                            aria-hidden
-                            className="material-symbols-outlined text-muted-foreground text-lg"
-                          >
-                            {cfg.icon}
-                          </span>
-                          <span className="text-foreground text-xs font-medium">
-                            {cfg.label}
-                          </span>
-                        </div>
-                      </td>
-                      <td
-                        className={`text-foreground ${cellPx} text-right font-mono font-semibold tabular-nums`}
-                      >
-                        ${amountNum.toFixed(2)}
-                        {bcv.rate > 0 && (
-                          <span className="text-muted-foreground ml-1 text-xs font-normal tabular-nums">
-                            {formatDualCurrency(amountNum, bcv.rate).bs}
-                          </span>
-                        )}
-                      </td>
-                      <td
-                        className={`text-muted-foreground ${cellPx} font-mono text-xs tabular-nums`}
-                      >
-                        {p.reference ?? "—"}
-                      </td>
-                      <td className={cellPx}>
-                        <p className="text-foreground text-xs font-medium">
-                          {p.payerName ?? "—"}
-                        </p>
-                        {p.bankName && (
-                          <p className="text-muted-foreground text-[10px]">
-                            {p.bankName}
-                          </p>
-                        )}
-                      </td>
-                      <td className={`${cellPx} text-center`}>
-                        {p.isValidated ? (
-                          <StatusBadge tone="success">Validado</StatusBadge>
-                        ) : (
-                          <StatusBadge tone="warning">Por Validar</StatusBadge>
-                        )}
-                      </td>
-                      <td
-                        className={`text-muted-foreground ${cellPx} font-mono text-xs tabular-nums`}
-                      >
-                        {new Date(p.createdAt).toLocaleString("es-VE")}
-                      </td>
-                      <td className={`${cellPx} text-right`}>
-                        {p.isValidated ? (
-                          <span className="font-mono text-xs text-emerald-500 tabular-nums">
-                            Conciliado
-                          </span>
-                        ) : (
-                          <RoleGuard
-                            allow={["owner", "admin", "supervisor", "employee"]}
-                          >
-                            <button
-                              type="button"
-                              disabled={validate.isPending}
-                              onClick={() => validate.mutate({ id: p.id })}
-                              className="border-border-subtle hover:border-primary hover:text-primary min-h-8 rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-50"
-                            >
-                              Validar
-                            </button>
-                          </RoleGuard>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-
-            {!isLoading && filteredItems.length === 0 && (
-              <tr className="hover:bg-transparent">
-                <td colSpan={7} className="px-4 py-6">
-                  <EmptyState
-                    icon="payments"
-                    title="No se encontraron pagos"
-                    description="Ajusta los filtros seleccionados o registra un nuevo cobro comercial."
-                  />
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+      {/* Main Content: DataTable with loading, error, and empty states handled natively */}
+      <DataTable
+        columns={columns}
+        data={filteredItems}
+        isLoading={isLoading}
+        isError={isError}
+        onRetry={() => void refetch()}
+        onResetFilters={
+          statusFilter !== "all" || methodFilter !== "all"
+            ? () => {
+                setStatusFilter("all");
+                setMethodFilter("all");
+              }
+            : undefined
+        }
+        emptyTitle="No se encontraron pagos"
+        emptyDescription="Ajusta los filtros seleccionados o registra un nuevo cobro comercial."
+      />
     </div>
   );
 }

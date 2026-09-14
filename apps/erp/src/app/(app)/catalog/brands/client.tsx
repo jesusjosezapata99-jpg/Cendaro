@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import { useQuery } from "@tanstack/react-query";
 
 import { Button, Input } from "@cendaro/ui";
+import { Icons } from "@cendaro/ui/icons";
 
 import { EmptyState } from "~/components/empty-state";
 import { PageHeader } from "~/components/page-header";
@@ -21,11 +22,11 @@ const CreateBrandDialog = dynamic(
 
 /** Brand avatar chips rotate through the system chart palette. */
 const AVATAR_TONES = [
-  "bg-chart-1/15 text-chart-1",
-  "bg-chart-2/15 text-chart-2",
-  "bg-chart-3/15 text-chart-3",
-  "bg-chart-4/15 text-chart-4",
-  "bg-chart-5/15 text-chart-5",
+  "bg-chart-1/10 text-chart-1 border-chart-1/20",
+  "bg-chart-2/10 text-chart-2 border-chart-2/20",
+  "bg-chart-3/10 text-chart-3 border-chart-3/20",
+  "bg-chart-4/10 text-chart-4 border-chart-4/20",
+  "bg-chart-5/10 text-chart-5 border-chart-5/20",
 ];
 
 export default function BrandsPage() {
@@ -44,13 +45,16 @@ export default function BrandsPage() {
   );
 
   return (
-    <div className="animate-in fade-in slide-in-from-bottom-1 space-y-6 p-4 duration-200 lg:p-8">
+    <div className="animate-in fade-in slide-in-from-bottom-1 space-y-6 py-4 duration-200 lg:py-8">
       <PageHeader
         title="Marcas"
         description={`${(brands?.length ?? 0).toLocaleString("es-VE")} marcas registradas en el catálogo`}
         actions={
-          <Button onClick={() => setShowCreate(true)} className="min-h-11">
-            <span className="material-symbols-outlined text-lg">add</span>
+          <Button
+            onClick={() => setShowCreate(true)}
+            className="h-9 px-3 text-xs"
+          >
+            <Icons.Add className="mr-1.5 size-4" />
             Nueva Marca
           </Button>
         }
@@ -63,18 +67,16 @@ export default function BrandsPage() {
 
       {/* Search */}
       <div className="relative">
-        <span
+        <Icons.Search
+          className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-3.5 -translate-y-1/2"
           aria-hidden
-          className="material-symbols-outlined text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-base"
-        >
-          search
-        </span>
+        />
         <Input
           type="text"
           placeholder="Buscar marca..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="min-h-11 pl-10"
+          className="h-9 pl-9 text-xs"
         />
       </div>
 
@@ -82,11 +84,8 @@ export default function BrandsPage() {
       {isLoading ? (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {Array.from({ length: 8 }).map((_, i) => (
-            <div
-              key={i}
-              className="border-border-subtle surface-card rounded-xl border p-4"
-            >
-              <Skeleton className="h-12 w-full" />
+            <div key={i} className="border-border bg-card border p-4">
+              <Skeleton className="h-10 w-full" />
               <Skeleton className="mt-3 h-4 w-20" />
             </div>
           ))}
@@ -99,17 +98,17 @@ export default function BrandsPage() {
             return (
               <div
                 key={brand.id}
-                className="border-border-subtle surface-card hover:border-primary/30 group rounded-xl border p-4 transition-all duration-200 hover:shadow-sm"
+                className="border-border bg-card hover:border-foreground/40 group border p-4 transition-colors"
               >
                 <div className="flex items-center gap-3">
                   <div
                     aria-hidden
-                    className={`flex size-12 shrink-0 items-center justify-center rounded-xl text-sm font-bold ${tone}`}
+                    className={`flex size-10 shrink-0 items-center justify-center border font-mono text-xs font-medium ${tone}`}
                   >
                     {initials}
                   </div>
                   <div className="min-w-0">
-                    <p className="text-foreground group-hover:text-primary truncate font-medium transition-colors">
+                    <p className="text-foreground group-hover:text-primary truncate text-sm font-medium transition-colors">
                       {brand.name}
                     </p>
                     <p className="text-muted-foreground truncate font-mono text-xs">
@@ -128,7 +127,7 @@ export default function BrandsPage() {
 
       {filtered.length === 0 && !isLoading && (
         <EmptyState
-          icon="label_off"
+          icon="LabelOff"
           title="No se encontraron marcas"
           description="Ajusta la búsqueda o crea una nueva marca para empezar."
         />

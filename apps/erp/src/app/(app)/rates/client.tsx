@@ -1,16 +1,19 @@
 "use client";
 
+import type { ColumnDef } from "@tanstack/react-table";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import type { IconName } from "@cendaro/ui/icons";
+import type { StatusTone } from "@cendaro/ui/status-pill";
 import { Button } from "@cendaro/ui";
+import { Icon, Icons } from "@cendaro/ui/icons";
+import { StatusPill } from "@cendaro/ui/status-pill";
 
-import type { StatusTone } from "~/components/status-badge";
+import { DataTable } from "~/components/data-table/data-table";
 import { EmptyState } from "~/components/empty-state";
 import { PageHeader } from "~/components/page-header";
 import { RoleGuard } from "~/components/role-guard";
-import { Skeleton } from "~/components/skeleton";
-import { StatusBadge } from "~/components/status-badge";
 import { useVesRates } from "~/hooks/use-bcv-rate";
 import { useCnyRate } from "~/hooks/use-cny-rate";
 import { maybeSyncVesRates } from "~/lib/sync-bcv-rate";
@@ -20,7 +23,7 @@ import { useTRPC } from "~/trpc/client";
 interface RateMeta {
   label: string;
   unit: string;
-  icon: string;
+  icon: IconName;
   tone: StatusTone;
 }
 
@@ -28,30 +31,36 @@ const RATE_META: Record<string, RateMeta> = {
   bcv: {
     label: "Tasa Oficial (BCV)",
     unit: "Bs/USD",
-    icon: "account_balance",
-    tone: "primary",
+    icon: "AccountBalance",
+    tone: "default",
   },
   parallel: {
     label: "Paralelo (USDT)",
     unit: "Bs/USDT",
-    icon: "currency_exchange",
+    icon: "CurrencyExchange",
     tone: "warning",
   },
   rmb_usd: {
     label: "RMB → USD",
     unit: "RMB/USD",
-    icon: "currency_yuan",
+    icon: "CurrencyYuan",
     tone: "destructive",
   },
   rmb_bs: {
     label: "RMB → Bs",
     unit: "Bs/RMB",
-    icon: "sync_alt",
+    icon: "SyncAlt",
     tone: "success",
   },
 };
 
-const cellPx = "px-4 py-3";
+interface RateHistoryItem {
+  id: string;
+  rateType: string;
+  rate: number;
+  source: string | null;
+  createdAt: Date | string;
+}
 
 export default function RatesClient() {
   const trpc = useTRPC();
@@ -60,9 +69,12 @@ export default function RatesClient() {
   const { data: latestRates, isLoading: ratesLoading } = useQuery(
     trpc.pricing.latestRates.queryOptions(),
   );
-  const { data: rateHistory, isLoading: historyLoading } = useQuery(
-    trpc.pricing.rateHistory.queryOptions({ limit: 100 }),
-  );
+  const {
+    data: rateHistory,
+    isLoading: historyLoading,
+    isError: historyError,
+    refetch: refetchHistory,
+  } = useQuery(trpc.pricing.rateHistory.queryOptions({ limit: 100 }));
 
   const [rateFilter, setRateFilter] = useState<string>("all");
   const [convertAmount, setConvertAmount] = useState("100");
@@ -156,7 +168,7 @@ export default function RatesClient() {
       const meta = RATE_META[r.rateType] ?? {
         label: r.rateType,
         unit: "",
-        icon: "currency_exchange",
+        icon: "CurrencyExchange" as const,
         tone: "neutral" as StatusTone,
       };
 
@@ -211,14 +223,72 @@ export default function RatesClient() {
     cny.date,
   ]);
 
+  const rawHistory = useMemo(
+    () => (rateHistory ?? []) as unknown as RateHistoryItem[],
+    [rateHistory],
+  );
+
   const filteredHistory = useMemo(() => {
-    const list = rateHistory ?? [];
-    if (rateFilter === "all") return list;
-    return list.filter((h) => h.rateType === rateFilter);
-  }, [rateHistory, rateFilter]);
+    if (rateFilter === "all") return rawHistory;
+    return rawHistory.filter((h) => h.rateType === rateFilter);
+  }, [rawHistory, rateFilter]);
+
+  const columns = useMemo<ColumnDef<RateHistoryItem>[]>(
+    () => [
+      {
+        accessorKey: "createdAt",
+        header: "Fecha y Hora",
+        cell: ({ row }) => (
+          <span className="text-muted-foreground font-mono text-xs tabular-nums">
+            {new Date(row.original.createdAt).toLocaleString("es-VE")}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "rateType",
+        header: "Tipo de Tasa",
+        cell: ({ row }) => {
+          const meta = RATE_META[row.original.rateType] ?? {
+            label: row.original.rateType,
+            unit: "",
+            icon: "CurrencyExchange" as const,
+            tone: "neutral" as StatusTone,
+          };
+          return (
+            <div className="flex items-center gap-2">
+              <Icon
+                name={meta.icon}
+                className="text-muted-foreground size-4 shrink-0"
+              />
+              <StatusPill tone={meta.tone}>{meta.label}</StatusPill>
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "rate",
+        header: () => <div className="text-right">Cotización</div>,
+        cell: ({ row }) => (
+          <div className="text-foreground text-right font-mono text-sm font-medium tabular-nums">
+            {row.original.rate.toFixed(2)}
+          </div>
+        ),
+      },
+      {
+        accessorKey: "source",
+        header: "Fuente Registrada",
+        cell: ({ row }) => (
+          <span className="text-muted-foreground text-xs">
+            {row.original.source ?? "—"}
+          </span>
+        ),
+      },
+    ],
+    [],
+  );
 
   return (
-    <div className="animate-in fade-in slide-in-from-bottom-1 space-y-6 p-4 duration-200 lg:p-8">
+    <div className="animate-in fade-in slide-in-from-bottom-1 space-y-6 py-4 duration-200 lg:py-8">
       <PageHeader
         title="Tasas de Cambio"
         description="Panel centralizado de divisas, sincronización automática y brecha cambiaria"
@@ -229,7 +299,7 @@ export default function RatesClient() {
               className="min-h-11 flex-1 sm:flex-initial"
               disabled={syncRate.isPending}
             >
-              <span className="material-symbols-outlined text-lg">sync</span>
+              <Icons.Sync className="size-4.5" />
               {syncRate.isPending ? "Sincronizando..." : "Actualizar Tasas"}
             </Button>
           </RoleGuard>
@@ -242,11 +312,11 @@ export default function RatesClient() {
           ? Array.from({ length: 4 }).map((_, i) => (
               <div
                 key={i}
-                className="border-border-subtle surface-card rounded-xl border p-4"
+                className="border-border bg-card animate-pulse border p-4"
               >
-                <Skeleton className="h-4 w-28" />
-                <Skeleton className="mt-3 h-8 w-36" />
-                <Skeleton className="mt-2 h-3 w-20" />
+                <div className="bg-muted h-4 w-28" />
+                <div className="bg-muted mt-3 h-8 w-36" />
+                <div className="bg-muted mt-2 h-3 w-20" />
               </div>
             ))
           : rateCards.map((rate) => {
@@ -254,25 +324,24 @@ export default function RatesClient() {
               return (
                 <div
                   key={rate.type}
-                  className="border-border-subtle surface-card rounded-xl border p-4 transition-all"
+                  className="border-border bg-card hover:border-foreground/20 border p-4 transition-colors"
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className="material-symbols-outlined text-muted-foreground text-lg">
-                        {rate.icon}
-                      </span>
-                      <span className="text-muted-foreground text-xs font-semibold tracking-wider uppercase">
+                      <Icon
+                        name={rate.icon}
+                        className="text-muted-foreground size-4.5"
+                      />
+                      <span className="text-muted-foreground text-xs font-medium tracking-wider uppercase">
                         {rate.label}
                       </span>
                     </div>
                     {rate.isLive && (
-                      <span className="rounded border border-emerald-500/30 bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-bold text-emerald-500">
-                        En vivo
-                      </span>
+                      <StatusPill tone="success">En vivo</StatusPill>
                     )}
                   </div>
 
-                  <p className="text-foreground mt-3 font-mono text-3xl font-bold tabular-nums">
+                  <p className="text-foreground mt-3 font-mono text-3xl font-medium tabular-nums">
                     {rate.value.toFixed(2)}
                   </p>
 
@@ -283,19 +352,21 @@ export default function RatesClient() {
 
                     {rate.delta !== 0 && (
                       <div
-                        className={`flex items-center gap-0.5 font-mono text-xs font-bold tabular-nums ${
+                        className={`flex items-center gap-0.5 font-mono text-xs font-medium tabular-nums ${
                           isUp ? "text-destructive" : "text-emerald-500"
                         }`}
                       >
-                        <span className="material-symbols-outlined text-sm">
-                          {isUp ? "trending_up" : "trending_down"}
-                        </span>
+                        {isUp ? (
+                          <Icons.TrendingUp className="size-3.5" />
+                        ) : (
+                          <Icons.TrendingDown className="size-3.5" />
+                        )}
                         <span>{Math.abs(rate.delta).toFixed(2)}%</span>
                       </div>
                     )}
                   </div>
 
-                  <div className="border-border-subtle text-muted-foreground mt-3 truncate border-t pt-2 text-[10px]">
+                  <div className="border-border text-muted-foreground mt-3 truncate border-t pt-2 text-[10px]">
                     {rate.source}
                   </div>
                 </div>
@@ -305,17 +376,15 @@ export default function RatesClient() {
 
       {/* Brecha Cambiaria (Spread Card) */}
       {ves.oficial.rate > 0 && ves.paralelo.rate > 0 && (
-        <div className="border-border-subtle surface-card rounded-xl border p-5">
+        <div className="border-border bg-card border p-5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="material-symbols-outlined text-muted-foreground text-base">
-                currency_exchange
-              </span>
-              <h2 className="text-foreground text-xs font-semibold tracking-wider uppercase">
+              <Icons.CurrencyExchange className="text-muted-foreground size-4" />
+              <h2 className="text-foreground text-xs font-medium tracking-wider uppercase">
                 Brecha Cambiaria Oficial vs Paralelo
               </h2>
             </div>
-            <StatusBadge
+            <StatusPill
               tone={
                 ves.spread.percentage > 15
                   ? "destructive"
@@ -325,15 +394,15 @@ export default function RatesClient() {
               }
             >
               Spread: {ves.spread.percentage.toFixed(2)}%
-            </StatusBadge>
+            </StatusPill>
           </div>
 
           <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <div className="border-border-subtle bg-card/60 rounded-lg border p-3.5">
+            <div className="border-border bg-card/60 border p-3.5">
               <p className="text-muted-foreground text-[10px] font-medium tracking-wider uppercase">
                 Oficial (BCV)
               </p>
-              <p className="text-primary mt-1 font-mono text-2xl font-bold tabular-nums">
+              <p className="text-primary mt-1 font-mono text-2xl font-medium tabular-nums">
                 {ves.oficial.rate.toFixed(2)}
               </p>
               <p className="text-muted-foreground font-mono text-xs tabular-nums">
@@ -341,11 +410,11 @@ export default function RatesClient() {
               </p>
             </div>
 
-            <div className="border-border-subtle bg-card/60 rounded-lg border p-3.5">
+            <div className="border-border bg-card/60 border p-3.5">
               <p className="text-muted-foreground text-[10px] font-medium tracking-wider uppercase">
                 Paralelo (USDT)
               </p>
-              <p className="mt-1 font-mono text-2xl font-bold text-amber-500 tabular-nums">
+              <p className="mt-1 font-mono text-2xl font-medium text-amber-500 tabular-nums">
                 {ves.paralelo.rate.toFixed(2)}
               </p>
               <p className="text-muted-foreground font-mono text-xs tabular-nums">
@@ -353,11 +422,11 @@ export default function RatesClient() {
               </p>
             </div>
 
-            <div className="border-border-subtle bg-card/60 rounded-lg border p-3.5">
+            <div className="border-border bg-card/60 border p-3.5">
               <p className="text-muted-foreground text-[10px] font-medium tracking-wider uppercase">
                 Diferencial Neto
               </p>
-              <p className="text-foreground mt-1 font-mono text-2xl font-bold tabular-nums">
+              <p className="text-foreground mt-1 font-mono text-2xl font-medium tabular-nums">
                 +Bs {ves.spread.absolute.toFixed(2)}
               </p>
               <p className="text-muted-foreground font-mono text-xs tabular-nums">
@@ -369,12 +438,10 @@ export default function RatesClient() {
       )}
 
       {/* Multi-currency Calculator */}
-      <div className="border-border-subtle surface-card rounded-xl border p-5">
+      <div className="border-border bg-card border p-5">
         <div className="flex items-center gap-2">
-          <span className="material-symbols-outlined text-muted-foreground text-base">
-            currency_exchange
-          </span>
-          <h2 className="text-foreground text-xs font-semibold tracking-wider uppercase">
+          <Icons.CurrencyExchange className="text-muted-foreground size-4" />
+          <h2 className="text-foreground text-xs font-medium tracking-wider uppercase">
             Calculadora de Conversión Multi-Moneda
           </h2>
         </div>
@@ -390,7 +457,7 @@ export default function RatesClient() {
               min="0"
               value={convertAmount}
               onChange={(e) => setConvertAmount(e.target.value)}
-              className="border-border-subtle bg-card text-foreground focus:border-primary focus:ring-ring/20 w-full rounded-lg border px-3 py-2 font-mono text-base tabular-nums outline-none focus:ring-2"
+              className="border-border bg-background text-foreground focus:border-foreground w-full border px-3 py-2 font-mono text-base tabular-nums transition-colors outline-none"
             />
           </div>
 
@@ -403,7 +470,7 @@ export default function RatesClient() {
               onChange={(e) =>
                 setConvertFrom(e.target.value as "usd" | "bs" | "rmb")
               }
-              className="border-border-subtle bg-card text-foreground w-full rounded-lg border px-3 py-2 text-sm outline-none"
+              className="border-border bg-background text-foreground focus:border-foreground w-full border px-3 py-2 text-sm transition-colors outline-none"
             >
               <option value="usd">USD ($)</option>
               <option value="bs">Bolívares (Bs)</option>
@@ -416,11 +483,9 @@ export default function RatesClient() {
               type="button"
               onClick={handleSwapCurrencies}
               aria-label="Invertir monedas"
-              className="border-border-subtle hover:bg-accent text-muted-foreground hover:text-foreground flex size-9 items-center justify-center rounded-lg border transition-colors"
+              className="border-border hover:border-foreground hover:bg-accent text-muted-foreground hover:text-foreground flex size-9 items-center justify-center border transition-colors"
             >
-              <span className="material-symbols-outlined text-lg">
-                swap_horiz
-              </span>
+              <Icons.SwapHoriz className="size-4.5" />
             </button>
           </div>
 
@@ -433,7 +498,7 @@ export default function RatesClient() {
               onChange={(e) =>
                 setConvertTo(e.target.value as "usd" | "bs" | "rmb")
               }
-              className="border-border-subtle bg-card text-foreground w-full rounded-lg border px-3 py-2 text-sm outline-none"
+              className="border-border bg-background text-foreground focus:border-foreground w-full border px-3 py-2 text-sm transition-colors outline-none"
             >
               <option value="bs">Bolívares (Bs)</option>
               <option value="usd">USD ($)</option>
@@ -451,7 +516,7 @@ export default function RatesClient() {
                 onChange={(e) =>
                   setConvertRateType(e.target.value as "oficial" | "paralelo")
                 }
-                className="border-border-subtle bg-card text-foreground w-full rounded-lg border px-3 py-2 text-sm outline-none"
+                className="border-border bg-background text-foreground focus:border-foreground w-full border px-3 py-2 text-sm transition-colors outline-none"
               >
                 <option value="oficial">
                   Oficial BCV ({liveBcv.toFixed(2)})
@@ -464,7 +529,7 @@ export default function RatesClient() {
           )}
 
           <div
-            className={`border-border-subtle bg-primary/5 rounded-lg border p-3 ${
+            className={`border-border bg-primary/5 border p-3 ${
               convertFrom === "bs" || convertTo === "bs"
                 ? "lg:col-span-2"
                 : "lg:col-span-4"
@@ -473,7 +538,7 @@ export default function RatesClient() {
             <p className="text-muted-foreground text-[10px] font-medium tracking-wider uppercase">
               Resultado Estimado
             </p>
-            <p className="text-primary mt-0.5 font-mono text-xl font-bold tabular-nums">
+            <p className="text-primary mt-0.5 font-mono text-xl font-medium tabular-nums">
               {computeConversion().toLocaleString("es-VE", {
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2,
@@ -487,10 +552,8 @@ export default function RatesClient() {
       <div className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-muted-foreground text-base">
-              schedule
-            </span>
-            <h2 className="text-foreground text-xs font-semibold tracking-wider uppercase">
+            <Icons.Schedule className="text-muted-foreground size-4" />
+            <h2 className="text-foreground text-xs font-medium tracking-wider uppercase">
               Historial de Cotizaciones
             </h2>
           </div>
@@ -507,10 +570,10 @@ export default function RatesClient() {
               <button
                 key={f.id}
                 onClick={() => setRateFilter(f.id)}
-                className={`min-h-8 rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors ${
+                className={`h-8 shrink-0 border px-2.5 text-xs font-medium transition-colors ${
                   rateFilter === f.id
                     ? "border-primary bg-primary text-primary-foreground"
-                    : "border-border-subtle text-muted-foreground hover:bg-accent/50 hover:text-foreground"
+                    : "border-border text-muted-foreground hover:bg-muted/40 hover:text-foreground"
                 }`}
               >
                 {f.label}
@@ -521,152 +584,77 @@ export default function RatesClient() {
 
         {/* ── Mobile: Card View ─────────────────────── */}
         <div className="space-y-2 md:hidden">
-          {historyLoading
-            ? Array.from({ length: 4 }).map((_, i) => (
+          {historyLoading ? (
+            Array.from({ length: 4 }).map((_, i) => (
+              <div
+                key={i}
+                className="border-border bg-card animate-pulse border p-3"
+              >
+                <div className="bg-muted h-4 w-28" />
+                <div className="bg-muted mt-2 h-6 w-20" />
+              </div>
+            ))
+          ) : filteredHistory.length === 0 ? (
+            <div className="border-border bg-card border p-8">
+              <EmptyState
+                icon="Schedule"
+                title="Sin registros históricos"
+                description="No hay cotizaciones para el tipo de tasa seleccionado."
+              />
+            </div>
+          ) : (
+            filteredHistory.map((entry) => {
+              const meta = RATE_META[entry.rateType] ?? {
+                label: entry.rateType,
+                unit: "",
+                icon: "CurrencyExchange" as const,
+                tone: "neutral" as StatusTone,
+              };
+              return (
                 <div
-                  key={i}
-                  className="border-border-subtle surface-card rounded-xl border p-3"
+                  key={entry.id}
+                  className="border-border bg-card border p-3.5"
                 >
-                  <Skeleton className="h-4 w-28" />
-                  <Skeleton className="mt-2 h-6 w-20" />
-                </div>
-              ))
-            : filteredHistory.map((entry) => {
-                const meta = RATE_META[entry.rateType] ?? {
-                  label: entry.rateType,
-                  unit: "",
-                  icon: "currency_exchange",
-                  tone: "neutral" as StatusTone,
-                };
-                return (
-                  <div
-                    key={entry.id}
-                    className="border-border-subtle surface-card rounded-xl border p-3.5"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="material-symbols-outlined text-muted-foreground text-base">
-                          {meta.icon}
-                        </span>
-                        <StatusBadge tone={meta.tone}>{meta.label}</StatusBadge>
-                      </div>
-                      <span className="text-foreground font-mono text-base font-bold tabular-nums">
-                        {entry.rate.toFixed(2)}
-                      </span>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Icon
+                        name={meta.icon}
+                        className="text-muted-foreground size-4"
+                      />
+                      <StatusPill tone={meta.tone}>{meta.label}</StatusPill>
                     </div>
-                    <div className="text-muted-foreground mt-2 flex items-center justify-between text-xs">
-                      <span className="font-mono tabular-nums">
-                        {new Date(entry.createdAt).toLocaleString("es-VE")}
-                      </span>
-                      <span className="max-w-37.5 truncate">
-                        {entry.source ?? "—"}
-                      </span>
-                    </div>
+                    <span className="text-foreground font-mono text-base font-medium tabular-nums">
+                      {entry.rate.toFixed(2)}
+                    </span>
                   </div>
-                );
-              })}
-
-          {!historyLoading && filteredHistory.length === 0 && (
-            <EmptyState
-              icon="schedule"
-              title="Sin registros históricos"
-              description="No hay cotizaciones para el tipo de tasa seleccionado."
-            />
+                  <div className="text-muted-foreground mt-2 flex items-center justify-between text-xs">
+                    <span className="font-mono tabular-nums">
+                      {new Date(entry.createdAt).toLocaleString("es-VE")}
+                    </span>
+                    <span className="max-w-37.5 truncate">
+                      {entry.source ?? "—"}
+                    </span>
+                  </div>
+                </div>
+              );
+            })
           )}
         </div>
 
         {/* ── Desktop: Table View ───────────────────── */}
-        <div className="border-border-subtle surface-card hidden gap-0 overflow-hidden rounded-xl border py-0 md:block">
-          <table className="w-full text-left text-sm">
-            <thead>
-              <tr className="border-border-subtle border-b">
-                <th
-                  className={`text-muted-foreground ${cellPx} text-xs font-medium tracking-widest uppercase`}
-                >
-                  Fecha y Hora
-                </th>
-                <th
-                  className={`text-muted-foreground ${cellPx} text-xs font-medium tracking-widest uppercase`}
-                >
-                  Tipo de Tasa
-                </th>
-                <th
-                  className={`text-muted-foreground ${cellPx} text-right text-xs font-medium tracking-widest uppercase`}
-                >
-                  Cotización
-                </th>
-                <th
-                  className={`text-muted-foreground ${cellPx} text-xs font-medium tracking-widest uppercase`}
-                >
-                  Fuente Registrada
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {historyLoading
-                ? Array.from({ length: 5 }).map((_, i) => (
-                    <tr key={i} className="border-border-subtle border-b">
-                      {Array.from({ length: 4 }).map((_, j) => (
-                        <td key={j} className={cellPx}>
-                          <Skeleton className="h-5 w-20" />
-                        </td>
-                      ))}
-                    </tr>
-                  ))
-                : filteredHistory.map((entry) => {
-                    const meta = RATE_META[entry.rateType] ?? {
-                      label: entry.rateType,
-                      unit: "",
-                      icon: "currency_exchange",
-                      tone: "neutral" as StatusTone,
-                    };
-                    return (
-                      <tr
-                        key={entry.id}
-                        className="border-border-subtle hover:bg-accent/50 border-b transition-colors"
-                      >
-                        <td
-                          className={`text-muted-foreground ${cellPx} font-mono text-xs tabular-nums`}
-                        >
-                          {new Date(entry.createdAt).toLocaleString("es-VE")}
-                        </td>
-                        <td className={cellPx}>
-                          <div className="flex items-center gap-2">
-                            <span className="material-symbols-outlined text-muted-foreground text-base">
-                              {meta.icon}
-                            </span>
-                            <StatusBadge tone={meta.tone}>
-                              {meta.label}
-                            </StatusBadge>
-                          </div>
-                        </td>
-                        <td
-                          className={`text-foreground ${cellPx} text-right font-mono text-sm font-bold tabular-nums`}
-                        >
-                          {entry.rate.toFixed(2)}
-                        </td>
-                        <td
-                          className={`text-muted-foreground ${cellPx} text-xs`}
-                        >
-                          {entry.source ?? "—"}
-                        </td>
-                      </tr>
-                    );
-                  })}
-
-              {!historyLoading && filteredHistory.length === 0 && (
-                <tr className="hover:bg-transparent">
-                  <td colSpan={4} className="px-4 py-6">
-                    <EmptyState
-                      icon="schedule"
-                      title="Sin registros históricos"
-                      description="No hay cotizaciones para el tipo de tasa seleccionado."
-                    />
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+        <div className="hidden md:block">
+          <DataTable
+            columns={columns}
+            data={filteredHistory}
+            isLoading={historyLoading}
+            isError={historyError}
+            onRetry={() => void refetchHistory()}
+            onResetFilters={
+              rateFilter !== "all" ? () => setRateFilter("all") : undefined
+            }
+            emptyTitle="Sin registros históricos"
+            emptyDescription="No hay cotizaciones para el tipo de tasa seleccionado."
+          />
         </div>
       </div>
     </div>

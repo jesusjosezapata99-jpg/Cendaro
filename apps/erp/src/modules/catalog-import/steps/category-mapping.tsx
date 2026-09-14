@@ -11,6 +11,9 @@
  */
 import { useState } from "react";
 
+import { Icons } from "@cendaro/ui/icons";
+import { StatusPill } from "@cendaro/ui/status-pill";
+
 import type { CategoryMapping } from "../hooks/use-catalog-import";
 
 // ── Component ────────────────────────────────────
@@ -78,10 +81,10 @@ export function CategoryMappingStep({
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="bg-muted/30 rounded-xl px-4 py-3">
+      <div className="border-border bg-card border p-4">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-foreground text-sm font-semibold">
+            <h3 className="text-foreground text-sm font-medium">
               Resolver categorías no reconocidas
             </h3>
             <p className="text-muted-foreground mt-0.5 text-xs">
@@ -89,7 +92,7 @@ export function CategoryMappingStep({
             </p>
           </div>
           <div className="text-right">
-            <span className="text-foreground text-lg font-black">
+            <span className="text-foreground font-mono text-base font-medium">
               {resolvedCount}/{totalCount}
             </span>
             <p className="text-muted-foreground text-xs">resueltas</p>
@@ -97,9 +100,9 @@ export function CategoryMappingStep({
         </div>
 
         {/* Progress bar */}
-        <div className="bg-border mt-3 h-1.5 w-full overflow-hidden rounded-full">
+        <div className="bg-muted border-border mt-3 h-1.5 w-full overflow-hidden border">
           <div
-            className="bg-primary h-full rounded-full transition-all duration-300"
+            className="bg-primary h-full transition-all duration-300"
             style={{
               width: `${totalCount > 0 ? (resolvedCount / totalCount) * 100 : 0}%`,
             }}
@@ -108,7 +111,7 @@ export function CategoryMappingStep({
       </div>
 
       {/* Category list */}
-      <div className="divide-border divide-y rounded-xl border">
+      <div className="divide-border border-border bg-card divide-y border">
         {unresolvedCategories.map((cat) => {
           const isResolved =
             cat.resolvedCategoryId !== null ||
@@ -127,20 +130,16 @@ export function CategoryMappingStep({
               {/* Raw category label */}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <span
-                    className={`material-symbols-outlined text-base ${
-                      isResolved ? "text-emerald-500" : "text-amber-500"
-                    }`}
-                  >
-                    {isResolved ? "check_circle" : "help"}
-                  </span>
-                  <span className="text-foreground text-sm font-semibold">
+                  {isResolved ? (
+                    <Icons.CheckCircle className="size-4 text-emerald-500" />
+                  ) : (
+                    <Icons.Help className="size-4 text-amber-500" />
+                  )}
+                  <span className="text-foreground text-sm font-medium">
                     &quot;{rawCategory}&quot;
                   </span>
                   {cat.newCategoryName && (
-                    <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
-                      NUEVA
-                    </span>
+                    <StatusPill tone="info">NUEVA</StatusPill>
                   )}
                 </div>
                 <button
@@ -175,12 +174,12 @@ export function CategoryMappingStep({
                               matchType: "user_selected",
                             })
                           }
-                          className={`inline-flex flex-col items-start gap-0.5 rounded-lg border px-3 py-2 text-left text-xs transition-all ${
+                          className={`inline-flex flex-col items-start gap-0.5 border p-2.5 text-left text-xs transition-colors ${
                             cat.resolvedCategoryId === sug.id
-                              ? "border-primary bg-primary/10 text-primary ring-primary ring-1"
+                              ? "border-primary bg-primary/10 text-primary"
                               : isRecommended
-                                ? "border-emerald-400 bg-emerald-50 hover:bg-emerald-100 dark:border-emerald-600 dark:bg-emerald-900/20 dark:hover:bg-emerald-900/30"
-                                : "border-border hover:border-primary/50 hover:bg-muted/50"
+                                ? "text-foreground border-emerald-500/40 bg-emerald-500/10"
+                                : "border-border hover:border-foreground/30 hover:bg-muted/40"
                           }`}
                         >
                           <span className="flex items-center gap-1.5 font-medium">
@@ -189,9 +188,9 @@ export function CategoryMappingStep({
                               ({Math.round(sug.score * 100)}%)
                             </span>
                             {isRecommended && (
-                              <span className="rounded-full bg-emerald-100 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700 dark:bg-emerald-800/40 dark:text-emerald-300">
+                              <StatusPill tone="success">
                                 RECOMENDADO
-                              </span>
+                              </StatusPill>
                             )}
                           </span>
                           {sug.reason && (
@@ -224,23 +223,21 @@ export function CategoryMappingStep({
                         if (e.key === "Escape") cancelCreating(rawCategory);
                       }}
                       placeholder="Nombre de la nueva categoría"
-                      className="border-primary bg-background text-foreground ring-primary/30 w-full rounded-lg border px-3 py-2 text-sm ring-2 focus:outline-none"
+                      className="border-primary bg-background text-foreground w-full border px-3 py-1.5 text-xs focus:outline-none"
                       autoFocus
                     />
                   </div>
                   <button
                     onClick={() => confirmCreating(rawCategory)}
                     disabled={!creatingMap[rawCategory].trim()}
-                    className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white transition-all hover:bg-emerald-700 active:scale-95 disabled:opacity-50"
+                    className="inline-flex items-center gap-1 bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-emerald-700 disabled:opacity-50"
                   >
-                    <span className="material-symbols-outlined text-sm">
-                      check
-                    </span>
+                    <Icons.Check className="size-3.5" />
                     Crear
                   </button>
                   <button
                     onClick={() => cancelCreating(rawCategory)}
-                    className="text-muted-foreground hover:text-foreground rounded-lg border px-3 py-2 text-xs transition-colors"
+                    className="text-muted-foreground hover:text-foreground border-border border px-3 py-1.5 text-xs transition-colors"
                   >
                     Cancelar
                   </button>
@@ -261,7 +258,7 @@ export function CategoryMappingStep({
                         matchType: "user_selected",
                       });
                     }}
-                    className="border-border bg-background text-foreground focus:ring-primary/30 flex-1 rounded-lg border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
+                    className="border-border bg-background text-foreground flex-1 border px-3 py-1.5 text-xs focus:outline-none"
                   >
                     <option value="">— Seleccionar categoría —</option>
                     {existingCategories.map((c) => (
@@ -279,11 +276,9 @@ export function CategoryMappingStep({
                         cat.suggestedNewName ?? rawCategory,
                       )
                     }
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-blue-400 bg-blue-50 px-3 py-2 text-xs font-semibold whitespace-nowrap text-blue-700 transition-all hover:bg-blue-100 active:scale-95 dark:border-blue-600 dark:bg-blue-900/20 dark:text-blue-300 dark:hover:bg-blue-900/30"
+                    className="border-border bg-muted/40 text-foreground hover:bg-muted/70 inline-flex items-center gap-1.5 border px-3 py-1.5 text-xs font-medium whitespace-nowrap transition-colors"
                   >
-                    <span className="material-symbols-outlined text-sm">
-                      add
-                    </span>
+                    <Icons.Add className="size-3.5" />
                     Crear categoría
                   </button>
                 </div>
@@ -297,27 +292,25 @@ export function CategoryMappingStep({
       <div className="flex items-center justify-between">
         <button
           onClick={onBack}
-          className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-sm transition-colors"
+          className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-xs transition-colors"
         >
-          <span className="material-symbols-outlined text-lg">arrow_back</span>
+          <Icons.ArrowBack className="size-3.5" />
           Volver
         </button>
 
         <button
           onClick={onComplete}
           disabled={!allResolved || isLoading}
-          className="bg-primary hover:bg-primary/90 inline-flex items-center gap-2 rounded-xl px-6 py-3 text-sm font-semibold text-white transition-all hover:shadow-lg active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
+          className="bg-primary text-primary-foreground hover:bg-primary/90 inline-flex h-9 items-center gap-2 px-4 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50"
         >
           {isLoading ? (
             <>
-              <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+              <div className="size-3.5 animate-spin border-2 border-white border-t-transparent" />
               Guardando aliases...
             </>
           ) : (
             <>
-              <span className="material-symbols-outlined text-lg">
-                arrow_forward
-              </span>
+              <Icons.ArrowForward className="size-3.5" />
               Continuar al resumen
             </>
           )}
