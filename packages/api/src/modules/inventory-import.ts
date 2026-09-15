@@ -187,7 +187,7 @@ export const inventoryImportRouter = createTRPCRouter({
   getWarehouseProducts: workspaceProcedure
     .input(z.object({ warehouseId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
-      const rows = await ctx.db.execute<{
+      const { rows } = await ctx.db.execute<{
         id: string;
         sku: string;
         name: string;

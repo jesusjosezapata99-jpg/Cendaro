@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { connection } from "next/server";
 import { dehydrate } from "@tanstack/react-query";
 
+import { ShellSkeleton } from "~/components/skeleton";
 import { WORKSPACE_COOKIE } from "~/hooks/use-workspace";
 import { getQueryClient } from "~/trpc/query-client";
 import { trpc } from "~/trpc/server";
@@ -39,7 +40,7 @@ async function WorkspaceLoader({ children }: { children: React.ReactNode }) {
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<ShellSkeleton />}>
       <WorkspaceLoader>{children}</WorkspaceLoader>
     </Suspense>
   );

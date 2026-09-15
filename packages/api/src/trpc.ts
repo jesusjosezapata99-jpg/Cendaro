@@ -457,7 +457,7 @@ async function resolveWorkspaceMembership(
   // Validate membership (runs as postgres, before SET LOCAL) and fetch the
   // workspace plan — independent lookups, so they run in parallel instead
   // of paying two sequential round-trips on cache misses.
-  const [memberRows, wsRows] = await Promise.all([
+  const [memberResult, wsRows] = await Promise.all([
     ctx.db.execute<{
       member_id: string;
       member_role: string;
@@ -472,7 +472,7 @@ async function resolveWorkspaceMembership(
       .limit(1),
   ]);
 
-  const member = memberRows[0];
+  const member = memberResult.rows[0];
   if (!member) {
     throw new TRPCError({
       code: "FORBIDDEN",

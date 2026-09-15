@@ -24,6 +24,7 @@
     "@supabase/supabase-js": "^2.114.0",
     "@trpc/server": "catalog:",
     "drizzle-orm": "catalog:",
+    "pg": "catalog:",
     "superjson": "2.2.6",
     "zod": "catalog:"
   },
@@ -32,6 +33,7 @@
     "@cendaro/prettier-config": "workspace:*",
     "@cendaro/tsconfig": "workspace:*",
     "@types/node": "catalog:",
+    "@types/pg": "catalog:",
     "eslint": "catalog:",
     "prettier": "catalog:",
     "typescript": "catalog:",
