@@ -84,6 +84,8 @@ export function CreatableSelect({
         <div className="flex items-center gap-1.5">
           <input
             ref={inputRef}
+            id={`creatable-select-${label.toLowerCase().replace(/[^a-z0-9]/g, "-")}`}
+            name={`create-${label.toLowerCase().replace(/[^a-z0-9]/g, "-")}`}
             type="text"
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
@@ -95,6 +97,7 @@ export function CreatableSelect({
               if (e.key === "Escape") handleCancel();
             }}
             placeholder={`Nombre del nuevo ${label.toLowerCase()}`}
+            aria-label={`Nombre del nuevo ${label.toLowerCase()}`}
             className={inputBase}
             disabled={saving}
             autoFocus

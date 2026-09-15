@@ -210,8 +210,11 @@ export function CategoryMappingStep({
                 <div className="flex items-center gap-2">
                   <div className="relative flex-1">
                     <input
+                      id={`new-category-input-${encodeURIComponent(rawCategory)}`}
+                      name={`new-category-${encodeURIComponent(rawCategory)}`}
                       type="text"
                       value={creatingMap[rawCategory]}
+                      aria-label="Nombre de la nueva categoría"
                       onChange={(e) =>
                         setCreatingMap((prev) => ({
                           ...prev,

@@ -547,16 +547,25 @@ export const dashboardRouter = createTRPCRouter({
     }),
 
   activeAlertCount: workspaceReadProcedure.query(async ({ ctx }) => {
-    const [result] = await ctx.db
-      .select({ count: count(SystemAlert.id) })
-      .from(SystemAlert)
-      .where(
-        and(
-          eq(SystemAlert.workspaceId, ctx.workspace.workspaceId),
-          eq(SystemAlert.isDismissed, false),
-        ),
+    try {
+      const [result] = await ctx.db
+        .select({ count: count(SystemAlert.id) })
+        .from(SystemAlert)
+        .where(
+          and(
+            eq(SystemAlert.workspaceId, ctx.workspace.workspaceId),
+            eq(SystemAlert.isDismissed, false),
+          ),
+        );
+      return result?.count ?? 0;
+    } catch (error) {
+      ctx.log.warn(
+        "activeAlertCount query fell back to 0",
+        { workspaceId: ctx.workspace.workspaceId },
+        error,
       );
-    return result?.count ?? 0;
+      return 0;
+    }
   }),
 
   dismissAlert: workspaceProcedure

@@ -116,8 +116,11 @@ export function PosCart({
             <div className="border-border bg-card absolute z-30 mt-1 max-h-64 w-full overflow-auto border p-2 shadow-md">
               <div className="mb-2 flex items-center justify-between gap-1.5">
                 <input
+                  id="pos-customer-search-input"
+                  name="pos-customer-search"
                   type="text"
                   placeholder="Buscar cliente..."
+                  aria-label="Buscar cliente"
                   value={customerSearch}
                   onChange={(e) => onCustomerSearchChange(e.target.value)}
                   className="border-border bg-secondary text-foreground w-full border px-2.5 py-1.5 text-xs focus:outline-none"
@@ -211,9 +214,12 @@ export function PosCart({
                     <span className="shrink-0">
                       $
                       <input
+                        id={`pos-unit-price-${line.id}`}
+                        name={`pos-unit-price-${line.id}`}
                         type="number"
                         step="0.5"
                         min="0"
+                        aria-label={`Precio unitario para ${line.name}`}
                         value={line.unitPrice}
                         onChange={(e) =>
                           onUpdateUnitPrice(

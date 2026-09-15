@@ -102,9 +102,12 @@ export function FileUpload({
 
         <input
           ref={inputRef}
+          id="inventory-file-upload-input"
+          name="inventory-file"
           type="file"
           accept={acceptStr}
           onChange={handleChange}
+          aria-label="Subir archivo de inventario"
           className="hidden"
           disabled={isParsing}
         />

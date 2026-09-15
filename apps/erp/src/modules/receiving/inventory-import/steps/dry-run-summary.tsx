@@ -284,6 +284,8 @@ export function DryRunSummary({
         <div className="border-border bg-card border p-4">
           <label className="flex cursor-pointer items-start gap-3">
             <input
+              id="include-locked-products-checkbox"
+              name="include-locked-products"
               type="checkbox"
               checked={forceLocked}
               onChange={(e) => onSetForceLocked(e.target.checked)}

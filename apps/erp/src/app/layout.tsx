@@ -36,12 +36,14 @@ const hedvigSerif = Hedvig_Letters_Serif({
   adjustFontFallback: true,
   variable: "--font-hedvig-serif",
   fallback: ["Georgia", "Times New Roman", "serif"],
+  preload: false,
 });
 
 const geistMono = Geist_Mono({
   subsets: ["latin"],
   display: "swap",
   variable: "--font-geist-mono",
+  preload: false,
 });
 
 export const metadata: Metadata = {

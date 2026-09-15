@@ -51,8 +51,11 @@ export function ProductGrid({
           <Icons.BarcodeScanner className="text-muted-foreground size-5 pl-1" />
           <input
             ref={barcodeInputRef}
+            id="pos-barcode-search-input"
+            name="pos-barcode-search"
             type="text"
             placeholder="Escanear código de barras o escribir SKU/Nombre (Enter para agregar)..."
+            aria-label="Escanear código de barras o escribir SKU"
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
             onKeyDown={onBarcodeSubmit}
