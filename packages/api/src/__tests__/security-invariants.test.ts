@@ -136,7 +136,10 @@ describe("Security Invariant: Multi-Tenant Workspace Header Enforcement", () => 
 
   it("rejects read procedures without x-workspace-id header with BAD_REQUEST", async () => {
     const caller = createCaller({
-      user: { id: "usr-1", email: "user@example.com" },
+      user: {
+        id: "a0000000-0000-0000-0000-000000000001",
+        email: "user@example.com",
+      },
       db: {} as never,
       requestId: "req-1",
       log: logger.child({ requestId: "req-1" }),
@@ -151,9 +154,49 @@ describe("Security Invariant: Multi-Tenant Workspace Header Enforcement", () => 
     );
   });
 
+  it("rejects read procedures with malformed non-UUID x-workspace-id with BAD_REQUEST", async () => {
+    const caller = createCaller({
+      user: {
+        id: "a0000000-0000-0000-0000-000000000001",
+        email: "user@example.com",
+      },
+      db: {} as never,
+      requestId: "req-1b",
+      log: logger.child({ requestId: "req-1b" }),
+      workspaceId: "undefined", // Malformed / string "undefined"
+    });
+
+    await expect(caller.readSecret()).rejects.toThrowError(
+      expect.objectContaining({
+        code: "BAD_REQUEST",
+        message: "x-workspace-id header must be a valid UUID",
+      }),
+    );
+  });
+
+  it("rejects procedures when user ID is not a valid UUID with UNAUTHORIZED", async () => {
+    const caller = createCaller({
+      user: { id: "not-a-uuid", email: "user@example.com" },
+      db: {} as never,
+      requestId: "req-1c",
+      log: logger.child({ requestId: "req-1c" }),
+      workspaceId: "a0000000-0000-0000-0000-000000000001",
+    });
+
+    await expect(caller.readSecret()).rejects.toThrowError(
+      expect.objectContaining({
+        code: "UNAUTHORIZED",
+        message: "User ID must be a valid UUID",
+      }),
+    );
+  });
+
   it("rejects write procedures without x-workspace-id header with BAD_REQUEST", async () => {
     const caller = createCaller({
-      user: { id: "usr-1", email: "user@example.com" },
+      user: {
+        id: "a0000000-0000-0000-0000-000000000001",
+        email: "user@example.com",
+      },
       db: {} as never,
       requestId: "req-2",
       log: logger.child({ requestId: "req-2" }),

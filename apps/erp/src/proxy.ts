@@ -69,7 +69,10 @@ export async function proxy(request: NextRequest) {
   // Forward workspace cookie as request header for RSC context
   const wsId = request.cookies.get("cendaro-workspace-id")?.value;
   const requestHeaders = new Headers(request.headers);
-  if (wsId) {
+  if (
+    wsId &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(wsId)
+  ) {
     requestHeaders.set("x-workspace-id", wsId);
   }
 

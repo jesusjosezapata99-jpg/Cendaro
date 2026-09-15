@@ -251,10 +251,11 @@ export async function POST(request: Request) {
     supabaseKey,
   );
 
-  const { error: authError } = await supabase.auth.signInWithPassword({
-    email: emailToUse,
-    password,
-  });
+  const { data: authData, error: authError } =
+    await supabase.auth.signInWithPassword({
+      email: emailToUse,
+      password,
+    });
 
   // ── Step 10: Handle failures with failure accounting ───────────────────
   if (profileError || authError) {
@@ -276,7 +277,7 @@ export async function POST(request: Request) {
   }
 
   // ── Step 11: Success ────────────────────────────────────────────────────
-  return NextResponse.json(
+  const response = NextResponse.json(
     { success: true },
     {
       status: 200,
@@ -286,4 +287,36 @@ export async function POST(request: Request) {
       },
     },
   );
+
+  // Seed default workspace cookie on initial login to avoid cold-start race conditions
+  const userId = authData.user.id;
+  if (userId) {
+    try {
+      const { data: memberRows } = await admin
+        .from("workspace_member")
+        .select("workspace_id")
+        .eq("user_id", userId)
+        .eq("status", "active")
+        .limit(1);
+
+      const defaultWsId = memberRows?.[0]?.workspace_id as string | undefined;
+      if (
+        defaultWsId &&
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+          defaultWsId,
+        )
+      ) {
+        response.cookies.set("cendaro-workspace-id", defaultWsId, {
+          path: "/",
+          maxAge: 60 * 60 * 24 * 365,
+          sameSite: "lax",
+          httpOnly: false,
+        });
+      }
+    } catch {
+      // Non-fatal: client WorkspaceAutoResolver provides client-side fallback
+    }
+  }
+
+  return response;
 }

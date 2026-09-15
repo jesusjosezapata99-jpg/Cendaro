@@ -19,6 +19,7 @@ import {
   appRouter,
   createCaller,
   createTRPCContext,
+  isValidUuid,
   mapClaimsToUser,
 } from "@cendaro/api";
 import { createSupabaseServerClient } from "@cendaro/auth/server";
@@ -41,7 +42,7 @@ const createContext = cache(async () => {
   // Inject workspace ID from cookie for RSC/Server Actions
   const cookieStore = await cookies();
   const wsId = cookieStore.get("cendaro-workspace-id")?.value;
-  if (wsId && !heads.has("x-workspace-id")) {
+  if (wsId && isValidUuid(wsId) && !heads.has("x-workspace-id")) {
     heads.set("x-workspace-id", wsId);
   }
 

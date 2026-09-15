@@ -15,6 +15,7 @@ import { PageHeader } from "~/components/page-header";
 import { StatCard } from "~/components/stat-card";
 import { useProductParams } from "~/hooks/params";
 import { useProductFilterParams } from "~/hooks/params/use-product-filter-params";
+import { isValidUuid, useWorkspace } from "~/hooks/use-workspace";
 import { getStatus } from "~/lib/status";
 import { useTRPC } from "~/trpc/client";
 
@@ -46,6 +47,7 @@ interface ProductItem {
 
 export default function CatalogClient() {
   const trpc = useTRPC();
+  const { workspaceId, isReady: workspaceReady } = useWorkspace();
   const [filters, setFilters] = useProductFilterParams();
   const [, setProductParams] = useProductParams();
 
@@ -123,6 +125,7 @@ export default function CatalogClient() {
         sort: validSort,
       },
       {
+        enabled: workspaceReady && isValidUuid(workspaceId),
         getNextPageParam: (lastPage, allPages) => {
           const totalFetched = allPages.reduce(
             (acc, p) => acc + p.items.length,
