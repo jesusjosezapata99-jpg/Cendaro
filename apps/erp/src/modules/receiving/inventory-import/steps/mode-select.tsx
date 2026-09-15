@@ -7,6 +7,9 @@
  * PRD: FEATURE_PRD_INVENTORY_IMPORT.md §15, §20, §23
  */
 import type { ImportMode } from "@cendaro/api";
+import type { IconName } from "@cendaro/ui/icons";
+import { Icon, Icons } from "@cendaro/ui/icons";
+import { StatusPill } from "@cendaro/ui/status-pill";
 
 interface ModeSelectProps {
   selectedMode: ImportMode | null;
@@ -15,7 +18,7 @@ interface ModeSelectProps {
 
 const modes: {
   value: ImportMode;
-  icon: string;
+  icon: IconName;
   title: string;
   subtitle: string;
   description: string;
@@ -24,7 +27,7 @@ const modes: {
 }[] = [
   {
     value: "replace",
-    icon: "swap_horiz",
+    icon: "SwapHoriz",
     title: "Reemplazar",
     subtitle: "Conteo Físico",
     description:
@@ -38,7 +41,7 @@ const modes: {
   },
   {
     value: "adjust",
-    icon: "tune",
+    icon: "Tune",
     title: "Ajustar",
     subtitle: "Ajuste Parcial",
     description:
@@ -51,7 +54,7 @@ const modes: {
   },
   {
     value: "initialize",
-    icon: "database",
+    icon: "Database",
     title: "Inicializar",
     subtitle: "Desde Cero",
     description:
@@ -65,20 +68,12 @@ const modes: {
   },
 ];
 
-const badgeStyles = {
-  amber:
-    "bg-amber-500/10 text-amber-500 ring-amber-500/20 dark:bg-amber-400/10 dark:text-amber-400 dark:ring-amber-400/20",
-  emerald:
-    "bg-emerald-500/10 text-emerald-500 ring-emerald-500/20 dark:bg-emerald-400/10 dark:text-emerald-400 dark:ring-emerald-400/20",
-  sky: "bg-sky-500/10 text-sky-500 ring-sky-500/20 dark:bg-sky-400/10 dark:text-sky-400 dark:ring-sky-400/20",
-};
-
 export function ModeSelect({ selectedMode, onSelect }: ModeSelectProps) {
   return (
     <div className="mx-auto max-w-4xl space-y-8">
       {/* Header */}
       <div className="text-center">
-        <h2 className="text-foreground text-2xl font-black tracking-tight">
+        <h2 className="text-foreground text-2xl font-medium tracking-tight">
           Seleccionar Modo de Importación
         </h2>
         <p className="text-muted-foreground mt-2 text-sm">
@@ -94,36 +89,32 @@ export function ModeSelect({ selectedMode, onSelect }: ModeSelectProps) {
             <button
               key={m.value}
               onClick={() => onSelect(m.value)}
-              className={`group relative flex cursor-pointer flex-col rounded-2xl border-2 p-0 text-left transition-all duration-200 ${
+              className={`group relative flex cursor-pointer flex-col border p-0 text-left transition-colors duration-200 ${
                 isSelected
-                  ? "border-primary bg-primary/3 shadow-primary/10 ring-primary/20 shadow-lg ring-1"
-                  : "border-border bg-card hover:border-primary/30 hover:bg-card/80 hover:shadow-md"
+                  ? "border-primary bg-primary/5"
+                  : "border-border bg-card hover:border-primary/40"
               }`}
             >
               {/* ── Top section: icon + title ─────── */}
               <div className="flex flex-col gap-3 px-5 pt-5 pb-3">
                 <div className="flex items-center justify-between">
                   <div
-                    className={`flex size-10 items-center justify-center rounded-xl transition-colors ${
+                    className={`flex size-10 items-center justify-center border transition-colors ${
                       isSelected
-                        ? "bg-primary shadow-primary/30 text-white shadow-md"
-                        : "bg-muted text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary"
+                        ? "border-primary bg-primary text-white"
+                        : "border-border bg-muted text-muted-foreground group-hover:border-primary/40 group-hover:text-primary"
                     }`}
                   >
-                    <span className="material-symbols-outlined text-xl">
-                      {m.icon}
-                    </span>
+                    <Icon name={m.icon} className="size-5" />
                   </div>
                   {isSelected && (
-                    <div className="bg-primary flex size-6 items-center justify-center rounded-full shadow-sm">
-                      <span className="material-symbols-outlined text-sm text-white">
-                        check
-                      </span>
+                    <div className="bg-primary flex size-6 items-center justify-center rounded-full">
+                      <Icons.Check className="size-3.5 text-white" />
                     </div>
                   )}
                 </div>
                 <div>
-                  <h3 className="text-foreground text-lg leading-tight font-bold">
+                  <h3 className="text-foreground text-lg leading-tight font-medium">
                     {m.title}
                   </h3>
                   <span className="text-muted-foreground text-xs font-medium tracking-wider uppercase">
@@ -147,15 +138,13 @@ export function ModeSelect({ selectedMode, onSelect }: ModeSelectProps) {
                       key={b}
                       className="text-muted-foreground flex items-start gap-2 text-xs"
                     >
-                      <span
-                        className={`material-symbols-outlined mt-px text-xs ${
+                      <Icons.CheckCircle
+                        className={`mt-px size-3 ${
                           isSelected
                             ? "text-primary"
                             : "text-muted-foreground/60"
                         }`}
-                      >
-                        check_circle
-                      </span>
+                      />
                       <span>{b}</span>
                     </li>
                   ))}
@@ -164,14 +153,11 @@ export function ModeSelect({ selectedMode, onSelect }: ModeSelectProps) {
                 {/* ── Badge (optional) ───────────── */}
                 {m.badge && (
                   <div className="mt-auto pt-2">
-                    <span
-                      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 ring-inset ${badgeStyles[m.badge.variant]}`}
+                    <StatusPill
+                      tone={m.badge.variant === "amber" ? "warning" : "info"}
                     >
-                      <span className="material-symbols-outlined text-xs">
-                        {m.badge.variant === "amber" ? "warning" : "info"}
-                      </span>
                       {m.badge.label}
-                    </span>
+                    </StatusPill>
                   </div>
                 )}
               </div>

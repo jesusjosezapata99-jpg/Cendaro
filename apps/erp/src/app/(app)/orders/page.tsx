@@ -32,8 +32,16 @@ async function OrdersPrefetch() {
   const queryClient = getQueryClient();
 
   try {
-    await queryClient.prefetchQuery(
-      trpc.sales.listOrders.queryOptions({ limit: 50 }),
+    await queryClient.prefetchInfiniteQuery(
+      trpc.sales.listOrders.infiniteQueryOptions(
+        { limit: 50 },
+        {
+          getNextPageParam: (lastPage) => {
+            if (lastPage.length < 50) return undefined;
+            return 50;
+          },
+        },
+      ),
     );
   } catch {
     // Prefetch failure is non-critical — client will fetch on hydration

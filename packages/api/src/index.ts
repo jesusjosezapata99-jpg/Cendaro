@@ -13,6 +13,9 @@ export type { AuthenticatedUser } from "./trpc";
 export { logger } from "./logger";
 export type { ILogger, LogContext } from "./logger";
 
+// Dashboard overview (PLAN-2026-09-DESIGN-SYSTEM §T3.1)
+export type { DashboardOverview, DashboardPeriod } from "./modules/dashboard";
+
 // Inventory Import types (PRD §10, §23)
 export type {
   ImportMode,

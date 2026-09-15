@@ -239,7 +239,12 @@ export const inventoryImportRouter = createTRPCRouter({
       const [wh] = await ctx.db
         .select({ id: Warehouse.id, isActive: Warehouse.isActive })
         .from(Warehouse)
-        .where(eq(Warehouse.id, input.warehouseId))
+        .where(
+          and(
+            eq(Warehouse.id, input.warehouseId),
+            eq(Warehouse.workspaceId, ctx.workspace.workspaceId),
+          ),
+        )
         .limit(1);
 
       if (!wh?.isActive) {
@@ -255,6 +260,7 @@ export const inventoryImportRouter = createTRPCRouter({
         .from(AuditLog)
         .where(
           and(
+            eq(AuditLog.workspaceId, ctx.workspace.workspaceId),
             eq(AuditLog.action, "inventory.bulk_import"),
             eq(AuditLog.entity, "inventory_import"),
           ),
@@ -309,6 +315,7 @@ export const inventoryImportRouter = createTRPCRouter({
                   .from(StockLedger)
                   .where(
                     and(
+                      eq(StockLedger.workspaceId, ctx.workspace.workspaceId),
                       eq(StockLedger.productId, row.productId),
                       eq(StockLedger.warehouseId, input.warehouseId),
                     ),
@@ -321,11 +328,16 @@ export const inventoryImportRouter = createTRPCRouter({
                 }
               }
 
-              // Verify product exists
+              // Verify product exists in workspace
               const [product] = await tx
                 .select({ id: Product.id })
                 .from(Product)
-                .where(eq(Product.id, row.productId))
+                .where(
+                  and(
+                    eq(Product.id, row.productId),
+                    eq(Product.workspaceId, ctx.workspace.workspaceId),
+                  ),
+                )
                 .limit(1);
 
               if (!product) {
@@ -366,17 +378,23 @@ export const inventoryImportRouter = createTRPCRouter({
               await tx
                 .insert(StockLedger)
                 .values({
+                  workspaceId: ctx.workspace.workspaceId,
                   productId: row.productId,
                   warehouseId: input.warehouseId,
                   quantity: newQuantity,
                 })
                 .onConflictDoUpdate({
-                  target: [StockLedger.productId, StockLedger.warehouseId],
+                  target: [
+                    StockLedger.workspaceId,
+                    StockLedger.productId,
+                    StockLedger.warehouseId,
+                  ],
                   set: { quantity: newQuantity },
                 });
 
               // Record StockMovement
               await tx.insert(StockMovement).values({
+                workspaceId: ctx.workspace.workspaceId,
                 productId: row.productId,
                 movementType: delta >= 0 ? "adjustment_in" : "adjustment_out",
                 quantity: Math.abs(delta),
@@ -415,6 +433,7 @@ export const inventoryImportRouter = createTRPCRouter({
       };
 
       await logAudit(ctx.db, ctx.user, {
+        workspaceId: ctx.workspace.workspaceId,
         action: "inventory.bulk_import",
         entity: "inventory_import",
         entityId: input.warehouseId,
@@ -427,6 +446,7 @@ export const inventoryImportRouter = createTRPCRouter({
         .from(AuditLog)
         .where(
           and(
+            eq(AuditLog.workspaceId, ctx.workspace.workspaceId),
             eq(AuditLog.action, "inventory.bulk_import"),
             eq(AuditLog.entity, "inventory_import"),
             eq(AuditLog.entityId, input.warehouseId),
@@ -460,7 +480,12 @@ export const inventoryImportRouter = createTRPCRouter({
       const [wh] = await ctx.db
         .select({ id: Warehouse.id, isActive: Warehouse.isActive })
         .from(Warehouse)
-        .where(eq(Warehouse.id, input.warehouseId))
+        .where(
+          and(
+            eq(Warehouse.id, input.warehouseId),
+            eq(Warehouse.workspaceId, ctx.workspace.workspaceId),
+          ),
+        )
         .limit(1);
 
       if (!wh?.isActive) {
@@ -476,6 +501,7 @@ export const inventoryImportRouter = createTRPCRouter({
         .from(AuditLog)
         .where(
           and(
+            eq(AuditLog.workspaceId, ctx.workspace.workspaceId),
             eq(AuditLog.action, "inventory.initialize_import"),
             eq(AuditLog.entity, "inventory_import"),
           ),
@@ -516,11 +542,16 @@ export const inventoryImportRouter = createTRPCRouter({
         const slug = slugify(brandName);
         if (!slug) continue;
 
-        // Check if brand already exists (by slug)
+        // Check if brand already exists in workspace (by slug)
         const [existing] = await ctx.db
           .select({ id: Brand.id, name: Brand.name })
           .from(Brand)
-          .where(eq(Brand.slug, slug))
+          .where(
+            and(
+              eq(Brand.slug, slug),
+              eq(Brand.workspaceId, ctx.workspace.workspaceId),
+            ),
+          )
           .limit(1);
 
         if (existing) {
@@ -528,7 +559,11 @@ export const inventoryImportRouter = createTRPCRouter({
         } else {
           const [created] = await ctx.db
             .insert(Brand)
-            .values({ name: brandName, slug })
+            .values({
+              workspaceId: ctx.workspace.workspaceId,
+              name: brandName,
+              slug,
+            })
             .returning({ id: Brand.id });
           if (created) {
             brandMap.set(brandName, created.id);
@@ -584,11 +619,16 @@ export const inventoryImportRouter = createTRPCRouter({
                 continue;
               }
 
-              // Check if product already exists by SKU
+              // Check if product already exists by SKU in workspace
               const [existingProduct] = await tx
                 .select({ id: Product.id })
                 .from(Product)
-                .where(eq(Product.sku, row.sku))
+                .where(
+                  and(
+                    eq(Product.sku, row.sku),
+                    eq(Product.workspaceId, ctx.workspace.workspaceId),
+                  ),
+                )
                 .limit(1);
 
               let productId: string;
@@ -600,6 +640,7 @@ export const inventoryImportRouter = createTRPCRouter({
                 const [created] = await tx
                   .insert(Product)
                   .values({
+                    workspaceId: ctx.workspace.workspaceId,
                     sku: row.sku,
                     name: row.productName,
                     brandId,
@@ -629,17 +670,23 @@ export const inventoryImportRouter = createTRPCRouter({
               await tx
                 .insert(StockLedger)
                 .values({
+                  workspaceId: ctx.workspace.workspaceId,
                   productId,
                   warehouseId: input.warehouseId,
                   quantity: row.totalUnits,
                 })
                 .onConflictDoUpdate({
-                  target: [StockLedger.productId, StockLedger.warehouseId],
+                  target: [
+                    StockLedger.workspaceId,
+                    StockLedger.productId,
+                    StockLedger.warehouseId,
+                  ],
                   set: { quantity: row.totalUnits },
                 });
 
               // Record StockMovement
               await tx.insert(StockMovement).values({
+                workspaceId: ctx.workspace.workspaceId,
                 productId,
                 movementType: "initial_stock",
                 quantity: row.totalUnits,
@@ -679,6 +726,7 @@ export const inventoryImportRouter = createTRPCRouter({
       };
 
       await logAudit(ctx.db, ctx.user, {
+        workspaceId: ctx.workspace.workspaceId,
         action: "inventory.initialize_import",
         entity: "inventory_import",
         entityId: input.warehouseId,
@@ -691,6 +739,7 @@ export const inventoryImportRouter = createTRPCRouter({
         .from(AuditLog)
         .where(
           and(
+            eq(AuditLog.workspaceId, ctx.workspace.workspaceId),
             eq(AuditLog.action, "inventory.initialize_import"),
             eq(AuditLog.entity, "inventory_import"),
             eq(AuditLog.entityId, input.warehouseId),

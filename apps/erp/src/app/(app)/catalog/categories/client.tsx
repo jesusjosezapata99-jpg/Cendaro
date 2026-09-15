@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import { useQuery } from "@tanstack/react-query";
 
 import { Button, Input } from "@cendaro/ui";
+import { Icons } from "@cendaro/ui/icons";
 
 import { EmptyState } from "~/components/empty-state";
 import { PageHeader } from "~/components/page-header";
@@ -81,13 +82,16 @@ export default function CategoriesPage() {
   );
 
   return (
-    <div className="animate-in fade-in slide-in-from-bottom-1 space-y-6 p-4 duration-200 lg:p-8">
+    <div className="animate-in fade-in slide-in-from-bottom-1 space-y-6 py-4 duration-200 lg:py-8">
       <PageHeader
         title="Categorías"
         description={`${totalCategories.toLocaleString("es-VE")} categorías organizadas jerárquicamente`}
         actions={
-          <Button onClick={() => setShowCreate(true)} className="min-h-11">
-            <span className="material-symbols-outlined text-lg">add</span>
+          <Button
+            onClick={() => setShowCreate(true)}
+            className="h-9 px-3 text-xs"
+          >
+            <Icons.Add className="mr-1.5 size-4" />
             Nueva Categoría
           </Button>
         }
@@ -100,25 +104,23 @@ export default function CategoriesPage() {
 
       {/* Search */}
       <div className="relative">
-        <span
+        <Icons.Search
+          className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-3.5 -translate-y-1/2"
           aria-hidden
-          className="material-symbols-outlined text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-base"
-        >
-          search
-        </span>
+        />
         <Input
           type="text"
           placeholder="Buscar categoría..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="min-h-11 pl-10"
+          className="h-9 pl-9 text-xs"
         />
       </div>
 
       {isLoading ? (
         <div className="space-y-2">
           {Array.from({ length: 6 }).map((_, i) => (
-            <Skeleton key={i} className="h-14 w-full rounded-xl" />
+            <Skeleton key={i} className="border-border h-12 w-full border" />
           ))}
         </div>
       ) : (
@@ -129,24 +131,26 @@ export default function CategoriesPage() {
             return (
               <div
                 key={category.id}
-                className="border-border-subtle surface-card overflow-hidden rounded-xl border"
+                className="border-border bg-card overflow-hidden border"
               >
                 <button
                   onClick={() => toggle(category.id)}
                   aria-expanded={isExpanded}
-                  className="hover:bg-accent/50 focus-visible:border-ring focus-visible:ring-ring/50 flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition-colors outline-none"
+                  className="hover:bg-accent/50 focus-visible:border-ring focus-visible:ring-ring/50 flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left transition-colors outline-none"
                 >
                   <div className="flex min-w-0 items-center gap-3">
                     <span
                       aria-hidden
-                      className="bg-secondary text-muted-foreground flex size-8 shrink-0 items-center justify-center rounded-lg"
+                      className="bg-secondary text-muted-foreground border-border flex size-8 shrink-0 items-center justify-center border text-xs"
                     >
-                      <span className="material-symbols-outlined text-base">
-                        {hasChildren ? "category" : "description"}
-                      </span>
+                      {hasChildren ? (
+                        <Icons.Category className="size-4" />
+                      ) : (
+                        <Icons.Description className="size-4" />
+                      )}
                     </span>
                     <div className="min-w-0">
-                      <p className="text-foreground truncate font-medium">
+                      <p className="text-foreground truncate text-sm font-medium">
                         {category.name}
                       </p>
                       <p className="text-muted-foreground truncate font-mono text-xs">
@@ -163,23 +167,20 @@ export default function CategoriesPage() {
                           : "subcategorías"}
                       </span>
                     )}
-                    <span
-                      aria-hidden
-                      className={`material-symbols-outlined text-muted-foreground text-base transition-transform duration-200 ${
+                    <Icons.ExpandMore
+                      className={`text-muted-foreground size-4 transition-transform duration-200 ${
                         isExpanded ? "rotate-180" : ""
                       } motion-reduce:transition-none`}
-                    >
-                      expand_more
-                    </span>
+                    />
                   </div>
                 </button>
 
                 {isExpanded && hasChildren && (
-                  <div className="border-border-subtle border-t">
+                  <div className="border-border border-t">
                     {category.children.map((child) => (
                       <div
                         key={child.id}
-                        className="hover:bg-accent/30 animate-in fade-in slide-in-from-top-1 flex items-center gap-3 border-b py-2.5 pr-4 pl-14 text-sm duration-150 last:border-b-0"
+                        className="hover:bg-accent/30 animate-in fade-in slide-in-from-top-1 border-border flex items-center gap-3 border-b py-2.5 pr-4 pl-14 text-xs duration-150 last:border-b-0"
                       >
                         <span
                           aria-hidden
@@ -203,7 +204,7 @@ export default function CategoriesPage() {
 
       {filtered.length === 0 && !isLoading && (
         <EmptyState
-          icon="folder_off"
+          icon="FolderOff"
           title="No se encontraron categorías"
           description="Ajusta la búsqueda o crea una nueva categoría para empezar."
         />

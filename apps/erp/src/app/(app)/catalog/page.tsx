@@ -32,8 +32,21 @@ async function CatalogPrefetch() {
   const queryClient = getQueryClient();
 
   try {
-    await queryClient.prefetchQuery(
-      trpc.catalog.listProducts.queryOptions({ limit: 25, offset: 0 }),
+    await queryClient.prefetchInfiniteQuery(
+      trpc.catalog.listProducts.infiniteQueryOptions(
+        { limit: 50 },
+        {
+          getNextPageParam: (lastPage) => {
+            if (
+              lastPage.items.length < 50 ||
+              lastPage.items.length >= lastPage.total
+            ) {
+              return undefined;
+            }
+            return 50;
+          },
+        },
+      ),
     );
   } catch {
     // Prefetch failure is non-critical — client will fetch on hydration

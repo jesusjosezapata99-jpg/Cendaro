@@ -47,7 +47,7 @@ export function WorkspaceAutoResolver({
   }, [workspaces, isReady, switchWorkspace]);
 
   // Resolution happens via useEffect — always render children immediately.
-  // The shell (sidebar + topbar) renders without waiting for workspace.
+  // The shell (rail + header) renders without waiting for workspace.
   // Only workspace-scoped content in AppShell gates on isReady.
   return <>{children}</>;
 }

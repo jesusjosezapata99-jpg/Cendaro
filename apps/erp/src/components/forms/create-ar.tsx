@@ -3,14 +3,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { Field, Input, Select, TextArea } from "~/components/dialog";
 import {
-  Dialog,
-  Field,
-  FormActions,
-  Input,
-  Select,
-  TextArea,
-} from "~/components/dialog";
+  SheetBody,
+  SheetFooter,
+  SheetFormActions,
+  SheetModal,
+} from "~/components/sheet-modal";
 import { useBcvRate } from "~/hooks/use-bcv-rate";
 import { formatDualCurrency } from "~/lib/format-currency";
 import { useTRPC } from "~/trpc/client";
@@ -110,91 +109,97 @@ export function CreateArDialog({
   };
 
   return (
-    <Dialog
+    <SheetModal
       open={open}
       onClose={onClose}
       title="Nueva Cuenta por Cobrar"
       description="Apertura de línea o cuenta por cobrar comercial a cliente."
-      className="max-w-lg"
+      className="sm:max-w-xl md:max-w-2xl"
     >
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <Field label="Cliente" required>
-          <Select
-            value={customerId}
-            onChange={(e) => setCustomerId(e.target.value)}
-            required
-          >
-            <option value="">Seleccionar cliente...</option>
-            {customers.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name} {c.phone ? `(${c.phone})` : ""}
-              </option>
-            ))}
-          </Select>
-        </Field>
-
-        <Field label="Orden de Venta (Opcional)">
-          <Select
-            value={orderId}
-            onChange={(e) => handleOrderChange(e.target.value)}
-          >
-            <option value="">Sin orden vinculada</option>
-            {orders.map((o) => (
-              <option key={o.id} value={o.id}>
-                {o.orderNumber} — Total: ${Number(o.total).toFixed(2)}
-              </option>
-            ))}
-          </Select>
-        </Field>
-
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Field label="Monto a Crédito ($)" required>
-            <Input
-              type="number"
-              step="0.01"
-              min="0.01"
+      <form onSubmit={handleSubmit} className="flex h-full flex-col">
+        <SheetBody>
+          <Field label="Cliente" required>
+            <Select
+              value={customerId}
+              onChange={(e) => setCustomerId(e.target.value)}
               required
-              placeholder="0.00"
-              value={totalAmount}
-              onChange={(e) => setTotalAmount(e.target.value)}
-              className="font-mono tabular-nums"
-            />
+            >
+              <option value="">Seleccionar cliente...</option>
+              {customers.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name} {c.phone ? `(${c.phone})` : ""}
+                </option>
+              ))}
+            </Select>
           </Field>
 
-          <Field label="Fecha de Vencimiento" required>
-            <Input
-              type="date"
-              required
-              value={dueDate}
-              onChange={(e) => setDueDate(e.target.value)}
-            />
+          <Field label="Orden de Venta (Opcional)">
+            <Select
+              value={orderId}
+              onChange={(e) => handleOrderChange(e.target.value)}
+            >
+              <option value="">Sin orden vinculada</option>
+              {orders.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.orderNumber} — Total: ${Number(o.total).toFixed(2)}
+                </option>
+              ))}
+            </Select>
           </Field>
-        </div>
 
-        {parsedAmount > 0 && bcv.rate > 0 && (
-          <div className="border-border-subtle surface-card flex items-center justify-between rounded-lg border px-3 py-2 text-xs">
-            <span className="text-muted-foreground">Equivalente BCV:</span>
-            <span className="text-primary font-mono font-semibold tabular-nums">
-              {formatDualCurrency(parsedAmount, bcv.rate).bs}
-            </span>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Field label="Monto a Crédito ($)" required>
+              <Input
+                type="number"
+                step="0.01"
+                min="0.01"
+                required
+                placeholder="0.00"
+                value={totalAmount}
+                onChange={(e) => setTotalAmount(e.target.value)}
+                className="font-mono tabular-nums"
+              />
+            </Field>
+
+            <Field label="Fecha de Vencimiento" required>
+              <Input
+                type="date"
+                required
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
+              />
+            </Field>
           </div>
-        )}
 
-        <Field label="Términos / Notas de Crédito">
-          <TextArea
-            rows={2}
-            placeholder="Condiciones acordadas, días de gracia o detalles..."
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
+          {parsedAmount > 0 && bcv.rate > 0 && (
+            <div className="border-border bg-card flex items-center justify-between border px-3 py-2 text-xs">
+              <span className="text-muted-foreground">Equivalente BCV:</span>
+              <span className="text-primary font-mono font-medium tabular-nums">
+                {formatDualCurrency(parsedAmount, bcv.rate).bs}
+              </span>
+            </div>
+          )}
+
+          <Field label="Términos / Notas de Crédito">
+            <TextArea
+              rows={2}
+              placeholder="Condiciones acordadas, días de gracia o detalles..."
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+            />
+          </Field>
+        </SheetBody>
+
+        <SheetFooter>
+          <SheetFormActions
+            onCancel={onClose}
+            submitting={create.isPending}
+            submitLabel="Crear Cuenta"
           />
-        </Field>
-
-        <FormActions
-          onCancel={onClose}
-          submitting={create.isPending}
-          submitLabel="Crear Cuenta"
-        />
+        </SheetFooter>
       </form>
-    </Dialog>
+    </SheetModal>
   );
 }
+
+export const CreateArSheet = CreateArDialog;

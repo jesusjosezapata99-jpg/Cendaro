@@ -13,6 +13,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import type { ImportMode } from "@cendaro/api";
+import { Icons } from "@cendaro/ui/icons";
 
 import type { WarehouseProduct } from "./lib/inventory-template-builder";
 import { useTRPC } from "~/trpc/client";
@@ -64,7 +65,7 @@ function StepIndicator({
         const isDone = current > s.num;
         const isActive = current === s.num;
 
-        const sharedClasses = `flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-all`;
+        const sharedClasses = `flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-all`;
 
         const colorClasses = isActive
           ? "bg-primary text-white"
@@ -77,10 +78,10 @@ function StepIndicator({
             {isDone ? (
               <button
                 onClick={() => onStepClick(s.num)}
-                className={`${sharedClasses} ${colorClasses} cursor-pointer hover:scale-105 hover:shadow-sm active:scale-95`}
+                className={`${sharedClasses} ${colorClasses} cursor-pointer hover:scale-105 active:scale-95`}
                 title={`Volver a ${s.label}`}
               >
-                <span className="material-symbols-outlined text-xs">check</span>
+                <Icons.Check className="size-3" />
                 <span className="hidden sm:inline">{s.label}</span>
               </button>
             ) : (
@@ -416,7 +417,7 @@ export function InventoryImportWizard({
   // ── Render ───────────────────────────────────
 
   return (
-    <div className="space-y-6 p-4 lg:p-8" role="tabpanel">
+    <div className="space-y-6 py-4 lg:py-8" role="tabpanel">
       {/* Breadcrumb */}
       <div className="text-muted-foreground flex items-center gap-2 text-sm">
         <Link
@@ -425,24 +426,20 @@ export function InventoryImportWizard({
         >
           Inventario
         </Link>
-        <span className="material-symbols-outlined text-base">
-          chevron_right
-        </span>
+        <Icons.ChevronRight className="size-4" />
         <Link
           href={`/inventory/warehouse/${warehouseId}`}
           className="hover:text-foreground transition-colors"
         >
           {warehouseName}
         </Link>
-        <span className="material-symbols-outlined text-base">
-          chevron_right
-        </span>
+        <Icons.ChevronRight className="size-4" />
         <span className="text-foreground font-medium">Importar</span>
       </div>
 
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-foreground text-2xl font-black tracking-tight">
+        <h1 className="text-foreground text-2xl font-medium tracking-tight">
           Importar Inventario
         </h1>
         {state.step < 7 && (
@@ -451,9 +448,7 @@ export function InventoryImportWizard({
             disabled={state.isProcessing}
             className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-sm transition-colors disabled:opacity-50"
           >
-            <span className="material-symbols-outlined text-lg">
-              restart_alt
-            </span>
+            <Icons.RestartAlt className="size-4.5" />
             Reiniciar
           </button>
         )}
@@ -472,30 +467,30 @@ export function InventoryImportWizard({
 
       {/* Global error */}
       {state.error && (
-        <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-900/20 dark:text-red-400">
-          <span className="material-symbols-outlined text-lg">error</span>
+        <div className="border-destructive/30 bg-destructive/10 text-destructive flex items-center gap-2 border px-4 py-3 text-sm">
+          <Icons.Error className="size-4.5" />
           {state.error}
         </div>
       )}
 
       {/* Restored session banner */}
       {wasRestored && state.step > 1 && state.step < 7 && (
-        <div className="flex items-center justify-between gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-400">
+        <div className="border-warning/30 bg-warning/10 text-warning flex items-center justify-between gap-2 border px-4 py-3 text-sm">
           <div className="flex items-center gap-2">
-            <span className="material-symbols-outlined text-lg">restore</span>
+            <Icons.Restore className="size-4.5" />
             Sesión restaurada — los datos de tu archivo ya están cargados.
           </div>
           <button
             onClick={() => setWasRestored(false)}
-            className="text-amber-500 transition-colors hover:text-amber-700 dark:hover:text-amber-300"
+            className="text-warning hover:text-foreground transition-colors"
           >
-            <span className="material-symbols-outlined text-lg">close</span>
+            <Icons.Close className="size-4.5" />
           </button>
         </div>
       )}
 
       {/* Step content */}
-      <div className="min-h-[300px]">
+      <div className="min-h-75">
         {state.step === 1 && (
           <ModeSelect selectedMode={state.mode} onSelect={selectMode} />
         )}

@@ -4,7 +4,19 @@
  * Customers, orders, order items.
  * PRD §14-17: sales channels, order flow, customer management.
  */
-import { and, desc, eq, sql } from "drizzle-orm";
+import { TRPCError } from "@trpc/server";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gte,
+  ilike,
+  inArray,
+  lte,
+  or,
+  sql,
+} from "drizzle-orm";
 import { z } from "zod/v4";
 
 import {
@@ -16,6 +28,7 @@ import {
   orderStatusEnum,
   Payment,
   paymentMethodEnum,
+  Product,
   salesChannelEnum,
   SalesOrder,
   StockMovement,
@@ -27,6 +40,30 @@ import {
   workspaceReadProcedure,
 } from "../trpc";
 import { logAudit } from "./audit";
+
+export const listOrdersInputSchema = z.object({
+  limit: z.number().int().min(1).max(100).default(25),
+  offset: z.number().int().min(0).default(0),
+  cursor: z.number().int().min(0).nullish(),
+  search: z.string().max(256).optional(),
+  status: z.enum(orderStatusEnum.enumValues).optional(),
+  statuses: z.array(z.enum(orderStatusEnum.enumValues)).optional(),
+  channel: z.enum(salesChannelEnum.enumValues).optional(),
+  channels: z.array(z.enum(salesChannelEnum.enumValues)).optional(),
+  dateFrom: z.string().datetime().or(z.date()).optional(),
+  dateTo: z.string().datetime().or(z.date()).optional(),
+  sort: z
+    .enum([
+      "createdAt:asc",
+      "createdAt:desc",
+      "total:asc",
+      "total:desc",
+      "orderNumber:asc",
+      "orderNumber:desc",
+    ])
+    .optional(),
+});
+export type ListOrdersInput = z.infer<typeof listOrdersInputSchema>;
 
 export const salesRouter = createTRPCRouter({
   // ─── Customers (PRD §17) ─────────────────────
@@ -40,10 +77,17 @@ export const salesRouter = createTRPCRouter({
       }),
     )
     .query(async ({ ctx, input }) => {
-      let query = ctx.db
+      const conditions = [eq(Customer.workspaceId, ctx.workspace.workspaceId)];
+      if (input.customerType) {
+        conditions.push(eq(Customer.customerType, input.customerType));
+      }
+      return ctx.db
         .select({
           id: Customer.id,
           name: Customer.name,
+          legalName: Customer.legalName,
+          identification: Customer.identification,
+          address: Customer.address,
           customerType: Customer.customerType,
           phone: Customer.phone,
           email: Customer.email,
@@ -52,11 +96,7 @@ export const salesRouter = createTRPCRouter({
           createdAt: Customer.createdAt,
         })
         .from(Customer)
-        .$dynamic();
-      if (input.customerType) {
-        query = query.where(eq(Customer.customerType, input.customerType));
-      }
-      return query
+        .where(and(...conditions))
         .orderBy(Customer.name)
         .limit(input.limit)
         .offset(input.offset);
@@ -68,7 +108,12 @@ export const salesRouter = createTRPCRouter({
       const [customer] = await ctx.db
         .select()
         .from(Customer)
-        .where(eq(Customer.id, input.id))
+        .where(
+          and(
+            eq(Customer.id, input.id),
+            eq(Customer.workspaceId, ctx.workspace.workspaceId),
+          ),
+        )
         .limit(1);
       return customer ?? null;
     }),
@@ -88,7 +133,13 @@ export const salesRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const [c] = await ctx.db.insert(Customer).values(input).returning();
+      const [c] = await ctx.db
+        .insert(Customer)
+        .values({
+          ...input,
+          workspaceId: ctx.workspace.workspaceId,
+        })
+        .returning();
       await logAudit(ctx.db, ctx.user, {
         action: "customer.create",
         entity: "customer",
@@ -101,20 +152,89 @@ export const salesRouter = createTRPCRouter({
   // ─── Orders (PRD §14-16) ─────────────────────
 
   listOrders: workspaceReadProcedure
-    .input(
-      z.object({
-        limit: z.number().int().min(1).max(100).default(25),
-        offset: z.number().int().min(0).default(0),
-        status: z.enum(orderStatusEnum.enumValues).optional(),
-        channel: z.enum(salesChannelEnum.enumValues).optional(),
-      }),
-    )
+    .input(listOrdersInputSchema)
     .query(async ({ ctx, input }) => {
-      let query = ctx.db
+      const conditions = [
+        eq(SalesOrder.workspaceId, ctx.workspace.workspaceId),
+      ];
+
+      // Status filters (multi-status takes precedence, fallback to single status)
+      if (input.statuses && input.statuses.length > 0) {
+        conditions.push(inArray(SalesOrder.status, input.statuses));
+      } else if (input.status) {
+        conditions.push(eq(SalesOrder.status, input.status));
+      }
+
+      // Channel filters (multi-channel takes precedence, fallback to single channel)
+      if (input.channels && input.channels.length > 0) {
+        conditions.push(inArray(SalesOrder.channel, input.channels));
+      } else if (input.channel) {
+        conditions.push(eq(SalesOrder.channel, input.channel));
+      }
+
+      // Date range filters
+      if (input.dateFrom) {
+        const fromDate =
+          typeof input.dateFrom === "string"
+            ? new Date(input.dateFrom)
+            : input.dateFrom;
+        conditions.push(gte(SalesOrder.createdAt, fromDate));
+      }
+      if (input.dateTo) {
+        const toDate =
+          typeof input.dateTo === "string"
+            ? new Date(input.dateTo)
+            : input.dateTo;
+        conditions.push(lte(SalesOrder.createdAt, toDate));
+      }
+
+      // Search filter (orderNumber, customer name, notes)
+      if (input.search) {
+        const escaped = input.search
+          .replace(/\\/g, "\\\\")
+          .replace(/%/g, "\\%")
+          .replace(/_/g, "\\_");
+        const orCond = or(
+          ilike(SalesOrder.orderNumber, `%${escaped}%`),
+          ilike(Customer.name, `%${escaped}%`),
+          ilike(SalesOrder.notes, `%${escaped}%`),
+        );
+        if (orCond) conditions.push(orCond);
+      }
+
+      // Sorting
+      let orderByClause = desc(SalesOrder.createdAt);
+      if (input.sort) {
+        switch (input.sort) {
+          case "createdAt:asc":
+            orderByClause = asc(SalesOrder.createdAt);
+            break;
+          case "createdAt:desc":
+            orderByClause = desc(SalesOrder.createdAt);
+            break;
+          case "total:asc":
+            orderByClause = asc(SalesOrder.total);
+            break;
+          case "total:desc":
+            orderByClause = desc(SalesOrder.total);
+            break;
+          case "orderNumber:asc":
+            orderByClause = asc(SalesOrder.orderNumber);
+            break;
+          case "orderNumber:desc":
+            orderByClause = desc(SalesOrder.orderNumber);
+            break;
+        }
+      }
+
+      const where = and(...conditions);
+
+      return ctx.db
         .select({
           id: SalesOrder.id,
           orderNumber: SalesOrder.orderNumber,
           customerId: SalesOrder.customerId,
+          customerName: Customer.name,
           channel: SalesOrder.channel,
           status: SalesOrder.status,
           subtotal: SalesOrder.subtotal,
@@ -124,17 +244,11 @@ export const salesRouter = createTRPCRouter({
           createdAt: SalesOrder.createdAt,
         })
         .from(SalesOrder)
-        .$dynamic();
-      if (input.status) {
-        query = query.where(eq(SalesOrder.status, input.status));
-      }
-      if (input.channel) {
-        query = query.where(eq(SalesOrder.channel, input.channel));
-      }
-      return query
-        .orderBy(desc(SalesOrder.createdAt))
+        .leftJoin(Customer, eq(SalesOrder.customerId, Customer.id))
+        .where(where)
+        .orderBy(orderByClause)
         .limit(input.limit)
-        .offset(input.offset);
+        .offset(input.cursor ?? input.offset);
     }),
 
   orderById: workspaceReadProcedure
@@ -143,14 +257,47 @@ export const salesRouter = createTRPCRouter({
       const [order] = await ctx.db
         .select()
         .from(SalesOrder)
-        .where(eq(SalesOrder.id, input.id))
+        .where(
+          and(
+            eq(SalesOrder.id, input.id),
+            eq(SalesOrder.workspaceId, ctx.workspace.workspaceId),
+          ),
+        )
         .limit(1);
 
       if (!order) return null;
 
       const [items, payments] = await Promise.all([
-        ctx.db.select().from(OrderItem).where(eq(OrderItem.orderId, input.id)),
-        ctx.db.select().from(Payment).where(eq(Payment.orderId, input.id)),
+        ctx.db
+          .select({
+            id: OrderItem.id,
+            workspaceId: OrderItem.workspaceId,
+            orderId: OrderItem.orderId,
+            productId: OrderItem.productId,
+            productName: Product.name,
+            sku: Product.sku,
+            quantity: OrderItem.quantity,
+            unitPrice: OrderItem.unitPrice,
+            discount: OrderItem.discount,
+            lineTotal: OrderItem.lineTotal,
+          })
+          .from(OrderItem)
+          .leftJoin(Product, eq(OrderItem.productId, Product.id))
+          .where(
+            and(
+              eq(OrderItem.orderId, input.id),
+              eq(OrderItem.workspaceId, ctx.workspace.workspaceId),
+            ),
+          ),
+        ctx.db
+          .select()
+          .from(Payment)
+          .where(
+            and(
+              eq(Payment.orderId, input.id),
+              eq(Payment.workspaceId, ctx.workspace.workspaceId),
+            ),
+          ),
       ]);
 
       return { ...order, items, payments };
@@ -188,6 +335,7 @@ export const salesRouter = createTRPCRouter({
       const [order] = await ctx.db
         .insert(SalesOrder)
         .values({
+          workspaceId: ctx.workspace.workspaceId,
           orderNumber,
           customerId: input.customerId,
           channel: input.channel,
@@ -202,6 +350,7 @@ export const salesRouter = createTRPCRouter({
       if (order && input.items.length > 0) {
         await ctx.db.insert(OrderItem).values(
           input.items.map((item) => ({
+            workspaceId: ctx.workspace.workspaceId,
             orderId: order.id,
             productId: item.productId,
             quantity: item.quantity,
@@ -234,15 +383,30 @@ export const salesRouter = createTRPCRouter({
       const [currentOrder] = await ctx.db
         .select()
         .from(SalesOrder)
-        .where(eq(SalesOrder.id, input.id))
+        .where(
+          and(
+            eq(SalesOrder.id, input.id),
+            eq(SalesOrder.workspaceId, ctx.workspace.workspaceId),
+          ),
+        )
         .limit(1);
 
-      if (!currentOrder) throw new Error("Order not found");
+      if (!currentOrder) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Order not found in this workspace",
+        });
+      }
 
       const [updated] = await ctx.db
         .update(SalesOrder)
         .set({ status: input.status })
-        .where(eq(SalesOrder.id, input.id))
+        .where(
+          and(
+            eq(SalesOrder.id, input.id),
+            eq(SalesOrder.workspaceId, ctx.workspace.workspaceId),
+          ),
+        )
         .returning();
 
       // ── Stock lifecycle: deduct on close, revert on return/cancel ──
@@ -261,7 +425,12 @@ export const salesRouter = createTRPCRouter({
         const items = await ctx.db
           .select()
           .from(OrderItem)
-          .where(eq(OrderItem.orderId, input.id));
+          .where(
+            and(
+              eq(OrderItem.orderId, input.id),
+              eq(OrderItem.workspaceId, ctx.workspace.workspaceId),
+            ),
+          );
 
         for (const item of items) {
           const sign = isClosing ? -1 : 1;
@@ -274,12 +443,14 @@ export const salesRouter = createTRPCRouter({
             })
             .where(
               and(
+                eq(ChannelAllocation.workspaceId, ctx.workspace.workspaceId),
                 eq(ChannelAllocation.productId, item.productId),
                 eq(ChannelAllocation.channel, currentOrder.channel),
               ),
             );
 
           await ctx.db.insert(StockMovement).values({
+            workspaceId: ctx.workspace.workspaceId,
             productId: item.productId,
             movementType,
             quantity: sign * item.quantity,
@@ -295,7 +466,12 @@ export const salesRouter = createTRPCRouter({
         await ctx.db
           .update(SalesOrder)
           .set({ stockDeducted: isClosing })
-          .where(eq(SalesOrder.id, input.id));
+          .where(
+            and(
+              eq(SalesOrder.id, input.id),
+              eq(SalesOrder.workspaceId, ctx.workspace.workspaceId),
+            ),
+          );
       }
 
       await logAudit(ctx.db, ctx.user, {
@@ -324,9 +500,10 @@ export const salesRouter = createTRPCRouter({
       }),
     )
     .query(async ({ ctx, input }) => {
-      const where = input.onlyPending
-        ? eq(Payment.isValidated, false)
-        : undefined;
+      const conditions = [eq(Payment.workspaceId, ctx.workspace.workspaceId)];
+      if (input.onlyPending) {
+        conditions.push(eq(Payment.isValidated, false));
+      }
 
       return ctx.db
         .select({
@@ -341,7 +518,7 @@ export const salesRouter = createTRPCRouter({
           createdAt: Payment.createdAt,
         })
         .from(Payment)
-        .where(where)
+        .where(and(...conditions))
         .orderBy(desc(Payment.createdAt))
         .limit(input.limit);
     }),
@@ -360,7 +537,32 @@ export const salesRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const [payment] = await ctx.db.insert(Payment).values(input).returning();
+      // Verify order belongs to current workspace
+      const [order] = await ctx.db
+        .select()
+        .from(SalesOrder)
+        .where(
+          and(
+            eq(SalesOrder.id, input.orderId),
+            eq(SalesOrder.workspaceId, ctx.workspace.workspaceId),
+          ),
+        )
+        .limit(1);
+
+      if (!order) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Order not found in this workspace",
+        });
+      }
+
+      const [payment] = await ctx.db
+        .insert(Payment)
+        .values({
+          ...input,
+          workspaceId: ctx.workspace.workspaceId,
+        })
+        .returning();
 
       // Update totalPaid on order
       await ctx.db
@@ -368,7 +570,12 @@ export const salesRouter = createTRPCRouter({
         .set({
           totalPaid: sql`COALESCE(${SalesOrder.totalPaid}, 0) + ${input.amount}`,
         })
-        .where(eq(SalesOrder.id, input.orderId));
+        .where(
+          and(
+            eq(SalesOrder.id, input.orderId),
+            eq(SalesOrder.workspaceId, ctx.workspace.workspaceId),
+          ),
+        );
 
       await logAudit(ctx.db, ctx.user, {
         action: "payment.create",
@@ -383,11 +590,30 @@ export const salesRouter = createTRPCRouter({
   validatePayment: workspaceProcedure
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
+      if (!["owner", "admin", "supervisor"].includes(ctx.workspace.role)) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Insufficient permissions to validate payments",
+        });
+      }
+
       const [updated] = await ctx.db
         .update(Payment)
         .set({ isValidated: true, validatedBy: ctx.user.id })
-        .where(eq(Payment.id, input.id))
+        .where(
+          and(
+            eq(Payment.id, input.id),
+            eq(Payment.workspaceId, ctx.workspace.workspaceId),
+          ),
+        )
         .returning();
+
+      if (!updated) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Payment not found in this workspace",
+        });
+      }
 
       await logAudit(ctx.db, ctx.user, {
         action: "payment.validate",
@@ -414,6 +640,7 @@ export const salesRouter = createTRPCRouter({
         status: CashClosure.status,
       })
       .from(CashClosure)
+      .where(eq(CashClosure.workspaceId, ctx.workspace.workspaceId))
       .orderBy(desc(CashClosure.closureDate))
       .limit(100);
   }),
@@ -435,6 +662,7 @@ export const salesRouter = createTRPCRouter({
       const [closure] = await ctx.db
         .insert(CashClosure)
         .values({
+          workspaceId: ctx.workspace.workspaceId,
           closureDate: new Date(input.closureDate),
           totalSales: input.totalSales,
           totalCash: input.totalCash,
@@ -464,14 +692,33 @@ export const salesRouter = createTRPCRouter({
   reviewClosure: workspaceProcedure
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
+      if (!["owner", "admin", "supervisor"].includes(ctx.workspace.role)) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Insufficient permissions to review cash closures",
+        });
+      }
+
       const [updated] = await ctx.db
         .update(CashClosure)
         .set({
           status: "reviewed",
           reviewedBy: ctx.user.id,
         })
-        .where(eq(CashClosure.id, input.id))
+        .where(
+          and(
+            eq(CashClosure.id, input.id),
+            eq(CashClosure.workspaceId, ctx.workspace.workspaceId),
+          ),
+        )
         .returning();
+
+      if (!updated) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Cash closure not found in this workspace",
+        });
+      }
 
       await logAudit(ctx.db, ctx.user, {
         action: "cash.review",

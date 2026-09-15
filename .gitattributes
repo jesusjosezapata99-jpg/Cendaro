@@ -1,2 +1,6 @@
+# Auto-detect text files and normalize line endings
+* text=auto
+
 # Husky hooks must stay LF — Git Bash / sh cannot parse CRLF scripts
 .husky/* text eol=lf
+

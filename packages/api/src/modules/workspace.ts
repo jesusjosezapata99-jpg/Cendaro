@@ -22,6 +22,7 @@ import {
   workspaceProcedure,
   workspaceReadProcedure,
 } from "../trpc";
+import { logAudit } from "./audit";
 
 // ── Plan defaults (sync with erpModuleEnum in schema.ts) ──────────
 // Exact enum values: dashboard, catalog, inventory, containers, pricing, rates,
@@ -255,6 +256,14 @@ export const workspaceRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       const ws = ctx.workspace;
 
+      if (!["owner", "admin"].includes(ws.role)) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message:
+            "Solo propietarios o administradores pueden editar el workspace",
+        });
+      }
+
       if (!input.name) {
         throw new TRPCError({
           code: "BAD_REQUEST",
@@ -270,6 +279,14 @@ export const workspaceRouter = createTRPCRouter({
         })
         .where(eq(Workspace.id, ws.workspaceId))
         .returning();
+
+      await logAudit(ctx.db, ctx.user, {
+        workspaceId: ws.workspaceId,
+        action: "workspace.update",
+        entity: "workspace",
+        entityId: ws.workspaceId,
+        newValue: { name: input.name },
+      });
 
       return updated;
     }),
@@ -311,6 +328,21 @@ export const workspaceRouter = createTRPCRouter({
     )
     .mutation(async ({ ctx, input }) => {
       const ws = ctx.workspace;
+
+      if (!["owner", "admin"].includes(ws.role)) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message:
+            "Solo propietarios o administradores pueden invitar miembros",
+        });
+      }
+
+      if (input.role === "admin" && ws.role !== "owner") {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Solo el propietario puede invitar administradores",
+        });
+      }
 
       // Find user by email
       const [user] = await ctx.db
@@ -355,6 +387,14 @@ export const workspaceRouter = createTRPCRouter({
         })
         .returning();
 
+      await logAudit(ctx.db, ctx.user, {
+        workspaceId: ws.workspaceId,
+        action: "workspace.invite_member",
+        entity: "workspace_member",
+        entityId: member?.id,
+        newValue: { email: input.email, role: input.role },
+      });
+
       return member;
     }),
 
@@ -366,6 +406,14 @@ export const workspaceRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       const ws = ctx.workspace;
 
+      if (!["owner", "admin"].includes(ws.role)) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message:
+            "Solo propietarios o administradores pueden eliminar miembros",
+        });
+      }
+
       // Can't remove yourself
       if (input.memberId === ws.memberId) {
         throw new TRPCError({
@@ -374,7 +422,39 @@ export const workspaceRouter = createTRPCRouter({
         });
       }
 
-      const [updated] = await ctx.db
+      const [target] = await ctx.db
+        .select()
+        .from(WorkspaceMember)
+        .where(
+          and(
+            eq(WorkspaceMember.id, input.memberId),
+            eq(WorkspaceMember.workspaceId, ws.workspaceId),
+          ),
+        )
+        .limit(1);
+
+      if (!target) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Miembro no encontrado",
+        });
+      }
+
+      if (target.role === "owner") {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "No se puede eliminar al propietario del workspace",
+        });
+      }
+
+      if (target.role === "admin" && ws.role !== "owner") {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Solo el propietario puede eliminar administradores",
+        });
+      }
+
+      await ctx.db
         .update(WorkspaceMember)
         .set({
           status: "removed",
@@ -387,12 +467,13 @@ export const workspaceRouter = createTRPCRouter({
         )
         .returning();
 
-      if (!updated) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Miembro no encontrado",
-        });
-      }
+      await logAudit(ctx.db, ctx.user, {
+        workspaceId: ws.workspaceId,
+        action: "workspace.remove_member",
+        entity: "workspace_member",
+        entityId: input.memberId,
+        oldValue: { userId: target.userId, role: target.role },
+      });
 
       return { success: true };
     }),

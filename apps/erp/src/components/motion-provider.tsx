@@ -2,6 +2,8 @@
 
 import { domAnimation, LazyMotion, MotionConfig } from "framer-motion";
 
+import { easeStandard } from "~/lib/motion";
+
 /**
  * Shared spring vocabulary — ~180ms settle, no overshoot (Apple-like).
  */
@@ -35,7 +37,7 @@ export function MotionProvider({ children }: { children: React.ReactNode }) {
     <LazyMotion features={domAnimation} strict>
       <MotionConfig
         reducedMotion="user"
-        transition={{ type: "spring", stiffness: 420, damping: 32, mass: 0.9 }}
+        transition={{ duration: 0.2, ease: easeStandard }}
       >
         {children}
       </MotionConfig>

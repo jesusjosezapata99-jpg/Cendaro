@@ -5,24 +5,25 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 
+import type { StatusTone } from "@cendaro/ui/status-pill";
 import { Button } from "@cendaro/ui";
+import { Icons } from "@cendaro/ui/icons";
+import { StatusPill } from "@cendaro/ui/status-pill";
 
-import type { StatusTone } from "~/components/status-badge";
 import { EmptyState } from "~/components/empty-state";
 import { Skeleton } from "~/components/skeleton";
 import { StatCard } from "~/components/stat-card";
-import { StatusBadge } from "~/components/status-badge";
 import { useBcvRate } from "~/hooks/use-bcv-rate";
 import { formatDualCurrency } from "~/lib/format-currency";
 import { useTRPC } from "~/trpc/client";
 
-const TYPE_CONFIG: Record<string, { label: string; tone: StatusTone }> = {
-  wholesale: { label: "Mayorista", tone: "primary" },
+const CUSTOMER_TYPE_MAP: Record<string, { label: string; tone: StatusTone }> = {
+  wholesale: { label: "Mayorista", tone: "info" },
   retail: { label: "Detal", tone: "neutral" },
   distributor: { label: "Distribuidor", tone: "warning" },
   vip: { label: "VIP", tone: "success" },
-  marketplace: { label: "Marketplace", tone: "primary" },
-  vendor_client: { label: "Cliente Vendedor", tone: "success" },
+  marketplace: { label: "Marketplace", tone: "default" },
+  vendor_client: { label: "Cliente Vendedor", tone: "orange" },
 };
 
 export default function CustomerDetailPage() {
@@ -38,7 +39,7 @@ export default function CustomerDetailPage() {
   const typeCfg = useMemo((): { label: string; tone: StatusTone } => {
     if (!customer) return { label: "Cliente", tone: "neutral" };
     return (
-      TYPE_CONFIG[customer.customerType] ?? {
+      CUSTOMER_TYPE_MAP[customer.customerType] ?? {
         label: customer.customerType,
         tone: "neutral",
       }
@@ -54,24 +55,24 @@ export default function CustomerDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="space-y-6 p-4 lg:p-8">
+      <div className="space-y-6 py-4 lg:py-8">
         <Skeleton className="h-6 w-48" />
-        <Skeleton className="h-36 w-full rounded-xl" />
+        <Skeleton className="h-36 w-full" />
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-24 rounded-xl" />
+            <Skeleton key={i} className="h-24" />
           ))}
         </div>
-        <Skeleton className="h-64 w-full rounded-xl" />
+        <Skeleton className="h-64 w-full" />
       </div>
     );
   }
 
   if (!customer) {
     return (
-      <div className="p-4 lg:p-8">
+      <div className="py-4 lg:py-8">
         <EmptyState
-          icon="person_off"
+          icon="PersonOff"
           title="Cliente no encontrado"
           description="El registro del cliente solicitado no existe o fue removido del sistema."
           action={
@@ -80,9 +81,7 @@ export default function CustomerDetailPage() {
               onClick={() => window.history.back()}
               className="gap-2"
             >
-              <span className="material-symbols-outlined text-sm">
-                arrow_back
-              </span>
+              <Icons.ArrowBack className="size-3.5" />
               Volver al Directorio
             </Button>
           }
@@ -99,35 +98,35 @@ export default function CustomerDetailPage() {
     .toUpperCase();
 
   return (
-    <div className="space-y-6 p-4 lg:p-8">
+    <div className="space-y-6 py-4 lg:py-8">
       {/* Breadcrumb */}
       <div className="text-muted-foreground flex items-center gap-2 text-xs">
         <Link
           href="/customers"
           className="hover:text-foreground flex items-center gap-1 font-medium transition-colors"
         >
-          <span className="material-symbols-outlined text-sm">arrow_back</span>
+          <Icons.ArrowBack className="size-3.5" />
           Clientes
         </Link>
-        <span className="material-symbols-outlined text-xs">chevron_right</span>
-        <span className="text-foreground max-w-xs truncate font-bold">
+        <Icons.ChevronRight className="size-3" />
+        <span className="text-foreground max-w-xs truncate font-medium">
           {customer.name}
         </span>
       </div>
 
       {/* Customer Profile Header Card */}
-      <div className="surface-card border-border-subtle rounded-xl border p-6">
+      <div className="border-border bg-card border p-6">
         <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-4">
-            <div className="bg-primary/10 text-primary flex size-16 shrink-0 items-center justify-center rounded-2xl text-xl font-black">
+            <div className="bg-primary/10 text-primary border-border flex size-14 shrink-0 items-center justify-center border font-mono text-lg font-medium">
               {initials}
             </div>
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2.5">
-                <h1 className="text-foreground text-2xl font-bold tracking-tight">
+                <h1 className="text-foreground text-2xl font-medium tracking-tight">
                   {customer.name}
                 </h1>
-                <StatusBadge tone={typeCfg.tone}>{typeCfg.label}</StatusBadge>
+                <StatusPill tone={typeCfg.tone}>{typeCfg.label}</StatusPill>
               </div>
               <p className="text-muted-foreground mt-1 font-mono text-xs">
                 {customer.identification
@@ -144,11 +143,9 @@ export default function CustomerDetailPage() {
               <>
                 <a
                   href={`tel:${customer.phone}`}
-                  className="border-border-subtle bg-surface-card text-foreground hover:bg-accent inline-flex min-h-11 items-center gap-2 rounded-lg border px-4 py-2 text-xs font-semibold transition-colors"
+                  className="border-border bg-card text-foreground hover:bg-accent inline-flex min-h-10 items-center gap-2 border px-3 py-1.5 text-xs font-medium transition-colors"
                 >
-                  <span className="material-symbols-outlined text-base">
-                    phone
-                  </span>
+                  <Icons.Phone className="size-4" />
                   Llamar ({customer.phone})
                 </a>
                 {phoneClean && (
@@ -156,11 +153,9 @@ export default function CustomerDetailPage() {
                     href={`https://wa.me/${phoneClean}`}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-emerald-500"
+                    className="inline-flex min-h-10 items-center gap-2 border border-emerald-600 bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-emerald-500"
                   >
-                    <span className="material-symbols-outlined text-base">
-                      chat
-                    </span>
+                    <Icons.Chat className="size-4" />
                     WhatsApp
                   </a>
                 )}
@@ -169,12 +164,10 @@ export default function CustomerDetailPage() {
             {customer.email && (
               <a
                 href={`mailto:${customer.email}`}
-                className="border-border-subtle bg-surface-card text-muted-foreground hover:bg-accent hover:text-foreground inline-flex min-h-11 items-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold transition-colors"
+                className="border-border bg-card text-muted-foreground hover:bg-accent hover:text-foreground inline-flex min-h-10 items-center gap-2 border px-3 py-1.5 text-xs font-medium transition-colors"
                 title="Enviar Correo"
               >
-                <span className="material-symbols-outlined text-base">
-                  mail
-                </span>
+                <Icons.Mail className="size-4" />
               </a>
             )}
           </div>
@@ -190,7 +183,7 @@ export default function CustomerDetailPage() {
               ? dualCredit.usd
               : "Sin crédito"
           }
-          icon="account_balance"
+          icon="AccountBalance"
           tone={Number(customer.creditLimit ?? 0) > 0 ? "success" : "default"}
           sub={
             Number(customer.creditLimit ?? 0) > 0
@@ -205,29 +198,29 @@ export default function CustomerDetailPage() {
               ? `${customer.creditDays} días`
               : "Contado"
           }
-          icon="calendar_today"
+          icon="CalendarToday"
           tone="default"
           sub="Plazo de vencimiento de facturas"
         />
         <StatCard
           label="Tipología Comercial"
           value={typeCfg.label}
-          icon="badge"
-          tone={typeCfg.tone === "neutral" ? "default" : typeCfg.tone}
+          icon="Badge"
+          tone="default"
           sub="Segmento de facturación y precios"
         />
         <StatCard
           label="Cliente Desde"
           value={new Date(customer.createdAt).toLocaleDateString("es-VE")}
-          icon="calendar_today"
+          icon="CalendarToday"
           tone="default"
           sub="Fecha de apertura de ficha"
         />
       </div>
 
       {/* Structured Customer Data Section */}
-      <section className="surface-card border-border-subtle rounded-xl border p-6">
-        <h2 className="text-muted-foreground text-xs font-bold tracking-widest uppercase">
+      <section className="border-border bg-card border p-6">
+        <h2 className="text-muted-foreground text-xs font-medium tracking-widest uppercase">
           Ficha Comercial & Fiscal
         </h2>
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -259,14 +252,11 @@ export default function CustomerDetailPage() {
                 : "Venta directa de mostrador",
             },
           ].map((d) => (
-            <div
-              key={d.label}
-              className="border-border-subtle/80 bg-muted/20 rounded-lg border p-3.5"
-            >
-              <span className="text-muted-foreground block text-[11px] font-semibold tracking-wider uppercase">
+            <div key={d.label} className="border-border bg-card border p-3.5">
+              <span className="text-muted-foreground block text-[11px] font-medium tracking-wider uppercase">
                 {d.label}
               </span>
-              <span className="text-foreground mt-1 block font-mono text-sm font-semibold">
+              <span className="text-foreground mt-1 block font-mono text-sm font-medium tabular-nums">
                 {d.value}
               </span>
             </div>

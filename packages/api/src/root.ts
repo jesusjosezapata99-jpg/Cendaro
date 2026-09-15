@@ -14,6 +14,7 @@ import { quotesRouter } from "./modules/quotes";
 import { receivablesRouter } from "./modules/receivables";
 import { reportingRouter } from "./modules/reporting";
 import { salesRouter } from "./modules/sales";
+import { searchRouter } from "./modules/search";
 import { usersRouter } from "./modules/users";
 import { vendorRouter } from "./modules/vendors";
 import { workspaceRouter } from "./modules/workspace";
@@ -37,6 +38,7 @@ export const appRouter = createTRPCRouter({
   vendor: vendorRouter,
   integrations: integrationsRouter,
   dashboard: dashboardRouter,
+  search: searchRouter,
   health: healthRouter,
   workspace: workspaceRouter,
 });

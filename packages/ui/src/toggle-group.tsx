@@ -10,13 +10,13 @@ import {
 import { cn } from "@cendaro/ui";
 
 const toggleVariants = cva(
-  "hover:bg-muted hover:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 data-[state=on]:bg-accent data-[state=on]:text-accent-foreground dark:hover:bg-muted/50 inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium transition-[color,box-shadow] outline-none focus-visible:ring-[3px] disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "hover:bg-muted hover:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring data-[state=on]:bg-accent data-[state=on]:text-accent-foreground inline-flex shrink-0 items-center justify-center gap-2 text-sm font-medium transition-colors outline-none focus-visible:ring-1 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
         default: "bg-transparent",
         outline:
-          "border-input hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50 border bg-transparent shadow-xs",
+          "border-border hover:bg-accent hover:text-accent-foreground border bg-transparent",
       },
       size: {
         default: "h-9 min-w-9 px-2",
@@ -59,10 +59,7 @@ function ToggleGroup({
       data-slot="toggle-group"
       data-variant={variant}
       data-size={size}
-      className={cn(
-        "group/toggle-group flex w-fit items-center rounded-md data-[variant=outline]:shadow-xs",
-        className,
-      )}
+      className={cn("group/toggle-group flex w-fit items-center", className)}
       {...props}
     />
   );
@@ -82,7 +79,7 @@ function ToggleGroupItem({
       data-size={size}
       className={cn(
         toggleVariants({ variant, size }),
-        "focus-visible:border-ring focus-visible:ring-ring/50 min-w-0 flex-1 shrink-0 rounded-none shadow-none first:rounded-md last:rounded-md focus-visible:ring-[3px] data-[variant=outline]:border-l data-[variant=outline]:first:border-l-0",
+        "focus-visible:border-ring focus-visible:ring-ring min-w-0 flex-1 shrink-0 focus-visible:ring-1 data-[variant=outline]:border-l data-[variant=outline]:first:border-l-0",
         className,
       )}
       {...props}

@@ -4,9 +4,8 @@ import { NextResponse } from "next/server";
 import { createSupabaseMiddlewareClient } from "@cendaro/auth/middleware";
 
 import { env } from "~/env";
-
-const PUBLIC_ROUTES_EXACT = ["/", "/opengraph-image"];
-const PUBLIC_ROUTES_PREFIX = ["/login", "/api/auth"];
+import { PUBLIC_ROUTES_EXACT, PUBLIC_ROUTES_PREFIX } from "~/lib/public-routes";
+import { REDIRECT_ALLOWLIST_PREFIX } from "~/lib/redirect-allowlist";
 
 /**
  * Security headers injected on all /api/auth/* responses.
@@ -18,35 +17,6 @@ const GLOBAL_SECURITY_HEADERS: Record<string, string> = {
   "Referrer-Policy": "strict-origin-when-cross-origin",
   "Permissions-Policy": "camera=(), microphone=(), geolocation=(), payment=()",
 };
-
-/**
- * ALLOWED_REDIRECT_PATHS — whitelist of paths that are safe to redirect to
- * after login. Prevents open-redirect attacks via the ?redirect= parameter.
- */
-const REDIRECT_ALLOWLIST_PREFIX = [
-  "/dashboard",
-  "/catalog",
-  "/inventory",
-  "/containers",
-  "/pos",
-  "/rates",
-  "/pricing",
-  "/orders",
-  "/quotes",
-  "/customers",
-  "/payments",
-  "/cash-closure",
-  "/delivery-notes",
-  "/invoices",
-  "/vendors",
-  "/accounts-receivable",
-  "/marketplace",
-  "/whatsapp",
-  "/users",
-  "/audit",
-  "/alerts",
-  "/settings",
-];
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;

@@ -3,13 +3,15 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
+import { Icons } from "@cendaro/ui/icons";
+
+import { Field, Input, TextArea } from "~/components/dialog";
 import {
-  Dialog,
-  Field,
-  FormActions,
-  Input,
-  TextArea,
-} from "~/components/dialog";
+  SheetBody,
+  SheetFooter,
+  SheetFormActions,
+  SheetModal,
+} from "~/components/sheet-modal";
 import { useBcvRate } from "~/hooks/use-bcv-rate";
 import { formatDualCurrency } from "~/lib/format-currency";
 import { useTRPC } from "~/trpc/client";
@@ -73,166 +75,174 @@ export function CreateClosureDialog({ open, onClose }: Props) {
   };
 
   return (
-    <Dialog
+    <SheetModal
       open={open}
       onClose={onClose}
       title="Cerrar Día (Arqueo de Caja)"
       description="Registra el cierre de caja diario y la conciliación física de fondos."
-      className="max-w-xl"
+      className="sm:max-w-xl md:max-w-2xl"
     >
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <Field label="Fecha de Cierre" required>
-          <Input
-            type="date"
-            required
-            value={form.closureDate}
-            onChange={(e) =>
-              setForm((f) => ({ ...f, closureDate: e.target.value }))
-            }
-          />
-        </Field>
+      <form onSubmit={handleSubmit} className="flex h-full flex-col">
+        <SheetBody>
+          <Field label="Fecha de Cierre" required>
+            <Input
+              type="date"
+              required
+              value={form.closureDate}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, closureDate: e.target.value }))
+              }
+            />
+          </Field>
 
-        <div className="grid grid-cols-3 gap-3">
-          <Field label="Total Ventas ($)" required>
-            <Input
-              type="number"
-              step="0.01"
-              min="0"
-              required
-              placeholder="0.00"
-              value={form.totalSales}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, totalSales: e.target.value }))
-              }
-              className="font-mono tabular-nums"
-            />
-          </Field>
-          <Field label="Efectivo Físico ($)" required>
-            <Input
-              type="number"
-              step="0.01"
-              min="0"
-              required
-              placeholder="0.00"
-              value={form.totalCash}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, totalCash: e.target.value }))
-              }
-              className="font-mono tabular-nums"
-            />
-          </Field>
-          <Field label="Digital / Bancos ($)" required>
-            <Input
-              type="number"
-              step="0.01"
-              min="0"
-              required
-              placeholder="0.00"
-              value={form.totalDigital}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, totalDigital: e.target.value }))
-              }
-              className="font-mono tabular-nums"
-            />
-          </Field>
-        </div>
+          <div className="grid grid-cols-3 gap-3">
+            <Field label="Total Ventas ($)" required>
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                required
+                placeholder="0.00"
+                value={form.totalSales}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, totalSales: e.target.value }))
+                }
+                className="font-mono tabular-nums"
+              />
+            </Field>
+            <Field label="Efectivo Físico ($)" required>
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                required
+                placeholder="0.00"
+                value={form.totalCash}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, totalCash: e.target.value }))
+                }
+                className="font-mono tabular-nums"
+              />
+            </Field>
+            <Field label="Digital / Bancos ($)" required>
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                required
+                placeholder="0.00"
+                value={form.totalDigital}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, totalDigital: e.target.value }))
+                }
+                className="font-mono tabular-nums"
+              />
+            </Field>
+          </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <Field
-            label="Total Esperado ($)"
-            required
-            hint="Suma teórica del sistema"
-          >
-            <Input
-              type="number"
-              step="0.01"
-              min="0"
+          <div className="grid grid-cols-2 gap-3">
+            <Field
+              label="Total Esperado ($)"
               required
-              placeholder="0.00"
-              value={form.expectedTotal}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, expectedTotal: e.target.value }))
-              }
-              className="font-mono tabular-nums"
-            />
-          </Field>
-          <Field
-            label="Total Real en Caja ($)"
-            required
-            hint="Conteo físico / efectivo + vouchers"
-          >
-            <Input
-              type="number"
-              step="0.01"
-              min="0"
+              hint="Suma teórica del sistema"
+            >
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                required
+                placeholder="0.00"
+                value={form.expectedTotal}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, expectedTotal: e.target.value }))
+                }
+                className="font-mono tabular-nums"
+              />
+            </Field>
+            <Field
+              label="Total Real en Caja ($)"
               required
-              placeholder="0.00"
-              value={form.actualTotal}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, actualTotal: e.target.value }))
-              }
-              className="font-mono tabular-nums"
-            />
-          </Field>
-        </div>
+              hint="Conteo físico / efectivo + vouchers"
+            >
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                required
+                placeholder="0.00"
+                value={form.actualTotal}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, actualTotal: e.target.value }))
+                }
+                className="font-mono tabular-nums"
+              />
+            </Field>
+          </div>
 
-        {/* Dynamic Discrepancy Calculator Card */}
-        {hasEnteredTotals && (
-          <div
-            className={`rounded-lg border p-3 transition-colors ${
-              Math.abs(discrepancy) < 0.01
-                ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
-                : discrepancy < 0
-                  ? "border-destructive/40 bg-destructive/10 text-destructive"
-                  : "border-amber-500/30 bg-amber-500/10 text-amber-400"
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5 text-xs font-semibold">
-                <span className="material-symbols-outlined text-base">
-                  {Math.abs(discrepancy) < 0.01
-                    ? "check_circle"
-                    : discrepancy < 0
-                      ? "warning"
-                      : "info"}
-                </span>
-                <span>
-                  {Math.abs(discrepancy) < 0.01
-                    ? "Caja Cuadrada (Sin discrepancias)"
-                    : discrepancy < 0
-                      ? "Faltante en Caja"
-                      : "Sobrante en Caja"}
-                </span>
-              </div>
-              <div className="text-right">
-                <span className="font-mono text-sm font-bold tabular-nums">
-                  {discrepancy >= 0 ? "+" : ""}${discrepancy.toFixed(2)}
-                </span>
-                {bcv.rate > 0 && Math.abs(discrepancy) >= 0.01 && (
-                  <p className="font-mono text-[10px] tabular-nums opacity-80">
-                    {formatDualCurrency(Math.abs(discrepancy), bcv.rate).bs}
-                  </p>
-                )}
+          {/* Dynamic Discrepancy Calculator Card */}
+          {hasEnteredTotals && (
+            <div
+              className={`border p-3 transition-colors ${
+                Math.abs(discrepancy) < 0.01
+                  ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
+                  : discrepancy < 0
+                    ? "border-destructive/40 bg-destructive/10 text-destructive"
+                    : "border-amber-500/30 bg-amber-500/10 text-amber-400"
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-xs font-medium">
+                  {Math.abs(discrepancy) < 0.01 ? (
+                    <Icons.CheckCircle className="size-4" />
+                  ) : discrepancy < 0 ? (
+                    <Icons.Warning className="size-4" />
+                  ) : (
+                    <Icons.Info className="size-4" />
+                  )}
+                  <span>
+                    {Math.abs(discrepancy) < 0.01
+                      ? "Caja Cuadrada (Sin discrepancias)"
+                      : discrepancy < 0
+                        ? "Faltante en Caja"
+                        : "Sobrante en Caja"}
+                  </span>
+                </div>
+                <div className="text-right">
+                  <span className="font-mono text-sm font-medium tabular-nums">
+                    {discrepancy >= 0 ? "+" : ""}${discrepancy.toFixed(2)}
+                  </span>
+                  {bcv.rate > 0 && Math.abs(discrepancy) >= 0.01 && (
+                    <p className="font-mono text-[10px] tabular-nums opacity-80">
+                      {formatDualCurrency(Math.abs(discrepancy), bcv.rate).bs}
+                    </p>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
 
-        <Field label="Notas / Observaciones del Arqueo">
-          <TextArea
-            rows={2}
-            placeholder="Explicación de discrepancias, incidencias o detalles del arqueo..."
-            value={form.notes}
-            onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+          <Field label="Notas / Observaciones del Arqueo">
+            <TextArea
+              rows={2}
+              placeholder="Explicación de discrepancias, incidencias o detalles del arqueo..."
+              value={form.notes}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, notes: e.target.value }))
+              }
+            />
+          </Field>
+        </SheetBody>
+
+        <SheetFooter>
+          <SheetFormActions
+            onCancel={onClose}
+            submitting={create.isPending}
+            submitLabel="Registrar Cierre"
           />
-        </Field>
-
-        <FormActions
-          onCancel={onClose}
-          submitting={create.isPending}
-          submitLabel="Registrar Cierre"
-        />
+        </SheetFooter>
       </form>
-    </Dialog>
+    </SheetModal>
   );
 }
+
+export const CreateClosureSheet = CreateClosureDialog;

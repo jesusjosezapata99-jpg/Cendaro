@@ -4,11 +4,13 @@
  * PRD §15: Quotation management — create, convert to order, lifecycle.
  * @see docs/architecture/module_api_blueprint_v1.md — Sales & Documents
  */
-import { desc, eq } from "drizzle-orm";
+import { TRPCError } from "@trpc/server";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import {
   OrderItem,
+  Product,
   Quote,
   QuoteItem,
   quoteStatusEnum,
@@ -29,9 +31,10 @@ export const quotesRouter = createTRPCRouter({
       }),
     )
     .query(async ({ ctx, input }) => {
-      const whereClause = input.status
-        ? eq(Quote.status, input.status)
-        : undefined;
+      const conditions = [eq(Quote.workspaceId, ctx.workspace.workspaceId)];
+      if (input.status) {
+        conditions.push(eq(Quote.status, input.status));
+      }
 
       return ctx.db
         .select({
@@ -45,7 +48,7 @@ export const quotesRouter = createTRPCRouter({
           createdAt: Quote.createdAt,
         })
         .from(Quote)
-        .where(whereClause)
+        .where(and(...conditions))
         .orderBy(desc(Quote.createdAt))
         .limit(input.limit)
         .offset(input.offset);
@@ -57,15 +60,43 @@ export const quotesRouter = createTRPCRouter({
       const [quote] = await ctx.db
         .select()
         .from(Quote)
-        .where(eq(Quote.id, input.id))
+        .where(
+          and(
+            eq(Quote.id, input.id),
+            eq(Quote.workspaceId, ctx.workspace.workspaceId),
+          ),
+        )
         .limit(1);
 
       if (!quote) return null;
 
       const items = await ctx.db
-        .select()
+        .select({
+          id: QuoteItem.id,
+          workspaceId: QuoteItem.workspaceId,
+          quoteId: QuoteItem.quoteId,
+          productId: QuoteItem.productId,
+          productName: Product.name,
+          sku: Product.sku,
+          quantity: QuoteItem.quantity,
+          unitPrice: QuoteItem.unitPrice,
+          discount: QuoteItem.discount,
+          lineTotal: QuoteItem.lineTotal,
+        })
         .from(QuoteItem)
-        .where(eq(QuoteItem.quoteId, input.id));
+        .leftJoin(
+          Product,
+          and(
+            eq(QuoteItem.productId, Product.id),
+            eq(Product.workspaceId, ctx.workspace.workspaceId),
+          ),
+        )
+        .where(
+          and(
+            eq(QuoteItem.quoteId, input.id),
+            eq(QuoteItem.workspaceId, ctx.workspace.workspaceId),
+          ),
+        );
 
       return { ...quote, items };
     }),
@@ -88,6 +119,26 @@ export const quotesRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      // Validate all products belong to workspace
+      const productIds = input.items.map((i) => i.productId);
+      if (productIds.length > 0) {
+        const validProducts = await ctx.db
+          .select({ id: Product.id })
+          .from(Product)
+          .where(
+            and(
+              inArray(Product.id, productIds),
+              eq(Product.workspaceId, ctx.workspace.workspaceId),
+            ),
+          );
+        if (validProducts.length !== productIds.length) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Uno o más productos no pertenecen al espacio de trabajo",
+          });
+        }
+      }
+
       const subtotal = input.items.reduce(
         (sum, i) => sum + i.unitPrice * i.quantity,
         0,
@@ -103,6 +154,7 @@ export const quotesRouter = createTRPCRouter({
       const [quote] = await ctx.db
         .insert(Quote)
         .values({
+          workspaceId: ctx.workspace.workspaceId,
           quoteNumber,
           customerId: input.customerId,
           channel: input.channel,
@@ -118,6 +170,7 @@ export const quotesRouter = createTRPCRouter({
       if (quote && input.items.length > 0) {
         await ctx.db.insert(QuoteItem).values(
           input.items.map((item) => ({
+            workspaceId: ctx.workspace.workspaceId,
             quoteId: quote.id,
             productId: item.productId,
             quantity: item.quantity,
@@ -129,6 +182,7 @@ export const quotesRouter = createTRPCRouter({
       }
 
       await logAudit(ctx.db, ctx.user, {
+        workspaceId: ctx.workspace.workspaceId,
         action: "quote.create",
         entity: "quote",
         entityId: quote?.id,
@@ -149,10 +203,23 @@ export const quotesRouter = createTRPCRouter({
       const [updated] = await ctx.db
         .update(Quote)
         .set({ status: input.status, updatedAt: new Date() })
-        .where(eq(Quote.id, input.id))
+        .where(
+          and(
+            eq(Quote.id, input.id),
+            eq(Quote.workspaceId, ctx.workspace.workspaceId),
+          ),
+        )
         .returning();
 
+      if (!updated) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Cotización no encontrada",
+        });
+      }
+
       await logAudit(ctx.db, ctx.user, {
+        workspaceId: ctx.workspace.workspaceId,
         action: `quote.status_${input.status}`,
         entity: "quote",
         entityId: input.id,
@@ -168,23 +235,37 @@ export const quotesRouter = createTRPCRouter({
       const [quote] = await ctx.db
         .select()
         .from(Quote)
-        .where(eq(Quote.id, input.id))
+        .where(
+          and(
+            eq(Quote.id, input.id),
+            eq(Quote.workspaceId, ctx.workspace.workspaceId),
+          ),
+        )
         .limit(1);
 
       if (!quote) {
-        throw new Error("Cotización no encontrada");
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Cotización no encontrada",
+        });
       }
 
       const items = await ctx.db
         .select()
         .from(QuoteItem)
-        .where(eq(QuoteItem.quoteId, input.id));
+        .where(
+          and(
+            eq(QuoteItem.quoteId, input.id),
+            eq(QuoteItem.workspaceId, ctx.workspace.workspaceId),
+          ),
+        );
 
       const orderNumber = `ORD-${Date.now().toString(36).toUpperCase()}`;
 
       const [order] = await ctx.db
         .insert(SalesOrder)
         .values({
+          workspaceId: ctx.workspace.workspaceId,
           orderNumber,
           customerId: quote.customerId,
           channel: quote.channel,
@@ -199,6 +280,7 @@ export const quotesRouter = createTRPCRouter({
       if (order && items.length > 0) {
         await ctx.db.insert(OrderItem).values(
           items.map((item) => ({
+            workspaceId: ctx.workspace.workspaceId,
             orderId: order.id,
             productId: item.productId,
             quantity: item.quantity,
@@ -217,9 +299,15 @@ export const quotesRouter = createTRPCRouter({
           convertedOrderId: order?.id,
           updatedAt: new Date(),
         })
-        .where(eq(Quote.id, input.id));
+        .where(
+          and(
+            eq(Quote.id, input.id),
+            eq(Quote.workspaceId, ctx.workspace.workspaceId),
+          ),
+        );
 
       await logAudit(ctx.db, ctx.user, {
+        workspaceId: ctx.workspace.workspaceId,
         action: "quote.convert",
         entity: "quote",
         entityId: input.id,

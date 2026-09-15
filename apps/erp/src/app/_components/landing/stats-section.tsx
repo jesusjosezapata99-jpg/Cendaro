@@ -80,7 +80,7 @@ export function StatsSection() {
           {stats.map((stat, index) => (
             <ScrollEntrance key={stat.label} delay={index * 0.08}>
               <div className="text-center">
-                <div className="text-[clamp(2.25rem,4vw,3.5rem)] leading-none font-bold tracking-[-0.03em]">
+                <div className="text-[clamp(2.25rem,4vw,3.5rem)] leading-none font-medium tracking-[-0.03em]">
                   <CountUp
                     target={stat.value}
                     prefix={stat.prefix}

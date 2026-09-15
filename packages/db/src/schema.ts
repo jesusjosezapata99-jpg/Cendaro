@@ -342,10 +342,23 @@ export const installmentStatusEnum = pgEnum("installment_status", [
 /** DB role without BYPASSRLS — created via migration, referenced here for policies. */
 export const appUserRole = pgRole("app_user").existing();
 
-/** One-liner factory: adds workspace isolation RLS to any table with workspace_id. */
+/**
+ * One-liner factory: adds workspace isolation RLS to any table with workspace_id.
+ *
+ * MUST be `as: "permissive"` (Postgres's default policy type): a RESTRICTIVE
+ * policy only narrows down rows already allowed by a PERMISSIVE one — it
+ * never grants access on its own. Since this is the only policy on each
+ * table, marking it "restrictive" made every row unconditionally
+ * inaccessible to `app_user` regardless of workspace_id, independent of the
+ * `app_user` role-grant (C1) and the `SET LOCAL app.workspace_id` parameter
+ * binding fix. Confirmed 2026-09 via `pg_policy.polpermissive = false` on
+ * all ~60 workspace-scoped tables and a direct reproduction (INSERT with the
+ * exact matching workspace_id still rejected with 42501). See
+ * `packages/db/migrations/002_fix_workspace_policy_permissive.sql`.
+ */
 export const workspacePolicy = (tableName: string) =>
   pgPolicy(`${tableName}_workspace_isolation`, {
-    as: "restrictive",
+    as: "permissive",
     for: "all",
     to: appUserRole,
     using: sql`workspace_id = current_setting('app.workspace_id', true)::uuid`,
@@ -372,6 +385,29 @@ export const Organization = pgTable("organization", (t) => ({
     .$onUpdateFn(() => sql`now()`),
 }));
 
+/**
+ * Dashboard widget ids — mirrors `WidgetId` in `@cendaro/validators`
+ * (`packages/db` doesn't depend on `packages/validators`, so this is kept
+ * in sync by convention rather than a shared import; PLAN-2026-09-DESIGN-
+ * SYSTEM §T3.2/§T3.3).
+ */
+export type DashboardWidgetId =
+  | "sales"
+  | "grossProfit"
+  | "receivables"
+  | "lowStock"
+  | "pendingDispatch"
+  | "topProducts"
+  | "lastClosure"
+  | "containersInTransit";
+
+export interface UiPreferences {
+  dashboard?: {
+    order: DashboardWidgetId[];
+    hidden: DashboardWidgetId[];
+  };
+}
+
 export const UserProfile = pgTable(
   "user_profile",
   (t) => ({
@@ -393,6 +429,7 @@ export const UserProfile = pgTable(
       .timestamp({ mode: "date", withTimezone: true })
       .$onUpdateFn(() => sql`now()`),
     lastLoginAt: t.timestamp({ mode: "date", withTimezone: true }),
+    uiPreferences: t.jsonb().$type<UiPreferences>().notNull().default({}),
   }),
   (table) => [
     index("idx_user_profile_role").on(table.role),
@@ -467,7 +504,20 @@ export const AuditLog = pgTable(
     index("idx_audit_log_created").on(table.createdAt),
     index("idx_audit_log_action").on(table.action),
 
-    workspacePolicy("audit_log"),
+    // WORM (Write-Once, Read-Many) immutable audit trail (SOC 1 / SOC 2 Type II / ISO 27001):
+    // Only SELECT and INSERT are permitted for app_user. UPDATE and DELETE are strictly denied by RLS.
+    pgPolicy("audit_log_workspace_select", {
+      as: "permissive",
+      for: "select",
+      to: appUserRole,
+      using: sql`workspace_id = current_setting('app.workspace_id', true)::uuid`,
+    }),
+    pgPolicy("audit_log_workspace_insert", {
+      as: "permissive",
+      for: "insert",
+      to: appUserRole,
+      withCheck: sql`workspace_id = current_setting('app.workspace_id', true)::uuid`,
+    }),
   ],
 ).enableRLS();
 

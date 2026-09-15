@@ -67,7 +67,7 @@ export function Testimonials() {
         >
           {testimonials.map((t) => (
             <StaggerItem key={t.name}>
-              <div className="group border-border bg-card hover:border-muted-foreground/30 hover:shadow-primary/5 flex h-full flex-col rounded-(--radius-card) border p-6 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg">
+              <div className="group border-border bg-card hover:border-foreground/20 flex h-full flex-col border p-6 transition-colors duration-200">
                 {/* Stars */}
                 <Stars />
 
@@ -79,7 +79,7 @@ export function Testimonials() {
                 {/* Author */}
                 <div className="border-border mt-6 flex items-center gap-3 border-t pt-4">
                   <div
-                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xs font-bold ${t.color}`}
+                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-xs font-medium ${t.color}`}
                   >
                     {t.initials}
                   </div>

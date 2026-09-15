@@ -3,7 +3,12 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
-import { Dialog } from "~/components/dialog";
+import {
+  SheetBody,
+  SheetFooter,
+  SheetFormActions,
+  SheetModal,
+} from "~/components/sheet-modal";
 import { useTRPC } from "~/trpc/client";
 
 export function CreateBrandDialog({
@@ -42,47 +47,60 @@ export function CreateBrandDialog({
   };
 
   return (
-    <Dialog open={open} onClose={onClose} title="Nueva Marca">
+    <SheetModal
+      open={open}
+      onClose={onClose}
+      title="Nueva Marca"
+      description="Registra una nueva marca de producto en el catálogo."
+    >
       <form
         onSubmit={(e) => {
           e.preventDefault();
           create.mutate({ name, slug, description: description || undefined });
         }}
-        className="space-y-4"
+        className="flex h-full flex-col"
       >
-        <div>
-          <label className="mb-1 block text-sm font-medium">Nombre *</label>
-          <input
-            value={name}
-            onChange={(e) => handleNameChange(e.target.value)}
-            required
-            className="border-border bg-background focus:border-primary focus:ring-primary/20 w-full rounded-lg border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
+        <SheetBody>
+          <div>
+            <label className="mb-1 block text-sm font-medium">Nombre *</label>
+            <input
+              value={name}
+              onChange={(e) => handleNameChange(e.target.value)}
+              required
+              className="border-border bg-background focus:border-primary focus:ring-primary/20 w-full border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium">Slug</label>
+            <input
+              value={slug}
+              onChange={(e) => setSlug(e.target.value)}
+              className="border-border bg-background focus:border-primary focus:ring-primary/20 w-full border px-3 py-2 font-mono text-sm focus:ring-2 focus:outline-none"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium">
+              Descripción
+            </label>
+            <input
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className="border-border bg-background focus:border-primary focus:ring-primary/20 w-full border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
+            />
+          </div>
+        </SheetBody>
+
+        <SheetFooter>
+          <SheetFormActions
+            onCancel={onClose}
+            submitting={create.isPending}
+            submitLabel="Crear Marca"
+            disabled={!name}
           />
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-medium">Slug</label>
-          <input
-            value={slug}
-            onChange={(e) => setSlug(e.target.value)}
-            className="border-border bg-background focus:border-primary focus:ring-primary/20 w-full rounded-lg border px-3 py-2 font-mono text-sm focus:ring-2 focus:outline-none"
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-sm font-medium">Descripción</label>
-          <input
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            className="border-border bg-background focus:border-primary focus:ring-primary/20 w-full rounded-lg border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
-          />
-        </div>
-        <button
-          type="submit"
-          disabled={create.isPending || !name}
-          className="bg-primary text-primary-foreground hover:bg-primary/90 w-full rounded-lg py-2.5 text-sm font-bold transition-colors disabled:opacity-50"
-        >
-          {create.isPending ? "Creando..." : "Crear Marca"}
-        </button>
+        </SheetFooter>
       </form>
-    </Dialog>
+    </SheetModal>
   );
 }
+
+export const CreateBrandSheet = CreateBrandDialog;

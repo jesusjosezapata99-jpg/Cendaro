@@ -35,9 +35,18 @@ async function InventoryPrefetch() {
   const queryClient = getQueryClient();
 
   try {
-    // Shared queryOptions — same queryKey as the client hooks (options proxy)
     await Promise.all([
-      queryClient.prefetchQuery(trpc.inventory.stockOverview.queryOptions({})),
+      queryClient.prefetchInfiniteQuery(
+        trpc.inventory.stockOverview.infiniteQueryOptions(
+          { limit: 50 },
+          {
+            getNextPageParam: (lastPage) => {
+              if (lastPage.length < 50) return undefined;
+              return 50;
+            },
+          },
+        ),
+      ),
       queryClient.prefetchQuery(trpc.inventory.channelSummary.queryOptions()),
       queryClient.prefetchQuery(trpc.inventory.listWarehouses.queryOptions()),
     ]);

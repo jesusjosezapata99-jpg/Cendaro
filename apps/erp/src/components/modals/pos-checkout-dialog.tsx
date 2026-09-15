@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { Button } from "@cendaro/ui";
+import { Icon, Icons } from "@cendaro/ui/icons";
 
 import { Dialog } from "~/components/dialog";
 import { formatDualCurrency } from "~/lib/format-currency";
@@ -74,31 +75,31 @@ const PAYMENT_METHODS = [
   {
     id: "cash",
     label: "Efectivo",
-    icon: "payments",
+    icon: "Payments",
     defaultCurrency: "USD" as const,
   },
   {
     id: "mobile_payment",
     label: "Pago Móvil",
-    icon: "smartphone",
+    icon: "Smartphone",
     defaultCurrency: "VES" as const,
   },
   {
     id: "pos_terminal",
     label: "Punto Venta",
-    icon: "credit_card",
+    icon: "CreditCard",
     defaultCurrency: "VES" as const,
   },
   {
     id: "transfer",
     label: "Transferencia",
-    icon: "account_balance",
+    icon: "AccountBalance",
     defaultCurrency: "VES" as const,
   },
   {
     id: "zelle",
     label: "Zelle",
-    icon: "paid",
+    icon: "Paid",
     defaultCurrency: "USD" as const,
   },
 ] as const;
@@ -317,25 +318,23 @@ export function PosCheckoutDialog({
         {/* Left Column (5 cols): Order Recap, Customer Info & Totals */}
         <div className="space-y-4 md:col-span-5">
           {/* Customer Summary Card */}
-          <div className="border-border bg-secondary/40 rounded-xl border p-3.5">
+          <div className="border-border bg-secondary/40 border p-3.5">
             <div className="flex items-center justify-between">
-              <span className="text-muted-foreground text-[10px] font-bold tracking-wider uppercase">
+              <span className="text-muted-foreground text-[10px] font-medium tracking-wider uppercase">
                 Cliente Asignado
               </span>
-              <span className="border-border bg-card text-muted-foreground rounded border px-1.5 py-0.5 font-mono text-[10px] font-semibold">
+              <span className="border-border bg-card text-muted-foreground border px-1.5 py-0.5 font-mono text-[10px] font-medium">
                 {customer?.customerType
                   ? customer.customerType.toUpperCase()
                   : "DETAL"}
               </span>
             </div>
             <div className="mt-2 flex items-center gap-2.5">
-              <div className="border-border bg-primary/10 text-primary flex size-8 items-center justify-center rounded-lg border font-bold">
-                <span className="material-symbols-outlined text-base">
-                  person
-                </span>
+              <div className="border-border bg-primary/10 text-primary flex size-8 items-center justify-center border font-medium">
+                <Icons.Person className="size-4" />
               </div>
               <div className="min-w-0 flex-1">
-                <h4 className="text-foreground truncate text-xs font-bold">
+                <h4 className="text-foreground truncate text-xs font-medium">
                   {customer?.name ?? "Consumidor Final"}
                 </h4>
                 <p className="text-muted-foreground truncate font-mono text-[11px]">
@@ -348,9 +347,9 @@ export function PosCheckoutDialog({
           </div>
 
           {/* Itemized Order Recap List */}
-          <div className="border-border bg-card rounded-xl border p-3.5 shadow-xs">
+          <div className="border-border bg-card border p-3.5 shadow-xs">
             <div className="mb-2 flex items-center justify-between">
-              <span className="text-foreground text-xs font-bold tracking-wider uppercase">
+              <span className="text-foreground text-xs font-medium tracking-wider uppercase">
                 Artículos ({cart.items.reduce((s, i) => s + i.quantity, 0)})
               </span>
               <span className="text-muted-foreground font-mono text-[11px]">
@@ -375,7 +374,7 @@ export function PosCheckoutDialog({
                       </p>
                     </div>
                     <div className="text-right font-mono tabular-nums">
-                      <span className="text-foreground block font-bold">
+                      <span className="text-foreground block font-medium">
                         {itemDual.usd}
                       </span>
                       <span className="text-muted-foreground block text-[10px]">
@@ -405,14 +404,14 @@ export function PosCheckoutDialog({
               )}
               <div className="border-border/40 my-1 border-t" />
               <div className="flex items-baseline justify-between pt-1">
-                <span className="text-foreground font-bold tracking-wider uppercase">
+                <span className="text-foreground font-medium tracking-wider uppercase">
                   Total Venta:
                 </span>
                 <div className="text-right">
                   <div className="text-foreground font-mono text-2xl font-black tabular-nums">
                     {totalDual.usd}
                   </div>
-                  <div className="text-primary font-mono text-xs font-bold tabular-nums">
+                  <div className="text-primary font-mono text-xs font-medium tabular-nums">
                     {totalDual.bs}
                   </div>
                 </div>
@@ -421,14 +420,12 @@ export function PosCheckoutDialog({
           </div>
 
           {/* BCV Official Rate Pill */}
-          <div className="border-border bg-secondary/30 flex items-center justify-between rounded-xl border px-3.5 py-2.5 text-xs">
+          <div className="border-border bg-secondary/30 flex items-center justify-between border px-3.5 py-2.5 text-xs">
             <div className="text-muted-foreground flex items-center gap-1.5">
-              <span className="material-symbols-outlined text-primary text-base">
-                verified
-              </span>
+              <Icons.Verified className="text-primary size-4" />
               <span>Tasa Oficial BCV:</span>
             </div>
-            <span className="text-foreground font-mono font-bold tabular-nums">
+            <span className="text-foreground font-mono font-medium tabular-nums">
               Bs{" "}
               {bcvRate.toLocaleString("es-VE", {
                 minimumFractionDigits: 2,
@@ -442,18 +439,20 @@ export function PosCheckoutDialog({
         <div className="space-y-4 md:col-span-7">
           {/* Payment Status Banner */}
           <div
-            className={`flex items-center justify-between rounded-xl border p-3.5 transition-colors ${
+            className={`flex items-center justify-between border p-3.5 transition-colors ${
               isCovered
                 ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-500"
                 : "border-amber-500/30 bg-amber-500/10 text-amber-500"
             }`}
           >
             <div className="flex items-center gap-2">
-              <span className="material-symbols-outlined text-xl">
-                {isCovered ? "check_circle" : "schedule"}
-              </span>
+              {isCovered ? (
+                <Icons.CheckCircle className="size-5" />
+              ) : (
+                <Icons.Schedule className="size-5" />
+              )}
               <div>
-                <span className="text-xs font-bold tracking-wider uppercase">
+                <span className="text-xs font-medium tracking-wider uppercase">
                   {isCovered ? "Total Cubierto" : "Pendiente por Cobrar"}
                 </span>
                 <p className="text-[11px] opacity-90">
@@ -467,7 +466,7 @@ export function PosCheckoutDialog({
               <span className="block text-lg font-black">
                 {isCovered ? totalPaidUsd.toFixed(2) : remainingDual.usd}
               </span>
-              <span className="block text-xs font-bold opacity-80">
+              <span className="block text-xs font-medium opacity-80">
                 {isCovered ? "USD Pagado" : remainingDual.bs}
               </span>
             </div>
@@ -475,7 +474,7 @@ export function PosCheckoutDialog({
 
           {/* Payment Method Selector Tabs */}
           <div>
-            <label className="text-foreground mb-2 block text-xs font-bold tracking-wider uppercase">
+            <label className="text-foreground mb-2 block text-xs font-medium tracking-wider uppercase">
               Seleccionar Método de Pago
             </label>
             <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
@@ -489,16 +488,14 @@ export function PosCheckoutDialog({
                       setSelectedMethod(m.id);
                       setCurrency(m.defaultCurrency);
                     }}
-                    className={`flex flex-col items-center justify-center gap-1.5 rounded-xl border p-2.5 text-center transition-all ${
+                    className={`flex flex-col items-center justify-center gap-1.5 border p-2.5 text-center transition-all ${
                       isSelected
                         ? "border-primary bg-primary/10 text-primary shadow-xs"
                         : "border-border bg-card text-muted-foreground hover:bg-secondary hover:text-foreground"
                     }`}
                   >
-                    <span className="material-symbols-outlined text-xl">
-                      {m.icon}
-                    </span>
-                    <span className="text-xs font-semibold">{m.label}</span>
+                    <Icon name={m.icon} className="size-5" />
+                    <span className="text-xs font-medium">{m.label}</span>
                   </button>
                 );
               })}
@@ -506,9 +503,9 @@ export function PosCheckoutDialog({
           </div>
 
           {/* Payment Input Form */}
-          <div className="border-border bg-card space-y-3 rounded-xl border p-4 shadow-xs">
+          <div className="border-border bg-card space-y-3 border p-4 shadow-xs">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="text-foreground text-xs font-bold">
+              <span className="text-foreground text-xs font-medium">
                 Abono con{" "}
                 {PAYMENT_METHODS.find((m) => m.id === selectedMethod)?.label}
               </span>
@@ -516,14 +513,14 @@ export function PosCheckoutDialog({
                 <button
                   type="button"
                   onClick={() => fillRemaining("USD")}
-                  className="text-muted-foreground hover:text-foreground hover:bg-secondary rounded-md px-2 py-1 text-xs font-medium transition-colors"
+                  className="text-muted-foreground hover:text-foreground hover:bg-secondary px-2 py-1 text-xs font-medium transition-colors"
                 >
                   Restante USD
                 </button>
                 <button
                   type="button"
                   onClick={() => fillRemaining("VES")}
-                  className="text-muted-foreground hover:text-foreground hover:bg-secondary rounded-md px-2 py-1 text-xs font-medium transition-colors"
+                  className="text-muted-foreground hover:text-foreground hover:bg-secondary px-2 py-1 text-xs font-medium transition-colors"
                 >
                   Restante Bs
                 </button>
@@ -535,11 +532,11 @@ export function PosCheckoutDialog({
                 <label className="text-muted-foreground block text-xs">
                   Moneda
                 </label>
-                <div className="border-border mt-1 flex rounded-lg border p-0.5">
+                <div className="border-border mt-1 flex border p-0.5">
                   <button
                     type="button"
                     onClick={() => setCurrency("USD")}
-                    className={`flex-1 rounded-md py-1 text-xs font-bold transition-colors ${
+                    className={`flex-1 py-1 text-xs font-medium transition-colors ${
                       currency === "USD"
                         ? "bg-primary text-primary-foreground"
                         : "text-muted-foreground hover:text-foreground"
@@ -550,7 +547,7 @@ export function PosCheckoutDialog({
                   <button
                     type="button"
                     onClick={() => setCurrency("VES")}
-                    className={`flex-1 rounded-md py-1 text-xs font-bold transition-colors ${
+                    className={`flex-1 py-1 text-xs font-medium transition-colors ${
                       currency === "VES"
                         ? "bg-primary text-primary-foreground"
                         : "text-muted-foreground hover:text-foreground"
@@ -579,7 +576,7 @@ export function PosCheckoutDialog({
                         handleAddPayment();
                       }
                     }}
-                    className="border-border bg-background text-foreground focus:border-primary focus:ring-primary/20 w-full rounded-lg border px-3 py-2 font-mono text-sm font-semibold tabular-nums focus:ring-2 focus:outline-none"
+                    className="border-border bg-background text-foreground focus:border-primary focus:ring-primary/20 w-full border px-3 py-2 font-mono text-sm font-medium tabular-nums focus:ring-2 focus:outline-none"
                   />
                 </div>
               </div>
@@ -594,7 +591,7 @@ export function PosCheckoutDialog({
                     placeholder="Últimos 4 dígitos"
                     value={reference}
                     onChange={(e) => setReference(e.target.value)}
-                    className="border-border bg-background text-foreground focus:border-primary focus:ring-primary/20 mt-1 w-full rounded-lg border px-3 py-2 font-mono text-xs focus:ring-2 focus:outline-none"
+                    className="border-border bg-background text-foreground focus:border-primary focus:ring-primary/20 mt-1 w-full border px-3 py-2 font-mono text-xs focus:ring-2 focus:outline-none"
                   />
                 </div>
               )}
@@ -607,10 +604,10 @@ export function PosCheckoutDialog({
                 <Button
                   type="button"
                   onClick={handleAddPayment}
-                  className="min-h-9 w-full font-semibold"
+                  className="min-h-9 w-full font-medium"
                   disabled={!amountInput || parseFloat(amountInput) <= 0}
                 >
-                  <span className="material-symbols-outlined text-sm">add</span>
+                  <Icons.Add className="size-3.5" />
                   Agregar
                 </Button>
               </div>
@@ -630,7 +627,7 @@ export function PosCheckoutDialog({
                       setCurrency("USD");
                       setAmountInput(bill.toString());
                     }}
-                    className="border-border bg-secondary/80 text-foreground hover:border-primary hover:text-primary rounded-md border px-2.5 py-1 font-mono text-xs font-medium tabular-nums transition-colors"
+                    className="border-border bg-secondary/80 text-foreground hover:border-primary hover:text-primary border px-2.5 py-1 font-mono text-xs font-medium tabular-nums transition-colors"
                   >
                     ${bill}
                   </button>
@@ -639,7 +636,7 @@ export function PosCheckoutDialog({
                   key="exact"
                   type="button"
                   onClick={() => fillRemaining("USD")}
-                  className="border-border bg-secondary/80 text-primary hover:border-primary rounded-md border px-2.5 py-1 font-mono text-xs font-bold transition-colors"
+                  className="border-border bg-secondary/80 text-primary hover:border-primary border px-2.5 py-1 font-mono text-xs font-medium transition-colors"
                 >
                   Exacto (${remainingUsd.toFixed(2)})
                 </button>
@@ -650,7 +647,7 @@ export function PosCheckoutDialog({
           {/* Registered Payments List */}
           <div>
             <div className="mb-2 flex items-center justify-between">
-              <span className="text-foreground text-xs font-bold tracking-wider uppercase">
+              <span className="text-foreground text-xs font-medium tracking-wider uppercase">
                 Pagos Registrados ({payments.length})
               </span>
               <span className="text-muted-foreground font-mono text-xs tabular-nums">
@@ -659,13 +656,13 @@ export function PosCheckoutDialog({
             </div>
 
             {payments.length === 0 ? (
-              <div className="border-border bg-secondary/20 rounded-xl border border-dashed py-4 text-center">
+              <div className="border-border bg-secondary/20 border border-dashed py-4 text-center">
                 <p className="text-muted-foreground text-xs">
                   Aún no has agregado formas de pago a esta venta.
                 </p>
               </div>
             ) : (
-              <div className="divide-border border-border divide-y overflow-hidden rounded-xl border">
+              <div className="divide-border border-border divide-y overflow-hidden border">
                 {payments.map((p, idx) => {
                   const methodConfig = PAYMENT_METHODS.find(
                     (m) => m.id === p.method,
@@ -676,13 +673,14 @@ export function PosCheckoutDialog({
                       className="bg-card flex items-center justify-between p-3"
                     >
                       <div className="flex items-center gap-2.5">
-                        <div className="border-border bg-secondary flex size-8 items-center justify-center rounded-lg border">
-                          <span className="material-symbols-outlined text-foreground text-base">
-                            {methodConfig?.icon ?? "payments"}
-                          </span>
+                        <div className="border-border bg-secondary flex size-8 items-center justify-center border">
+                          <Icon
+                            name={methodConfig?.icon ?? "Payments"}
+                            className="text-foreground size-4"
+                          />
                         </div>
                         <div>
-                          <span className="text-foreground text-xs font-bold">
+                          <span className="text-foreground text-xs font-medium">
                             {methodConfig?.label}
                           </span>
                           {p.reference && (
@@ -701,12 +699,10 @@ export function PosCheckoutDialog({
                       <button
                         type="button"
                         onClick={() => handleRemovePayment(idx)}
-                        className="text-muted-foreground hover:text-destructive flex size-8 items-center justify-center rounded-md transition-colors"
+                        className="text-muted-foreground hover:text-destructive flex size-8 items-center justify-center transition-colors"
                         title="Eliminar pago"
                       >
-                        <span className="material-symbols-outlined text-lg">
-                          delete
-                        </span>
+                        <Icons.Delete className="size-4.5" />
                       </button>
                     </div>
                   );
@@ -717,14 +713,12 @@ export function PosCheckoutDialog({
 
           {/* Change / Vuelto Card */}
           {changeUsd > 0.001 && (
-            <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3.5 shadow-xs">
+            <div className="border border-emerald-500/30 bg-emerald-500/10 p-3.5 shadow-xs">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <span className="material-symbols-outlined text-xl text-emerald-500">
-                    verified
-                  </span>
+                  <Icons.Verified className="size-5 text-emerald-500" />
                   <div>
-                    <span className="text-xs font-bold tracking-wider text-emerald-600 uppercase dark:text-emerald-400">
+                    <span className="text-xs font-medium tracking-wider text-emerald-600 uppercase dark:text-emerald-400">
                       Cambio / Vuelto a Entregar
                     </span>
                     <p className="text-muted-foreground text-xs">
@@ -737,7 +731,7 @@ export function PosCheckoutDialog({
                   <div className="font-mono text-xl font-black text-emerald-600 tabular-nums dark:text-emerald-400">
                     {changeDual.usd}
                   </div>
-                  <div className="font-mono text-xs font-bold text-emerald-600/80 tabular-nums dark:text-emerald-400/80">
+                  <div className="font-mono text-xs font-medium text-emerald-600/80 tabular-nums dark:text-emerald-400/80">
                     {changeDual.bs}
                   </div>
                 </div>
@@ -747,8 +741,8 @@ export function PosCheckoutDialog({
 
           {/* Error alert */}
           {submitError && (
-            <div className="border-destructive/30 bg-destructive/10 text-destructive flex items-center gap-2 rounded-xl border p-3 text-xs">
-              <span className="material-symbols-outlined text-base">error</span>
+            <div className="border-destructive/30 bg-destructive/10 text-destructive flex items-center gap-2 border p-3 text-xs">
+              <Icons.Error className="size-4" />
               <span>{submitError}</span>
             </div>
           )}
@@ -768,20 +762,16 @@ export function PosCheckoutDialog({
               type="button"
               onClick={() => void handleConfirmCheckout()}
               disabled={!isCovered || isSubmitting || cart.items.length === 0}
-              className="min-h-11 px-8 font-bold shadow-sm"
+              className="min-h-11 px-8 font-medium"
             >
               {isSubmitting ? (
                 <>
-                  <span className="material-symbols-outlined animate-spin text-base">
-                    progress_activity
-                  </span>
+                  <Icons.ProgressActivity className="size-4 animate-spin" />
                   Procesando Venta...
                 </>
               ) : (
                 <>
-                  <span className="material-symbols-outlined text-base">
-                    point_of_sale
-                  </span>
+                  <Icons.PointOfSale className="size-4" />
                   Confirmar y Emitir Ticket
                 </>
               )}

@@ -33,7 +33,7 @@ async function RatesPrefetch() {
     await Promise.all([
       queryClient.prefetchQuery(trpc.pricing.latestRates.queryOptions()),
       queryClient.prefetchQuery(
-        trpc.pricing.rateHistory.queryOptions({ limit: 50 }),
+        trpc.pricing.rateHistory.queryOptions({ limit: 100 }),
       ),
     ]);
   } catch {

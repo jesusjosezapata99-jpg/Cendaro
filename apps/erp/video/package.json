@@ -7,10 +7,10 @@
     "render": "npx remotion render CendaroDemo out/cendaro-demo.mp4 --codec h264"
   },
   "dependencies": {
-    "@remotion/cli": "4.0.438",
+    "@remotion/cli": "4.0.524",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "remotion": "4.0.438"
+    "remotion": "4.0.524"
   },
   "devDependencies": {
     "typescript": "^5.8.0",

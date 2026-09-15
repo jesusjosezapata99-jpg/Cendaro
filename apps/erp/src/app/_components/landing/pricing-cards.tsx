@@ -114,25 +114,25 @@ export function PricingCards() {
           {plans.map((plan, index) => (
             <ScrollEntrance key={plan.name} delay={index * 0.1}>
               <div
-                className={`flex h-full flex-col rounded-(--radius-card) border p-8 transition-colors ${
+                className={`flex h-full flex-col border p-8 transition-colors ${
                   plan.highlighted
                     ? "border-primary bg-card ring-primary/20 ring-1"
                     : "border-border bg-card"
                 }`}
               >
-                <h3 className="text-lg font-semibold">{plan.name}</h3>
+                <h3 className="text-lg font-medium">{plan.name}</h3>
                 <p className="text-muted-foreground mt-1 text-sm">
                   {plan.description}
                 </p>
 
                 <div className="mt-6">
                   {plan.priceLabel ? (
-                    <span className="text-4xl font-bold tabular-nums">
+                    <span className="text-4xl font-medium tabular-nums">
                       {plan.priceLabel}
                     </span>
                   ) : (
                     <div className="flex items-baseline gap-1">
-                      <span className="text-4xl font-bold tabular-nums">
+                      <span className="text-4xl font-medium tabular-nums">
                         ${annual ? plan.annualPrice : plan.monthlyPrice}
                       </span>
                       <span className="text-muted-foreground">/mes</span>
@@ -154,7 +154,7 @@ export function PricingCards() {
 
                 <a
                   href="/login"
-                  className={`mt-8 block w-full cursor-pointer rounded-lg py-3 text-center text-sm font-medium transition-all duration-200 active:scale-[0.97] ${
+                  className={`mt-8 block w-full cursor-pointer py-3 text-center text-sm font-medium transition-all duration-200 active:scale-[0.97] ${
                     plan.ctaVariant === "default"
                       ? "bg-foreground text-background hover:opacity-90"
                       : "border-border text-foreground hover:bg-muted border bg-transparent"

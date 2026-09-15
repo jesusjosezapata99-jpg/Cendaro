@@ -30,9 +30,12 @@ async function VendorsPrefetch() {
   const queryClient = getQueryClient();
 
   try {
-    await queryClient.prefetchQuery(
-      trpc.vendor.allCommissions.queryOptions({ limit: 50 }),
-    );
+    await Promise.all([
+      queryClient.prefetchQuery(
+        trpc.vendor.allCommissions.queryOptions({ limit: 100 }),
+      ),
+      queryClient.prefetchQuery(trpc.users.list.queryOptions()),
+    ]);
   } catch {
     // Prefetch failure is non-critical — client will fetch on hydration
   }

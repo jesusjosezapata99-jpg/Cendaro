@@ -1,68 +1,70 @@
 "use client";
 
+import type { ColumnDef } from "@tanstack/react-table";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
+import type { IconName } from "@cendaro/ui/icons";
+import type { StatusTone } from "@cendaro/ui/status-pill";
+import { Button } from "@cendaro/ui";
+import { Icon, Icons } from "@cendaro/ui/icons";
+import { StatusPill } from "@cendaro/ui/status-pill";
+
 import type { AuditEntry } from "~/components/modals/audit-details-dialog";
-import type { StatusTone } from "~/components/status-badge";
+import { DataTable } from "~/components/data-table/data-table";
 import { EmptyState } from "~/components/empty-state";
 import { AuditDetailsDialog } from "~/components/modals/audit-details-dialog";
 import { PageHeader } from "~/components/page-header";
 import { StatCard } from "~/components/stat-card";
-import { StatusBadge } from "~/components/status-badge";
 import { useTRPC } from "~/trpc/client";
 
-function Skeleton({ className = "" }: { className?: string }) {
-  return <div className={`bg-muted animate-pulse rounded-lg ${className}`} />;
-}
-
-const ACTION_ICONS: Record<string, string> = {
-  "user.create": "person_add",
-  "user.update": "edit",
-  "price.update": "attach_money",
-  "inventory.adjust": "package_2",
-  "container.close": "local_shipping",
-  "cash.close": "lock",
-  "rate.update": "trending_up",
-  "stock.transfer": "swap_horiz",
-  "stock.lock": "lock",
-  "stock.unlock": "lock_open",
-  "repricing.approve": "check_circle",
-  "payment.create": "payments",
-  "payment.validate": "verified",
-  "commission.pay": "attach_money",
-  "count.create": "assignment",
-  "count.approve": "task_alt",
-  "warehouse.create": "warehouse",
-  "ar.create": "receipt_long",
-  "ar.payment": "paid",
-  "ml.sync": "sync",
-  "ml.import_order": "inbox",
-  "integration.resolve": "check",
+const ACTION_ICONS: Record<string, IconName> = {
+  "user.create": "PersonAdd",
+  "user.update": "Edit",
+  "price.update": "AttachMoney",
+  "inventory.adjust": "Package2",
+  "container.close": "LocalShipping",
+  "cash.close": "Lock",
+  "rate.update": "TrendingUp",
+  "stock.transfer": "SwapHoriz",
+  "stock.lock": "Lock",
+  "stock.unlock": "LockOpen",
+  "repricing.approve": "CheckCircle",
+  "payment.create": "Payments",
+  "payment.validate": "Verified",
+  "commission.pay": "AttachMoney",
+  "count.create": "Assignment",
+  "count.approve": "TaskAlt",
+  "warehouse.create": "Warehouse",
+  "ar.create": "ReceiptLong",
+  "ar.payment": "Paid",
+  "ml.sync": "Sync",
+  "ml.import_order": "Inbox",
+  "integration.resolve": "Check",
 };
 
 const ACTION_TONES: Record<string, StatusTone> = {
-  "user.create": "primary",
+  "user.create": "default",
   "user.update": "warning",
   "price.update": "success",
   "inventory.adjust": "warning",
-  "container.close": "primary",
+  "container.close": "default",
   "cash.close": "neutral",
-  "rate.update": "primary",
+  "rate.update": "default",
   "stock.transfer": "neutral",
   "stock.lock": "warning",
   "stock.unlock": "success",
   "repricing.approve": "success",
-  "payment.create": "primary",
+  "payment.create": "default",
   "payment.validate": "success",
   "commission.pay": "success",
   "count.create": "neutral",
   "count.approve": "success",
-  "warehouse.create": "primary",
+  "warehouse.create": "default",
   "ar.create": "warning",
   "ar.payment": "success",
-  "ml.sync": "primary",
-  "ml.import_order": "primary",
+  "ml.sync": "default",
+  "ml.import_order": "default",
   "integration.resolve": "success",
 };
 
@@ -107,6 +109,7 @@ export default function AuditPage() {
   const {
     data: entries,
     isLoading,
+    isError,
     refetch,
   } = useQuery(
     trpc.audit.list.queryOptions({
@@ -149,31 +152,125 @@ export default function AuditPage() {
     [items],
   );
 
+  const columns = useMemo<ColumnDef<AuditEntry>[]>(
+    () => [
+      {
+        accessorKey: "createdAt",
+        header: "Fecha y Hora",
+        cell: ({ row }) => (
+          <time className="text-foreground font-mono text-xs tabular-nums">
+            {new Date(row.original.createdAt).toLocaleString("es-VE", {
+              day: "2-digit",
+              month: "2-digit",
+              year: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+              second: "2-digit",
+            })}
+          </time>
+        ),
+      },
+      {
+        accessorKey: "action",
+        header: "Acción",
+        cell: ({ row }) => {
+          const entry = row.original;
+          const tone = ACTION_TONES[entry.action] ?? "neutral";
+          const iconName = ACTION_ICONS[entry.action] ?? "Description";
+          return (
+            <div className="flex items-center gap-2">
+              <span className="bg-muted text-muted-foreground flex size-6 shrink-0 items-center justify-center">
+                <Icon name={iconName} className="size-3" />
+              </span>
+              <StatusPill tone={tone}>{entry.action}</StatusPill>
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "entity",
+        header: "Entidad Afectada",
+        cell: ({ row }) => {
+          const entry = row.original;
+          return (
+            <div className="flex items-center gap-1.5 text-xs">
+              <span className="text-foreground font-medium">
+                {entry.entity}
+              </span>
+              {entry.entityId ? (
+                <span className="text-muted-foreground max-w-30 truncate font-mono text-[11px]">
+                  ({entry.entityId.slice(0, 8)}…)
+                </span>
+              ) : null}
+            </div>
+          );
+        },
+      },
+      {
+        id: "actor",
+        header: "Actor / Rol",
+        cell: ({ row }) => {
+          const entry = row.original;
+          return (
+            <div className="flex items-center gap-2 text-xs">
+              <span className="text-foreground font-medium">
+                {entry.actorName ?? "Sistema"}
+              </span>
+              {entry.actorRole ? (
+                <span className="border-border bg-muted/40 text-muted-foreground border px-1.5 py-0.5 font-mono text-[10px] uppercase">
+                  {entry.actorRole}
+                </span>
+              ) : null}
+            </div>
+          );
+        },
+      },
+      {
+        id: "actions",
+        header: () => <div className="text-right">Detalles</div>,
+        cell: ({ row }) => (
+          <div className="text-right">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setSelectedEntry(row.original)}
+              className="border-border h-7 px-2 text-xs font-medium"
+            >
+              <Icons.Visibility className="mr-1 size-3.5" />
+              Inspeccionar
+            </Button>
+          </div>
+        ),
+      },
+    ],
+    [],
+  );
+
   return (
-    <div className="space-y-6 p-4 lg:p-8">
+    <div className="space-y-6 py-4 lg:py-8">
       {/* Header */}
       <PageHeader
         title="Log de Auditoría & Gobernanza"
         description="Trazabilidad forense inmutable de todas las mutaciones y eventos operacionales del ERP"
         actions={
           <div className="flex items-center gap-2">
-            <button
+            <Button
+              variant="outline"
               id="btn-inspect-model"
-              type="button"
               onClick={() => setSelectedEntry(SAMPLE_AUDIT_ENTRY)}
-              className="border-border bg-card text-foreground hover:bg-accent flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-semibold shadow-xs transition-colors"
+              className="border-border h-9 text-xs font-medium"
             >
-              <span className="material-symbols-outlined text-sm">preview</span>
+              <Icons.Preview className="mr-1.5 size-3.5" />
               Modelo Inspector
-            </button>
-            <button
-              type="button"
+            </Button>
+            <Button
+              variant="outline"
               onClick={() => void refetch()}
-              className="border-border bg-secondary text-foreground hover:bg-accent flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-semibold shadow-xs transition-colors"
+              className="border-border h-9 text-xs font-medium"
             >
-              <span className="material-symbols-outlined text-sm">refresh</span>
+              <Icons.Refresh className="mr-1.5 size-3.5" />
               Actualizar
-            </button>
+            </Button>
           </div>
         }
       />
@@ -183,45 +280,43 @@ export default function AuditPage() {
         <StatCard
           label="Eventos Registrados"
           value={isLoading ? "—" : items.length}
-          icon="history"
+          icon="History"
           tone="default"
           sub="Últimos 100 logs"
         />
         <StatCard
           label="Entidades Auditadas"
           value={isLoading ? "—" : uniqueEntities}
-          icon="database"
+          icon="Database"
           tone="primary"
           sub="Tablas & recursos"
         />
         <StatCard
           label="Actores Únicos"
           value={isLoading ? "—" : uniqueActors}
-          icon="group"
+          icon="Group"
           tone="default"
           sub="Usuarios y procesos"
         />
         <StatCard
           label="Eventos Críticos"
           value={isLoading ? "—" : criticalEventsCount}
-          icon="shield"
+          icon="Shield"
           tone={criticalEventsCount > 0 ? "warning" : "success"}
           sub="Aprobaciones & cierres"
         />
       </div>
 
       {/* Filters & Search */}
-      <div className="surface-card flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="border-border bg-card flex flex-col gap-3 border p-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="relative max-w-md flex-1">
-          <span className="material-symbols-outlined text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-lg">
-            search
-          </span>
+          <Icons.Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
           <input
             type="text"
             placeholder="Buscar por actor, acción, entidad o ID..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="border-border bg-background placeholder:text-muted-foreground focus:border-primary focus:ring-primary/20 w-full rounded-lg border py-2 pr-3 pl-9 text-xs focus:ring-2 focus:outline-none"
+            className="border-border bg-background placeholder:text-muted-foreground focus:border-foreground w-full border py-1.5 pr-3 pl-9 text-xs transition-colors outline-none"
           />
         </div>
 
@@ -229,7 +324,7 @@ export default function AuditPage() {
           <select
             value={entityFilter}
             onChange={(e) => setEntityFilter(e.target.value)}
-            className="border-border bg-background text-foreground focus:ring-primary/20 rounded-lg border px-3 py-2 text-xs focus:ring-2 focus:outline-none"
+            className="border-border bg-background text-foreground focus:border-foreground border px-3 py-1.5 text-xs transition-colors outline-none"
           >
             <option value="">Todas las entidades</option>
             <option value="user_profile">Usuarios</option>
@@ -267,15 +362,22 @@ export default function AuditPage() {
 
       {/* Audit List / Table */}
       {isLoading ? (
-        <div className="space-y-2">
+        <div className="border-border bg-card border">
           {Array.from({ length: 6 }).map((_, i) => (
-            <Skeleton key={i} className="h-16 w-full" />
+            <div
+              key={i}
+              className="border-border flex h-11.25 animate-pulse items-center border-b px-4 last:border-b-0"
+            >
+              <div className="bg-muted h-4 w-36" />
+              <div className="bg-muted ml-6 h-4 w-28" />
+              <div className="bg-muted ml-auto h-4 w-20" />
+            </div>
           ))}
         </div>
       ) : filteredItems.length === 0 ? (
-        <div className="surface-card">
+        <div className="border-border bg-card border p-12">
           <EmptyState
-            icon="history"
+            icon="History"
             title="No se encontraron registros de auditoría"
             description={
               search || entityFilter
@@ -283,16 +385,14 @@ export default function AuditPage() {
                 : "El registro de auditoría no contiene eventos recientes en este entorno."
             }
             action={
-              <button
-                type="button"
+              <Button
+                variant="outline"
                 onClick={() => setSelectedEntry(SAMPLE_AUDIT_ENTRY)}
-                className="border-border bg-secondary text-foreground hover:bg-accent inline-flex items-center gap-1.5 rounded-lg border px-3.5 py-1.5 text-xs font-semibold shadow-xs transition-colors"
+                className="mt-2"
               >
-                <span className="material-symbols-outlined text-sm">
-                  visibility
-                </span>
+                <Icons.Visibility className="mr-1.5 size-3.5" />
                 Previsualizar Inspector Forense
-              </button>
+              </Button>
             }
           />
         </div>
@@ -302,19 +402,20 @@ export default function AuditPage() {
           <div className="space-y-2.5 md:hidden">
             {filteredItems.map((entry) => {
               const tone = ACTION_TONES[entry.action] ?? "neutral";
-              const iconName = ACTION_ICONS[entry.action] ?? "description";
+              const iconName = ACTION_ICONS[entry.action] ?? "Description";
 
               return (
-                <div key={entry.id} className="surface-card space-y-2.5 p-3.5">
+                <div
+                  key={entry.id}
+                  className="border-border bg-card space-y-2.5 border p-3.5"
+                >
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex min-w-0 items-center gap-2">
-                      <div className="bg-muted text-muted-foreground flex size-8 shrink-0 items-center justify-center rounded-lg">
-                        <span className="material-symbols-outlined text-sm">
-                          {iconName}
-                        </span>
+                      <div className="bg-muted text-muted-foreground flex size-7 shrink-0 items-center justify-center">
+                        <Icon name={iconName} className="size-3.5" />
                       </div>
                       <div className="min-w-0">
-                        <p className="text-foreground truncate text-xs font-semibold">
+                        <p className="text-foreground truncate text-xs font-medium">
                           {entry.action}
                         </p>
                         <p className="text-muted-foreground truncate text-[11px]">
@@ -322,12 +423,12 @@ export default function AuditPage() {
                         </p>
                       </div>
                     </div>
-                    <StatusBadge tone={tone}>
+                    <StatusPill tone={tone}>
                       {entry.action.split(".")[0] ?? "log"}
-                    </StatusBadge>
+                    </StatusPill>
                   </div>
 
-                  <div className="border-border/50 flex items-center justify-between border-t pt-2 text-[11px]">
+                  <div className="border-border flex items-center justify-between border-t pt-2 text-[11px]">
                     <span className="text-muted-foreground">
                       Por{" "}
                       <strong className="text-foreground font-medium">
@@ -344,111 +445,43 @@ export default function AuditPage() {
                     </time>
                   </div>
 
-                  <button
-                    type="button"
+                  <Button
+                    variant="outline"
+                    size="sm"
                     onClick={() => setSelectedEntry(entry)}
-                    className="border-border bg-secondary text-foreground hover:bg-accent flex w-full items-center justify-center gap-1.5 rounded-lg border py-2 text-xs font-medium transition-colors"
+                    className="h-8 w-full text-xs font-medium"
                   >
-                    <span className="material-symbols-outlined text-sm">
-                      visibility
-                    </span>
+                    <Icons.Visibility className="mr-1.5 size-3.5" />
                     Ver Detalle Forense
-                  </button>
+                  </Button>
                 </div>
               );
             })}
           </div>
 
           {/* Desktop structured table */}
-          <div className="surface-card hidden overflow-hidden md:block">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="border-border text-muted-foreground border-b text-[10px] font-bold tracking-wider uppercase">
-                    <th className="px-5 py-3.5">Fecha y Hora</th>
-                    <th className="px-5 py-3.5">Acción</th>
-                    <th className="px-5 py-3.5">Entidad Afectada</th>
-                    <th className="px-5 py-3.5">Actor / Rol</th>
-                    <th className="px-5 py-3.5 text-right">Detalles</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-border divide-y">
-                  {filteredItems.map((entry) => {
-                    const tone = ACTION_TONES[entry.action] ?? "neutral";
-                    const iconName =
-                      ACTION_ICONS[entry.action] ?? "description";
-
-                    return (
-                      <tr
-                        key={entry.id}
-                        className="hover:bg-muted/40 transition-colors"
-                      >
-                        <td className="px-5 py-3.5 whitespace-nowrap">
-                          <time className="text-foreground font-mono tabular-nums">
-                            {new Date(entry.createdAt).toLocaleString("es-VE", {
-                              day: "2-digit",
-                              month: "2-digit",
-                              year: "numeric",
-                              hour: "2-digit",
-                              minute: "2-digit",
-                              second: "2-digit",
-                            })}
-                          </time>
-                        </td>
-                        <td className="px-5 py-3.5 whitespace-nowrap">
-                          <div className="flex items-center gap-2">
-                            <span className="bg-muted text-muted-foreground flex size-6 shrink-0 items-center justify-center rounded">
-                              <span className="material-symbols-outlined text-xs">
-                                {iconName}
-                              </span>
-                            </span>
-                            <StatusBadge tone={tone}>
-                              {entry.action}
-                            </StatusBadge>
-                          </div>
-                        </td>
-                        <td className="px-5 py-3.5">
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-foreground font-medium">
-                              {entry.entity}
-                            </span>
-                            {entry.entityId ? (
-                              <span className="text-muted-foreground max-w-30 truncate font-mono text-[11px]">
-                                ({entry.entityId.slice(0, 8)}…)
-                              </span>
-                            ) : null}
-                          </div>
-                        </td>
-                        <td className="px-5 py-3.5 whitespace-nowrap">
-                          <div className="flex items-center gap-2">
-                            <span className="text-foreground font-medium">
-                              {entry.actorName ?? "Sistema"}
-                            </span>
-                            {entry.actorRole ? (
-                              <span className="bg-secondary text-muted-foreground rounded px-1.5 py-0.5 font-mono text-[10px]">
-                                {entry.actorRole}
-                              </span>
-                            ) : null}
-                          </div>
-                        </td>
-                        <td className="px-5 py-3.5 text-right whitespace-nowrap">
-                          <button
-                            type="button"
-                            onClick={() => setSelectedEntry(entry)}
-                            className="text-primary hover:bg-primary/10 inline-flex items-center gap-1 rounded-md px-2.5 py-1 text-xs font-semibold transition-colors"
-                          >
-                            <span className="material-symbols-outlined text-sm">
-                              visibility
-                            </span>
-                            Inspeccionar
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+          <div className="hidden md:block">
+            <DataTable
+              columns={columns}
+              data={filteredItems}
+              isLoading={isLoading}
+              isError={isError}
+              onRetry={() => void refetch()}
+              onResetFilters={
+                search || entityFilter
+                  ? () => {
+                      setSearch("");
+                      setEntityFilter("");
+                    }
+                  : undefined
+              }
+              emptyTitle="No se encontraron registros de auditoría"
+              emptyDescription={
+                search || entityFilter
+                  ? "No hay eventos que coincidan con los filtros aplicados."
+                  : "El registro de auditoría no contiene eventos recientes en este entorno."
+              }
+            />
           </div>
         </>
       )}

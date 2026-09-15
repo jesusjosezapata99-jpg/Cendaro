@@ -4,8 +4,14 @@
 # Execute from the root directory of the cloned public repository.
 
 param(
-    [string]$OpsRepoUrl = "git@github.com:jesusjosezapata99-jpg/cendaro-ops.git"
+    [string]$OpsRepoUrl = $env:CENDARO_OPS_REPO_URL
 )
+
+if (-not $OpsRepoUrl) {
+    Write-Warning "CENDARO_OPS_REPO_URL environment variable is not set and no -OpsRepoUrl argument was provided."
+    Write-Warning "Internal tools sync skipped. External contributors can proceed normally without this step."
+    exit 0
+}
 
 Write-Host "🔧 Cendaro Developer Setup" -ForegroundColor Cyan
 

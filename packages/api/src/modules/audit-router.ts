@@ -3,6 +3,7 @@
  *
  * Read-only access to audit log entries. Admin/owner only.
  */
+import { TRPCError } from "@trpc/server";
 import { and, desc, eq, gte, lte } from "drizzle-orm";
 import { z } from "zod/v4";
 
@@ -25,7 +26,15 @@ export const auditRouter = createTRPCRouter({
       }),
     )
     .query(async ({ ctx, input }) => {
-      const conditions = [];
+      if (!["owner", "admin"].includes(ctx.workspace.role)) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message:
+            "Requiere rol de Administrador o Propietario para consultar la bitácora de auditoría",
+        });
+      }
+
+      const conditions = [eq(AuditLog.workspaceId, ctx.workspace.workspaceId)];
 
       if (input.entity) conditions.push(eq(AuditLog.entity, input.entity));
       if (input.action) conditions.push(eq(AuditLog.action, input.action));
@@ -36,7 +45,7 @@ export const auditRouter = createTRPCRouter({
       const rows = await ctx.db
         .select()
         .from(AuditLog)
-        .where(conditions.length > 0 ? and(...conditions) : undefined)
+        .where(and(...conditions))
         .orderBy(desc(AuditLog.createdAt))
         .limit(input.limit)
         .offset(input.offset);
@@ -48,10 +57,23 @@ export const auditRouter = createTRPCRouter({
   byId: workspaceProcedure
     .input(z.object({ id: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
+      if (!["owner", "admin"].includes(ctx.workspace.role)) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message:
+            "Requiere rol de Administrador o Propietario para consultar la bitácora de auditoría",
+        });
+      }
+
       const [entry] = await ctx.db
         .select()
         .from(AuditLog)
-        .where(eq(AuditLog.id, input.id))
+        .where(
+          and(
+            eq(AuditLog.id, input.id),
+            eq(AuditLog.workspaceId, ctx.workspace.workspaceId),
+          ),
+        )
         .limit(1);
       return entry ?? null;
     }),

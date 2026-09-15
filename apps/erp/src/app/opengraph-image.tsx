@@ -15,7 +15,7 @@ export default function OGImage() {
         alignItems: "center",
         justifyContent: "center",
         background:
-          "linear-gradient(135deg, #0a0a0a 0%, #111827 50%, #0a0a0a 100%)",
+          "linear-gradient(135deg, rgb(10, 10, 10) 0%, rgb(17, 24, 39) 50%, rgb(10, 10, 10) 100%)",
         fontFamily: "system-ui, sans-serif",
       }}
     >
@@ -48,7 +48,7 @@ export default function OGImage() {
         style={{
           fontSize: "56px",
           fontWeight: 700,
-          color: "#f9fafb",
+          color: "rgb(249, 250, 251)",
           textAlign: "center",
           lineHeight: 1.15,
           letterSpacing: "-0.03em",
@@ -63,7 +63,7 @@ export default function OGImage() {
       <p
         style={{
           fontSize: "24px",
-          color: "#9ca3af",
+          color: "rgb(156, 163, 175)",
           textAlign: "center",
           maxWidth: "650px",
           lineHeight: 1.5,

@@ -6,14 +6,15 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 
-import { Button, Card, CardContent, CardHeader, CardTitle } from "@cendaro/ui";
+import { Button } from "@cendaro/ui";
+import { Icons } from "@cendaro/ui/icons";
+import { StatusPill } from "@cendaro/ui/status-pill";
 
-import type { StatusTone } from "~/components/status-badge";
 import { EmptyState } from "~/components/empty-state";
 import { RoleGuard } from "~/components/role-guard";
-import { Skeleton } from "~/components/skeleton";
+import { DetailSkeleton } from "~/components/skeleton";
 import { StatCard } from "~/components/stat-card";
-import { StatusBadge } from "~/components/status-badge";
+import { getStatus } from "~/lib/status";
 import { useTRPC } from "~/trpc/client";
 
 const EditProductDialog = dynamic(
@@ -24,27 +25,9 @@ const EditProductDialog = dynamic(
   { ssr: false },
 );
 
-/** Product status → semantic token chip (matches the catalog list). */
-const STATUS_CONFIG: Record<string, { label: string; tone: StatusTone }> = {
-  active: { label: "Activo", tone: "success" },
-  draft: { label: "Borrador", tone: "warning" },
-  discontinued: { label: "Descontinuado", tone: "destructive" },
-  inactive: { label: "Inactivo", tone: "neutral" },
-  inventory_locked: { label: "Bloqueado", tone: "destructive" },
-};
-
-/** Section header for detail panels — mirrors the dashboard card style. */
-function SectionTitle({ children }: { children: React.ReactNode }) {
-  return (
-    <CardTitle className="text-muted-foreground text-sm font-medium">
-      {children}
-    </CardTitle>
-  );
-}
-
 /** Shared row style for key/value panels. */
 const metaRowClasses =
-  "border-border-subtle flex min-h-11 items-center justify-between gap-3 rounded-lg border p-3";
+  "border-border flex min-h-11 items-center justify-between gap-3 border p-3";
 
 export default function ProductDetailPage() {
   const params = useParams();
@@ -57,24 +40,14 @@ export default function ProductDetailPage() {
   );
 
   if (isLoading) {
-    return (
-      <div className="animate-in fade-in space-y-6 p-4 duration-200 lg:p-8">
-        <Skeleton className="h-8 w-64" />
-        <Skeleton className="h-40 w-full rounded-xl" />
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-20 rounded-xl" />
-          ))}
-        </div>
-      </div>
-    );
+    return <DetailSkeleton />;
   }
 
   if (!product) {
     return (
-      <div className="p-4 lg:p-8">
+      <div className="py-4 lg:py-8">
         <EmptyState
-          icon="search_off"
+          icon="SearchOff"
           title="Producto no encontrado"
           description="El producto que buscas no existe o fue eliminado del catálogo."
           action={
@@ -87,37 +60,37 @@ export default function ProductDetailPage() {
     );
   }
 
-  const badge = STATUS_CONFIG[product.status] ?? {
-    label: product.status,
-    tone: "neutral" as StatusTone,
-  };
+  const badge = getStatus("product", product.status);
 
   const totalStock = product.stockLedger
     .reduce((sum: number, s: { quantity: number }) => sum + s.quantity, 0)
     .toLocaleString("es-VE");
 
   return (
-    <div className="animate-in fade-in slide-in-from-bottom-1 space-y-6 p-4 duration-200 lg:p-8">
+    <div className="animate-in fade-in slide-in-from-bottom-1 space-y-6 py-4 duration-200 lg:py-8">
       {/* Breadcrumb + actions */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <nav
           aria-label="Breadcrumb"
-          className="text-muted-foreground flex items-center gap-2 text-sm"
+          className="text-muted-foreground flex items-center gap-2 text-xs"
         >
           <Link
             href="/catalog"
-            className="hover:text-foreground transition-colors"
+            className="hover:text-foreground flex items-center gap-1 transition-colors"
           >
+            <Icons.ArrowBack className="size-3.5" />
             Catálogo
           </Link>
-          <span aria-hidden className="material-symbols-outlined text-base">
-            chevron_right
-          </span>
+          <Icons.ChevronRight className="size-3.5" aria-hidden />
           <span className="text-foreground font-medium">{product.name}</span>
         </nav>
         <RoleGuard allow={["owner", "admin", "supervisor"]}>
-          <Button variant="outline" onClick={() => setShowEdit(true)}>
-            <span className="material-symbols-outlined text-lg">edit</span>
+          <Button
+            variant="outline"
+            onClick={() => setShowEdit(true)}
+            className="h-9 px-3 text-xs"
+          >
+            <Icons.Edit className="mr-1.5 size-3.5" />
             Editar
           </Button>
         </RoleGuard>
@@ -138,202 +111,191 @@ export default function ProductDetailPage() {
       )}
 
       {/* Header card */}
-      <Card>
-        <CardContent>
-          <div className="flex flex-col gap-6 lg:flex-row">
-            <div className="bg-muted flex size-32 shrink-0 items-center justify-center rounded-xl">
-              <span
-                aria-hidden
-                className="material-symbols-outlined text-muted-foreground text-4xl"
-              >
-                image
-              </span>
+      <div className="border-border bg-card border p-6">
+        <div className="flex flex-col gap-6 lg:flex-row">
+          <div className="bg-muted border-border flex size-28 shrink-0 items-center justify-center border">
+            <Icons.Image className="text-muted-foreground size-8" aria-hidden />
+          </div>
+          <div className="flex-1 space-y-3">
+            <div className="flex flex-wrap items-start gap-3">
+              <h1 className="text-foreground font-mono text-xl font-medium tracking-tight">
+                {product.name}
+              </h1>
+              <StatusPill tone={badge.tone}>{badge.label}</StatusPill>
             </div>
-            <div className="flex-1 space-y-3">
-              <div className="flex flex-wrap items-start gap-3">
-                <h1 className="text-foreground text-2xl font-semibold tracking-tight">
-                  {product.name}
-                </h1>
-                <StatusBadge tone={badge.tone} className="mt-1">
-                  {badge.label}
-                </StatusBadge>
-              </div>
-              <div className="text-muted-foreground flex flex-wrap gap-x-6 gap-y-1 text-sm">
+            <div className="text-muted-foreground flex flex-wrap gap-x-6 gap-y-1 text-xs">
+              <span>
+                SKU:{" "}
+                <strong className="text-foreground font-mono font-medium tabular-nums">
+                  {product.sku}
+                </strong>
+              </span>
+              {product.barcode && (
                 <span>
-                  SKU:{" "}
-                  <strong className="text-foreground font-mono font-semibold tabular-nums">
-                    {product.sku}
+                  Código:{" "}
+                  <strong className="text-foreground font-mono font-medium tabular-nums">
+                    {product.barcode}
                   </strong>
                 </span>
-                {product.barcode && (
-                  <span>
-                    Código:{" "}
-                    <strong className="text-foreground font-mono font-semibold tabular-nums">
-                      {product.barcode}
-                    </strong>
-                  </span>
-                )}
-              </div>
-              {product.descriptionShort && (
-                <p className="text-muted-foreground max-w-2xl text-sm">
-                  {product.descriptionShort}
-                </p>
               )}
             </div>
+            {product.descriptionShort && (
+              <p className="text-muted-foreground max-w-2xl text-xs leading-relaxed">
+                {product.descriptionShort}
+              </p>
+            )}
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* KPI row */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <StatCard
           label="SKU"
           value={<span className="font-mono text-base">{product.sku}</span>}
-          icon="qr_code"
+          icon="QrCode"
         />
         <StatCard
           label="Estado"
           value={badge.label}
-          icon="verified"
-          tone={badge.tone === "neutral" ? "default" : badge.tone}
+          icon="Verified"
+          tone={
+            badge.tone === "success" ||
+            badge.tone === "warning" ||
+            badge.tone === "destructive"
+              ? badge.tone
+              : "default"
+          }
         />
         <StatCard
           label="Creado"
           value={new Date(product.createdAt).toLocaleDateString("es-VE")}
-          icon="calendar_today"
+          icon="CalendarToday"
         />
-        <StatCard label="Stock Total" value={totalStock} icon="inventory_2" />
+        <StatCard
+          label="Stock Total"
+          value={<span className="font-mono tabular-nums">{totalStock}</span>}
+          icon="Inventory2"
+        />
       </div>
 
       {/* Stock por Almacén */}
       {product.stockLedger.length > 0 && (
-        <Card>
-          <CardHeader>
-            <SectionTitle>Stock por Almacén</SectionTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {product.stockLedger.map(
-                (s: {
-                  id: string;
-                  warehouseId: string;
-                  quantity: number;
-                  isLocked: boolean;
-                }) => (
-                  <div key={s.id} className={metaRowClasses}>
-                    <div className="flex min-w-0 items-center gap-2">
-                      <span
-                        aria-hidden
-                        className="material-symbols-outlined text-muted-foreground text-lg"
-                      >
-                        warehouse
-                      </span>
-                      <span
-                        className="text-foreground truncate font-mono text-sm tabular-nums"
-                        title={s.warehouseId}
-                      >
-                        {s.warehouseId.slice(0, 8)}…
-                      </span>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-2">
-                      <span className="text-foreground font-mono text-sm font-semibold tabular-nums">
-                        {s.quantity.toLocaleString("es-VE")}
-                      </span>
-                      {s.isLocked && (
-                        <span
-                          aria-label="Stock bloqueado"
-                          className="material-symbols-outlined text-destructive text-sm"
-                        >
-                          lock
-                        </span>
-                      )}
-                    </div>
+        <div className="border-border bg-card border p-6">
+          <h2 className="text-muted-foreground mb-4 text-xs font-medium tracking-wider uppercase">
+            Stock por Almacén
+          </h2>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {product.stockLedger.map(
+              (s: {
+                id: string;
+                warehouseId: string;
+                quantity: number;
+                isLocked: boolean;
+              }) => (
+                <div key={s.id} className={metaRowClasses}>
+                  <div className="flex min-w-0 items-center gap-2">
+                    <Icons.Warehouse
+                      className="text-muted-foreground size-4"
+                      aria-hidden
+                    />
+                    <span
+                      className="text-foreground truncate font-mono text-xs tabular-nums"
+                      title={s.warehouseId}
+                    >
+                      {s.warehouseId.slice(0, 8)}…
+                    </span>
                   </div>
-                ),
-              )}
-            </div>
-          </CardContent>
-        </Card>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <span className="text-foreground font-mono text-xs font-medium tabular-nums">
+                      {s.quantity.toLocaleString("es-VE")}
+                    </span>
+                    {s.isLocked && (
+                      <Icons.Lock
+                        className="text-destructive size-3.5"
+                        aria-label="Stock bloqueado"
+                      />
+                    )}
+                  </div>
+                </div>
+              ),
+            )}
+          </div>
+        </div>
       )}
 
       {/* Stock por Canal */}
       {product.channelAllocations.length > 0 && (
-        <Card>
-          <CardHeader>
-            <SectionTitle>Stock por Canal</SectionTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {product.channelAllocations.map(
-                (c: { id: string; channel: string; quantity: number }) => (
-                  <div key={c.id} className={metaRowClasses}>
-                    <div className="flex items-center gap-2">
-                      <span
-                        aria-hidden
-                        className="material-symbols-outlined text-muted-foreground text-lg"
-                      >
-                        storefront
-                      </span>
-                      <span className="text-foreground text-sm font-medium capitalize">
-                        {c.channel}
-                      </span>
-                    </div>
-                    <span className="text-foreground font-mono text-sm font-semibold tabular-nums">
-                      {c.quantity.toLocaleString("es-VE")}
+        <div className="border-border bg-card border p-6">
+          <h2 className="text-muted-foreground mb-4 text-xs font-medium tracking-wider uppercase">
+            Stock por Canal
+          </h2>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {product.channelAllocations.map(
+              (c: { id: string; channel: string; quantity: number }) => (
+                <div key={c.id} className={metaRowClasses}>
+                  <div className="flex items-center gap-2">
+                    <Icons.Storefront
+                      className="text-muted-foreground size-4"
+                      aria-hidden
+                    />
+                    <span className="text-foreground text-xs font-medium capitalize">
+                      {c.channel}
                     </span>
                   </div>
-                ),
-              )}
-            </div>
-          </CardContent>
-        </Card>
+                  <span className="text-foreground font-mono text-xs font-medium tabular-nums">
+                    {c.quantity.toLocaleString("es-VE")}
+                  </span>
+                </div>
+              ),
+            )}
+          </div>
+        </div>
       )}
 
       {/* Metadata */}
-      <Card>
-        <CardHeader>
-          <SectionTitle>Información del Producto</SectionTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {[
-              { label: "Nombre", value: product.name, mono: false },
-              { label: "SKU", value: product.sku, mono: true },
-              {
-                label: "Código de Barras",
-                value: product.barcode ?? "—",
-                mono: true,
-              },
-              { label: "Estado", value: badge.label, mono: false },
-              {
-                label: "Creado",
-                value: new Date(product.createdAt).toLocaleDateString("es-VE"),
-                mono: false,
-              },
-              {
-                label: "Actualizado",
-                value: product.updatedAt
-                  ? new Date(product.updatedAt).toLocaleDateString("es-VE")
-                  : "—",
-                mono: false,
-              },
-            ].map((a) => (
-              <div key={a.label} className={metaRowClasses}>
-                <span className="text-muted-foreground shrink-0 text-sm">
-                  {a.label}
-                </span>
-                <span
-                  className={`text-foreground truncate text-sm font-semibold ${
-                    a.mono ? "font-mono tabular-nums" : ""
-                  }`}
-                >
-                  {a.value}
-                </span>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
+      <div className="border-border bg-card border p-6">
+        <h2 className="text-muted-foreground mb-4 text-xs font-medium tracking-wider uppercase">
+          Información del Producto
+        </h2>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {[
+            { label: "Nombre", value: product.name, mono: false },
+            { label: "SKU", value: product.sku, mono: true },
+            {
+              label: "Código de Barras",
+              value: product.barcode ?? "—",
+              mono: true,
+            },
+            { label: "Estado", value: badge.label, mono: false },
+            {
+              label: "Creado",
+              value: new Date(product.createdAt).toLocaleDateString("es-VE"),
+              mono: false,
+            },
+            {
+              label: "Actualizado",
+              value: product.updatedAt
+                ? new Date(product.updatedAt).toLocaleDateString("es-VE")
+                : "—",
+              mono: false,
+            },
+          ].map((a) => (
+            <div key={a.label} className={metaRowClasses}>
+              <span className="text-muted-foreground shrink-0 text-xs">
+                {a.label}
+              </span>
+              <span
+                className={`text-foreground truncate text-xs font-medium ${
+                  a.mono ? "font-mono tabular-nums" : ""
+                }`}
+              >
+                {a.value}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

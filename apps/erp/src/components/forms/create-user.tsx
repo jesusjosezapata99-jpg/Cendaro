@@ -4,8 +4,14 @@ import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
 import type { UserRole } from "@cendaro/validators";
+import { Icons } from "@cendaro/ui/icons";
 
-import { Dialog } from "~/components/dialog";
+import {
+  SheetBody,
+  SheetFooter,
+  SheetFormActions,
+  SheetModal,
+} from "~/components/sheet-modal";
 
 interface CreateUserDialogProps {
   open: boolean;
@@ -89,172 +95,158 @@ export function CreateUserDialog({
   }
 
   return (
-    <Dialog open={open} onClose={onClose} title="Crear Nuevo Usuario">
-      <form onSubmit={handleSubmit} className="space-y-4">
-        {error && (
-          <div className="bg-destructive/10 text-destructive border-destructive/15 flex items-center gap-2 rounded-xl border px-4 py-3 text-sm">
-            <span className="material-symbols-outlined text-base">error</span>
-            <span className="font-medium">{error}</span>
-          </div>
-        )}
-
-        {/* Username */}
-        <div>
-          <label className="mb-1 block text-sm font-medium">
-            <span className="flex items-center gap-1.5">
-              <span className="material-symbols-outlined text-muted-foreground text-sm">
-                alternate_email
-              </span>
-              Nombre de Usuario
-            </span>
-          </label>
-          <input
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            required
-            minLength={3}
-            maxLength={128}
-            placeholder="ej: juanperez"
-            className="border-border bg-background focus:border-primary focus:ring-primary/20 w-full rounded-lg border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
-          />
-          <p className="text-muted-foreground mt-1 text-[10px]">
-            El usuario lo usará para iniciar sesión
-          </p>
-        </div>
-
-        {/* Full Name */}
-        <div>
-          <label className="mb-1 block text-sm font-medium">
-            <span className="flex items-center gap-1.5">
-              <span className="material-symbols-outlined text-muted-foreground text-sm">
-                person
-              </span>
-              Nombre Completo
-            </span>
-          </label>
-          <input
-            value={fullName}
-            onChange={(e) => setFullName(e.target.value)}
-            required
-            placeholder="Juan Pérez"
-            className="border-border bg-background focus:border-primary focus:ring-primary/20 w-full rounded-lg border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
-          />
-        </div>
-
-        {/* Email */}
-        <div>
-          <label className="mb-1 block text-sm font-medium">
-            <span className="flex items-center gap-1.5">
-              <span className="material-symbols-outlined text-muted-foreground text-sm">
-                mail
-              </span>
-              Correo Electrónico
-            </span>
-          </label>
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            placeholder="juan@ejemplo.com"
-            className="border-border bg-background focus:border-primary focus:ring-primary/20 w-full rounded-lg border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
-          />
-        </div>
-
-        {/* Password */}
-        <div>
-          <label className="mb-1 block text-sm font-medium">
-            <span className="flex items-center gap-1.5">
-              <span className="material-symbols-outlined text-muted-foreground text-sm">
-                lock
-              </span>
-              Contraseña
-            </span>
-          </label>
-          <div className="relative">
-            <input
-              type={showPassword ? "text" : "password"}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              minLength={6}
-              placeholder="Mínimo 6 caracteres"
-              className="border-border bg-background focus:border-primary focus:ring-primary/20 w-full rounded-lg border px-3 py-2 pr-10 text-sm focus:ring-2 focus:outline-none"
-            />
-            <button
-              type="button"
-              onClick={() => setShowPassword((v) => !v)}
-              className="text-muted-foreground hover:text-foreground absolute top-1/2 right-3 -translate-y-1/2 transition-colors"
-            >
-              <span className="material-symbols-outlined text-base">
-                {showPassword ? "visibility_off" : "visibility"}
-              </span>
-            </button>
-          </div>
-        </div>
-
-        {/* Role & Phone in grid */}
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="mb-1 block text-sm font-medium">
-              <span className="flex items-center gap-1.5">
-                <span className="material-symbols-outlined text-muted-foreground text-sm">
-                  badge
-                </span>
-                Rol
-              </span>
-            </label>
-            <select
-              value={role}
-              onChange={(e) => setRole(e.target.value as UserRole)}
-              className="border-border bg-background w-full rounded-lg border px-3 py-2 text-sm"
-            >
-              {availableRoles.map((r) => (
-                <option key={r.value} value={r.value}>
-                  {r.label}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium">
-              <span className="flex items-center gap-1.5">
-                <span className="material-symbols-outlined text-muted-foreground text-sm">
-                  phone
-                </span>
-                Teléfono
-              </span>
-            </label>
-            <input
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="+58 412-123..."
-              className="border-border bg-background focus:border-primary focus:ring-primary/20 w-full rounded-lg border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
-            />
-          </div>
-        </div>
-
-        {/* Submit */}
-        <button
-          type="submit"
-          disabled={loading}
-          className="bg-primary text-primary-foreground hover:bg-primary/90 flex w-full items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-bold transition-colors disabled:opacity-50"
-        >
-          {loading ? (
-            <>
-              <span className="border-primary-foreground/30 border-t-primary-foreground size-4 animate-spin rounded-full border-2" />
-              Creando usuario...
-            </>
-          ) : (
-            <>
-              <span className="material-symbols-outlined text-base">
-                person_add
-              </span>
-              Crear Usuario
-            </>
+    <SheetModal
+      open={open}
+      onClose={onClose}
+      title="Crear Nuevo Usuario"
+      description="Crea una cuenta para un miembro del equipo con acceso al ERP."
+    >
+      <form onSubmit={handleSubmit} className="flex h-full flex-col">
+        <SheetBody>
+          {error && (
+            <div className="bg-destructive/10 text-destructive border-destructive/15 flex items-center gap-2 border px-4 py-3 text-sm">
+              <Icons.Error className="size-4" />
+              <span className="font-medium">{error}</span>
+            </div>
           )}
-        </button>
+
+          {/* Username */}
+          <div>
+            <label className="mb-1 block text-sm font-medium">
+              <span className="flex items-center gap-1.5">
+                <Icons.AlternateEmail className="text-muted-foreground size-3.5" />
+                Nombre de Usuario
+              </span>
+            </label>
+            <input
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              required
+              minLength={3}
+              maxLength={128}
+              placeholder="ej: juanperez"
+              className="border-border bg-background focus:border-primary focus:ring-primary/20 w-full border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
+            />
+            <p className="text-muted-foreground mt-1 text-[10px]">
+              El usuario lo usará para iniciar sesión
+            </p>
+          </div>
+
+          {/* Full Name */}
+          <div>
+            <label className="mb-1 block text-sm font-medium">
+              <span className="flex items-center gap-1.5">
+                <Icons.Person className="text-muted-foreground size-3.5" />
+                Nombre Completo
+              </span>
+            </label>
+            <input
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              required
+              placeholder="Juan Pérez"
+              className="border-border bg-background focus:border-primary focus:ring-primary/20 w-full border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
+            />
+          </div>
+
+          {/* Email */}
+          <div>
+            <label className="mb-1 block text-sm font-medium">
+              <span className="flex items-center gap-1.5">
+                <Icons.Mail className="text-muted-foreground size-3.5" />
+                Correo Electrónico
+              </span>
+            </label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              placeholder="juan@ejemplo.com"
+              className="border-border bg-background focus:border-primary focus:ring-primary/20 w-full border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
+            />
+          </div>
+
+          {/* Password */}
+          <div>
+            <label className="mb-1 block text-sm font-medium">
+              <span className="flex items-center gap-1.5">
+                <Icons.Lock className="text-muted-foreground size-3.5" />
+                Contraseña
+              </span>
+            </label>
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                minLength={6}
+                placeholder="Mínimo 6 caracteres"
+                className="border-border bg-background focus:border-primary focus:ring-primary/20 w-full border px-3 py-2 pr-10 text-sm focus:ring-2 focus:outline-none"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                className="text-muted-foreground hover:text-foreground absolute top-1/2 right-3 -translate-y-1/2 transition-colors"
+              >
+                {showPassword ? (
+                  <Icons.VisibilityOff className="size-4" />
+                ) : (
+                  <Icons.Visibility className="size-4" />
+                )}
+              </button>
+            </div>
+          </div>
+
+          {/* Role & Phone in grid */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-1 block text-sm font-medium">
+                <span className="flex items-center gap-1.5">
+                  <Icons.Badge className="text-muted-foreground size-3.5" />
+                  Rol
+                </span>
+              </label>
+              <select
+                value={role}
+                onChange={(e) => setRole(e.target.value as UserRole)}
+                className="border-border bg-background w-full border px-3 py-2 text-sm"
+              >
+                {availableRoles.map((r) => (
+                  <option key={r.value} value={r.value}>
+                    {r.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium">
+                <span className="flex items-center gap-1.5">
+                  <Icons.Phone className="text-muted-foreground size-3.5" />
+                  Teléfono
+                </span>
+              </label>
+              <input
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="+58 412-123..."
+                className="border-border bg-background focus:border-primary focus:ring-primary/20 w-full border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
+              />
+            </div>
+          </div>
+        </SheetBody>
+
+        <SheetFooter>
+          <SheetFormActions
+            onCancel={onClose}
+            submitting={loading}
+            submitLabel="Crear Usuario"
+          />
+        </SheetFooter>
       </form>
-    </Dialog>
+    </SheetModal>
   );
 }
+
+export const CreateUserSheet = CreateUserDialog;

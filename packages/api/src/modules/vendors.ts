@@ -1,10 +1,4 @@
-/**
- * Cendaro — Vendor Portal & AR Router
- *
- * Vendor commissions, accounts receivable (CxC).
- * PRD §16: vendor portal, trazability, commissions.
- * PRD §17: CxC, aging, alerts, credit blocking.
- */
+import { TRPCError } from "@trpc/server";
 import { and, desc, eq, lte, sql } from "drizzle-orm";
 import { z } from "zod/v4";
 
@@ -46,7 +40,12 @@ export const vendorRouter = createTRPCRouter({
           createdAt: VendorCommission.createdAt,
         })
         .from(VendorCommission)
-        .where(eq(VendorCommission.vendorId, ctx.user.id))
+        .where(
+          and(
+            eq(VendorCommission.vendorId, ctx.user.id),
+            eq(VendorCommission.workspaceId, ctx.workspace.workspaceId),
+          ),
+        )
         .orderBy(desc(VendorCommission.createdAt))
         .limit(input.limit);
     }),
@@ -70,7 +69,12 @@ export const vendorRouter = createTRPCRouter({
           createdAt: SalesOrder.createdAt,
         })
         .from(SalesOrder)
-        .where(eq(SalesOrder.createdBy, ctx.user.id))
+        .where(
+          and(
+            eq(SalesOrder.createdBy, ctx.user.id),
+            eq(SalesOrder.workspaceId, ctx.workspace.workspaceId),
+          ),
+        )
         .orderBy(desc(SalesOrder.createdAt))
         .limit(input.limit);
     }),
@@ -85,7 +89,12 @@ export const vendorRouter = createTRPCRouter({
         email: Customer.email,
       })
       .from(Customer)
-      .where(eq(Customer.assignedVendorId, ctx.user.id))
+      .where(
+        and(
+          eq(Customer.assignedVendorId, ctx.user.id),
+          eq(Customer.workspaceId, ctx.workspace.workspaceId),
+        ),
+      )
       .orderBy(Customer.name)
       .limit(200);
   }),
@@ -98,7 +107,21 @@ export const vendorRouter = createTRPCRouter({
       }),
     )
     .query(async ({ ctx, input }) => {
-      let query = ctx.db
+      if (!["owner", "admin", "supervisor"].includes(ctx.workspace.role)) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "No tiene permisos para ver todas las comisiones",
+        });
+      }
+
+      const conditions = [
+        eq(VendorCommission.workspaceId, ctx.workspace.workspaceId),
+      ];
+      if (input.vendorId) {
+        conditions.push(eq(VendorCommission.vendorId, input.vendorId));
+      }
+
+      return ctx.db
         .select({
           id: VendorCommission.id,
           vendorId: VendorCommission.vendorId,
@@ -111,23 +134,42 @@ export const vendorRouter = createTRPCRouter({
           createdAt: VendorCommission.createdAt,
         })
         .from(VendorCommission)
-        .$dynamic();
-      if (input.vendorId) {
-        query = query.where(eq(VendorCommission.vendorId, input.vendorId));
-      }
-      return query.orderBy(desc(VendorCommission.createdAt)).limit(input.limit);
+        .where(and(...conditions))
+        .orderBy(desc(VendorCommission.createdAt))
+        .limit(input.limit);
     }),
 
   payCommission: workspaceProcedure
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
+      if (!["owner", "admin", "supervisor"].includes(ctx.workspace.role)) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message:
+            "Solo supervisores o administradores pueden pagar comisiones",
+        });
+      }
+
       const [updated] = await ctx.db
         .update(VendorCommission)
         .set({ isPaid: true, paidAt: new Date() })
-        .where(eq(VendorCommission.id, input.id))
+        .where(
+          and(
+            eq(VendorCommission.id, input.id),
+            eq(VendorCommission.workspaceId, ctx.workspace.workspaceId),
+          ),
+        )
         .returning();
 
+      if (!updated) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Comisión no encontrada",
+        });
+      }
+
       await logAudit(ctx.db, ctx.user, {
+        workspaceId: ctx.workspace.workspaceId,
         action: "commission.pay",
         entity: "vendor_commission",
         entityId: input.id,
@@ -147,7 +189,9 @@ export const vendorRouter = createTRPCRouter({
       }),
     )
     .query(async ({ ctx, input }) => {
-      const conditions = [];
+      const conditions = [
+        eq(AccountReceivable.workspaceId, ctx.workspace.workspaceId),
+      ];
       if (input.customerId) {
         conditions.push(eq(AccountReceivable.customerId, input.customerId));
       }
@@ -155,7 +199,7 @@ export const vendorRouter = createTRPCRouter({
         conditions.push(eq(AccountReceivable.status, input.status));
       }
 
-      let query = ctx.db
+      return ctx.db
         .select({
           id: AccountReceivable.id,
           customerId: AccountReceivable.customerId,
@@ -168,13 +212,9 @@ export const vendorRouter = createTRPCRouter({
           createdAt: AccountReceivable.createdAt,
         })
         .from(AccountReceivable)
-        .$dynamic();
-
-      if (conditions.length > 0) {
-        query = query.where(and(...conditions));
-      }
-
-      return query.orderBy(desc(AccountReceivable.dueDate)).limit(input.limit);
+        .where(and(...conditions))
+        .orderBy(desc(AccountReceivable.dueDate))
+        .limit(input.limit);
     }),
 
   arById: workspaceProcedure
@@ -196,8 +236,19 @@ export const vendorRouter = createTRPCRouter({
           createdAt: AccountReceivable.createdAt,
         })
         .from(AccountReceivable)
-        .leftJoin(Customer, eq(AccountReceivable.customerId, Customer.id))
-        .where(eq(AccountReceivable.id, input.id))
+        .leftJoin(
+          Customer,
+          and(
+            eq(AccountReceivable.customerId, Customer.id),
+            eq(Customer.workspaceId, ctx.workspace.workspaceId),
+          ),
+        )
+        .where(
+          and(
+            eq(AccountReceivable.id, input.id),
+            eq(AccountReceivable.workspaceId, ctx.workspace.workspaceId),
+          ),
+        )
         .limit(1);
       return row ?? null;
     }),
@@ -217,6 +268,7 @@ export const vendorRouter = createTRPCRouter({
       .from(AccountReceivable)
       .where(
         and(
+          eq(AccountReceivable.workspaceId, ctx.workspace.workspaceId),
           eq(AccountReceivable.status, "pending"),
           lte(AccountReceivable.dueDate, new Date()),
         ),
@@ -236,9 +288,29 @@ export const vendorRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      // Verify customer belongs to workspace
+      const [cust] = await ctx.db
+        .select({ id: Customer.id })
+        .from(Customer)
+        .where(
+          and(
+            eq(Customer.id, input.customerId),
+            eq(Customer.workspaceId, ctx.workspace.workspaceId),
+          ),
+        )
+        .limit(1);
+
+      if (!cust) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Cliente no encontrado en este espacio de trabajo",
+        });
+      }
+
       const [ar] = await ctx.db
         .insert(AccountReceivable)
         .values({
+          workspaceId: ctx.workspace.workspaceId,
           customerId: input.customerId,
           orderId: input.orderId,
           totalAmount: input.totalAmount,
@@ -250,6 +322,7 @@ export const vendorRouter = createTRPCRouter({
         .returning();
 
       await logAudit(ctx.db, ctx.user, {
+        workspaceId: ctx.workspace.workspaceId,
         action: "ar.create",
         entity: "account_receivable",
         entityId: ar?.id,
@@ -274,23 +347,46 @@ export const vendorRouter = createTRPCRouter({
           paidAmount: sql`${AccountReceivable.paidAmount} + ${input.amount}`,
           balance: sql`${AccountReceivable.balance} - ${input.amount}`,
         })
-        .where(eq(AccountReceivable.id, input.id))
+        .where(
+          and(
+            eq(AccountReceivable.id, input.id),
+            eq(AccountReceivable.workspaceId, ctx.workspace.workspaceId),
+          ),
+        )
         .returning();
 
+      if (!updated) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Cuenta por cobrar no encontrada",
+        });
+      }
+
       // Auto-update status based on balance
-      if (updated && updated.balance <= 0) {
+      if (updated.balance <= 0) {
         await ctx.db
           .update(AccountReceivable)
           .set({ status: "paid", balance: 0 })
-          .where(eq(AccountReceivable.id, input.id));
-      } else if (updated && updated.paidAmount > 0) {
+          .where(
+            and(
+              eq(AccountReceivable.id, input.id),
+              eq(AccountReceivable.workspaceId, ctx.workspace.workspaceId),
+            ),
+          );
+      } else if (updated.paidAmount > 0) {
         await ctx.db
           .update(AccountReceivable)
           .set({ status: "partial" })
-          .where(eq(AccountReceivable.id, input.id));
+          .where(
+            and(
+              eq(AccountReceivable.id, input.id),
+              eq(AccountReceivable.workspaceId, ctx.workspace.workspaceId),
+            ),
+          );
       }
 
       await logAudit(ctx.db, ctx.user, {
+        workspaceId: ctx.workspace.workspaceId,
         action: "ar.payment",
         entity: "account_receivable",
         entityId: input.id,

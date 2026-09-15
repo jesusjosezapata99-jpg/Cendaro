@@ -1,6 +1,8 @@
 import Link from "next/link";
 
+import type { IconName } from "@cendaro/ui/icons";
 import { cn } from "@cendaro/ui";
+import { Icon } from "@cendaro/ui/icons";
 
 export type StatTone =
   "default" | "primary" | "success" | "warning" | "destructive";
@@ -10,8 +12,7 @@ interface StatCardProps {
   value: React.ReactNode;
   /** Secondary line — e.g. the Bs. amount under the USD total. */
   sub?: React.ReactNode;
-  /** Material Symbols ligature (e.g. "receipt_long"). */
-  icon?: string;
+  icon?: IconName;
   tone?: StatTone;
   /** Makes the card a navigable link with hover affordance. */
   href?: string;
@@ -49,15 +50,15 @@ export function StatCard({
           <span
             aria-hidden
             className={cn(
-              "material-symbols-outlined flex size-7 shrink-0 items-center justify-center rounded-lg text-lg",
+              "flex size-7 shrink-0 items-center justify-center border",
               toneIconStyles[tone],
             )}
           >
-            {icon}
+            <Icon name={icon} className="size-4.5" />
           </span>
         ) : null}
       </div>
-      <div className="text-foreground text-2xl font-semibold tracking-tight tabular-nums">
+      <div className="text-foreground text-2xl font-medium tracking-tight tabular-nums">
         {value}
       </div>
       {sub ? (
@@ -67,9 +68,9 @@ export function StatCard({
   );
 
   const classes = cn(
-    "bg-card text-card-foreground flex flex-col gap-1.5 rounded-xl border p-4 shadow-xs transition-[border-color,box-shadow] duration-200 outline-none",
+    "bg-card text-card-foreground flex flex-col gap-1.5 border p-4 shadow-xs transition-[border-color,box-shadow] duration-200 outline-none",
     href &&
-      "hover:border-primary/30 focus-visible:border-ring focus-visible:ring-ring/50 hover:shadow-sm focus-visible:ring-[3px]",
+      "hover:border-primary/30 focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]",
     className,
   );
 

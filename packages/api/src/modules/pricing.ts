@@ -5,7 +5,7 @@
  * PRD §12: admin-only rates panel, 5% auto-repricing trigger, 24h approval window.
  */
 import { TRPCError } from "@trpc/server";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import {
@@ -36,6 +36,7 @@ export const pricingRouter = createTRPCRouter({
         createdAt: ExchangeRate.createdAt,
       })
       .from(ExchangeRate)
+      .where(eq(ExchangeRate.workspaceId, ctx.workspace.workspaceId))
       .orderBy(ExchangeRate.rateType, desc(ExchangeRate.createdAt));
 
     // Deduplicate: keep only the latest per rateType
@@ -58,7 +59,13 @@ export const pricingRouter = createTRPCRouter({
       }),
     )
     .query(async ({ ctx, input }) => {
-      let query = ctx.db
+      const conditions = [
+        eq(ExchangeRate.workspaceId, ctx.workspace.workspaceId),
+      ];
+      if (input.rateType) {
+        conditions.push(eq(ExchangeRate.rateType, input.rateType));
+      }
+      return ctx.db
         .select({
           id: ExchangeRate.id,
           rateType: ExchangeRate.rateType,
@@ -67,11 +74,9 @@ export const pricingRouter = createTRPCRouter({
           createdAt: ExchangeRate.createdAt,
         })
         .from(ExchangeRate)
-        .$dynamic();
-      if (input.rateType) {
-        query = query.where(eq(ExchangeRate.rateType, input.rateType));
-      }
-      return query.orderBy(desc(ExchangeRate.createdAt)).limit(input.limit);
+        .where(and(...conditions))
+        .orderBy(desc(ExchangeRate.createdAt))
+        .limit(input.limit);
     }),
 
   /**
@@ -110,6 +115,7 @@ export const pricingRouter = createTRPCRouter({
       const [newRate] = await ctx.db
         .insert(ExchangeRate)
         .values({
+          workspaceId: ctx.workspace.workspaceId,
           rateType: input.rateType,
           rate: input.rate,
           source: input.source,
@@ -139,13 +145,14 @@ export const pricingRouter = createTRPCRouter({
       }),
     )
     .query(async ({ ctx, input }) => {
-      // Only fetch the 2 latest rates we need, not the entire history
+      // Only fetch the 2 latest rates we need for this workspace
       const rates = await ctx.db
         .select({
           rateType: ExchangeRate.rateType,
           rate: ExchangeRate.rate,
         })
         .from(ExchangeRate)
+        .where(eq(ExchangeRate.workspaceId, ctx.workspace.workspaceId))
         .orderBy(ExchangeRate.rateType, desc(ExchangeRate.createdAt))
         .limit(20); // Safety limit — only ~4 rate types exist
 
@@ -188,7 +195,13 @@ export const pricingRouter = createTRPCRouter({
       }),
     )
     .query(async ({ ctx, input }) => {
-      let query = ctx.db
+      const conditions = [
+        eq(PriceHistory.workspaceId, ctx.workspace.workspaceId),
+      ];
+      if (input.productId) {
+        conditions.push(eq(PriceHistory.productId, input.productId));
+      }
+      return ctx.db
         .select({
           id: PriceHistory.id,
           productId: PriceHistory.productId,
@@ -200,11 +213,9 @@ export const pricingRouter = createTRPCRouter({
           createdAt: PriceHistory.createdAt,
         })
         .from(PriceHistory)
-        .$dynamic();
-      if (input.productId) {
-        query = query.where(eq(PriceHistory.productId, input.productId));
-      }
-      return query.orderBy(desc(PriceHistory.createdAt)).limit(input.limit);
+        .where(and(...conditions))
+        .orderBy(desc(PriceHistory.createdAt))
+        .limit(input.limit);
     }),
 
   // ─── Repricing Events ────────────────────────
@@ -231,6 +242,7 @@ export const pricingRouter = createTRPCRouter({
           createdAt: RepricingEvent.createdAt,
         })
         .from(RepricingEvent)
+        .where(eq(RepricingEvent.workspaceId, ctx.workspace.workspaceId))
         .orderBy(desc(RepricingEvent.createdAt))
         .limit(input.limit);
     }),
@@ -238,6 +250,14 @@ export const pricingRouter = createTRPCRouter({
   approveRepricing: workspaceProcedure
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
+      if (!["owner", "admin"].includes(ctx.workspace.role)) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message:
+            "Solo propietarios y administradores pueden aprobar eventos de repricing",
+        });
+      }
+
       const [updated] = await ctx.db
         .update(RepricingEvent)
         .set({
@@ -245,8 +265,20 @@ export const pricingRouter = createTRPCRouter({
           approvedBy: ctx.user.id,
           approvedAt: new Date(),
         })
-        .where(eq(RepricingEvent.id, input.id))
+        .where(
+          and(
+            eq(RepricingEvent.id, input.id),
+            eq(RepricingEvent.workspaceId, ctx.workspace.workspaceId),
+          ),
+        )
         .returning();
+
+      if (!updated) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Evento de repricing no encontrado en este workspace",
+        });
+      }
 
       await logAudit(ctx.db, ctx.user, {
         action: "repricing.approve",

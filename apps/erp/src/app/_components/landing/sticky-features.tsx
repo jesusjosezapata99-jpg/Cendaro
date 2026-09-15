@@ -1,9 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, m } from "framer-motion";
 
-import { NoiseOverlay } from "./noise-overlay";
 import { ScrollEntrance } from "./scroll-entrance";
 import { ScrollVideo } from "./scroll-video";
 
@@ -74,14 +73,12 @@ function IndicatorDot({
       className="group relative flex items-center justify-center"
       style={{ width: 16, height: 16 }}
     >
-      <motion.span
-        className="block rounded-[1px]"
+      <m.span
+        className="bg-border block"
         animate={{
-          width: isActive ? 8 : 5,
-          height: isActive ? 8 : 5,
-          backgroundColor: isActive
-            ? "var(--landing-dot-active)"
-            : "var(--landing-dot-inactive)",
+          width: isActive ? 8 : 4,
+          height: isActive ? 8 : 4,
+          backgroundColor: isActive ? "var(--foreground)" : "var(--border)",
         }}
         transition={{ duration: 0.35, ease }}
       />
@@ -124,7 +121,6 @@ export function StickyFeatures() {
 
   return (
     <section className="relative py-32" id="features">
-      <NoiseOverlay opacity={0.025} />
       <div className="mx-auto max-w-7xl px-6">
         {/* Section heading */}
         <ScrollEntrance>
@@ -141,10 +137,7 @@ export function StickyFeatures() {
           {/* Left: indicator line + scrolling text */}
           <div className="relative">
             {/* Vertical indicator line */}
-            <div
-              className="absolute top-0 left-[7px] h-full w-px"
-              style={{ background: "var(--landing-line)" }}
-            />
+            <div className="bg-border absolute top-0 left-1.75 h-full w-px" />
 
             {features.map((feature, index) => (
               <div
@@ -156,7 +149,7 @@ export function StickyFeatures() {
                 style={{ paddingTop: index === 0 ? "12vh" : undefined }}
               >
                 {/* Indicator dot */}
-                <div className="relative z-10 mt-[6px] shrink-0">
+                <div className="relative z-10 mt-1.5 shrink-0">
                   <IndicatorDot
                     isActive={activeIndex === index}
                     onClick={() => scrollToFeature(index)}
@@ -166,7 +159,7 @@ export function StickyFeatures() {
 
                 {/* Feature text */}
                 <div className="flex flex-col justify-center">
-                  <motion.h3
+                  <m.h3
                     className="cursor-pointer font-serif text-[1.5rem] leading-tight tracking-[-0.01em]"
                     animate={{
                       opacity: activeIndex === index ? 1 : 0.2,
@@ -175,10 +168,10 @@ export function StickyFeatures() {
                     onClick={() => scrollToFeature(index)}
                   >
                     {feature.title}
-                  </motion.h3>
+                  </m.h3>
 
                   {/* Expandable description */}
-                  <motion.div
+                  <m.div
                     className="overflow-hidden"
                     animate={{
                       height: activeIndex === index ? "auto" : 0,
@@ -190,7 +183,7 @@ export function StickyFeatures() {
                     <p className="text-muted-foreground/60 mt-3 max-w-md text-[0.95rem] leading-relaxed">
                       {feature.description}
                     </p>
-                  </motion.div>
+                  </m.div>
                 </div>
               </div>
             ))}
@@ -200,9 +193,9 @@ export function StickyFeatures() {
           <div className="relative">
             <div className="sticky top-20 flex items-center justify-center py-8">
               <AnimatePresence mode="wait">
-                <motion.div
+                <m.div
                   key={activeIndex}
-                  className="w-full overflow-hidden rounded-xl border border-(--landing-card-border)"
+                  className="border-border bg-card w-full overflow-hidden border"
                   initial={{ opacity: 0, scale: 0.98, filter: "blur(4px)" }}
                   animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
                   exit={{ opacity: 0, scale: 0.98, filter: "blur(4px)" }}
@@ -213,9 +206,9 @@ export function StickyFeatures() {
                       features[activeIndex]?.video ??
                       "/videos/inventory-flow.mp4"
                     }
-                    className="rounded-xl"
+                    className="w-full"
                   />
-                </motion.div>
+                </m.div>
               </AnimatePresence>
             </div>
           </div>
@@ -225,9 +218,9 @@ export function StickyFeatures() {
         <div className="mt-12 space-y-8 lg:hidden">
           {features.map((feature, index) => (
             <ScrollEntrance key={feature.id} delay={index * 0.08}>
-              <div className="overflow-hidden rounded-xl border border-(--landing-card-border) bg-(--landing-card-bg)">
+              <div className="border-border bg-card overflow-hidden border">
                 <div className="p-6">
-                  <h3 className="font-serif text-lg font-semibold tracking-tight">
+                  <h3 className="font-serif text-lg font-medium tracking-tight">
                     {feature.title}
                   </h3>
                   <p className="text-muted-foreground/60 mt-2 text-sm leading-relaxed">
@@ -236,7 +229,7 @@ export function StickyFeatures() {
                 </div>
                 <ScrollVideo
                   src={feature.video}
-                  className="border-t border-(--landing-card-border)"
+                  className="border-border border-t"
                 />
               </div>
             </ScrollEntrance>

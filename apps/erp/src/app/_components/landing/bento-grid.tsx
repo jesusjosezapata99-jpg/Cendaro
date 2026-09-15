@@ -10,7 +10,6 @@ import {
   Users,
 } from "lucide-react";
 
-import { NoiseOverlay } from "./noise-overlay";
 import { ScrollEntrance, StaggerGroup, StaggerItem } from "./scroll-entrance";
 import { ScrollVideo } from "./scroll-video";
 
@@ -94,11 +93,11 @@ function MiniVisual({ type }: { type: Feature["visual"] }) {
   switch (type) {
     case "chart":
       return (
-        <div className="mt-4 overflow-hidden rounded-lg" aria-hidden="true">
-          <ScrollVideo
-            src="/videos/analytics-flow.mp4"
-            className="w-full rounded-lg"
-          />
+        <div
+          className="border-border/60 mt-4 overflow-hidden border"
+          aria-hidden="true"
+        >
+          <ScrollVideo src="/videos/analytics-flow.mp4" className="w-full" />
         </div>
       );
     case "stock":
@@ -114,9 +113,9 @@ function MiniVisual({ type }: { type: Feature["visual"] }) {
                 <span>{item.name}</span>
                 <span className="tabular-nums">{item.pct}%</span>
               </div>
-              <div className="bg-muted-foreground/5 mt-0.5 h-1.5 overflow-hidden rounded-full">
+              <div className="bg-muted-foreground/5 mt-0.5 h-1.5 overflow-hidden">
                 <div
-                  className={`h-full rounded-full transition-all duration-300 ${
+                  className={`h-full transition-all duration-300 ${
                     item.color === "emerald"
                       ? "bg-emerald-500/40 group-hover:bg-emerald-500/60"
                       : item.color === "amber"
@@ -141,7 +140,7 @@ function MiniVisual({ type }: { type: Feature["visual"] }) {
           ].map((s, i) => (
             <div key={i} className="flex flex-1 flex-col items-center gap-1">
               <div
-                className={`h-1.5 w-full rounded-full transition-all duration-300 ${
+                className={`h-1.5 w-full transition-all duration-300 ${
                   s.active
                     ? `${s.color}/30 group-hover:${s.color}/50`
                     : "bg-muted-foreground/10"
@@ -166,7 +165,7 @@ function MiniVisual({ type }: { type: Feature["visual"] }) {
             ].map((u) => (
               <div
                 key={u.initial}
-                className={`border-card text-muted-foreground/60 flex h-8 w-8 items-center justify-center rounded-full border-2 text-[10px] font-bold ${u.color}`}
+                className={`border-card text-muted-foreground/60 flex h-8 w-8 items-center justify-center rounded-full border-2 text-[10px] font-medium ${u.color}`}
               >
                 {u.initial}
               </div>
@@ -187,21 +186,21 @@ function MiniVisual({ type }: { type: Feature["visual"] }) {
         <div className="mt-4 space-y-1" aria-hidden="true">
           {[
             {
-              num: "#001",
+              num: "INV-001",
               date: "22/03",
               amount: "$1,240",
               status: "Pagada",
               paid: true,
             },
             {
-              num: "#002",
+              num: "INV-002",
               date: "21/03",
               amount: "$980",
               status: "Pendiente",
               paid: false,
             },
             {
-              num: "#003",
+              num: "INV-003",
               date: "20/03",
               amount: "$540",
               status: "Pagada",
@@ -210,10 +209,10 @@ function MiniVisual({ type }: { type: Feature["visual"] }) {
           ].map((inv) => (
             <div
               key={inv.num}
-              className="bg-muted-foreground/5 flex items-center justify-between rounded px-2 py-1.5"
+              className="bg-muted-foreground/5 flex items-center justify-between px-2 py-1.5"
             >
               <div className="flex items-center gap-2">
-                <span className="text-muted-foreground/60 text-[11px] font-bold tabular-nums">
+                <span className="text-muted-foreground/60 text-[11px] font-medium tabular-nums">
                   {inv.num}
                 </span>
                 <span className="text-muted-foreground/30 text-[10px] tabular-nums">
@@ -225,7 +224,7 @@ function MiniVisual({ type }: { type: Feature["visual"] }) {
                   {inv.amount}
                 </span>
                 <span
-                  className={`rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${
+                  className={`rounded-full px-1.5 py-0.5 text-[9px] font-medium ${
                     inv.paid
                       ? "bg-emerald-500/10 text-emerald-600/70"
                       : "bg-amber-500/10 text-amber-600/70"
@@ -254,7 +253,7 @@ function MiniVisual({ type }: { type: Feature["visual"] }) {
                 </span>
                 <div className="flex-1">
                   <div
-                    className="bg-primary/20 group-hover:bg-primary/35 h-1.5 rounded-full transition-colors duration-300"
+                    className="bg-primary/20 group-hover:bg-primary/35 h-1.5 transition-colors duration-300"
                     style={{ width: `${m.pct}%` }}
                   />
                 </div>
@@ -265,7 +264,7 @@ function MiniVisual({ type }: { type: Feature["visual"] }) {
             ))}
           </div>
           <div className="text-right">
-            <div className="text-primary/60 text-[12px] font-bold">+24%</div>
+            <div className="text-primary/60 text-xs font-medium">+24%</div>
             <div className="text-muted-foreground/40 text-[10px]">MoM</div>
           </div>
         </div>
@@ -296,7 +295,7 @@ function MiniVisual({ type }: { type: Feature["visual"] }) {
           ].map((item, i) => (
             <div key={i} className="flex flex-col items-center gap-0.5">
               <div
-                className={`${item.color} aspect-square w-full rounded transition-opacity duration-300 group-hover:opacity-80`}
+                className={`${item.color} aspect-square w-full transition-opacity duration-300 group-hover:opacity-80`}
               />
               <span className="text-muted-foreground/30 text-[9px] tabular-nums">
                 {item.price}
@@ -311,7 +310,6 @@ function MiniVisual({ type }: { type: Feature["visual"] }) {
 export function BentoGrid() {
   return (
     <section className="relative py-32">
-      <NoiseOverlay opacity={0.025} />
       <div className="mx-auto max-w-7xl px-6">
         <ScrollEntrance>
           <h2 className="mx-auto max-w-2xl text-center font-serif text-[clamp(2rem,3.5vw,3rem)] leading-[1.12] tracking-[-0.02em]">
@@ -331,12 +329,12 @@ export function BentoGrid() {
               key={feature.title}
               className={`${feature.span === 2 ? "lg:col-span-2" : ""}`}
             >
-              <div className="group hover:shadow-primary/5 flex h-full flex-col rounded-xl border border-(--landing-card-border) bg-(--landing-card-bg) p-6 transition-all duration-300 hover:-translate-y-0.5 hover:border-(--landing-card-border-hover) hover:shadow-lg">
+              <div className="group border-border bg-card hover:border-foreground/20 flex h-full flex-col border p-6 transition-colors duration-200">
                 <feature.icon
                   className="text-primary h-6 w-6"
                   strokeWidth={1.5}
                 />
-                <h3 className="mt-4 text-lg font-semibold tracking-tight">
+                <h3 className="mt-4 text-lg font-medium tracking-tight">
                   {feature.title}
                 </h3>
                 <p className="text-muted-foreground mt-1.5 text-sm leading-relaxed">

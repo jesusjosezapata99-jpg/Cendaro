@@ -42,8 +42,16 @@ async function WarehouseDetailPrefetch({ id }: { id: string }) {
       queryClient.prefetchQuery(
         trpc.inventory.getWarehouseDetail.queryOptions({ id }),
       ),
-      queryClient.prefetchQuery(
-        trpc.inventory.warehouseStock.queryOptions({ warehouseId: id }),
+      queryClient.prefetchInfiniteQuery(
+        trpc.inventory.warehouseStock.infiniteQueryOptions(
+          { warehouseId: id, limit: 50 },
+          {
+            getNextPageParam: (lastPage) => {
+              if (lastPage.length < 50) return undefined;
+              return 50;
+            },
+          },
+        ),
       ),
     ]);
   } catch {

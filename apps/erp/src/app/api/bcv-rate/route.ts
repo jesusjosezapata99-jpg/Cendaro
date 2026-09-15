@@ -281,10 +281,10 @@ export async function GET(request: NextRequest) {
     if (cachedRate) {
       return NextResponse.json(cachedRate.data);
     }
+    console.error("[bcv-rate] Error:", error);
     return NextResponse.json(
       {
         error: "Error interno al procesar tasa cambiaria",
-        details: String(error),
       },
       { status: 502 },
     );

@@ -3,30 +3,40 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import type { IconName } from "@cendaro/ui/icons";
+import { Button } from "@cendaro/ui";
+import { Icon, Icons } from "@cendaro/ui/icons";
+import { StatusPill } from "@cendaro/ui/status-pill";
+
 import { PageHeader } from "~/components/page-header";
 import { StatCard } from "~/components/stat-card";
-import { StatusBadge } from "~/components/status-badge";
 import { useTRPC } from "~/trpc/client";
 
-const DEFAULT_MODULES = [
+const DEFAULT_MODULES: {
+  key: string;
+  name: string;
+  icon: IconName;
+  description: string;
+  defaultOn: boolean;
+}[] = [
   {
     key: "catalog",
     name: "Catálogo & Productos",
-    icon: "inventory_2",
+    icon: "Inventory2",
     description: "Maestro de SKUs, marcas, categorías y variantes",
     defaultOn: true,
   },
   {
     key: "inventory",
     name: "Inventario & Almacenes",
-    icon: "warehouse",
+    icon: "Warehouse",
     description: "Control multialmacén, existencias y movimientos",
     defaultOn: true,
   },
   {
     key: "containers",
     name: "Importaciones & Contenedores",
-    icon: "local_shipping",
+    icon: "LocalShipping",
     description:
       "Cadena de suministro marítima, costeo FOB/CIF y packing lists",
     defaultOn: true,
@@ -34,50 +44,46 @@ const DEFAULT_MODULES = [
   {
     key: "pricing",
     name: "Motor de Precios & Repricing",
-    icon: "sell",
+    icon: "Sell",
     description: "Reglas de margen dinámico y conversión oficial BCV",
     defaultOn: true,
   },
   {
     key: "pos",
     name: "Punto de Venta Mostrador (POS)",
-    icon: "shopping_cart",
+    icon: "ShoppingCart",
     description: "Terminal de venta física rápida con multi-pago",
     defaultOn: true,
   },
   {
     key: "marketplace",
     name: "Mercado Libre B2B",
-    icon: "storefront",
+    icon: "Storefront",
     description: "Sincronización bidireccional de publicaciones y órdenes",
     defaultOn: false,
   },
   {
     key: "whatsapp",
     name: "Ventas WhatsApp CRM",
-    icon: "chat",
+    icon: "Chat",
     description: "Gestión de pedidos conversacionales y enlaces directos",
     defaultOn: false,
   },
   {
     key: "vendors",
     name: "Fuerza de Ventas & Comisiones",
-    icon: "group",
+    icon: "Group",
     description: "Liquidación y seguimiento de asesores comerciales",
     defaultOn: false,
   },
   {
     key: "audit",
     name: "Auditoría & Trazabilidad",
-    icon: "policy",
+    icon: "Policy",
     description: "Log inmutable de eventos forenses y mutaciones del ERP",
     defaultOn: true,
   },
 ];
-
-function Skeleton({ className = "" }: { className?: string }) {
-  return <div className={`bg-muted animate-pulse rounded-lg ${className}`} />;
-}
 
 export default function SettingsClient() {
   const trpc = useTRPC();
@@ -160,16 +166,17 @@ export default function SettingsClient() {
 
   if (loadingProfile && loadingWorkspace) {
     return (
-      <div className="space-y-6 p-4 lg:p-8">
-        <Skeleton className="h-10 w-64" />
-        <Skeleton className="h-32 w-full" />
-        <Skeleton className="h-64 w-full" />
+      <div className="space-y-6 py-4 lg:py-8">
+        <div className="border-border bg-card animate-pulse border p-6">
+          <div className="bg-muted h-8 w-48" />
+          <div className="bg-muted mt-4 h-24 w-full" />
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6 p-4 lg:p-8">
+    <div className="space-y-6 py-4 lg:py-8">
       {/* Header */}
       <PageHeader
         title="Configuración del Sistema"
@@ -181,28 +188,28 @@ export default function SettingsClient() {
         <StatCard
           label="Módulos Activos"
           value={`${activeModulesCount} / ${DEFAULT_MODULES.length}`}
-          icon="deployed_code"
+          icon="DeployedCode"
           tone="primary"
           sub="Arquitectura operativa"
         />
         <StatCard
           label="Plan del Workspace"
           value={workspaceData?.plan ? workspaceData.plan.toUpperCase() : "PRO"}
-          icon="verified"
+          icon="Verified"
           tone="success"
           sub="Suscripción empresarial"
         />
         <StatCard
           label="Zona Horaria"
           value="VET (-04:00)"
-          icon="schedule"
+          icon="Schedule"
           tone="default"
           sub="Caracas, Venezuela"
         />
         <StatCard
           label="Moneda Primaria"
           value="USD ($)"
-          icon="payments"
+          icon="Payments"
           tone="default"
           sub="Tasa Operativa: BCV"
         />
@@ -210,9 +217,9 @@ export default function SettingsClient() {
 
       {/* Profile Card */}
       {profile && (
-        <div className="surface-card flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+        <div className="border-border bg-card flex flex-col gap-4 border p-5 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex min-w-0 items-center gap-4">
-            <div className="bg-primary text-primary-foreground flex size-12 shrink-0 items-center justify-center rounded-full text-sm font-bold uppercase shadow-sm">
+            <div className="bg-primary text-primary-foreground flex size-11 shrink-0 items-center justify-center rounded-full text-sm font-medium uppercase">
               {profile.fullName
                 .split(" ")
                 .map((n: string) => n[0])
@@ -221,10 +228,10 @@ export default function SettingsClient() {
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <p className="text-foreground truncate text-sm font-semibold">
+                <p className="text-foreground truncate text-sm font-medium">
                   {profile.fullName}
                 </p>
-                <StatusBadge tone="primary">{profile.role}</StatusBadge>
+                <StatusPill tone="default">{profile.role}</StatusPill>
               </div>
               <p className="text-muted-foreground truncate text-xs">
                 {profile.email} · @{profile.username}
@@ -232,20 +239,18 @@ export default function SettingsClient() {
             </div>
           </div>
 
-          <div className="text-muted-foreground border-border/50 flex items-center gap-2 border-t pt-3 font-mono text-xs sm:border-t-0 sm:pt-0">
-            <span className="material-symbols-outlined text-sm">shield</span>
+          <div className="text-muted-foreground border-border flex items-center gap-2 border-t pt-3 font-mono text-xs sm:border-t-0 sm:pt-0">
+            <Icons.Shield className="size-3.5" />
             <span>Sesión Autenticada</span>
           </div>
         </div>
       )}
 
       {/* Organization Settings */}
-      <div className="surface-card p-6">
-        <div className="border-border/60 mb-5 border-b pb-4">
-          <h2 className="text-foreground flex items-center gap-2 text-base font-semibold">
-            <span className="material-symbols-outlined text-primary text-lg">
-              business
-            </span>
+      <div className="border-border bg-card border p-6">
+        <div className="border-border mb-5 border-b pb-4">
+          <h2 className="text-foreground flex items-center gap-2 text-base font-medium">
+            <Icons.Business className="text-primary size-4.5" />
             Datos de la Organización & Empresa
           </h2>
           <p className="text-muted-foreground mt-0.5 text-xs">
@@ -265,7 +270,7 @@ export default function SettingsClient() {
                 value={orgName}
                 onChange={(e) => setOrgName(e.target.value)}
                 required
-                className="border-border bg-background text-foreground focus:border-primary focus:ring-primary/20 w-full rounded-lg border px-3 py-2 text-xs focus:ring-2 focus:outline-none"
+                className="border-border bg-background text-foreground focus:border-foreground w-full border px-3 py-2 text-xs transition-colors outline-none"
               />
             </div>
 
@@ -278,7 +283,7 @@ export default function SettingsClient() {
                 value={orgLegalName}
                 onChange={(e) => setOrgLegalName(e.target.value)}
                 placeholder="Ej. Comercializadora Cendaro C.A."
-                className="border-border bg-background text-foreground focus:border-primary focus:ring-primary/20 w-full rounded-lg border px-3 py-2 text-xs focus:ring-2 focus:outline-none"
+                className="border-border bg-background text-foreground focus:border-foreground w-full border px-3 py-2 text-xs transition-colors outline-none"
               />
             </div>
 
@@ -291,7 +296,7 @@ export default function SettingsClient() {
                 value={orgRif}
                 onChange={(e) => setOrgRif(e.target.value)}
                 placeholder="Ej. J-12345678-9"
-                className="border-border bg-background text-foreground focus:border-primary focus:ring-primary/20 w-full rounded-lg border px-3 py-2 font-mono text-xs uppercase focus:ring-2 focus:outline-none"
+                className="border-border bg-background text-foreground focus:border-foreground w-full border px-3 py-2 font-mono text-xs uppercase transition-colors outline-none"
               />
             </div>
 
@@ -302,7 +307,7 @@ export default function SettingsClient() {
               <select
                 value={orgTimezone}
                 onChange={(e) => setOrgTimezone(e.target.value)}
-                className="border-border bg-background text-foreground focus:ring-primary/20 w-full rounded-lg border px-3 py-2 text-xs focus:ring-2 focus:outline-none"
+                className="border-border bg-background text-foreground focus:border-foreground w-full border px-3 py-2 text-xs transition-colors outline-none"
               >
                 <option value="America/Caracas">
                   America/Caracas (VET -04:00) — Oficial Venezuela
@@ -317,53 +322,45 @@ export default function SettingsClient() {
             </div>
           </div>
 
-          <div className="border-border/50 flex items-center justify-between border-t pt-3">
+          <div className="border-border flex items-center justify-between border-t pt-3">
             <span className="text-muted-foreground text-[11px]">
               Los cambios se propagarán a todos los módulos y comprobantes
               impresos.
             </span>
 
-            <button
+            <Button
               type="submit"
               disabled={updateWorkspaceMutation.isPending}
-              className="bg-primary text-primary-foreground hover:bg-primary/90 flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-semibold shadow-xs transition-colors disabled:opacity-50"
+              className="h-8 text-xs font-medium"
             >
               {updateWorkspaceMutation.isPending ? (
                 <>
-                  <span className="material-symbols-outlined animate-spin text-sm">
-                    progress_activity
-                  </span>
+                  <Icons.ProgressActivity className="mr-1.5 size-3.5 animate-spin" />
                   Guardando...
                 </>
               ) : orgSaved ? (
                 <>
-                  <span className="material-symbols-outlined text-sm">
-                    check
-                  </span>
+                  <Icons.Check className="mr-1.5 size-3.5" />
                   Guardado Correctamente
                 </>
               ) : (
                 <>
-                  <span className="material-symbols-outlined text-sm">
-                    check
-                  </span>
+                  <Icons.Check className="mr-1.5 size-3.5" />
                   Guardar Organización
                 </>
               )}
-            </button>
+            </Button>
           </div>
         </form>
       </div>
 
       {/* Modules Architecture Grid */}
-      <div className="surface-card p-6">
-        <div className="border-border/60 mb-5 border-b pb-4">
+      <div className="border-border bg-card border p-6">
+        <div className="border-border mb-5 border-b pb-4">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-foreground flex items-center gap-2 text-base font-semibold">
-                <span className="material-symbols-outlined text-primary text-lg">
-                  deployed_code
-                </span>
+              <h2 className="text-foreground flex items-center gap-2 text-base font-medium">
+                <Icons.DeployedCode className="text-primary size-4.5" />
                 Arquitectura de Módulos ERP
               </h2>
               <p className="text-muted-foreground mt-0.5 text-xs">
@@ -371,9 +368,7 @@ export default function SettingsClient() {
                 tu empresa
               </p>
             </div>
-            <StatusBadge tone="primary">
-              {activeModulesCount} Activos
-            </StatusBadge>
+            <StatusPill tone="default">{activeModulesCount} Activos</StatusPill>
           </div>
         </div>
 
@@ -385,26 +380,24 @@ export default function SettingsClient() {
               <div
                 key={mod.key}
                 onClick={() => toggleModule(mod.key)}
-                className={`flex cursor-pointer items-start justify-between rounded-xl border p-3.5 transition-all ${
+                className={`flex cursor-pointer items-start justify-between border p-3.5 transition-colors ${
                   isEnabled
-                    ? "border-primary/30 bg-primary/5 shadow-xs"
-                    : "border-border bg-card hover:bg-accent/40"
+                    ? "border-foreground/30 bg-primary/5"
+                    : "border-border bg-background hover:bg-muted/30"
                 }`}
               >
                 <div className="flex min-w-0 items-start gap-3">
                   <div
-                    className={`mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg ${
+                    className={`mt-0.5 flex size-8 shrink-0 items-center justify-center ${
                       isEnabled
                         ? "bg-primary text-primary-foreground"
                         : "bg-muted text-muted-foreground"
                     }`}
                   >
-                    <span className="material-symbols-outlined text-base">
-                      {mod.icon}
-                    </span>
+                    <Icon name={mod.icon} className="size-4" />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-foreground truncate text-xs font-semibold">
+                    <p className="text-foreground truncate text-xs font-medium">
                       {mod.name}
                     </p>
                     <p className="text-muted-foreground mt-0.5 line-clamp-2 text-[11px] leading-relaxed">
@@ -419,7 +412,7 @@ export default function SettingsClient() {
                   }`}
                 >
                   <div
-                    className={`absolute top-0.5 size-4 rounded-full bg-white shadow-xs transition-transform ${
+                    className={`absolute top-0.5 size-4 rounded-full bg-white transition-transform ${
                       isEnabled ? "translate-x-4" : "translate-x-0.5"
                     }`}
                   />
@@ -431,12 +424,10 @@ export default function SettingsClient() {
       </div>
 
       {/* Pricing Engine & Exchange Rates Policies */}
-      <div className="surface-card p-6">
-        <div className="border-border/60 mb-5 border-b pb-4">
-          <h2 className="text-foreground flex items-center gap-2 text-base font-semibold">
-            <span className="material-symbols-outlined text-primary text-lg">
-              sell
-            </span>
+      <div className="border-border bg-card border p-6">
+        <div className="border-border mb-5 border-b pb-4">
+          <h2 className="text-foreground flex items-center gap-2 text-base font-medium">
+            <Icons.Sell className="text-primary size-4.5" />
             Políticas del Motor de Precios & BCV
           </h2>
           <p className="text-muted-foreground mt-0.5 text-xs">
@@ -459,7 +450,7 @@ export default function SettingsClient() {
                 max="50"
                 step="0.5"
                 required
-                className="border-border bg-background text-foreground focus:border-primary focus:ring-primary/20 w-full rounded-lg border px-3 py-2 font-mono text-xs tabular-nums focus:ring-2 focus:outline-none"
+                className="border-border bg-background text-foreground focus:border-foreground w-full border px-3 py-2 font-mono text-xs tabular-nums transition-colors outline-none"
               />
               <p className="text-muted-foreground mt-1 text-[10px]">
                 Dispara propuestas de repricing si la tasa oficial varía por
@@ -478,7 +469,7 @@ export default function SettingsClient() {
                 min="1"
                 max="72"
                 required
-                className="border-border bg-background text-foreground focus:border-primary focus:ring-primary/20 w-full rounded-lg border px-3 py-2 font-mono text-xs tabular-nums focus:ring-2 focus:outline-none"
+                className="border-border bg-background text-foreground focus:border-foreground w-full border px-3 py-2 font-mono text-xs tabular-nums transition-colors outline-none"
               />
               <p className="text-muted-foreground mt-1 text-[10px]">
                 Tiempo límite para que el supervisor apruebe o ajuste el nuevo
@@ -498,7 +489,7 @@ export default function SettingsClient() {
                 max="25"
                 step="0.1"
                 required
-                className="border-border bg-background text-foreground focus:border-primary focus:ring-primary/20 w-full rounded-lg border px-3 py-2 font-mono text-xs tabular-nums focus:ring-2 focus:outline-none"
+                className="border-border bg-background text-foreground focus:border-foreground w-full border px-3 py-2 font-mono text-xs tabular-nums transition-colors outline-none"
               />
               <p className="text-muted-foreground mt-1 text-[10px]">
                 Colchón preventivo incorporado en cotizaciones diferidas a
@@ -507,32 +498,25 @@ export default function SettingsClient() {
             </div>
           </div>
 
-          <div className="border-border/50 flex items-center justify-between border-t pt-3">
+          <div className="border-border flex items-center justify-between border-t pt-3">
             <span className="text-muted-foreground text-[11px]">
               El motor evaluará cada fluctuación oficial emitida por el Banco
               Central de Venezuela.
             </span>
 
-            <button
-              type="submit"
-              className="bg-primary text-primary-foreground hover:bg-primary/90 flex items-center gap-1.5 rounded-lg px-4 py-2 text-xs font-semibold shadow-xs transition-colors"
-            >
+            <Button type="submit" className="h-8 text-xs font-medium">
               {pricingSaved ? (
                 <>
-                  <span className="material-symbols-outlined text-sm">
-                    check
-                  </span>
+                  <Icons.Check className="mr-1.5 size-3.5" />
                   Políticas Guardadas
                 </>
               ) : (
                 <>
-                  <span className="material-symbols-outlined text-sm">
-                    tune
-                  </span>
+                  <Icons.Tune className="mr-1.5 size-3.5" />
                   Guardar Políticas
                 </>
               )}
-            </button>
+            </Button>
           </div>
         </form>
       </div>

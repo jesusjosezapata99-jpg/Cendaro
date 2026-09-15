@@ -18,7 +18,52 @@ import { createSupabaseServerClient } from "@cendaro/auth/server";
 
 import { env } from "~/env";
 
+const MAX_BATCH_SIZE = 15;
+const MAX_PAYLOAD_BYTES = 10 * 1024 * 1024; // 10MB
+
 const handler = async (req: Request) => {
+  // ── DoS Guard: Batch Query Amplification Limit ──
+  try {
+    const url = new URL(req.url);
+    const trpcPath = url.pathname.replace(/^\/api\/trpc\/?/, "");
+    if (trpcPath) {
+      const batchCount = trpcPath.split(",").filter(Boolean).length;
+      if (batchCount > MAX_BATCH_SIZE) {
+        return new Response(
+          JSON.stringify({
+            error: {
+              message: `El tamaño del lote excede el límite máximo de ${MAX_BATCH_SIZE} procedimientos`,
+              code: -32600,
+            },
+          }),
+          {
+            status: 400,
+            headers: { "Content-Type": "application/json" },
+          },
+        );
+      }
+    }
+  } catch {
+    // URL parsing fallback
+  }
+
+  // ── DoS Guard: Payload Size Limit ──
+  const contentLength = req.headers.get("content-length");
+  if (contentLength && parseInt(contentLength, 10) > MAX_PAYLOAD_BYTES) {
+    return new Response(
+      JSON.stringify({
+        error: {
+          message: "Cuerpo de solicitud demasiado grande (máx 10MB)",
+          code: -32600,
+        },
+      }),
+      {
+        status: 413,
+        headers: { "Content-Type": "application/json" },
+      },
+    );
+  }
+
   const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 

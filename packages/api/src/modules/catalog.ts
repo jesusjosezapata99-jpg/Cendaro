@@ -4,7 +4,7 @@
  * CRUD + search + filters for products, brands, categories, suppliers.
  * PRD §10: 5000+ SKUs, full-text search, hierarchical categories.
  */
-import { and, count, desc, eq, ilike, or } from "drizzle-orm";
+import { and, asc, count, desc, eq, ilike, inArray, or } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import {
@@ -63,24 +63,40 @@ function invalidateCacheKey(workspaceId: string, entity: string) {
   catalogMemoryCache.delete(key);
 }
 
+export const listProductsInputSchema = z.object({
+  limit: z.number().int().min(1).max(100).default(25),
+  offset: z.number().int().min(0).default(0),
+  cursor: z.number().int().min(0).nullish(),
+  search: z.string().max(256).optional(),
+  brandId: z.string().uuid().optional(),
+  brandIds: z.array(z.string().uuid()).optional(),
+  categoryId: z.string().uuid().optional(),
+  categoryIds: z.array(z.string().uuid()).optional(),
+  supplierId: z.string().uuid().optional(),
+  supplierIds: z.array(z.string().uuid()).optional(),
+  status: z.enum(productStatusEnum.enumValues).optional(),
+  statuses: z.array(z.enum(productStatusEnum.enumValues)).optional(),
+  sort: z
+    .enum([
+      "createdAt:asc",
+      "createdAt:desc",
+      "name:asc",
+      "name:desc",
+      "sku:asc",
+      "sku:desc",
+    ])
+    .optional(),
+});
+export type ListProductsInput = z.infer<typeof listProductsInputSchema>;
+
 export const catalogRouter = createTRPCRouter({
   // ─── Products ────────────────────────────────
 
   /** List products with search, filters, and pagination */
   listProducts: workspaceReadProcedure
-    .input(
-      z.object({
-        limit: z.number().int().min(1).max(100).default(25),
-        offset: z.number().int().min(0).default(0),
-        search: z.string().max(256).optional(),
-        brandId: z.string().uuid().optional(),
-        categoryId: z.string().uuid().optional(),
-        supplierId: z.string().uuid().optional(),
-        status: z.enum(productStatusEnum.enumValues).optional(),
-      }),
-    )
+    .input(listProductsInputSchema)
     .query(async ({ ctx, input }) => {
-      const conditions = [];
+      const conditions = [eq(Product.workspaceId, ctx.workspace.workspaceId)];
 
       if (input.search) {
         // Escape LIKE wildcards to prevent pattern injection
@@ -88,20 +104,62 @@ export const catalogRouter = createTRPCRouter({
           .replace(/\\/g, "\\\\")
           .replace(/%/g, "\\%")
           .replace(/_/g, "\\_");
-        conditions.push(
-          or(
-            ilike(Product.name, `%${escaped}%`),
-            ilike(Product.sku, `%${escaped}%`),
-            ilike(Product.barcode, `%${escaped}%`),
-          ),
+        const orCond = or(
+          ilike(Product.name, `%${escaped}%`),
+          ilike(Product.sku, `%${escaped}%`),
+          ilike(Product.barcode, `%${escaped}%`),
         );
+        if (orCond) conditions.push(orCond);
       }
-      if (input.brandId) conditions.push(eq(Product.brandId, input.brandId));
-      if (input.categoryId)
+
+      if (input.statuses && input.statuses.length > 0) {
+        conditions.push(inArray(Product.status, input.statuses));
+      } else if (input.status) {
+        conditions.push(eq(Product.status, input.status));
+      }
+
+      if (input.brandIds && input.brandIds.length > 0) {
+        conditions.push(inArray(Product.brandId, input.brandIds));
+      } else if (input.brandId) {
+        conditions.push(eq(Product.brandId, input.brandId));
+      }
+
+      if (input.categoryIds && input.categoryIds.length > 0) {
+        conditions.push(inArray(Product.categoryId, input.categoryIds));
+      } else if (input.categoryId) {
         conditions.push(eq(Product.categoryId, input.categoryId));
-      if (input.supplierId)
+      }
+
+      if (input.supplierIds && input.supplierIds.length > 0) {
+        conditions.push(inArray(Product.supplierId, input.supplierIds));
+      } else if (input.supplierId) {
         conditions.push(eq(Product.supplierId, input.supplierId));
-      if (input.status) conditions.push(eq(Product.status, input.status));
+      }
+
+      // Sorting
+      let orderByClause = desc(Product.createdAt);
+      if (input.sort) {
+        switch (input.sort) {
+          case "createdAt:asc":
+            orderByClause = asc(Product.createdAt);
+            break;
+          case "createdAt:desc":
+            orderByClause = desc(Product.createdAt);
+            break;
+          case "name:asc":
+            orderByClause = asc(Product.name);
+            break;
+          case "name:desc":
+            orderByClause = desc(Product.name);
+            break;
+          case "sku:asc":
+            orderByClause = asc(Product.sku);
+            break;
+          case "sku:desc":
+            orderByClause = desc(Product.sku);
+            break;
+        }
+      }
 
       const where = conditions.length > 0 ? and(...conditions) : undefined;
 
@@ -121,9 +179,9 @@ export const catalogRouter = createTRPCRouter({
           })
           .from(Product)
           .where(where)
-          .orderBy(desc(Product.createdAt))
+          .orderBy(orderByClause)
           .limit(input.limit)
-          .offset(input.offset),
+          .offset(input.cursor ?? input.offset),
         ctx.db.select({ total: count() }).from(Product).where(where),
       ]);
 
@@ -140,7 +198,12 @@ export const catalogRouter = createTRPCRouter({
       const [product] = await ctx.db
         .select()
         .from(Product)
-        .where(eq(Product.id, input.id))
+        .where(
+          and(
+            eq(Product.id, input.id),
+            eq(Product.workspaceId, ctx.workspace.workspaceId),
+          ),
+        )
         .limit(1);
 
       if (!product) return null;
@@ -265,6 +328,7 @@ export const catalogRouter = createTRPCRouter({
           description: Brand.description,
         })
         .from(Brand)
+        .where(eq(Brand.workspaceId, ctx.workspace.workspaceId))
         .orderBy(Brand.name)
         .limit(200),
     );
@@ -305,6 +369,7 @@ export const catalogRouter = createTRPCRouter({
           sortOrder: Category.sortOrder,
         })
         .from(Category)
+        .where(eq(Category.workspaceId, ctx.workspace.workspaceId))
         .orderBy(Category.sortOrder, Category.name)
         .limit(500),
     );
@@ -353,6 +418,7 @@ export const catalogRouter = createTRPCRouter({
           status: Supplier.status,
         })
         .from(Supplier)
+        .where(eq(Supplier.workspaceId, ctx.workspace.workspaceId))
         .orderBy(Supplier.name)
         .limit(200),
     );

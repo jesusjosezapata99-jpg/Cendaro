@@ -3,7 +3,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { Dialog, Field, FormActions, Input, Select } from "~/components/dialog";
+import { Icons } from "@cendaro/ui/icons";
+
+import { Field, Input, Select } from "~/components/dialog";
+import {
+  SheetBody,
+  SheetFooter,
+  SheetFormActions,
+  SheetModal,
+} from "~/components/sheet-modal";
 import { useTRPC } from "~/trpc/client";
 
 interface Props {
@@ -216,274 +224,271 @@ export function CreateOrderDialog({
   const selectedProduct = getSelectedProduct();
 
   return (
-    <Dialog
+    <SheetModal
       open={open}
       onClose={onClose}
       title="Nueva Orden"
-      description="Crea una orden de venta."
-      className="max-w-3xl"
+      description="Crea una orden de venta multicanal."
+      className="sm:max-w-2xl md:max-w-3xl"
     >
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Field label="Cliente">
-            <Select
-              value={customerId}
-              onChange={(e) => setCustomerId(e.target.value)}
-            >
-              <option value="">Cliente de mostrador</option>
-              {(customers ?? []).map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          <Field label="Canal" required>
-            <Select
-              value={channel}
-              onChange={(e) => setChannel(e.target.value)}
-            >
-              <option value="store">Tienda</option>
-              <option value="mercadolibre">Mercado Libre</option>
-              <option value="vendors">Vendedores</option>
-              <option value="whatsapp">WhatsApp</option>
-              <option value="instagram">Instagram</option>
-            </Select>
-          </Field>
-        </div>
+      <form onSubmit={handleSubmit} className="flex h-full flex-col">
+        <SheetBody>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Field label="Cliente">
+              <Select
+                value={customerId}
+                onChange={(e) => setCustomerId(e.target.value)}
+              >
+                <option value="">Cliente de mostrador</option>
+                {(customers ?? []).map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Canal" required>
+              <Select
+                value={channel}
+                onChange={(e) => setChannel(e.target.value)}
+              >
+                <option value="store">Tienda</option>
+                <option value="mercadolibre">Mercado Libre</option>
+                <option value="vendors">Vendedores</option>
+                <option value="whatsapp">WhatsApp</option>
+                <option value="instagram">Instagram</option>
+              </Select>
+            </Field>
+          </div>
 
-        {/* Order lines */}
-        <div>
-          <p className="text-muted-foreground mb-2 text-xs font-medium">
-            Líneas de Pedido
-          </p>
-          {lines.length > 0 && (
-            <div className="border-border mobile-scroll-x mb-3 overflow-hidden rounded-lg border">
-              <table className="w-full min-w-125 text-left text-xs">
-                <thead>
-                  <tr className="border-border text-muted-foreground border-b text-[10px] uppercase">
-                    <th className="px-3 py-2">Ref.</th>
-                    <th className="px-3 py-2">Producto</th>
-                    <th className="px-3 py-2 text-right">Cant.</th>
-                    <th className="px-3 py-2 text-right">Precio</th>
-                    <th className="px-3 py-2 text-right">Desc.</th>
-                    <th className="px-3 py-2 text-right">Subtotal</th>
-                    <th className="px-3 py-2"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {lines.map((line, idx) => (
-                    <tr
-                      key={idx}
-                      className="border-border border-b last:border-0"
-                    >
-                      <td className="text-primary px-3 py-2 font-mono text-[11px] font-bold">
-                        {line.productRef}
-                      </td>
-                      <td className="text-foreground px-3 py-2">
-                        {line.productName}
-                      </td>
-                      <td className="text-muted-foreground px-3 py-2 text-right">
-                        {line.quantity}
-                      </td>
-                      <td className="text-muted-foreground px-3 py-2 text-right font-mono">
-                        ${line.unitPrice.toFixed(2)}
-                      </td>
-                      <td className="text-muted-foreground px-3 py-2 text-right font-mono">
-                        ${line.discount.toFixed(2)}
-                      </td>
-                      <td className="text-foreground px-3 py-2 text-right font-mono font-bold">
-                        $
-                        {(
-                          (line.unitPrice - line.discount) *
-                          line.quantity
-                        ).toFixed(2)}
-                      </td>
-                      <td className="px-3 py-2">
-                        <button
-                          type="button"
-                          onClick={() => removeLine(idx)}
-                          className="text-destructive hover:text-destructive/80"
-                        >
-                          <span className="material-symbols-outlined text-sm">
-                            delete
-                          </span>
-                        </button>
-                      </td>
+          {/* Order lines */}
+          <div>
+            <p className="text-muted-foreground mb-2 text-xs font-medium">
+              Líneas de Pedido
+            </p>
+            {lines.length > 0 && (
+              <div className="border-border mobile-scroll-x mb-3 overflow-hidden border">
+                <table className="w-full min-w-125 text-left text-xs">
+                  <thead>
+                    <tr className="border-border text-muted-foreground border-b text-[10px] uppercase">
+                      <th className="px-3 py-2">Ref.</th>
+                      <th className="px-3 py-2">Producto</th>
+                      <th className="px-3 py-2 text-right">Cant.</th>
+                      <th className="px-3 py-2 text-right">Precio</th>
+                      <th className="px-3 py-2 text-right">Desc.</th>
+                      <th className="px-3 py-2 text-right">Subtotal</th>
+                      <th className="px-3 py-2"></th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {lines.map((line, idx) => (
+                      <tr
+                        key={idx}
+                        className="border-border border-b last:border-0"
+                      >
+                        <td className="text-primary px-3 py-2 font-mono text-[11px] font-medium">
+                          {line.productRef}
+                        </td>
+                        <td className="text-foreground px-3 py-2">
+                          {line.productName}
+                        </td>
+                        <td className="text-muted-foreground px-3 py-2 text-right">
+                          {line.quantity}
+                        </td>
+                        <td className="text-muted-foreground px-3 py-2 text-right font-mono">
+                          ${line.unitPrice.toFixed(2)}
+                        </td>
+                        <td className="text-muted-foreground px-3 py-2 text-right font-mono">
+                          ${line.discount.toFixed(2)}
+                        </td>
+                        <td className="text-foreground px-3 py-2 text-right font-mono font-medium">
+                          $
+                          {(
+                            (line.unitPrice - line.discount) *
+                            line.quantity
+                          ).toFixed(2)}
+                        </td>
+                        <td className="px-3 py-2">
+                          <button
+                            type="button"
+                            onClick={() => removeLine(idx)}
+                            className="text-destructive hover:text-destructive/80"
+                          >
+                            <Icons.Delete className="size-3.5" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* Add line — Typeahead */}
+            <div className="space-y-2">
+              <div className="relative" ref={dropdownRef}>
+                <div className="relative">
+                  <Icons.Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4.5 -translate-y-1/2" />
+                  <input
+                    ref={searchInputRef}
+                    type="text"
+                    value={productSearch}
+                    onChange={(e) => {
+                      setProductSearch(e.target.value);
+                      setShowDropdown(true);
+                      setHighlightIdx(0);
+                    }}
+                    onFocus={() => {
+                      if (productSearch.trim()) setShowDropdown(true);
+                    }}
+                    onKeyDown={handleKeyDown}
+                    placeholder="Escribe la referencia, nombre o código de barras..."
+                    className="border-border bg-card text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-ring/20 min-h-11 w-full border py-2.5 pr-4 pl-10 text-sm transition-colors outline-none focus:ring-2"
+                  />
+                  {selectedProduct && (
+                    <Icons.CheckCircle className="pointer-events-none absolute top-1/2 right-3 size-4.5 -translate-y-1/2 text-emerald-400" />
+                  )}
+                </div>
+
+                {/* Dropdown results */}
+                {showDropdown && filteredProducts.length > 0 && (
+                  <div className="border-border bg-card absolute z-50 mt-1 w-full overflow-hidden border shadow-md">
+                    {filteredProducts.map(
+                      (
+                        p: {
+                          id: string;
+                          name: string;
+                          sku: string;
+                          barcode: string | null;
+                        },
+                        idx: number,
+                      ) => (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => selectProduct(p)}
+                          className={`flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition-colors ${
+                            idx === highlightIdx
+                              ? "bg-primary/10 text-primary"
+                              : "text-foreground hover:bg-accent"
+                          }`}
+                        >
+                          <span className="text-primary shrink-0 font-mono text-xs font-medium">
+                            {p.sku}
+                          </span>
+                          <span className="min-w-0 flex-1 truncate">
+                            {p.name}
+                          </span>
+                          {p.barcode && (
+                            <span className="text-muted-foreground shrink-0 font-mono text-[10px]">
+                              {p.barcode}
+                            </span>
+                          )}
+                        </button>
+                      ),
+                    )}
+                  </div>
+                )}
+
+                {showDropdown &&
+                  productSearch.trim() &&
+                  filteredProducts.length === 0 && (
+                    <div className="border-border bg-card text-muted-foreground absolute z-50 mt-1 w-full border p-3 text-center text-xs shadow-md">
+                      <Icons.SearchOff className="mb-1 block size-4.5" />
+                      No se encontró ningún producto
+                    </div>
+                  )}
+              </div>
+
+              <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-4 sm:gap-2">
+                <input
+                  ref={quantityInputRef}
+                  type="number"
+                  min="1"
+                  value={addQuantity}
+                  onChange={(e) => setAddQuantity(e.target.value)}
+                  placeholder="Cant."
+                  className="border-border bg-card text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-ring/20 min-h-11 w-full border px-4 py-2.5 text-sm transition-colors outline-none focus:ring-2"
+                />
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={addPrice}
+                  onChange={(e) => setAddPrice(e.target.value)}
+                  placeholder="Precio $"
+                />
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={addDiscount}
+                  onChange={(e) => setAddDiscount(e.target.value)}
+                  placeholder="Desc. $"
+                />
+                <button
+                  type="button"
+                  onClick={addLine}
+                  disabled={!selectedProduct || !addPrice}
+                  className="bg-secondary text-muted-foreground hover:bg-accent border-border flex min-h-11 items-center justify-center gap-1 border px-3 py-2.5 text-xs font-medium transition-colors disabled:opacity-40"
+                >
+                  <Icons.Add className="size-3.5" /> Agregar
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Totals */}
+          {lines.length > 0 && (
+            <div className="flex justify-end">
+              <div className="border-border bg-secondary border p-3 text-sm">
+                <div className="flex justify-between gap-8">
+                  <span className="text-muted-foreground">Subtotal:</span>
+                  <span className="text-foreground font-mono font-medium">
+                    ${subtotal.toFixed(2)}
+                  </span>
+                </div>
+                {totalDiscount > 0 && (
+                  <div className="flex justify-between gap-8">
+                    <span className="text-muted-foreground">Descuento:</span>
+                    <span className="font-mono text-red-400">
+                      -${totalDiscount.toFixed(2)}
+                    </span>
+                  </div>
+                )}
+                <div className="border-border mt-1 flex justify-between gap-8 border-t pt-1">
+                  <span className="text-foreground font-medium">Total:</span>
+                  <span className="text-primary font-mono text-lg font-medium">
+                    ${total.toFixed(2)}
+                  </span>
+                </div>
+              </div>
             </div>
           )}
 
-          {/* Add line — Typeahead */}
-          <div className="space-y-2">
-            <div className="relative" ref={dropdownRef}>
-              <div className="relative">
-                <span className="material-symbols-outlined text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-lg">
-                  search
-                </span>
-                <input
-                  ref={searchInputRef}
-                  type="text"
-                  value={productSearch}
-                  onChange={(e) => {
-                    setProductSearch(e.target.value);
-                    setShowDropdown(true);
-                    setHighlightIdx(0);
-                  }}
-                  onFocus={() => {
-                    if (productSearch.trim()) setShowDropdown(true);
-                  }}
-                  onKeyDown={handleKeyDown}
-                  placeholder="Escribe la referencia, nombre o código de barras..."
-                  className="border-border bg-card text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-ring/20 min-h-11 w-full rounded-lg border py-2.5 pr-4 pl-10 text-sm transition-colors outline-none focus:ring-2"
-                />
-                {selectedProduct && (
-                  <span className="material-symbols-outlined pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-lg text-emerald-400">
-                    check_circle
-                  </span>
-                )}
-              </div>
+          <Field label="Notas">
+            <Input
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Notas adicionales..."
+            />
+          </Field>
 
-              {/* Dropdown results */}
-              {showDropdown && filteredProducts.length > 0 && (
-                <div className="border-border bg-card absolute z-50 mt-1 w-full overflow-hidden rounded-lg border shadow-xl">
-                  {filteredProducts.map(
-                    (
-                      p: {
-                        id: string;
-                        name: string;
-                        sku: string;
-                        barcode: string | null;
-                      },
-                      idx: number,
-                    ) => (
-                      <button
-                        key={p.id}
-                        type="button"
-                        onClick={() => selectProduct(p)}
-                        className={`flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition-colors ${
-                          idx === highlightIdx
-                            ? "bg-primary/10 text-primary"
-                            : "text-foreground hover:bg-accent"
-                        }`}
-                      >
-                        <span className="text-primary shrink-0 font-mono text-xs font-bold">
-                          {p.sku}
-                        </span>
-                        <span className="min-w-0 flex-1 truncate">
-                          {p.name}
-                        </span>
-                        {p.barcode && (
-                          <span className="text-muted-foreground shrink-0 font-mono text-[10px]">
-                            {p.barcode}
-                          </span>
-                        )}
-                      </button>
-                    ),
-                  )}
-                </div>
-              )}
-
-              {showDropdown &&
-                productSearch.trim() &&
-                filteredProducts.length === 0 && (
-                  <div className="border-border bg-card text-muted-foreground absolute z-50 mt-1 w-full rounded-lg border p-3 text-center text-xs shadow-xl">
-                    <span className="material-symbols-outlined mb-1 block text-lg">
-                      search_off
-                    </span>
-                    No se encontró ningún producto
-                  </div>
-                )}
+          {create.error && (
+            <div className="border-destructive/30 bg-destructive/10 text-destructive border p-3 text-sm">
+              {create.error.message}
             </div>
+          )}
+        </SheetBody>
 
-            <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-4 sm:gap-2">
-              <input
-                ref={quantityInputRef}
-                type="number"
-                min="1"
-                value={addQuantity}
-                onChange={(e) => setAddQuantity(e.target.value)}
-                placeholder="Cant."
-                className="border-border bg-card text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-ring/20 min-h-11 w-full rounded-lg border px-4 py-2.5 text-sm transition-colors outline-none focus:ring-2"
-              />
-              <Input
-                type="number"
-                step="0.01"
-                value={addPrice}
-                onChange={(e) => setAddPrice(e.target.value)}
-                placeholder="Precio $"
-              />
-              <Input
-                type="number"
-                step="0.01"
-                value={addDiscount}
-                onChange={(e) => setAddDiscount(e.target.value)}
-                placeholder="Desc. $"
-              />
-              <button
-                type="button"
-                onClick={addLine}
-                disabled={!selectedProduct || !addPrice}
-                className="bg-secondary text-muted-foreground hover:bg-accent flex min-h-11 items-center justify-center gap-1 rounded-lg px-3 py-2.5 text-xs font-bold transition-colors disabled:opacity-40"
-              >
-                <span className="material-symbols-outlined text-sm">add</span>{" "}
-                Agregar
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Totals */}
-        {lines.length > 0 && (
-          <div className="flex justify-end">
-            <div className="border-border bg-secondary rounded-lg border p-3 text-sm">
-              <div className="flex justify-between gap-8">
-                <span className="text-muted-foreground">Subtotal:</span>
-                <span className="text-foreground font-mono font-bold">
-                  ${subtotal.toFixed(2)}
-                </span>
-              </div>
-              {totalDiscount > 0 && (
-                <div className="flex justify-between gap-8">
-                  <span className="text-muted-foreground">Descuento:</span>
-                  <span className="font-mono text-red-400">
-                    -${totalDiscount.toFixed(2)}
-                  </span>
-                </div>
-              )}
-              <div className="border-border mt-1 flex justify-between gap-8 border-t pt-1">
-                <span className="text-foreground font-bold">Total:</span>
-                <span className="text-primary font-mono text-lg font-bold">
-                  ${total.toFixed(2)}
-                </span>
-              </div>
-            </div>
-          </div>
-        )}
-
-        <Field label="Notas">
-          <Input
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder="Notas adicionales..."
+        <SheetFooter>
+          <SheetFormActions
+            onCancel={onClose}
+            submitting={create.isPending}
+            submitLabel="Crear Orden"
           />
-        </Field>
-
-        {create.error && (
-          <div className="border-destructive/30 bg-destructive/10 text-destructive rounded-lg border p-3 text-sm">
-            {create.error.message}
-          </div>
-        )}
-
-        <FormActions
-          onCancel={onClose}
-          submitting={create.isPending}
-          submitLabel="Crear Orden"
-        />
+        </SheetFooter>
       </form>
-    </Dialog>
+    </SheetModal>
   );
 }
+
+export const CreateOrderSheet = CreateOrderDialog;
