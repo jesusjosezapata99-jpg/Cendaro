@@ -118,7 +118,7 @@ export const reportingRouter = createTRPCRouter({
     )
     .query(async ({ ctx, input }) => {
       // Uses raw SQL for join performance
-      return ctx.db.execute(
+      const { rows } = await ctx.db.execute(
         sql`
           SELECT oi.product_id,
                  p.name AS product_name,
@@ -137,6 +137,7 @@ export const reportingRouter = createTRPCRouter({
           LIMIT ${input.limit}
         `,
       );
+      return rows;
     }),
 
   // ─── Automated Ledger Reconciliation (SOC 1 ICFR) ───

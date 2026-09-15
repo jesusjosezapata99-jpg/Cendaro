@@ -155,7 +155,7 @@ export const inventoryRouter = createTRPCRouter({
         }
       })();
 
-      const rows = await ctx.db.execute<{
+      const { rows } = await ctx.db.execute<{
         id: string;
         sku: string;
         name: string;
@@ -422,7 +422,7 @@ export const inventoryRouter = createTRPCRouter({
   getWarehouseDetail: workspaceReadProcedure
     .input(z.object({ id: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
-      const rows = await ctx.db.execute<{
+      const { rows } = await ctx.db.execute<{
         id: string;
         name: string;
         type: string;
@@ -494,7 +494,7 @@ export const inventoryRouter = createTRPCRouter({
         }
       })();
 
-      const rows = await ctx.db.execute<{
+      const { rows } = await ctx.db.execute<{
         id: string;
         product_id: string;
         product_name: string;
@@ -704,7 +704,7 @@ export const inventoryRouter = createTRPCRouter({
   listCountItems: workspaceReadProcedure
     .input(z.object({ countId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
-      const rows = await ctx.db.execute<{
+      const { rows } = await ctx.db.execute<{
         id: string;
         count_id: string;
         product_id: string;

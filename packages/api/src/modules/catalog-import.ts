@@ -537,7 +537,7 @@ export const catalogImportRouter = createTRPCRouter({
             string,
             { id: string; name: string; score: number }[]
           >();
-          for (const r of batchResults) {
+          for (const r of batchResults.rows) {
             const key = String(r.input_name);
             const list = resultsByCategory.get(key) ?? [];
             list.push({
@@ -616,7 +616,7 @@ export const catalogImportRouter = createTRPCRouter({
               ORDER BY avg_score DESC
             `);
 
-            for (const r of batchProductResults) {
+            for (const r of batchProductResults.rows) {
               const key = String(r.input_name);
               const list = productMatchByCategory.get(key) ?? [];
               list.push({
