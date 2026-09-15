@@ -1,7 +1,7 @@
 ---
-version: "3.7"
+version: "3.8"
 last-audit: "2026-09-15"
-entries: 19
+entries: 20
 shared-by: ["Gemini/Antigravity"]
 ---
 
@@ -13,35 +13,36 @@ This file is the **single source of truth** for error history. Every entry makes
 
 ## Quick Reference — Active Prevention Rules
 
-| #   | Rule                                                                                                                                                                                                                                  | Context                      |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- |
-| 1   | Tools via `pnpm exec` need root devDependency                                                                                                                                                                                         | Windows PATH                 |
-| 2   | Root `eslint.config.ts` required for lint-staged                                                                                                                                                                                      | ESLint v9                    |
-| 3   | `?.` + `eslint-disable` for third-party type mismatches                                                                                                                                                                               | TS ↔ ESLint                  |
-| 4   | Always `pnpm exec` prefix in lint-staged                                                                                                                                                                                              | Windows bins                 |
-| 5   | Verify `exports` field matches file extensions                                                                                                                                                                                        | Shared packages              |
-| 6   | NEVER use `npx skills add` — git clone + manual copy                                                                                                                                                                                  | Skills install               |
-| 7   | Always commit + push BEFORE handing off to user                                                                                                                                                                                       | Git discipline               |
-| 8   | Run `pnpm typecheck` before committing type changes                                                                                                                                                                                   | Pre-push guard               |
-| 9   | Client-side parsing + chunked JSON for file uploads                                                                                                                                                                                   | Vercel 4.5MB                 |
-| 10  | Verify `project_id = ljwoptpaxazqmnhdczsb` before DB ops                                                                                                                                                                              | Supabase safety              |
-| 11  | Run `/memory-audit` after dependency changes                                                                                                                                                                                          | KI freshness                 |
-| 12  | Maintain `.gemini/rules.md` + `.agents/skills/` as refs                                                                                                                                                                               | Multi-agent                  |
-| 13  | Use specific `.next/{build,server,static,types,cache}/**` globs                                                                                                                                                                       | Turbo remote cache           |
-| 14  | NEVER set `PATH` in `~/.claude/settings.json` env section                                                                                                                                                                             | Claude Code env              |
-| 15  | After claude-mem MCP fix, verify `bash` in Windows system PATH                                                                                                                                                                        | Plugin hooks                 |
-| 16  | NEVER use PowerShell `-Encoding UTF8` for Bun config files — use `[System.IO.File]::WriteAllText($path, $content, [System.Text.UTF8Encoding]::new($false))` to avoid BOM                                                              | claude-mem settings          |
-| 17  | Both `cache/` and `marketplaces/` dirs are needed for claude-mem — patch BOTH `.mcp.json` files when fixing Windows compat                                                                                                            | claude-mem dual-source       |
-| 18  | NEVER use dynamic segment configurations (e.g. `export const dynamic = "force-dynamic"`) when `cacheComponents` is enabled globally                                                                                                   | Next.js 16 routes            |
-| 19  | NEVER use dynamic runtime constructors (e.g. `new Date()`) inside static Server Components to avoid prerendering failure                                                                                                              | Next.js 16 rendering         |
-| 20  | Wrap legacy ESLint plugins with `fixupPluginRules` under ESLint 10 and pin discrete hook rules (`rules-of-hooks`, `exhaustive-deps`)                                                                                                  | ESLint v10 migration         |
-| 21  | Do not type-assert `(as T)` when the expression already has type `T` (flags `@typescript-eslint/no-unnecessary-type-assertion` in CI)                                                                                                 | TypeScript / ESLint          |
-| 22  | Use Supabase Hosted HTTP transport (`https://mcp.supabase.com/mcp?project_ref=...`) with local scope PAT for Claude Code; omit `read_only=true` for full read/write access                                                            | Claude Code MCP              |
-| 23  | In PostgreSQL 16, grant `WITH INHERIT TRUE, SET TRUE` without `ADMIN TRUE` when updating existing roles to avoid `ERROR: 0LP01: ADMIN option cannot be granted back to your own grantor` and enable `SET ROLE`                        | PostgreSQL 16 Roles          |
-| 24  | Always import and use `m.*` components inside `<LazyMotion strict>` trees; never import or render `motion.*` components to prevent runtime tree-shaking violations.                                                                   | Framer Motion / Next.js      |
-| 25  | Filter out all Recharts internal props (`allowEscapeViewBox`, `coordinate`, etc.) in custom tooltip and legend content before spreading `...props` to native DOM elements (`<div>`) to prevent React 19 DOM attribute console errors. | Recharts / React 19 / UI     |
-| 26  | In raw SQL queries (`sql` tagged template), always use `date.toISOString()` for timestamp parameters (preventing locale-dependent date formatting on Windows) and explicitly cast enum columns (`status::text NOT IN (...)`).         | Drizzle / Postgres / Raw SQL |
-| 27  | Validate RFC 4122 UUID format on `x-workspace-id` header in tRPC context & middleware before passing to PostgreSQL queries (`::uuid`) to prevent unhandled Postgres 22P02 `INTERNAL_SERVER_ERROR` (500).                              | Multi-tenant tRPC / Postgres |
+| #   | Rule                                                                                                                                                                                                                                                | Context                              |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
+| 1   | Tools via `pnpm exec` need root devDependency                                                                                                                                                                                                       | Windows PATH                         |
+| 2   | Root `eslint.config.ts` required for lint-staged                                                                                                                                                                                                    | ESLint v9                            |
+| 3   | `?.` + `eslint-disable` for third-party type mismatches                                                                                                                                                                                             | TS ↔ ESLint                          |
+| 4   | Always `pnpm exec` prefix in lint-staged                                                                                                                                                                                                            | Windows bins                         |
+| 5   | Verify `exports` field matches file extensions                                                                                                                                                                                                      | Shared packages                      |
+| 6   | NEVER use `npx skills add` — git clone + manual copy                                                                                                                                                                                                | Skills install                       |
+| 7   | Always commit + push BEFORE handing off to user                                                                                                                                                                                                     | Git discipline                       |
+| 8   | Run `pnpm typecheck` before committing type changes                                                                                                                                                                                                 | Pre-push guard                       |
+| 9   | Client-side parsing + chunked JSON for file uploads                                                                                                                                                                                                 | Vercel 4.5MB                         |
+| 10  | Verify `project_id = ljwoptpaxazqmnhdczsb` before DB ops                                                                                                                                                                                            | Supabase safety                      |
+| 11  | Run `/memory-audit` after dependency changes                                                                                                                                                                                                        | KI freshness                         |
+| 12  | Maintain `.gemini/rules.md` + `.agents/skills/` as refs                                                                                                                                                                                             | Multi-agent                          |
+| 13  | Use specific `.next/{build,server,static,types,cache}/**` globs                                                                                                                                                                                     | Turbo remote cache                   |
+| 14  | NEVER set `PATH` in `~/.claude/settings.json` env section                                                                                                                                                                                           | Claude Code env                      |
+| 15  | After claude-mem MCP fix, verify `bash` in Windows system PATH                                                                                                                                                                                      | Plugin hooks                         |
+| 16  | NEVER use PowerShell `-Encoding UTF8` for Bun config files — use `[System.IO.File]::WriteAllText($path, $content, [System.Text.UTF8Encoding]::new($false))` to avoid BOM                                                                            | claude-mem settings                  |
+| 17  | Both `cache/` and `marketplaces/` dirs are needed for claude-mem — patch BOTH `.mcp.json` files when fixing Windows compat                                                                                                                          | claude-mem dual-source               |
+| 18  | NEVER use dynamic segment configurations (e.g. `export const dynamic = "force-dynamic"`) when `cacheComponents` is enabled globally                                                                                                                 | Next.js 16 routes                    |
+| 19  | NEVER use dynamic runtime constructors (e.g. `new Date()`) inside static Server Components to avoid prerendering failure                                                                                                                            | Next.js 16 rendering                 |
+| 20  | Wrap legacy ESLint plugins with `fixupPluginRules` under ESLint 10 and pin discrete hook rules (`rules-of-hooks`, `exhaustive-deps`)                                                                                                                | ESLint v10 migration                 |
+| 21  | Do not type-assert `(as T)` when the expression already has type `T` (flags `@typescript-eslint/no-unnecessary-type-assertion` in CI)                                                                                                               | TypeScript / ESLint                  |
+| 22  | Use Supabase Hosted HTTP transport (`https://mcp.supabase.com/mcp?project_ref=...`) with local scope PAT for Claude Code; omit `read_only=true` for full read/write access                                                                          | Claude Code MCP                      |
+| 23  | In PostgreSQL 16, grant `WITH INHERIT TRUE, SET TRUE` without `ADMIN TRUE` when updating existing roles to avoid `ERROR: 0LP01: ADMIN option cannot be granted back to your own grantor` and enable `SET ROLE`                                      | PostgreSQL 16 Roles                  |
+| 24  | Always import and use `m.*` components inside `<LazyMotion strict>` trees; never import or render `motion.*` components to prevent runtime tree-shaking violations.                                                                                 | Framer Motion / Next.js              |
+| 25  | Filter out all Recharts internal props (`allowEscapeViewBox`, `coordinate`, etc.) in custom tooltip and legend content before spreading `...props` to native DOM elements (`<div>`) to prevent React 19 DOM attribute console errors.               | Recharts / React 19 / UI             |
+| 26  | In raw SQL queries (`sql` tagged template), always use `date.toISOString()` for timestamp parameters (preventing locale-dependent date formatting on Windows) and explicitly cast enum columns (`status::text NOT IN (...)`).                       | Drizzle / Postgres / Raw SQL         |
+| 27  | Validate RFC 4122 UUID format on `x-workspace-id` header in tRPC context & middleware before passing to PostgreSQL queries (`::uuid`) to prevent unhandled Postgres 22P02 `INTERNAL_SERVER_ERROR` (500).                                            | Multi-tenant tRPC / Postgres         |
+| 28  | Include unique `name` and `id` on all `<input>` elements, set `preload: false` on non-critical fonts to avoid unused preload warnings, allow `'unsafe-eval'` in CSP for Turbopack runtime evaluation, and eliminate artificial `setTimeout` delays. | Frontend Accessibility / Fonts / CSP |
 
 ## Entry Template
 
@@ -60,6 +61,28 @@ This file is the **single source of truth** for error history. Every entry makes
 ---
 
 ## Entries
+
+### [2026-09-15] Production Browser Audit: CSP Eval Block, Font Preload Delay, Missing Form Input Attributes & Alert Count 500
+
+- **Error**: Four console issues in production (`https://cendaro-erp.vercel.app`):
+  1. `GET /api/trpc/dashboard.activeAlertCount` 500 error triggered during initial shell boot before workspace handshake completed.
+  2. `Content Security Policy of your site blocks the use of 'eval' in JavaScript` (blocked in `script-src` by Turbopack code generator).
+  3. `The resource <URL> was preloaded using link preload but not used within a few seconds from the window's load event` (Chrome 3s preload heuristic on secondary fonts `Hedvig_Letters_Serif` and `Geist_Mono`).
+  4. Chrome DevTools Accessibility/Autofill violation: `A form field element should have an id or name attribute` across filter bars, modal search, POS grids, and import wizards.
+- **Root Cause**:
+  1. `notification-center.tsx` attempted a query with an artificial 500ms timeout delay instead of gating on reactive workspace validity (`workspaceReady && isValidUuid(workspaceId)`). The backend query also lacked a resilient fallback.
+  2. `apps/erp/next.config.js` CSP header omitted `'unsafe-eval'`, conflicting with Turbopack dynamic runtime chunk evaluation.
+  3. Next.js font loader preloads all registered fonts (`Hedvig_Letters_Serif`, `Geist_Mono`) by default in `<head>`, even if the current route (`/catalog`) only uses the primary UI sans font (`Hedvig_Letters_Sans`).
+  4. Multiple standalone `<input>` elements omitted `id` and `name` attributes, failing browser autofill and accessibility guidelines.
+- **Fix**:
+  1. In `notification-center.tsx`, replaced artificial delay with `useWorkspace` check (`enabled: workspaceReady && isValidUuid(workspaceId)`). In `packages/api/src/modules/dashboard.ts`, wrapped `activeAlertCount` in `try...catch` with graceful 0 fallback and structured logging.
+  2. In `next.config.js`, updated `script-src` to `'self' 'unsafe-inline' 'unsafe-eval'`.
+  3. In `apps/erp/src/app/layout.tsx`, configured `preload: false` on secondary fonts `Hedvig_Letters_Serif` and `Geist_Mono`, keeping `Hedvig_Letters_Sans` as the only preloaded font.
+  4. Added unique `id`, `name`, and `aria-label` to inputs in `filter-bar.tsx`, `search.tsx`, `creatable-select.tsx`, `cart.tsx`, `product-grid.tsx`, `category-mapping.tsx`, `file-upload.tsx`, and `dry-run-summary.tsx`.
+- **Prevention**: Always gate tRPC queries on validated workspace readiness; explicitly disable font preloading for non-initial fonts; ensure every form input has explicit `id`, `name`, and `aria-label`; avoid artificial `setTimeout` in UI components.
+- **Workspace**: `@cendaro/erp`, `@cendaro/api`
+- **Severity**: Major (Production browser errors & accessibility compliance)
+- **Recurrence**: 1st (Rule 28)
 
 ### [2026-09-13] React 19: `React does not recognize the 'allowEscapeViewBox' prop on a DOM element` (17 Recharts Tooltip Errors)
 

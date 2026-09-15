@@ -36,10 +36,13 @@ export function DataTableSearchInput({
     >
       <Icons.Search className="text-muted-foreground size-4 shrink-0" />
       <input
+        id="data-table-search-input"
+        name="data-table-search"
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
+        aria-label={placeholder}
         autoFocus={autoFocus}
         className="text-foreground placeholder:text-muted-foreground/60 h-full w-full bg-transparent text-sm outline-none focus:outline-none"
       />

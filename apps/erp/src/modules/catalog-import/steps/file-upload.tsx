@@ -125,9 +125,12 @@ export function FileUpload({
       >
         <input
           ref={inputRef}
+          id="catalog-file-upload-input"
+          name="catalog-file"
           type="file"
           accept={ACCEPTED_EXTENSIONS.join(",")}
           onChange={handleChange}
+          aria-label="Subir archivo del catálogo"
           className="hidden"
         />
 

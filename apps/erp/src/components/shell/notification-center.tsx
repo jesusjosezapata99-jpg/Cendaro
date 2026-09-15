@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -9,6 +9,7 @@ import { Button, cn } from "@cendaro/ui";
 import { Icon, Icons } from "@cendaro/ui/icons";
 import { Popover, PopoverContent, PopoverTrigger } from "@cendaro/ui/popover";
 
+import { isValidUuid, useWorkspace } from "~/hooks/use-workspace";
 import { useTRPC } from "~/trpc/client";
 
 /* ─── Type config (mirrored from the alerts page / legacy dropdown) ─── */
@@ -63,25 +64,22 @@ export function NotificationCenter() {
   const trpc = useTRPC();
   const router = useRouter();
   const qc = useQueryClient();
+  const { workspaceId, isReady: workspaceReady } = useWorkspace();
   const [open, setOpen] = useState(false);
-  const [countQueryReady, setCountQueryReady] = useState(false);
 
-  useEffect(() => {
-    const t = setTimeout(() => setCountQueryReady(true), 500);
-    return () => clearTimeout(t);
-  }, []);
+  const isWorkspaceValid = workspaceReady && isValidUuid(workspaceId);
 
   const { data: activeCount = 0 } = useQuery(
     trpc.dashboard.activeAlertCount.queryOptions(undefined, {
       staleTime: 30_000,
       refetchInterval: 60_000,
-      enabled: countQueryReady,
+      enabled: isWorkspaceValid,
     }),
   );
 
   const listAlertsOptions = trpc.dashboard.listAlerts.queryOptions(
     { limit: 20, dismissed: false },
-    { staleTime: 30_000, enabled: open },
+    { staleTime: 30_000, enabled: open && isWorkspaceValid },
   );
   const { data: alerts = [], isLoading } = useQuery(listAlertsOptions);
 

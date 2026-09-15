@@ -383,11 +383,14 @@ function EditableCell({
   if (editing) {
     return (
       <input
+        id="catalog-cell-edit-input"
+        name="catalog-cell-edit"
         autoFocus
         type="text"
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
         onBlur={commit}
+        aria-label="Editar celda del catálogo"
         onKeyDown={(e) => {
           if (e.key === "Enter") commit();
           if (e.key === "Escape") {

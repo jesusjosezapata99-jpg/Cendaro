@@ -347,8 +347,11 @@ export function CreateQuoteDialog({ open, onClose }: Props) {
                   <Icons.Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4.5 -translate-y-1/2" />
                   <input
                     ref={searchInputRef}
+                    id="create-quote-product-search-input"
+                    name="quote-product-search"
                     type="text"
                     value={productSearch}
+                    aria-label="Buscar producto para cotización"
                     onChange={(e) => {
                       setProductSearch(e.target.value);
                       setShowDropdown(true);
@@ -424,8 +427,11 @@ export function CreateQuoteDialog({ open, onClose }: Props) {
                   </label>
                   <input
                     ref={quantityInputRef}
+                    id="create-quote-quantity-input"
+                    name="quote-line-quantity"
                     type="number"
                     min="1"
+                    aria-label="Cantidad para cotización"
                     value={addQuantity}
                     onChange={(e) => setAddQuantity(e.target.value)}
                     onKeyDown={(e) => {

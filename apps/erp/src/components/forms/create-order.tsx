@@ -331,8 +331,11 @@ export function CreateOrderDialog({
                   <Icons.Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4.5 -translate-y-1/2" />
                   <input
                     ref={searchInputRef}
+                    id="create-order-product-search-input"
+                    name="order-product-search"
                     type="text"
                     value={productSearch}
+                    aria-label="Buscar producto para agregar"
                     onChange={(e) => {
                       setProductSearch(e.target.value);
                       setShowDropdown(true);
@@ -403,11 +406,14 @@ export function CreateOrderDialog({
               <div className="grid grid-cols-1 items-end gap-3 sm:grid-cols-4 sm:gap-2">
                 <input
                   ref={quantityInputRef}
+                  id="create-order-quantity-input"
+                  name="order-line-quantity"
                   type="number"
                   min="1"
                   value={addQuantity}
                   onChange={(e) => setAddQuantity(e.target.value)}
                   placeholder="Cant."
+                  aria-label="Cantidad del producto"
                   className="border-border bg-card text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-ring/20 min-h-11 w-full border px-4 py-2.5 text-sm transition-colors outline-none focus:ring-2"
                 />
                 <Input

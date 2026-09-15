@@ -215,11 +215,14 @@ export function Search({ onClose }: SearchProps) {
         <Icons.Search className="text-muted-foreground size-4.5" />
         <input
           ref={inputRef}
+          id="global-search-input"
+          name="global-search"
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="Buscar páginas, productos, clientes, pedidos..."
+          aria-label="Buscar páginas, productos, clientes, pedidos..."
           className="text-foreground placeholder:text-muted-foreground h-12 w-full border-none bg-transparent text-sm outline-none"
           autoComplete="off"
           spellCheck={false}
