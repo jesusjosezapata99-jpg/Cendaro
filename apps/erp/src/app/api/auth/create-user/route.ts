@@ -109,6 +109,19 @@ export async function POST(request: Request) {
     );
   }
 
+  // Fail closed: env validation is skipped when CI is set, so the service key
+  // can be missing at runtime. Checked after the RBAC guards so only an
+  // owner/admin ever sees the configuration error.
+  if (!serviceKey) {
+    console.error(
+      "[CreateUser] SUPABASE_SERVICE_ROLE_KEY missing; refusing user creation",
+    );
+    return NextResponse.json(
+      { error: "Configuración del servidor incompleta" },
+      { status: 500, headers: AUTH_SECURITY_HEADERS },
+    );
+  }
+
   // Create admin client with service role key
   const { createClient } = await import("@supabase/supabase-js");
   const admin = createClient(supabaseUrl, serviceKey);

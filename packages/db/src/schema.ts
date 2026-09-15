@@ -355,20 +355,32 @@ export const appUserRole = pgRole("app_user").existing();
  * all ~60 workspace-scoped tables and a direct reproduction (INSERT with the
  * exact matching workspace_id still rejected with 42501). See
  * `packages/db/migrations/002_fix_workspace_policy_permissive.sql`.
+ *
+ * `current_setting()` is wrapped in a scalar subquery with the cast OUTSIDE:
+ * `(select current_setting('app.workspace_id', true))::uuid`. That makes it an
+ * InitPlan evaluated once per statement instead of once per scanned row, in
+ * the exact form Supabase lint 0003 (auth_rls_initplan) recognises. Guarded by
+ * `packages/api/src/__tests__/rls-coverage.test.ts`; see migration 006.
  */
 export const workspacePolicy = (tableName: string) =>
   pgPolicy(`${tableName}_workspace_isolation`, {
     as: "permissive",
     for: "all",
     to: appUserRole,
-    using: sql`workspace_id = current_setting('app.workspace_id', true)::uuid`,
-    withCheck: sql`workspace_id = current_setting('app.workspace_id', true)::uuid`,
+    using: sql`workspace_id = (select current_setting('app.workspace_id', true))::uuid`,
+    withCheck: sql`workspace_id = (select current_setting('app.workspace_id', true))::uuid`,
   });
 
 // ╔══════════════════════════════════════════════╗
 // ║ PHASE 1 — Organization, Identity, RBAC      ║
 // ╚══════════════════════════════════════════════╝
 
+/**
+ * PLAN-2026-09-PROD-HARDENING F1 — RLS enabled with NO app_user policy
+ * (default-deny): the API never reads or writes organization as app_user,
+ * and FK checks from user_profile/workspace bypass RLS. postgres and
+ * service_role bypass RLS; anon/authenticated have no grants (migration 004).
+ */
 export const Organization = pgTable("organization", (t) => ({
   id: t.uuid().notNull().primaryKey().defaultRandom(),
   name: t.varchar({ length: 256 }).notNull(),
@@ -383,7 +395,7 @@ export const Organization = pgTable("organization", (t) => ({
   updatedAt: t
     .timestamp({ mode: "date", withTimezone: true })
     .$onUpdateFn(() => sql`now()`),
-}));
+})).enableRLS();
 
 /**
  * Dashboard widget ids — mirrors `WidgetId` in `@cendaro/validators`
@@ -432,11 +444,38 @@ export const UserProfile = pgTable(
     uiPreferences: t.jsonb().$type<UiPreferences>().notNull().default({}),
   }),
   (table) => [
+    // FK covering indexes (migration 007)
+    index("idx_user_profile_organization_id").on(table.organizationId),
     index("idx_user_profile_role").on(table.role),
     index("idx_user_profile_status").on(table.status),
     index("idx_user_profile_email").on(table.email),
+
+    // PLAN-2026-09-PROD-HARDENING F1 — preserve exactly what app_user does
+    // today inside workspaceProcedure: read (users.byId, inviteMember),
+    // create (users.create) and edit (users.update). No DELETE: no app_user
+    // path deletes profiles (anonymizeMyData runs as postgres). The login
+    // lookup uses service_role, which bypasses RLS.
+    pgPolicy("user_profile_app_user_select", {
+      as: "permissive",
+      for: "select",
+      to: appUserRole,
+      using: sql`true`,
+    }),
+    pgPolicy("user_profile_app_user_insert", {
+      as: "permissive",
+      for: "insert",
+      to: appUserRole,
+      withCheck: sql`true`,
+    }),
+    pgPolicy("user_profile_app_user_update", {
+      as: "permissive",
+      for: "update",
+      to: appUserRole,
+      using: sql`true`,
+      withCheck: sql`true`,
+    }),
   ],
-);
+).enableRLS();
 
 export const Permission = pgTable(
   "permission",
@@ -448,8 +487,17 @@ export const Permission = pgTable(
   }),
   (table) => [
     unique("uq_permission_module_action").on(table.module, table.action),
+
+    // PLAN-2026-09-PROD-HARDENING F1 — read-only for app_user
+    // (wsPermissionProcedure joins permission inside the transaction).
+    pgPolicy("permission_app_user_select", {
+      as: "permissive",
+      for: "select",
+      to: appUserRole,
+      using: sql`true`,
+    }),
   ],
-);
+).enableRLS();
 
 export const RolePermission = pgTable(
   "role_permission",
@@ -467,10 +515,21 @@ export const RolePermission = pgTable(
     grantedBy: t.uuid(),
   }),
   (table) => [
+    // FK covering indexes (migration 007)
+    index("idx_role_permission_permission_id").on(table.permissionId),
     unique("uq_role_permission").on(table.role, table.permissionId),
     index("idx_role_permission_role").on(table.role),
+
+    // PLAN-2026-09-PROD-HARDENING F1 — read-only for app_user
+    // (wsPermissionProcedure reads role_permission inside the transaction).
+    pgPolicy("role_permission_app_user_select", {
+      as: "permissive",
+      for: "select",
+      to: appUserRole,
+      using: sql`true`,
+    }),
   ],
-);
+).enableRLS();
 
 export const AuditLog = pgTable(
   "audit_log",
@@ -499,6 +558,8 @@ export const AuditLog = pgTable(
       .notNull(),
   }),
   (table) => [
+    // FK covering indexes (migration 007)
+    index("idx_audit_log_workspace_id").on(table.workspaceId),
     index("idx_audit_log_actor").on(table.actorId),
     index("idx_audit_log_entity").on(table.entity, table.entityId),
     index("idx_audit_log_created").on(table.createdAt),
@@ -510,13 +571,13 @@ export const AuditLog = pgTable(
       as: "permissive",
       for: "select",
       to: appUserRole,
-      using: sql`workspace_id = current_setting('app.workspace_id', true)::uuid`,
+      using: sql`workspace_id = (select current_setting('app.workspace_id', true))::uuid`,
     }),
     pgPolicy("audit_log_workspace_insert", {
       as: "permissive",
       for: "insert",
       to: appUserRole,
-      withCheck: sql`workspace_id = current_setting('app.workspace_id', true)::uuid`,
+      withCheck: sql`workspace_id = (select current_setting('app.workspace_id', true))::uuid`,
     }),
   ],
 ).enableRLS();
@@ -544,12 +605,32 @@ export const Workspace = pgTable(
       .$onUpdateFn(() => sql`now()`),
   }),
   (table) => [
+    // FK covering indexes (migration 007)
+    index("idx_workspace_created_by").on(table.createdBy),
     unique("uq_workspace_slug").on(table.slug),
     index("idx_workspace_org").on(table.organizationId),
     index("idx_workspace_status").on(table.status),
     index("idx_workspace_plan").on(table.plan),
+
+    // PLAN-2026-09-PROD-HARDENING F1 — app_user reads workspaces in joins
+    // inside workspaceProcedure and may only update the workspace bound to
+    // the current transaction (workspace.update). anon/authenticated have no
+    // access at all (migration 004 revokes their grants).
+    pgPolicy("workspace_app_user_select", {
+      as: "permissive",
+      for: "select",
+      to: appUserRole,
+      using: sql`true`,
+    }),
+    pgPolicy("workspace_app_user_update", {
+      as: "permissive",
+      for: "update",
+      to: appUserRole,
+      using: sql`id = (select current_setting('app.workspace_id', true))::uuid`,
+      withCheck: sql`id = (select current_setting('app.workspace_id', true))::uuid`,
+    }),
   ],
-);
+).enableRLS();
 
 export const WorkspaceMember = pgTable(
   "workspace_member",
@@ -573,6 +654,8 @@ export const WorkspaceMember = pgTable(
       .notNull(),
   }),
   (table) => [
+    // FK covering indexes (migration 007)
+    index("idx_workspace_member_invited_by").on(table.invitedBy),
     unique("uq_workspace_member").on(table.workspaceId, table.userId),
     index("idx_wm_workspace").on(table.workspaceId),
     index("idx_wm_user").on(table.userId),
@@ -597,6 +680,8 @@ export const WorkspaceModule = pgTable(
     enabledBy: t.uuid().references(() => UserProfile.id),
   }),
   (table) => [
+    // FK covering indexes (migration 007)
+    index("idx_workspace_module_enabled_by").on(table.enabledBy),
     unique("uq_workspace_module").on(table.workspaceId, table.module),
     index("idx_wsm_workspace").on(table.workspaceId),
     workspacePolicy("workspace_module"),
@@ -714,6 +799,11 @@ export const NotificationBucketAssignee = pgTable(
       .references(() => WorkspaceMember.id, { onDelete: "cascade" }),
   }),
   (table) => [
+    // FK covering indexes (migration 007)
+    index("idx_notification_bucket_assignee_member_id").on(table.memberId),
+    index("idx_notification_bucket_assignee_workspace_id").on(
+      table.workspaceId,
+    ),
     unique("uq_nba_bucket_member").on(table.bucketId, table.memberId),
     workspacePolicy("notification_bucket_assignee"),
   ],
@@ -736,6 +826,8 @@ export const NotificationRoutingRule = pgTable(
     isActive: t.boolean().notNull().default(true),
   }),
   (table) => [
+    // FK covering indexes (migration 007)
+    index("idx_notification_routing_rule_bucket_id").on(table.bucketId),
     unique("uq_nrr_workspace_alert").on(table.workspaceId, table.alertType),
     workspacePolicy("notification_routing_rule"),
   ],
@@ -822,6 +914,8 @@ export const Supplier = pgTable(
       .notNull(),
   }),
   (table) => [
+    // FK covering indexes (migration 007)
+    index("idx_supplier_workspace_id").on(table.workspaceId),
     index("idx_supplier_name").on(table.name),
     index("idx_supplier_status").on(table.status),
 
@@ -872,6 +966,14 @@ export const Product = pgTable(
     index("idx_product_supplier").on(table.supplierId),
     index("idx_product_status").on(table.status),
     index("idx_product_name").on(table.name),
+    // pg_trgm GIN indexes serving ILIKE '%term%' search (created by
+    // migration 001). Declared so drizzle-kit keeps them.
+    index("idx_product_name_trgm").using("gin", table.name.op("gin_trgm_ops")),
+    index("idx_product_sku_trgm").using("gin", table.sku.op("gin_trgm_ops")),
+    index("idx_product_barcode_trgm").using(
+      "gin",
+      table.barcode.op("gin_trgm_ops"),
+    ),
 
     workspacePolicy("product"),
   ],
@@ -927,6 +1029,8 @@ export const ProductUomEquivalence = pgTable(
       .notNull(),
   }),
   (table) => [
+    // FK covering indexes (migration 007)
+    index("idx_product_uom_equivalence_workspace_id").on(table.workspaceId),
     index("idx_puom_product").on(table.productId),
     workspacePolicy("product_uom_equivalence"),
   ],
@@ -1031,6 +1135,8 @@ export const CategoryAlias = pgTable(
       .notNull(),
   }),
   (table) => [
+    // FK covering indexes (migration 007)
+    index("idx_category_alias_category_id").on(table.categoryId),
     unique("uq_category_alias_alias").on(table.workspaceId, table.alias),
     index("idx_category_alias_alias").on(table.alias),
 
@@ -1111,6 +1217,15 @@ export const ImportSessionRow = pgTable(
       .notNull(),
   }),
   (table) => [
+    // FK covering indexes (migration 007)
+    index("idx_import_session_row_resolved_brand_id").on(table.resolvedBrandId),
+    index("idx_import_session_row_resolved_category_id").on(
+      table.resolvedCategoryId,
+    ),
+    index("idx_import_session_row_resolved_product_id").on(
+      table.resolvedProductId,
+    ),
+    index("idx_import_session_row_workspace_id").on(table.workspaceId),
     index("idx_isr_session").on(table.importSessionId),
     index("idx_isr_status").on(table.status),
 
@@ -1149,6 +1264,8 @@ export const Warehouse = pgTable(
       .notNull(),
   }),
   (table) => [
+    // FK covering indexes (migration 007)
+    index("idx_warehouse_workspace_id").on(table.workspaceId),
     index("idx_warehouse_type").on(table.type),
     workspacePolicy("warehouse"),
   ],
@@ -1285,6 +1402,9 @@ export const StockMovement = pgTable(
       .notNull(),
   }),
   (table) => [
+    // FK covering indexes (migration 007)
+    index("idx_stock_movement_warehouse_id").on(table.warehouseId),
+    index("idx_stock_movement_workspace_id").on(table.workspaceId),
     index("idx_movement_product").on(table.productId),
     index("idx_movement_type").on(table.movementType),
     index("idx_movement_created").on(table.createdAt),
@@ -1318,6 +1438,8 @@ export const InventoryCount = pgTable(
       .notNull(),
   }),
   (table) => [
+    // FK covering indexes (migration 007)
+    index("idx_inventory_count_workspace_id").on(table.workspaceId),
     index("idx_count_warehouse").on(table.warehouseId),
     index("idx_count_status").on(table.status),
 
@@ -1348,6 +1470,8 @@ export const InventoryCountItem = pgTable(
     notes: t.text(),
   }),
   (table) => [
+    // FK covering indexes (migration 007)
+    index("idx_inventory_count_item_workspace_id").on(table.workspaceId),
     index("idx_ici_count").on(table.countId),
     index("idx_ici_product").on(table.productId),
 
@@ -1384,6 +1508,9 @@ export const InventoryDiscrepancy = pgTable(
       .notNull(),
   }),
   (table) => [
+    // FK covering indexes (migration 007)
+    index("idx_inventory_discrepancy_resolved_by").on(table.resolvedBy),
+    index("idx_inventory_discrepancy_workspace_id").on(table.workspaceId),
     index("idx_id_count").on(table.countId),
     index("idx_id_product").on(table.productId),
 
@@ -1464,6 +1591,11 @@ export const ContainerItem = pgTable(
     imageDescription: t.text(),
   }),
   (table) => [
+    // FK covering indexes (migration 007)
+    index("idx_container_item_suggested_product_id").on(
+      table.suggestedProductId,
+    ),
+    index("idx_container_item_workspace_id").on(table.workspaceId),
     index("idx_citem_container").on(table.containerId),
     index("idx_citem_product").on(table.productId),
 
@@ -1494,6 +1626,9 @@ export const ContainerDocument = pgTable(
       .notNull(),
   }),
   (table) => [
+    // FK covering indexes (migration 007)
+    index("idx_container_document_uploaded_by").on(table.uploadedBy),
+    index("idx_container_document_workspace_id").on(table.workspaceId),
     index("idx_cd_container").on(table.containerId),
     workspacePolicy("container_document"),
   ],
@@ -1554,6 +1689,8 @@ export const ExchangeRate = pgTable(
       .notNull(),
   }),
   (table) => [
+    // FK covering indexes (migration 007)
+    index("idx_exchange_rate_workspace_id").on(table.workspaceId),
     index("idx_rate_type").on(table.rateType),
     index("idx_rate_created").on(table.createdAt),
 
@@ -1590,6 +1727,8 @@ export const PriceHistory = pgTable(
       .notNull(),
   }),
   (table) => [
+    // FK covering indexes (migration 007)
+    index("idx_price_history_workspace_id").on(table.workspaceId),
     index("idx_ph_product").on(table.productId),
     index("idx_ph_created").on(table.createdAt),
     index("idx_ph_trigger").on(table.trigger),
@@ -1622,6 +1761,9 @@ export const PricingRule = pgTable(
       .notNull(),
   }),
   (table) => [
+    // FK covering indexes (migration 007)
+    index("idx_pricing_rule_created_by").on(table.createdBy),
+    index("idx_pricing_rule_workspace_id").on(table.workspaceId),
     index("idx_pr_type").on(table.ruleType),
     index("idx_pr_active").on(table.isActive),
 
@@ -1656,6 +1798,8 @@ export const RepricingEvent = pgTable(
       .notNull(),
   }),
   (table) => [
+    // FK covering indexes (migration 007)
+    index("idx_repricing_event_workspace_id").on(table.workspaceId),
     index("idx_reprice_trigger").on(table.trigger),
     index("idx_reprice_approved").on(table.isApproved),
     index("idx_reprice_created").on(table.createdAt),
@@ -1696,6 +1840,8 @@ export const Customer = pgTable(
       .notNull(),
   }),
   (table) => [
+    // FK covering indexes (migration 007)
+    index("idx_customer_workspace_id").on(table.workspaceId),
     index("idx_customer_type").on(table.customerType),
     index("idx_customer_name").on(table.name),
     index("idx_customer_vendor").on(table.assignedVendorId),
@@ -1730,6 +1876,8 @@ export const CustomerAddress = pgTable(
       .notNull(),
   }),
   (table) => [
+    // FK covering indexes (migration 007)
+    index("idx_customer_address_workspace_id").on(table.workspaceId),
     index("idx_ca_customer").on(table.customerId),
     workspacePolicy("customer_address"),
   ],
@@ -1765,6 +1913,9 @@ export const SalesOrder = pgTable(
       .$onUpdateFn(() => sql`now()`),
   }),
   (table) => [
+    // FK covering indexes (migration 007)
+    index("idx_sales_order_closed_by").on(table.closedBy),
+    index("idx_sales_order_created_by").on(table.createdBy),
     unique("uq_order_number").on(table.workspaceId, table.orderNumber),
     index("idx_order_customer").on(table.customerId),
     index("idx_order_channel").on(table.channel),
@@ -1798,6 +1949,8 @@ export const OrderItem = pgTable(
     lineTotal: t.doublePrecision().notNull(),
   }),
   (table) => [
+    // FK covering indexes (migration 007)
+    index("idx_order_item_workspace_id").on(table.workspaceId),
     index("idx_oitem_order").on(table.orderId),
     index("idx_oitem_product").on(table.productId),
 
@@ -1834,6 +1987,8 @@ export const Payment = pgTable(
       .notNull(),
   }),
   (table) => [
+    // FK covering indexes (migration 007)
+    index("idx_payment_workspace_id").on(table.workspaceId),
     index("idx_payment_order").on(table.orderId),
     index("idx_payment_method").on(table.method),
     index("idx_payment_created").on(table.createdAt),
@@ -1864,6 +2019,9 @@ export const PaymentEvidence = pgTable(
       .notNull(),
   }),
   (table) => [
+    // FK covering indexes (migration 007)
+    index("idx_payment_evidence_uploaded_by").on(table.uploadedBy),
+    index("idx_payment_evidence_workspace_id").on(table.workspaceId),
     index("idx_pe_payment").on(table.paymentId),
     workspacePolicy("payment_evidence"),
   ],
@@ -1893,6 +2051,8 @@ export const PaymentAllocation = pgTable(
       .notNull(),
   }),
   (table) => [
+    // FK covering indexes (migration 007)
+    index("idx_payment_allocation_workspace_id").on(table.workspaceId),
     index("idx_pa_payment").on(table.paymentId),
     index("idx_pa_receivable").on(table.receivableId),
 
@@ -1926,6 +2086,8 @@ export const CashClosure = pgTable(
       .notNull(),
   }),
   (table) => [
+    // FK covering indexes (migration 007)
+    index("idx_cash_closure_workspace_id").on(table.workspaceId),
     index("idx_closure_date").on(table.closureDate),
     index("idx_closure_status").on(table.status),
 
@@ -1964,6 +2126,9 @@ export const Quote = pgTable(
     updatedAt: t.timestamp({ mode: "date", withTimezone: true }),
   }),
   (table) => [
+    // FK covering indexes (migration 007)
+    index("idx_quote_converted_order_id").on(table.convertedOrderId),
+    index("idx_quote_created_by").on(table.createdBy),
     unique("uq_quote_number").on(table.workspaceId, table.quoteNumber),
     index("idx_quote_customer").on(table.customerId),
     index("idx_quote_status").on(table.status),
@@ -1995,6 +2160,8 @@ export const QuoteItem = pgTable(
     lineTotal: t.doublePrecision().notNull(),
   }),
   (table) => [
+    // FK covering indexes (migration 007)
+    index("idx_quote_item_workspace_id").on(table.workspaceId),
     index("idx_qi_quote").on(table.quoteId),
     index("idx_qi_product").on(table.productId),
 
@@ -2030,6 +2197,8 @@ export const DeliveryNote = pgTable(
       .notNull(),
   }),
   (table) => [
+    // FK covering indexes (migration 007)
+    index("idx_delivery_note_created_by").on(table.createdBy),
     unique("uq_delivery_note_number").on(table.workspaceId, table.noteNumber),
     index("idx_dn_order").on(table.orderId),
     index("idx_dn_status").on(table.status),
@@ -2060,6 +2229,8 @@ export const DeliveryNoteItem = pgTable(
     notes: t.text(),
   }),
   (table) => [
+    // FK covering indexes (migration 007)
+    index("idx_delivery_note_item_workspace_id").on(table.workspaceId),
     index("idx_dni_note").on(table.deliveryNoteId),
     index("idx_dni_product").on(table.productId),
 
@@ -2096,6 +2267,8 @@ export const InternalInvoice = pgTable(
       .notNull(),
   }),
   (table) => [
+    // FK covering indexes (migration 007)
+    index("idx_internal_invoice_created_by").on(table.createdBy),
     unique("uq_invoice_number").on(table.workspaceId, table.invoiceNumber),
     index("idx_inv_order").on(table.orderId),
     index("idx_inv_customer").on(table.customerId),
@@ -2128,6 +2301,8 @@ export const InternalInvoiceItem = pgTable(
     lineTotal: t.doublePrecision().notNull(),
   }),
   (table) => [
+    // FK covering indexes (migration 007)
+    index("idx_internal_invoice_item_workspace_id").on(table.workspaceId),
     index("idx_iii_invoice").on(table.invoiceId),
     index("idx_iii_product").on(table.productId),
 
@@ -2168,6 +2343,8 @@ export const VendorCommission = pgTable(
       .notNull(),
   }),
   (table) => [
+    // FK covering indexes (migration 007)
+    index("idx_vendor_commission_workspace_id").on(table.workspaceId),
     index("idx_vc_vendor").on(table.vendorId),
     index("idx_vc_order").on(table.orderId),
     index("idx_vc_paid").on(table.isPaid),
@@ -2203,6 +2380,9 @@ export const AccountReceivable = pgTable(
       .notNull(),
   }),
   (table) => [
+    // FK covering indexes (migration 007)
+    index("idx_account_receivable_order_id").on(table.orderId),
+    index("idx_account_receivable_workspace_id").on(table.workspaceId),
     index("idx_ar_customer").on(table.customerId),
     index("idx_ar_status").on(table.status),
     index("idx_ar_due").on(table.dueDate),
@@ -2239,6 +2419,8 @@ export const ArInstallment = pgTable(
       .notNull(),
   }),
   (table) => [
+    // FK covering indexes (migration 007)
+    index("idx_ar_installment_workspace_id").on(table.workspaceId),
     index("idx_ari_receivable").on(table.receivableId),
     index("idx_ari_status").on(table.status),
     index("idx_ari_due").on(table.dueDate),
@@ -2310,6 +2492,8 @@ export const MlOrder = pgTable(
       .notNull(),
   }),
   (table) => [
+    // FK covering indexes (migration 007)
+    index("idx_ml_order_sales_order_id").on(table.salesOrderId),
     unique("uq_ml_order").on(table.workspaceId, table.mlOrderId),
     index("idx_mlo_listing").on(table.mlListingId),
     index("idx_mlo_imported").on(table.isImported),
@@ -2339,6 +2523,8 @@ export const IntegrationLog = pgTable(
       .notNull(),
   }),
   (table) => [
+    // FK covering indexes (migration 007)
+    index("idx_integration_log_workspace_id").on(table.workspaceId),
     index("idx_ilog_source").on(table.source),
     index("idx_ilog_level").on(table.level),
     index("idx_ilog_resolved").on(table.isResolved),
@@ -2392,6 +2578,8 @@ export const MercadolibreOrderEvent = pgTable(
       .notNull(),
   }),
   (table) => [
+    // FK covering indexes (migration 007)
+    index("idx_mercadolibre_order_event_workspace_id").on(table.workspaceId),
     index("idx_moe_order").on(table.mlOrderId),
     index("idx_moe_type").on(table.eventType),
 
@@ -2423,6 +2611,9 @@ export const IntegrationFailure = pgTable(
       .notNull(),
   }),
   (table) => [
+    // FK covering indexes (migration 007)
+    index("idx_integration_failure_resolved_by").on(table.resolvedBy),
+    index("idx_integration_failure_workspace_id").on(table.workspaceId),
     index("idx_if_source").on(table.source),
     index("idx_if_resolved").on(table.isResolved),
 
@@ -2458,6 +2649,8 @@ export const SystemAlert = pgTable(
       .notNull(),
   }),
   (table) => [
+    // FK covering indexes (migration 007)
+    index("idx_system_alert_workspace_id").on(table.workspaceId),
     index("idx_alert_type").on(table.alertType),
     index("idx_alert_severity").on(table.severity),
     index("idx_alert_dismissed").on(table.isDismissed),
@@ -2499,6 +2692,8 @@ export const Approval = pgTable(
     expiresAt: t.timestamp({ mode: "date", withTimezone: true }),
   }),
   (table) => [
+    // FK covering indexes (migration 007)
+    index("idx_approval_workspace_id").on(table.workspaceId),
     index("idx_approval_type").on(table.approvalType),
     index("idx_approval_status").on(table.status),
     index("idx_approval_entity").on(table.entityType, table.entityId),
@@ -2535,6 +2730,8 @@ export const Signature = pgTable(
       .notNull(),
   }),
   (table) => [
+    // FK covering indexes (migration 007)
+    index("idx_signature_workspace_id").on(table.workspaceId),
     index("idx_sig_approval").on(table.approvalId),
     index("idx_sig_signed_by").on(table.signedBy),
 

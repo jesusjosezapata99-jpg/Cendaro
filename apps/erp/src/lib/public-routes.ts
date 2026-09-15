@@ -5,4 +5,14 @@
 
 export const PUBLIC_ROUTES_EXACT: readonly string[] = ["/", "/opengraph-image"];
 
-export const PUBLIC_ROUTES_PREFIX: readonly string[] = ["/login", "/api/auth"];
+/**
+ * `/monitoring` is the Sentry tunnel (`tunnelRoute` in next.config.js). It must
+ * bypass auth: otherwise browser events from signed-out pages (login) would be
+ * redirected, and events from signed-in users would refresh the idle-timeout
+ * cookie. It only forwards envelopes to this project's Sentry DSN.
+ */
+export const PUBLIC_ROUTES_PREFIX: readonly string[] = [
+  "/login",
+  "/api/auth",
+  "/monitoring",
+];
