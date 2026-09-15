@@ -25,11 +25,20 @@ function shouldRetry(failureCount: number, error: unknown): boolean {
   return failureCount < 2;
 }
 
-function makeQueryClient() {
-  return new QueryClient({
+export const STALE_TIMES = {
+  /** 30s — Transactional lists (orders, quotes, payments, inventory, audit) */
+  LISTS: 30 * 1000,
+  /** 60s — Live exchange rates & financial rates */
+  RATES: 60 * 1000,
+  /** 5 min — Static catalogs (brands, categories, suppliers, workspaces, users.me) */
+  CATALOGS: 5 * 60 * 1000,
+} as const;
+
+export function makeQueryClient() {
+  const client = new QueryClient({
     defaultOptions: {
       queries: {
-        staleTime: 5 * 60 * 1000, // 5 min — ERP data rarely changes every second
+        staleTime: STALE_TIMES.LISTS, // default: 30s for transactional lists
         gcTime: 10 * 60 * 1000, // 10 min — keep inactive cache longer
         refetchOnWindowFocus: false, // prevent noisy refetches
         refetchOnReconnect: true, // refetch when connection restores
@@ -40,6 +49,37 @@ function makeQueryClient() {
       },
     },
   });
+
+  // T8.2: Differentiated cache policies
+  // Catalogs (5 min): Brands, Categories, Suppliers, Workspaces, Users
+  client.setQueryDefaults([["catalog", "listBrands"]], {
+    staleTime: STALE_TIMES.CATALOGS,
+  });
+  client.setQueryDefaults([["catalog", "listCategories"]], {
+    staleTime: STALE_TIMES.CATALOGS,
+  });
+  client.setQueryDefaults([["catalog", "listSuppliers"]], {
+    staleTime: STALE_TIMES.CATALOGS,
+  });
+  client.setQueryDefaults([["workspace", "list"]], {
+    staleTime: STALE_TIMES.CATALOGS,
+  });
+  client.setQueryDefaults([["workspace", "current"]], {
+    staleTime: STALE_TIMES.CATALOGS,
+  });
+  client.setQueryDefaults([["users", "me"]], {
+    staleTime: STALE_TIMES.CATALOGS,
+  });
+
+  // Rates (60s): Central Bank of Venezuela & Parallel rates
+  client.setQueryDefaults([["pricing", "latestRates"]], {
+    staleTime: STALE_TIMES.RATES,
+  });
+  client.setQueryDefaults([["pricing", "listRateHistory"]], {
+    staleTime: STALE_TIMES.RATES,
+  });
+
+  return client;
 }
 
 let browserQueryClient: QueryClient | undefined;

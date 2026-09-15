@@ -19,6 +19,9 @@ describe("appRouter", () => {
 
     // Phase 1
     expect(procedures).toHaveProperty("users.me");
+    expect(procedures).toHaveProperty("users.mfaStatus");
+    expect(procedures).toHaveProperty("users.exportMyData");
+    expect(procedures).toHaveProperty("users.anonymizeMyData");
     expect(procedures).toHaveProperty("audit.list");
 
     // Phase 2
@@ -83,21 +86,25 @@ describe("appRouter", () => {
 
     // Reporting
     expect(procedures).toHaveProperty("reporting.salesSummary");
+    expect(procedures).toHaveProperty("reporting.reconcileFinancialLedger");
 
     // Health
     expect(procedures).toHaveProperty("health.ping");
 
     // Workspace
     expect(procedures).toHaveProperty("workspace.list");
+
+    // Search (T2.11)
+    expect(procedures).toHaveProperty("search.global");
   });
 
   it("has the correct number of top-level routers", () => {
-    // 19 routers: users, audit, approvals, catalog, catalogImport, inventory, inventoryImport, container, pricing, quotes, sales, payments, receivables, reporting, vendor, integrations, dashboard, health, workspace
+    // 20 routers: users, audit, approvals, catalog, catalogImport, inventory, inventoryImport, container, pricing, quotes, sales, payments, receivables, reporting, vendor, integrations, dashboard, search, health, workspace
     const topLevel = new Set<string>();
     for (const key of Object.keys(appRouter._def.procedures)) {
       const router = key.split(".")[0];
       if (router) topLevel.add(router);
     }
-    expect(topLevel.size).toBe(19);
+    expect(topLevel.size).toBe(20);
   });
 });

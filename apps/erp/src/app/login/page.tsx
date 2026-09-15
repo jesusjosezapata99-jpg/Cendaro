@@ -2,8 +2,22 @@
 
 import { Suspense, useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 
+import { Button, Input } from "@cendaro/ui";
+import { Icons } from "@cendaro/ui/icons";
+
+/**
+ * Cendaro — Enterprise Login Page (PLAN-2026-09-DESIGN-SYSTEM §T9.1)
+ *
+ * Spec:
+ * - Logo: Fixed top-left (w-6 h-6).
+ * - Left half (lg:w-1/2, hidden on mobile): Monochrome static visual with real dashboard capture (DEV-8).
+ * - Right half: Centered max-w-md with h1 Serif, inputs, primary button, error in text-destructive,
+ *   session expired notice, and legal footer in text-xs.
+ * - Zero rounded-* (0-radius), zero shadows, zero hex literals, 100% WCAG AA contrast.
+ */
 export default function LoginPage() {
   return (
     <Suspense>
@@ -20,7 +34,6 @@ function LoginContent() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [focusedField, setFocusedField] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -54,171 +67,168 @@ function LoginContent() {
   }
 
   return (
-    <div className="bg-background relative flex min-h-screen items-center justify-center overflow-hidden px-4">
-      {/* Ambient background effects */}
-      <div className="pointer-events-none absolute inset-0">
-        <div className="bg-primary/4 absolute -top-40 -left-40 size-[500px] rounded-full blur-[120px]" />
-        <div className="bg-primary/6 absolute -right-32 -bottom-32 size-[400px] rounded-full blur-[100px]" />
-        <div className="bg-primary/2.5 absolute top-1/3 left-1/2 size-[300px] -translate-x-1/2 rounded-full blur-[80px]" />
+    <div className="bg-background relative flex min-h-screen w-full">
+      {/* Fixed top-left Logo */}
+      <div className="fixed top-6 left-6 z-20">
+        <Link
+          href="/"
+          className="focus-visible:ring-ring flex items-center gap-2.5 outline-none focus-visible:ring-1"
+          aria-label="Cendaro — Ir al inicio"
+        >
+          <Image
+            src="/cendaro-logo.png"
+            alt="Cendaro"
+            width={24}
+            height={24}
+            className="size-6 invert dark:invert-0"
+            priority
+          />
+          <span className="text-foreground text-sm font-medium tracking-tight">
+            Cendaro
+          </span>
+        </Link>
       </div>
 
-      {/* Subtle grid pattern */}
-      <div
-        className="pointer-events-none absolute inset-0 opacity-[0.015]"
-        style={{
-          backgroundImage: `linear-gradient(rgba(255,255,255,.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.1) 1px, transparent 1px)`,
-          backgroundSize: "64px 64px",
-        }}
-      />
+      {/* Left Column — Monochrome Product Visual (hidden on mobile, DEV-8) */}
+      <div className="border-border bg-card/30 relative hidden border-r p-12 lg:flex lg:w-1/2 lg:flex-col lg:justify-between">
+        <div />
 
-      <div className="relative z-10 w-full max-w-[420px]">
-        {/* Logo & Brand */}
-        <div className="mb-10 text-center">
-          <div className="shadow-primary/20 mx-auto mb-5 flex size-16 items-center justify-center transition-transform duration-300 hover:scale-105">
-            <Image
-              src="/cendaro-logo.png"
-              alt="Cendaro"
-              width={64}
-              height={64}
-              className="size-16"
-              priority
-            />
+        {/* Dashboard Preview Frame */}
+        <div className="my-auto flex flex-col items-center">
+          <div className="border-border bg-card relative w-full max-w-xl overflow-hidden border">
+            <div className="border-border bg-muted/40 flex h-8 items-center gap-1.5 border-b px-3">
+              <div className="bg-border size-2" />
+              <div className="bg-border size-2" />
+              <div className="bg-border size-2" />
+              <span className="text-muted-foreground/60 ml-2 font-mono text-[10px]">
+                app.cendaro.com/dashboard
+              </span>
+            </div>
+            <div className="bg-background relative aspect-16/10 w-full overflow-hidden">
+              <Image
+                src="/dashboard-preview.png"
+                alt="Vista previa de Cendaro ERP"
+                fill
+                className="object-cover object-top"
+                sizes="(min-width: 1024px) 50vw, 100vw"
+                priority
+              />
+            </div>
           </div>
-          <h1 className="text-foreground text-[1.75rem] font-black tracking-tight">
-            Cendaro
-          </h1>
-          <p className="text-muted-foreground/70 mt-1.5 text-[0.8rem] font-medium tracking-wide uppercase">
-            Sistema ERP Omnicanal
+
+          <p className="text-muted-foreground mt-6 text-center text-xs leading-relaxed">
+            Gestión inteligente de inventario, pedidos y finanzas para comercio
+            mayorista.
           </p>
         </div>
 
-        {/* Login Card */}
-        <form
-          onSubmit={handleSubmit}
-          className="border-border/60 bg-card/80 rounded-2xl border p-8 shadow-2xl shadow-black/5 backdrop-blur-xl"
-        >
-          <div className="mb-7">
-            <h2 className="text-foreground text-xl font-bold tracking-tight">
-              Iniciar Sesión
-            </h2>
-            <p className="text-muted-foreground mt-1 text-[0.8rem]">
-              Ingrese sus credenciales para acceder al panel
+        {/* Footnote on left visual */}
+        <div className="text-muted-foreground/50 text-[11px]">
+          Cendaro ERP — Core Design System
+        </div>
+      </div>
+
+      {/* Right Column — Authentication Form */}
+      <div className="flex flex-1 items-center justify-center p-6 lg:p-12">
+        <div className="w-full max-w-md">
+          {/* Header */}
+          <div className="mb-8 text-left">
+            <h1 className="text-foreground font-serif text-lg font-normal tracking-tight lg:text-xl">
+              Bienvenido a Cendaro
+            </h1>
+            <p className="text-muted-foreground mt-1.5 text-sm">
+              Inicia sesión en tu cuenta
             </p>
           </div>
 
-          {/* Session expired notice */}
-          {sessionExpired && (
-            <div className="animate-in fade-in slide-in-from-top-1 mb-5 flex items-center gap-2.5 rounded-xl border border-amber-500/15 bg-amber-500/10 px-4 py-3 text-sm text-amber-600 duration-200 dark:text-amber-400">
-              <span className="material-symbols-outlined text-base">
-                schedule
-              </span>
-              <span className="font-medium">
+          {/* Session expired banner */}
+          {sessionExpired ? (
+            <div className="border-border bg-muted/30 text-foreground mb-6 flex items-center gap-2.5 border p-3 text-xs">
+              <Icons.Schedule className="text-muted-foreground size-4 shrink-0" />
+              <span>
                 Tu sesión expiró por inactividad. Inicia sesión de nuevo.
               </span>
             </div>
-          )}
-          {/* Error Alert */}
-          {error && (
-            <div className="bg-destructive/10 text-destructive border-destructive/15 animate-in fade-in slide-in-from-top-1 mb-5 flex items-center gap-2.5 rounded-xl border px-4 py-3 text-sm duration-200">
-              <span className="material-symbols-outlined text-base">error</span>
-              <span className="font-medium">{error}</span>
-            </div>
-          )}
+          ) : null}
 
-          <div className="space-y-5">
-            {/* Username */}
-            <div className="group">
+          {/* Error Banner */}
+          {error ? (
+            <div className="border-destructive/30 bg-destructive/10 text-destructive mb-6 flex items-center gap-2.5 border p-3 text-xs">
+              <Icons.Error className="size-4 shrink-0" />
+              <span>{error}</span>
+            </div>
+          ) : null}
+
+          {/* Form */}
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
               <label
                 htmlFor="username"
-                className={`mb-2 flex items-center gap-1.5 text-xs font-semibold tracking-wider uppercase transition-colors duration-200 ${
-                  focusedField === "username"
-                    ? "text-primary"
-                    : "text-muted-foreground/80"
-                }`}
+                className="text-muted-foreground mb-1.5 block text-xs font-normal"
               >
-                <span className="material-symbols-outlined text-sm">
-                  person
-                </span>
                 Usuario
               </label>
-              <div className="relative">
-                <input
-                  id="username"
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  onFocus={() => setFocusedField("username")}
-                  onBlur={() => setFocusedField(null)}
-                  required
-                  autoComplete="username"
-                  placeholder="Ingrese su nombre de usuario"
-                  className="border-border/80 bg-secondary/50 text-foreground placeholder:text-muted-foreground/50 focus:border-primary focus:bg-secondary/80 focus:ring-primary/15 w-full rounded-xl border px-4 py-3 text-sm transition-all duration-200 focus:ring-2 focus:outline-none"
-                />
-              </div>
+              <Input
+                id="username"
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                autoComplete="username"
+                required
+                placeholder="Ingresa tu nombre de usuario"
+                className="h-10"
+              />
             </div>
 
-            {/* Password */}
-            <div className="group">
+            <div>
               <label
                 htmlFor="password"
-                className={`mb-2 flex items-center gap-1.5 text-xs font-semibold tracking-wider uppercase transition-colors duration-200 ${
-                  focusedField === "password"
-                    ? "text-primary"
-                    : "text-muted-foreground/80"
-                }`}
+                className="text-muted-foreground mb-1.5 block text-xs font-normal"
               >
-                <span className="material-symbols-outlined text-sm">lock</span>
                 Contraseña
               </label>
-              <div className="relative">
-                <input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  onFocus={() => setFocusedField("password")}
-                  onBlur={() => setFocusedField(null)}
-                  required
-                  autoComplete="current-password"
-                  placeholder="Ingrese su contraseña"
-                  className="border-border/80 bg-secondary/50 text-foreground placeholder:text-muted-foreground/50 focus:border-primary focus:bg-secondary/80 focus:ring-primary/15 w-full rounded-xl border px-4 py-3 text-sm transition-all duration-200 focus:ring-2 focus:outline-none"
-                />
-              </div>
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoComplete="current-password"
+                required
+                placeholder="Ingresa tu contraseña"
+                className="h-10"
+              />
             </div>
+
+            <div className="pt-2">
+              <Button
+                type="submit"
+                disabled={loading}
+                className="h-10 w-full text-sm font-medium"
+              >
+                {loading ? (
+                  <>
+                    <span className="border-primary-foreground/30 border-t-primary-foreground mr-2 size-3.5 animate-spin border-2" />
+                    <span>Iniciando sesión...</span>
+                  </>
+                ) : (
+                  "Acceder al Sistema"
+                )}
+              </Button>
+            </div>
+          </form>
+
+          {/* Legal Footer */}
+          <div className="border-border mt-10 border-t pt-6 text-center">
+            <p className="text-muted-foreground/60 text-xs leading-relaxed">
+              Al iniciar sesión, confirmas tu acceso autorizado al entorno
+              operativo de Cendaro ERP.
+            </p>
+            <p className="text-muted-foreground/40 mt-3 text-[11px]">
+              Cendaro © {new Date().getFullYear()} · Todos los derechos
+              reservados
+            </p>
           </div>
-
-          {/* Submit */}
-          <button
-            type="submit"
-            disabled={loading}
-            className="group from-primary to-primary/90 text-primary-foreground shadow-primary/20 hover:shadow-primary/30 focus:ring-primary/50 focus:ring-offset-background mt-7 flex w-full items-center justify-center gap-2 rounded-xl bg-linear-to-r px-5 py-3 text-sm font-bold shadow-lg transition-all duration-200 hover:shadow-xl hover:brightness-110 focus:ring-2 focus:ring-offset-2 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {loading ? (
-              <>
-                <span className="border-primary-foreground/30 border-t-primary-foreground size-4 animate-spin rounded-full border-2" />
-                <span>Verificando credenciales...</span>
-              </>
-            ) : (
-              <>
-                <span>Acceder al Sistema</span>
-                <span className="material-symbols-outlined text-base transition-transform duration-200 group-hover:translate-x-0.5">
-                  arrow_forward
-                </span>
-              </>
-            )}
-          </button>
-
-          {/* Security note */}
-          <div className="text-muted-foreground/50 mt-5 flex items-center justify-center gap-1.5 text-[0.7rem]">
-            <span className="material-symbols-outlined text-xs">shield</span>
-            <span>Conexión segura · Solo usuarios autorizados</span>
-          </div>
-        </form>
-
-        {/* Footer */}
-        <p className="text-muted-foreground/40 mt-8 text-center text-[0.7rem] font-medium tracking-wide">
-          Cendaro © {new Date().getFullYear()} · Todos los derechos reservados
-        </p>
+        </div>
       </div>
     </div>
   );

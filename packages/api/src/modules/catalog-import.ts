@@ -144,6 +144,7 @@ export const catalogImportRouter = createTRPCRouter({
         .where(
           and(
             eq(ImportSession.userId, ctx.user.id),
+            eq(ImportSession.workspaceId, ctx.workspace.workspaceId),
             inArray(ImportSession.status, [
               "pending",
               "validating",
@@ -169,7 +170,12 @@ export const catalogImportRouter = createTRPCRouter({
       const [existingIdempotency] = await ctx.db
         .select({ id: ImportSession.id, status: ImportSession.status })
         .from(ImportSession)
-        .where(eq(ImportSession.idempotencyKey, input.idempotencyKey))
+        .where(
+          and(
+            eq(ImportSession.idempotencyKey, input.idempotencyKey),
+            eq(ImportSession.workspaceId, ctx.workspace.workspaceId),
+          ),
+        )
         .limit(1);
 
       if (existingIdempotency) {
@@ -180,6 +186,7 @@ export const catalogImportRouter = createTRPCRouter({
       const [session] = await ctx.db
         .insert(ImportSession)
         .values({
+          workspaceId: ctx.workspace.workspaceId,
           userId: ctx.user.id,
           type: "catalog",
           status: "pending",
@@ -205,6 +212,7 @@ export const catalogImportRouter = createTRPCRouter({
         const batch = input.rows.slice(i, i + BATCH_SIZE);
         await ctx.db.insert(ImportSessionRow).values(
           batch.map((row, batchIdx) => ({
+            workspaceId: ctx.workspace.workspaceId,
             importSessionId: session.id,
             rowIndex: i + batchIdx,
             status: "pending" as const,
@@ -232,6 +240,7 @@ export const catalogImportRouter = createTRPCRouter({
           and(
             eq(ImportSession.id, input.sessionId),
             eq(ImportSession.userId, ctx.user.id),
+            eq(ImportSession.workspaceId, ctx.workspace.workspaceId),
           ),
         )
         .limit(1);
@@ -267,7 +276,7 @@ export const catalogImportRouter = createTRPCRouter({
         .from(ImportSessionRow)
         .where(eq(ImportSessionRow.importSessionId, session.id));
 
-      // Load all products for SKU matching
+      // Load all products for SKU matching (workspace scoped)
       const allProducts = await ctx.db
         .select({
           id: Product.id,
@@ -275,7 +284,8 @@ export const catalogImportRouter = createTRPCRouter({
           name: Product.name,
           barcode: Product.barcode,
         })
-        .from(Product);
+        .from(Product)
+        .where(eq(Product.workspaceId, ctx.workspace.workspaceId));
 
       const productBySku = new Map<
         string,
@@ -289,10 +299,11 @@ export const catalogImportRouter = createTRPCRouter({
         });
       }
 
-      // Load all brands for matching
+      // Load all brands for matching (workspace scoped)
       const allBrands = await ctx.db
         .select({ id: Brand.id, name: Brand.name, slug: Brand.slug })
-        .from(Brand);
+        .from(Brand)
+        .where(eq(Brand.workspaceId, ctx.workspace.workspaceId));
 
       const brandByName = new Map<string, { id: string; name: string }>();
       const brandBySlug = new Map<string, { id: string; name: string }>();
@@ -301,14 +312,15 @@ export const catalogImportRouter = createTRPCRouter({
         brandBySlug.set(b.slug.toLowerCase(), { id: b.id, name: b.name });
       }
 
-      // Load all categories for matching
+      // Load all categories for matching (workspace scoped)
       const allCategories = await ctx.db
         .select({
           id: Category.id,
           name: Category.name,
           slug: Category.slug,
         })
-        .from(Category);
+        .from(Category)
+        .where(eq(Category.workspaceId, ctx.workspace.workspaceId));
 
       const categoryByName = new Map<string, { id: string; name: string }>();
       const categoryBySlug = new Map<string, { id: string; name: string }>();
@@ -317,13 +329,14 @@ export const catalogImportRouter = createTRPCRouter({
         categoryBySlug.set(c.slug.toLowerCase(), { id: c.id, name: c.name });
       }
 
-      // Load existing aliases
+      // Load existing aliases (workspace scoped)
       const existingAliases = await ctx.db
         .select({
           alias: CategoryAlias.alias,
           categoryId: CategoryAlias.categoryId,
         })
-        .from(CategoryAlias);
+        .from(CategoryAlias)
+        .where(eq(CategoryAlias.workspaceId, ctx.workspace.workspaceId));
 
       const aliasByCategoryStr = new Map<string, string>();
       for (const a of existingAliases) {
@@ -511,7 +524,8 @@ export const catalogImportRouter = createTRPCRouter({
             INNER JOIN LATERAL (
               SELECT id, name
               FROM category c
-              WHERE similarity(LOWER(c.name), LOWER(t.input_name)) >= 0.2
+              WHERE c."workspaceId" = ${ctx.workspace.workspaceId}::uuid
+                AND similarity(LOWER(c.name), LOWER(t.input_name)) >= 0.2
               ORDER BY similarity(LOWER(c.name), LOWER(t.input_name)) DESC
               LIMIT 5
             ) c ON true
@@ -588,13 +602,15 @@ export const catalogImportRouter = createTRPCRouter({
               INNER JOIN LATERAL (
                 SELECT c2.id, c2.name
                 FROM category c2
-                INNER JOIN product p ON p."categoryId" = c2.id
-                WHERE similarity(LOWER(p.name), LOWER(t.sample)) >= 0.15
+                INNER JOIN product p ON p."categoryId" = c2.id AND p."workspaceId" = ${ctx.workspace.workspaceId}::uuid
+                WHERE c2."workspaceId" = ${ctx.workspace.workspaceId}::uuid
+                  AND similarity(LOWER(p.name), LOWER(t.sample)) >= 0.15
                 GROUP BY c2.id, c2.name
                 HAVING AVG(similarity(LOWER(p.name), LOWER(t.sample))) >= 0.2
               ) sub ON true
-              INNER JOIN product p ON p."categoryId" = sub.id
-              WHERE similarity(LOWER(p.name), LOWER(t.sample)) >= 0.15
+              INNER JOIN product p ON p."categoryId" = sub.id AND p."workspaceId" = ${ctx.workspace.workspaceId}::uuid
+              WHERE p."workspaceId" = ${ctx.workspace.workspaceId}::uuid
+                AND similarity(LOWER(p.name), LOWER(t.sample)) >= 0.15
               GROUP BY t.input_name, sub.id, sub.name
               HAVING AVG(similarity(LOWER(p.name), LOWER(t.sample))) >= 0.2
               ORDER BY avg_score DESC
@@ -836,6 +852,7 @@ export const catalogImportRouter = createTRPCRouter({
           and(
             eq(ImportSession.id, input.sessionId),
             eq(ImportSession.userId, ctx.user.id),
+            eq(ImportSession.workspaceId, ctx.workspace.workspaceId),
           ),
         )
         .limit(1);
@@ -868,6 +885,7 @@ export const catalogImportRouter = createTRPCRouter({
           const [newCat] = await ctx.db
             .insert(Category)
             .values({
+              workspaceId: ctx.workspace.workspaceId,
               name: mapping.newCategoryName,
               slug: newSlug,
               depth: 0,
@@ -878,6 +896,7 @@ export const catalogImportRouter = createTRPCRouter({
           if (newCat) {
             categoryId = newCat.id;
             await logAudit(ctx.db, ctx.user, {
+              workspaceId: ctx.workspace.workspaceId,
               action: "category.create",
               entity: "category",
               entityId: newCat.id,
@@ -924,6 +943,7 @@ export const catalogImportRouter = createTRPCRouter({
           await ctx.db
             .insert(CategoryAlias)
             .values({
+              workspaceId: ctx.workspace.workspaceId,
               alias: mapping.rawCategory,
               categoryId: categoryId,
               createdBy: ctx.user.id,
@@ -954,7 +974,12 @@ export const catalogImportRouter = createTRPCRouter({
       const [session] = await ctx.db
         .select()
         .from(ImportSession)
-        .where(eq(ImportSession.id, input.sessionId))
+        .where(
+          and(
+            eq(ImportSession.id, input.sessionId),
+            eq(ImportSession.workspaceId, ctx.workspace.workspaceId),
+          ),
+        )
         .limit(1);
 
       if (!session) {
@@ -1038,6 +1063,7 @@ export const catalogImportRouter = createTRPCRouter({
           and(
             eq(ImportSession.id, input.sessionId),
             eq(ImportSession.userId, ctx.user.id),
+            eq(ImportSession.workspaceId, ctx.workspace.workspaceId),
           ),
         )
         .limit(1);
@@ -1135,6 +1161,7 @@ export const catalogImportRouter = createTRPCRouter({
                 const [newProduct] = await tx
                   .insert(Product)
                   .values({
+                    workspaceId: ctx.workspace.workspaceId,
                     sku,
                     name,
                     barcode: rawData.barcode
@@ -1175,11 +1202,13 @@ export const catalogImportRouter = createTRPCRouter({
                 ) {
                   const qty = Number(rawData.quantity);
                   await tx.insert(StockLedger).values({
+                    workspaceId: ctx.workspace.workspaceId,
                     productId: newProduct.id,
                     warehouseId: defaultWarehouseId,
                     quantity: qty,
                   });
                   await tx.insert(StockMovement).values({
+                    workspaceId: ctx.workspace.workspaceId,
                     productId: newProduct.id,
                     movementType: "initial_stock",
                     quantity: qty,
@@ -1214,7 +1243,12 @@ export const catalogImportRouter = createTRPCRouter({
                   await tx
                     .update(Product)
                     .set(updates)
-                    .where(eq(Product.id, row.resolvedProductId));
+                    .where(
+                      and(
+                        eq(Product.id, row.resolvedProductId),
+                        eq(Product.workspaceId, ctx.workspace.workspaceId),
+                      ),
+                    );
                 }
 
                 updated++;
@@ -1261,6 +1295,7 @@ export const catalogImportRouter = createTRPCRouter({
 
       // Audit log
       await logAudit(ctx.db, ctx.user, {
+        workspaceId: ctx.workspace.workspaceId,
         action: "catalog.bulk_import",
         entity: "catalog_import",
         entityId: session.id,
@@ -1295,7 +1330,12 @@ export const catalogImportRouter = createTRPCRouter({
       const [session] = await ctx.db
         .select()
         .from(ImportSession)
-        .where(eq(ImportSession.id, input.sessionId))
+        .where(
+          and(
+            eq(ImportSession.id, input.sessionId),
+            eq(ImportSession.workspaceId, ctx.workspace.workspaceId),
+          ),
+        )
         .limit(1);
 
       if (!session) {

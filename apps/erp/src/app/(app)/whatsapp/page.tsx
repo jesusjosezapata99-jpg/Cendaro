@@ -30,9 +30,14 @@ async function WhatsappPrefetch() {
   const queryClient = getQueryClient();
 
   try {
-    await queryClient.prefetchQuery(
-      trpc.sales.listOrders.queryOptions({ limit: 50 }),
-    );
+    await Promise.all([
+      queryClient.prefetchQuery(
+        trpc.sales.listOrders.queryOptions({ limit: 100 }),
+      ),
+      queryClient.prefetchQuery(
+        trpc.sales.listCustomers.queryOptions({ limit: 100 }),
+      ),
+    ]);
   } catch {
     // Prefetch failure is non-critical — client will fetch on hydration
   }

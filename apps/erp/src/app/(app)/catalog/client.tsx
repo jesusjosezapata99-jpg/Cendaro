@@ -1,341 +1,329 @@
 "use client";
 
-import { useState } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
+import { useCallback, useMemo } from "react";
 import Link from "next/link";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery } from "@tanstack/react-query";
 
-import {
-  Button,
-  Input,
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@cendaro/ui";
+import { Button } from "@cendaro/ui";
+import { Icons } from "@cendaro/ui/icons";
+import { StatusPill } from "@cendaro/ui/status-pill";
 
-import type { StatusTone } from "~/components/status-badge";
-import { EmptyState } from "~/components/empty-state";
+import type { ActiveFilterItem, FilterSection } from "~/components/data-table";
+import { DataTable, DataTableFilterBar } from "~/components/data-table";
 import { PageHeader } from "~/components/page-header";
-import { Skeleton } from "~/components/skeleton";
 import { StatCard } from "~/components/stat-card";
-import { StatusBadge } from "~/components/status-badge";
-import { useDebounce } from "~/hooks/use-debounce";
+import { useProductParams } from "~/hooks/params";
+import { useProductFilterParams } from "~/hooks/params/use-product-filter-params";
+import { getStatus } from "~/lib/status";
 import { useTRPC } from "~/trpc/client";
 
-/** Business status → semantic token chip (single source of truth). */
-const STATUS_CONFIG: Record<string, { label: string; tone: StatusTone }> = {
-  active: { label: "Activo", tone: "success" },
-  draft: { label: "Borrador", tone: "warning" },
-  discontinued: { label: "Descontinuado", tone: "destructive" },
-};
+const VALID_PRODUCT_STATUSES = ["active", "draft", "discontinued"] as const;
+type ValidProductStatus = (typeof VALID_PRODUCT_STATUSES)[number];
 
-/** Shared cell padding for the catalog table. */
-const cellPx = "px-4 py-3";
+const VALID_CATALOG_SORTS = [
+  "createdAt:asc",
+  "createdAt:desc",
+  "name:asc",
+  "name:desc",
+  "sku:asc",
+  "sku:desc",
+] as const;
+type ValidCatalogSort = (typeof VALID_CATALOG_SORTS)[number];
+
+interface ProductItem {
+  id: string;
+  sku: string;
+  name: string;
+  barcode: string | null;
+  imageUrl: string | null;
+  status: string;
+  brandId: string | null;
+  categoryId: string | null;
+  supplierId: string | null;
+  createdAt: Date | string;
+}
 
 export default function CatalogClient() {
   const trpc = useTRPC();
-  const [search, setSearch] = useState("");
-  const debouncedSearch = useDebounce(search, 300);
-  const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [page, setPage] = useState(0);
-  const limit = 25;
+  const [filters, setFilters] = useProductFilterParams();
+  const [, setProductParams] = useProductParams();
 
-  const { data, isLoading } = useQuery({
-    ...trpc.catalog.listProducts.queryOptions({
-      limit,
-      offset: page * limit,
-      search: debouncedSearch || undefined,
-      status:
-        statusFilter !== "all"
-          ? (statusFilter as "active" | "draft" | "discontinued")
-          : undefined,
-    }),
-    placeholderData: keepPreviousData,
-  });
+  const clearFilters = useCallback(() => {
+    void setFilters({
+      search: "",
+      status: "all",
+      statuses: [],
+      brandId: "all",
+      brandIds: [],
+      categoryId: "all",
+      categoryIds: [],
+      supplierId: "all",
+      supplierIds: [],
+      sort: "",
+      page: 0,
+    });
+  }, [setFilters]);
 
-  const products = data?.items ?? [];
-  const total = data?.total ?? 0;
-  const totalPages = Math.ceil(total / limit);
+  const toggleStatus = useCallback(
+    (key: string) => {
+      const current = filters.statuses;
+      const next = current.includes(key)
+        ? current.filter((s) => s !== key)
+        : [...current, key];
+      void setFilters({ statuses: next, status: "all", page: 0 });
+    },
+    [filters.statuses, setFilters],
+  );
+
+  // Validated status filter
+  const activeStatuses = useMemo<ValidProductStatus[] | undefined>(() => {
+    const list = filters.statuses.filter((s): s is ValidProductStatus =>
+      VALID_PRODUCT_STATUSES.includes(s as ValidProductStatus),
+    );
+    if (list.length > 0) return list;
+    if (
+      filters.status &&
+      VALID_PRODUCT_STATUSES.includes(filters.status as ValidProductStatus)
+    ) {
+      return [filters.status as ValidProductStatus];
+    }
+    return undefined;
+  }, [filters.statuses, filters.status]);
+
+  const validSort = useMemo<ValidCatalogSort | undefined>(() => {
+    if (
+      filters.sort &&
+      VALID_CATALOG_SORTS.includes(filters.sort as ValidCatalogSort)
+    ) {
+      return filters.sort as ValidCatalogSort;
+    }
+    return undefined;
+  }, [filters.sort]);
+
+  const {
+    data,
+    isLoading,
+    isError,
+    refetch,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery(
+    trpc.catalog.listProducts.infiniteQueryOptions(
+      {
+        limit: 50,
+        search: filters.search || undefined,
+        statuses: activeStatuses,
+        brandIds: filters.brandIds.length > 0 ? filters.brandIds : undefined,
+        categoryIds:
+          filters.categoryIds.length > 0 ? filters.categoryIds : undefined,
+        supplierIds:
+          filters.supplierIds.length > 0 ? filters.supplierIds : undefined,
+        sort: validSort,
+      },
+      {
+        getNextPageParam: (lastPage, allPages) => {
+          const totalFetched = allPages.reduce(
+            (acc, p) => acc + p.items.length,
+            0,
+          );
+          if (totalFetched >= lastPage.total || lastPage.items.length < 50) {
+            return undefined;
+          }
+          return totalFetched;
+        },
+      },
+    ),
+  );
+
+  const products = useMemo(
+    () => data?.pages.flatMap((p) => p.items) ?? [],
+    [data?.pages],
+  );
+
+  const total = data?.pages[0]?.total ?? 0;
+
+  // Columns definition
+  const columns = useMemo<ColumnDef<ProductItem>[]>(
+    () => [
+      {
+        accessorKey: "sku",
+        header: "Referencia",
+        meta: {
+          sticky: true,
+          className:
+            "w-36 font-mono text-xs tabular-nums text-muted-foreground",
+        },
+        cell: ({ row }) => (
+          <span className="text-muted-foreground font-mono text-xs tabular-nums">
+            {row.original.sku}
+          </span>
+        ),
+      },
+      {
+        accessorKey: "name",
+        header: "Producto",
+        cell: ({ row }) => (
+          <Link
+            href={`/catalog/${row.original.id}`}
+            onClick={(e) => e.stopPropagation()}
+            className="text-foreground block max-w-md truncate font-medium hover:underline"
+          >
+            {row.original.name}
+          </Link>
+        ),
+      },
+      {
+        accessorKey: "status",
+        header: "Estado",
+        meta: { align: "center", className: "w-32 text-center" },
+        cell: ({ row }) => {
+          const s = getStatus("product", row.original.status);
+          return <StatusPill tone={s.tone}>{s.label}</StatusPill>;
+        },
+      },
+      {
+        accessorKey: "createdAt",
+        header: "Creado",
+        meta: {
+          align: "right",
+          className:
+            "w-36 text-right font-mono text-xs tabular-nums text-muted-foreground",
+        },
+        cell: ({ row }) => (
+          <span className="text-muted-foreground font-mono text-xs tabular-nums">
+            {new Date(row.original.createdAt).toLocaleDateString("es-VE")}
+          </span>
+        ),
+      },
+    ],
+    [],
+  );
+
+  // Filter sections for popover
+  const filterSections = useMemo<FilterSection[]>(
+    () => [
+      {
+        id: "status",
+        title: "Estado del producto",
+        options: VALID_PRODUCT_STATUSES.map((key) => ({
+          value: key,
+          label: getStatus("product", key).label,
+        })),
+        selectedValues: activeStatuses ?? [],
+        onToggle: toggleStatus,
+      },
+    ],
+    [activeStatuses, toggleStatus],
+  );
+
+  // Active filter chips
+  const activeFilters = useMemo<ActiveFilterItem[]>(() => {
+    const items: ActiveFilterItem[] = [];
+
+    if (filters.search) {
+      items.push({
+        id: "search",
+        label: "Búsqueda",
+        valueLabel: filters.search,
+        onRemove: () => void setFilters({ search: "", page: 0 }),
+      });
+    }
+
+    if (activeStatuses && activeStatuses.length > 0) {
+      for (const s of activeStatuses) {
+        items.push({
+          id: `status-${s}`,
+          label: "Estado",
+          valueLabel: getStatus("product", s).label,
+          onRemove: () => toggleStatus(s),
+        });
+      }
+    }
+
+    return items;
+  }, [filters.search, activeStatuses, setFilters, toggleStatus]);
+
+  const activeFilterCount =
+    (filters.search ? 1 : 0) + (activeStatuses?.length ?? 0);
 
   return (
-    <div className="animate-in fade-in slide-in-from-bottom-1 space-y-6 p-4 duration-200 lg:p-8">
+    <div className="animate-in fade-in slide-in-from-bottom-1 space-y-6 py-4 duration-200 lg:py-8">
       <PageHeader
         title="Catálogo de Productos"
         description={`Gestiona tu catálogo de ${total.toLocaleString("es-VE")} referencias`}
         actions={
-          <>
+          <div className="flex w-full gap-2 sm:w-auto">
             <Button variant="outline" asChild className="min-h-11">
               <Link href="/catalog/import">
-                <span className="material-symbols-outlined text-lg">
-                  upload_file
-                </span>
+                <Icons.UploadFile className="size-4.5" />
                 Importar
               </Link>
             </Button>
             <Button asChild className="min-h-11">
-              <Link href="/catalog/new">
-                <span className="material-symbols-outlined text-lg">add</span>
+              <Link href="/catalog?createProduct=true">
+                <Icons.Add className="size-4.5" />
                 Nuevo Producto
               </Link>
             </Button>
-          </>
+          </div>
         }
       />
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <StatCard
           label="Total Productos"
           value={isLoading ? "—" : total.toLocaleString("es-VE")}
-          icon="inventory_2"
+          icon="Inventory2"
           tone="primary"
         />
         <StatCard
           label="Mostrando"
-          value={isLoading ? "—" : products.length}
-          icon="visibility"
+          value={isLoading ? "—" : products.length.toLocaleString("es-VE")}
+          icon="Visibility"
           tone="success"
         />
-        <StatCard
-          label="Página"
-          value={`${page + 1} / ${Math.max(totalPages, 1)}`}
-          icon="auto_stories"
-        />
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-col gap-3 sm:flex-row">
-        <div className="relative flex-1">
-          <span
-            aria-hidden
-            className="material-symbols-outlined text-muted-foreground pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-base"
-          >
-            search
-          </span>
-          <Input
-            type="text"
-            placeholder="Buscar por nombre o referencia..."
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setPage(0);
-            }}
-            className="min-h-11 pl-10"
-          />
-        </div>
-        <Select
-          value={statusFilter}
-          onValueChange={(v) => {
-            setStatusFilter(v);
-            setPage(0);
-          }}
-        >
-          <SelectTrigger className="h-11 w-full sm:w-48">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos los estados</SelectItem>
-            <SelectItem value="active">Activos</SelectItem>
-            <SelectItem value="draft">Borradores</SelectItem>
-            <SelectItem value="discontinued">Descontinuados</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+      {/* Filter Bar */}
+      <DataTableFilterBar
+        search={{
+          value: filters.search,
+          onChange: (val) => void setFilters({ search: val, page: 0 }),
+          placeholder: "Buscar por nombre, SKU o código de barras...",
+        }}
+        popover={{
+          sections: filterSections,
+          activeCount: activeFilterCount,
+          onClearAll: clearFilters,
+        }}
+        activeFilters={activeFilters}
+        onClearAllFilters={clearFilters}
+      />
 
-      {/* ── Mobile: Card View ─────────────────────── */}
-      <div className="space-y-3 md:hidden">
-        {isLoading
-          ? Array.from({ length: 4 }).map((_, i) => (
-              <div
-                key={i}
-                className="border-border-subtle surface-card rounded-xl border p-4"
-              >
-                <Skeleton className="h-5 w-3/4" />
-                <Skeleton className="mt-2 h-4 w-24" />
-              </div>
-            ))
-          : products.map((product) => {
-              const statusCfg = STATUS_CONFIG[product.status] ?? {
-                label: product.status,
-                tone: "neutral" as StatusTone,
-              };
-              return (
-                <Link
-                  key={product.id}
-                  href={`/catalog/${product.id}`}
-                  className="border-border-subtle surface-card hover:border-primary/30 focus-visible:border-ring focus-visible:ring-ring/50 block rounded-xl border p-4 transition-all duration-200 outline-none active:scale-[0.99] motion-reduce:active:scale-100"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <p className="text-foreground truncate font-medium">
-                        {product.name}
-                      </p>
-                      <p className="text-muted-foreground mt-0.5 font-mono text-xs tabular-nums">
-                        {product.sku}
-                      </p>
-                    </div>
-                    <StatusBadge tone={statusCfg.tone}>
-                      {statusCfg.label}
-                    </StatusBadge>
-                  </div>
-                  <p className="text-muted-foreground mt-2 text-xs">
-                    {new Date(product.createdAt).toLocaleDateString("es-VE")}
-                  </p>
-                </Link>
-              );
-            })}
-        {!isLoading && products.length === 0 && (
-          <EmptyState
-            icon="search_off"
-            title="No se encontraron productos"
-            description="Ajusta la búsqueda o el filtro de estado e inténtalo de nuevo."
-          />
-        )}
-      </div>
-
-      {/* ── Desktop: Table View ───────────────────── */}
-      <div className="border-border-subtle surface-card hidden gap-0 overflow-hidden rounded-xl border py-0 md:block">
-        <Table>
-          <TableHeader>
-            <TableRow className="hover:bg-transparent">
-              <TableHead
-                className={`text-muted-foreground ${cellPx} text-xs font-medium tracking-widest uppercase`}
-              >
-                Referencia
-              </TableHead>
-              <TableHead
-                className={`text-muted-foreground ${cellPx} text-xs font-medium tracking-widest uppercase`}
-              >
-                Producto
-              </TableHead>
-              <TableHead
-                className={`text-muted-foreground ${cellPx} text-xs font-medium tracking-widest uppercase`}
-              >
-                Estado
-              </TableHead>
-              <TableHead
-                className={`text-muted-foreground ${cellPx} text-xs font-medium tracking-widest uppercase`}
-              >
-                Creado
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading
-              ? Array.from({ length: 5 }).map((_, i) => (
-                  <TableRow key={i}>
-                    <TableCell className={cellPx}>
-                      <Skeleton className="h-5 w-20" />
-                    </TableCell>
-                    <TableCell className={cellPx}>
-                      <Skeleton className="h-5 w-48" />
-                    </TableCell>
-                    <TableCell className={cellPx}>
-                      <Skeleton className="h-5 w-20" />
-                    </TableCell>
-                    <TableCell className={cellPx}>
-                      <Skeleton className="h-5 w-24" />
-                    </TableCell>
-                  </TableRow>
-                ))
-              : products.map((product) => {
-                  const statusCfg = STATUS_CONFIG[product.status] ?? {
-                    label: product.status,
-                    tone: "neutral" as StatusTone,
-                  };
-                  return (
-                    <TableRow key={product.id}>
-                      <TableCell
-                        className={`text-muted-foreground ${cellPx} font-mono text-xs tabular-nums`}
-                      >
-                        {product.sku}
-                      </TableCell>
-                      <TableCell className={cellPx}>
-                        <Link
-                          href={`/catalog/${product.id}`}
-                          className="text-foreground hover:text-primary font-medium transition-colors"
-                        >
-                          {product.name}
-                        </Link>
-                      </TableCell>
-                      <TableCell className={cellPx}>
-                        <StatusBadge tone={statusCfg.tone}>
-                          {statusCfg.label}
-                        </StatusBadge>
-                      </TableCell>
-                      <TableCell
-                        className={`text-muted-foreground ${cellPx} text-sm`}
-                      >
-                        {new Date(product.createdAt).toLocaleDateString(
-                          "es-VE",
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-            {!isLoading && products.length === 0 && (
-              <TableRow className="hover:bg-transparent">
-                <TableCell colSpan={4} className="px-4 py-6">
-                  <EmptyState
-                    icon="search_off"
-                    title="No se encontraron productos"
-                    description="Ajusta la búsqueda o el filtro de estado e inténtalo de nuevo."
-                  />
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
-
-      {/* Pagination */}
-      <div className="text-muted-foreground flex flex-col items-center gap-3 text-xs sm:flex-row sm:justify-between">
-        <p>
-          Mostrando{" "}
-          <span className="text-foreground font-mono font-medium tabular-nums">
-            {products.length}
-          </span>{" "}
-          de{" "}
-          <span className="text-foreground font-mono font-medium tabular-nums">
-            {total.toLocaleString("es-VE")}
-          </span>{" "}
-          productos
-        </p>
-        <div className="flex items-center gap-1">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setPage((p) => Math.max(0, p - 1))}
-            disabled={page === 0}
-          >
-            <span aria-hidden className="material-symbols-outlined text-base">
-              arrow_back
-            </span>
-            Anterior
-          </Button>
-          <span className="text-foreground px-2 font-mono text-sm font-medium tabular-nums">
-            {page + 1} / {Math.max(totalPages, 1)}
-          </span>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setPage((p) => (p + 1 < totalPages ? p + 1 : p))}
-            disabled={page + 1 >= totalPages}
-          >
-            Siguiente
-            <span aria-hidden className="material-symbols-outlined text-base">
-              arrow_forward
-            </span>
-          </Button>
-        </div>
-      </div>
+      {/* Virtualized Data Table */}
+      <DataTable
+        columns={columns}
+        data={products}
+        isLoading={isLoading}
+        isError={isError}
+        onRetry={() => void refetch()}
+        isFetchingNextPage={isFetchingNextPage}
+        hasNextPage={hasNextPage}
+        fetchNextPage={fetchNextPage}
+        sort={filters.sort}
+        onSortChange={(newSort) =>
+          void setFilters({ sort: newSort ?? "", page: 0 })
+        }
+        onRowClick={(product) =>
+          void setProductParams({ productId: product.id })
+        }
+        onResetFilters={clearFilters}
+        emptyTitle="No se encontraron productos"
+        emptyDescription="Ajusta la búsqueda o el filtro de estado e inténtalo de nuevo."
+      />
     </div>
   );
 }

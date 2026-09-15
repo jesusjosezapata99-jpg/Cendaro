@@ -1,4 +1,16 @@
-import { CatalogImportWizard } from "~/modules/catalog-import/catalog-import-wizard";
+import dynamic from "next/dynamic";
+
+import { ListPageSkeleton } from "~/components/skeleton";
+
+const CatalogImportWizard = dynamic(
+  () =>
+    import("~/modules/catalog-import/catalog-import-wizard").then(
+      (m) => m.CatalogImportWizard,
+    ),
+  {
+    loading: () => <ListPageSkeleton />,
+  },
+);
 
 /**
  * Catalog Import — Server Component page wrapper

@@ -15,16 +15,17 @@ import {
   TableHeader,
   TableRow,
 } from "@cendaro/ui";
+import { Icons } from "@cendaro/ui/icons";
+import { StatusPill } from "@cendaro/ui/status-pill";
 
-import type { StatusTone } from "~/components/status-badge";
 import { Dialog } from "~/components/dialog";
 import { EmptyState } from "~/components/empty-state";
 import { RoleGuard } from "~/components/role-guard";
 import { Skeleton } from "~/components/skeleton";
 import { StatCard } from "~/components/stat-card";
-import { StatusBadge } from "~/components/status-badge";
 import { useBcvRate } from "~/hooks/use-bcv-rate";
 import { formatDualCurrency } from "~/lib/format-currency";
+import { getStatus } from "~/lib/status";
 import { useTRPC } from "~/trpc/client";
 
 const UpdateQuoteStatusDialog = dynamic(
@@ -34,16 +35,6 @@ const UpdateQuoteStatusDialog = dynamic(
     })),
   { ssr: false },
 );
-
-/** Quote status → semantic token chip (single source of truth). */
-const STATUS_MAP: Record<string, { label: string; tone: StatusTone }> = {
-  draft: { label: "Borrador", tone: "neutral" },
-  sent: { label: "Enviada", tone: "primary" },
-  accepted: { label: "Aceptada", tone: "success" },
-  rejected: { label: "Rechazada", tone: "destructive" },
-  expired: { label: "Expirada", tone: "warning" },
-  converted: { label: "Convertida", tone: "success" },
-};
 
 /** Sales channels → human labels. */
 const CHANNEL_LABELS: Record<string, string> = {
@@ -89,12 +80,12 @@ export default function QuoteDetailClient() {
   /* Loading */
   if (isLoading) {
     return (
-      <div className="animate-in fade-in space-y-6 p-4 duration-200 lg:p-8">
+      <div className="animate-in fade-in space-y-6 py-4 duration-200 lg:py-8">
         <Skeleton className="h-8 w-64" />
-        <Skeleton className="h-40 w-full rounded-xl" />
+        <Skeleton className="h-40 w-full" />
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-24 rounded-xl" />
+            <Skeleton key={i} className="h-24" />
           ))}
         </div>
       </div>
@@ -104,9 +95,9 @@ export default function QuoteDetailClient() {
   /* Not found */
   if (!quote) {
     return (
-      <div className="p-4 lg:p-8">
+      <div className="py-4 lg:py-8">
         <EmptyState
-          icon="search_off"
+          icon="SearchOff"
           title="Cotización no encontrada"
           description="La cotización que buscas no existe o fue eliminada."
           action={
@@ -119,10 +110,7 @@ export default function QuoteDetailClient() {
     );
   }
 
-  const st = STATUS_MAP[quote.status] ?? {
-    label: quote.status,
-    tone: "neutral" as StatusTone,
-  };
+  const st = getStatus("quote", quote.status);
   const total = Number(quote.total);
   const subtotal = Number(quote.subtotal);
   const discount = Number(quote.discount ?? 0);
@@ -131,7 +119,7 @@ export default function QuoteDetailClient() {
     quote.status !== "converted" && quote.status !== "rejected";
 
   return (
-    <div className="animate-in fade-in slide-in-from-bottom-1 space-y-6 p-4 duration-200 lg:p-8">
+    <div className="animate-in fade-in slide-in-from-bottom-1 space-y-6 py-4 duration-200 lg:py-8">
       {/* Breadcrumb & Actions */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div className="text-muted-foreground flex items-center gap-2 text-sm">
@@ -141,9 +129,7 @@ export default function QuoteDetailClient() {
           >
             Cotizaciones
           </Link>
-          <span aria-hidden className="material-symbols-outlined text-base">
-            chevron_right
-          </span>
+          <Icons.ChevronRight className="size-4" aria-hidden />
           <span className="text-foreground font-medium">
             {quote.quoteNumber}
           </span>
@@ -153,9 +139,7 @@ export default function QuoteDetailClient() {
           {quote.status === "converted" && quote.convertedOrderId && (
             <Button variant="outline" asChild className="min-h-11">
               <Link href={`/orders/${quote.convertedOrderId}`}>
-                <span className="material-symbols-outlined text-lg">
-                  receipt_long
-                </span>
+                <Icons.ReceiptLong className="size-4.5" />
                 Ver Pedido Vinculado
               </Link>
             </Button>
@@ -167,7 +151,7 @@ export default function QuoteDetailClient() {
               onClick={() => setShowStatusDialog(true)}
               className="min-h-11"
             >
-              <span className="material-symbols-outlined text-lg">edit</span>
+              <Icons.Edit className="size-4.5" />
               Cambiar Estado
             </Button>
 
@@ -176,9 +160,7 @@ export default function QuoteDetailClient() {
                 onClick={() => setShowConvertConfirm(true)}
                 className="bg-primary text-primary-foreground hover:bg-primary/90 min-h-11"
               >
-                <span className="material-symbols-outlined text-lg">
-                  task_alt
-                </span>
+                <Icons.TaskAlt className="size-4.5" />
                 Convertir en Pedido
               </Button>
             )}
@@ -204,64 +186,53 @@ export default function QuoteDetailClient() {
           description={`¿Deseas convertir la cotización ${quote.quoteNumber} en un pedido formal de venta? Esta acción generará una orden con todas las líneas de productos correspondientes.`}
         >
           <div className="flex justify-end gap-2 pt-4">
-            <button
+            <Button
+              variant="outline"
               type="button"
               onClick={() => setShowConvertConfirm(false)}
-              className="border-border-subtle hover:bg-accent min-h-11 rounded-lg border px-4 py-2 text-sm font-medium transition-colors"
+              className="min-h-11"
             >
               Cancelar
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               disabled={convertMutation.isPending}
               onClick={() => convertMutation.mutate({ id: quote.id })}
-              className="bg-primary text-primary-foreground hover:bg-primary/90 min-h-11 rounded-lg px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-50"
+              className="min-h-11"
             >
               {convertMutation.isPending
                 ? "Convirtiendo..."
                 : "Confirmar Conversión"}
-            </button>
+            </Button>
           </div>
         </Dialog>
       )}
 
       {/* Header Card */}
-      <div className="border-border-subtle surface-card rounded-xl border p-6">
+      <div className="border-border bg-card border p-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0 space-y-1">
             <div className="flex flex-wrap items-center gap-3">
-              <h1 className="text-foreground text-2xl font-semibold tracking-tight">
+              <h1 className="text-foreground text-2xl font-medium tracking-tight">
                 {quote.quoteNumber}
               </h1>
-              <StatusBadge tone={st.tone}>{st.label}</StatusBadge>
+              <StatusPill tone={st.tone}>{st.label}</StatusPill>
             </div>
             <p className="text-muted-foreground flex flex-wrap items-center gap-x-6 gap-y-1 text-sm">
               <span className="flex items-center gap-1">
-                <span
-                  aria-hidden
-                  className="material-symbols-outlined text-base"
-                >
-                  store
-                </span>
+                <Icons.Store className="size-4" aria-hidden />
                 {CHANNEL_LABELS[quote.channel] ?? quote.channel}
               </span>
               <span className="flex items-center gap-1">
-                <span
-                  aria-hidden
-                  className="material-symbols-outlined text-base"
-                >
-                  schedule
-                </span>
+                <Icons.Schedule className="size-4" aria-hidden />
                 {new Date(quote.createdAt).toLocaleString("es-VE")}
               </span>
               {quote.validUntil && (
                 <span className="flex items-center gap-1">
-                  <span
+                  <Icons.HourglassTop
+                    className="size-4 text-amber-500"
                     aria-hidden
-                    className="material-symbols-outlined text-base text-amber-500"
-                  >
-                    hourglass_top
-                  </span>
+                  />
                   Vence:{" "}
                   {new Date(quote.validUntil).toLocaleDateString("es-VE")}
                 </span>
@@ -279,7 +250,7 @@ export default function QuoteDetailClient() {
           sub={
             bcv.rate > 0 ? formatDualCurrency(total, bcv.rate).bs : undefined
           }
-          icon="receipt_long"
+          icon="ReceiptLong"
           tone="primary"
         />
         <StatCard
@@ -288,7 +259,7 @@ export default function QuoteDetailClient() {
           sub={
             bcv.rate > 0 ? formatDualCurrency(subtotal, bcv.rate).bs : undefined
           }
-          icon="payments"
+          icon="Payments"
         />
         <StatCard
           label="Descuento"
@@ -298,14 +269,14 @@ export default function QuoteDetailClient() {
               ? formatDualCurrency(discount, bcv.rate).bs
               : undefined
           }
-          icon="price_change"
+          icon="PriceChange"
           tone={discount > 0 ? "warning" : "default"}
         />
-        <StatCard label="Estado" value={st.label} icon="flag" />
+        <StatCard label="Estado" value={st.label} icon="Flag" />
       </div>
 
       {/* Metadata */}
-      <section className="border-border-subtle surface-card rounded-xl border p-6">
+      <section className="border-border bg-card border p-6">
         <h2 className="text-muted-foreground mb-4 text-xs font-medium tracking-widest uppercase">
           Información de la Propuesta
         </h2>
@@ -339,10 +310,10 @@ export default function QuoteDetailClient() {
           ].map((a) => (
             <div
               key={a.label}
-              className="border-border-subtle flex items-center justify-between gap-3 rounded-lg border p-3"
+              className="border-border flex items-center justify-between gap-3 border p-3"
             >
               <span className="text-muted-foreground text-sm">{a.label}</span>
-              <span className="text-foreground font-mono text-sm font-semibold tabular-nums">
+              <span className="text-foreground font-mono text-sm font-medium tabular-nums">
                 {a.value}
               </span>
             </div>
@@ -352,7 +323,7 @@ export default function QuoteDetailClient() {
 
       {/* Notes */}
       {quote.notes && (
-        <section className="border-border-subtle surface-card rounded-xl border p-6">
+        <section className="border-border bg-card border p-6">
           <h2 className="text-muted-foreground mb-2 text-xs font-medium tracking-widest uppercase">
             Términos y Observaciones
           </h2>
@@ -364,7 +335,7 @@ export default function QuoteDetailClient() {
 
       {/* Items */}
       {items.length > 0 && (
-        <section className="border-border-subtle surface-card gap-0 overflow-hidden rounded-xl border py-0">
+        <section className="border-border bg-card gap-0 overflow-hidden border py-0">
           <div className="px-4 pt-4 pb-1">
             <h2 className="text-muted-foreground text-xs font-medium tracking-widest uppercase">
               Productos Cotizados ({items.length})
@@ -404,11 +375,19 @@ export default function QuoteDetailClient() {
               {items.map((item, idx) => (
                 <TableRow key={item.id}>
                   <TableCell className={cellPx}>
-                    <span className="text-foreground font-mono text-xs font-medium tabular-nums">
-                      {item.productId
-                        ? `Prod #${item.productId.slice(0, 8)}`
-                        : `Ítem #${idx + 1}`}
-                    </span>
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-foreground text-xs font-medium">
+                        {item.productName ??
+                          (item.productId
+                            ? `Prod #${item.productId.slice(0, 8)}`
+                            : `Ítem #${idx + 1}`)}
+                      </span>
+                      {item.sku ? (
+                        <span className="text-muted-foreground font-mono text-[11px] tabular-nums">
+                          {item.sku}
+                        </span>
+                      ) : null}
+                    </div>
                   </TableCell>
                   <TableCell
                     className={`text-foreground ${cellPx} text-right font-mono text-xs tabular-nums`}
@@ -428,7 +407,7 @@ export default function QuoteDetailClient() {
                       : "—"}
                   </TableCell>
                   <TableCell
-                    className={`text-foreground ${cellPx} text-right font-mono text-xs font-semibold tabular-nums`}
+                    className={`text-foreground ${cellPx} text-right font-mono text-xs font-medium tabular-nums`}
                   >
                     ${Number(item.lineTotal).toFixed(2)}
                   </TableCell>

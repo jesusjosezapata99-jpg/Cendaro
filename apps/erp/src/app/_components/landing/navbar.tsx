@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, m } from "framer-motion";
 import {
   LayoutDashboard,
   Menu,
@@ -13,6 +13,7 @@ import {
   X,
 } from "lucide-react";
 
+import { ThemeToggleButton } from "./theme-toggle-button";
 import { useScrollY } from "./use-scroll-y";
 
 const navLinks = [
@@ -58,15 +59,17 @@ export function Navbar() {
               alt="Cendaro"
               width={32}
               height={32}
-              className="h-8 w-8"
+              // The mark is painted pure white on a transparent PNG (no dark
+              // ink at all) and disappears against a light-theme header;
+              // invert it back to visible in light mode (mirrors the same
+              // fix already applied to the app rail's logo).
+              className="h-8 w-8 invert dark:invert-0"
             />
-            <span className="text-lg font-semibold tracking-tight">
-              Cendaro
-            </span>
+            <span className="text-lg font-medium tracking-tight">Cendaro</span>
           </Link>
 
           {/* Desktop links */}
-          <div className="hidden items-center gap-8 md:flex">
+          <div className="hidden items-center gap-6 md:flex">
             {navLinks.map((link) => (
               <a
                 key={link.href}
@@ -81,41 +84,45 @@ export function Navbar() {
                 {link.label}
               </a>
             ))}
+            <ThemeToggleButton />
             <Link
               href="/login"
-              className="bg-foreground text-background cursor-pointer rounded-lg px-4 py-2 text-sm font-medium transition-all duration-200 hover:opacity-90 active:scale-[0.97]"
+              className="bg-foreground text-background cursor-pointer px-4 py-2 text-sm font-medium transition-all duration-200 hover:opacity-90 active:scale-[0.97]"
             >
               Empezar gratis
             </Link>
           </div>
 
-          {/* Mobile hamburger */}
-          <button
-            type="button"
-            className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-lg md:hidden"
-            onClick={() => setMobileOpen(!mobileOpen)}
-            aria-label={mobileOpen ? "Cerrar menú" : "Abrir menú"}
-          >
-            {mobileOpen ? (
-              <X className="h-5 w-5" />
-            ) : (
-              <Menu className="h-5 w-5" />
-            )}
-          </button>
+          {/* Mobile: theme toggle + hamburger */}
+          <div className="flex items-center gap-1 md:hidden">
+            <ThemeToggleButton />
+            <button
+              type="button"
+              className="flex h-11 w-11 cursor-pointer items-center justify-center"
+              onClick={() => setMobileOpen(!mobileOpen)}
+              aria-label={mobileOpen ? "Cerrar menú" : "Abrir menú"}
+            >
+              {mobileOpen ? (
+                <X className="h-5 w-5" />
+              ) : (
+                <Menu className="h-5 w-5" />
+              )}
+            </button>
+          </div>
         </nav>
       </header>
 
       {/* Mobile menu */}
       <AnimatePresence>
         {mobileOpen && (
-          <motion.div
+          <m.div
             className="bg-background fixed inset-0 z-40 flex flex-col px-6 pt-20 md:hidden"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
           >
-            <motion.div
+            <m.div
               className="flex flex-col gap-2"
               initial="hidden"
               animate="visible"
@@ -125,10 +132,10 @@ export function Navbar() {
               }}
             >
               {navLinks.map((link) => (
-                <motion.a
+                <m.a
                   key={link.href}
                   href={link.href}
-                  className="text-foreground hover:bg-muted cursor-pointer rounded-lg px-4 py-3 text-lg transition-colors"
+                  className="text-foreground hover:bg-muted cursor-pointer px-4 py-3 text-lg transition-colors"
                   onClick={() => setMobileOpen(false)}
                   variants={{
                     hidden: { opacity: 0, x: -20 },
@@ -136,15 +143,15 @@ export function Navbar() {
                   }}
                 >
                   {link.label}
-                </motion.a>
+                </m.a>
               ))}
 
               <div className="border-border my-4 border-t" />
 
               {mobileFeatures.map((feature) => (
-                <motion.div
+                <m.div
                   key={feature.label}
-                  className="text-muted-foreground flex items-center gap-3 rounded-lg px-4 py-3"
+                  className="text-muted-foreground flex items-center gap-3 px-4 py-3"
                   variants={{
                     hidden: { opacity: 0, x: -20 },
                     visible: { opacity: 1, x: 0 },
@@ -152,10 +159,10 @@ export function Navbar() {
                 >
                   <feature.icon className="h-5 w-5" strokeWidth={1.5} />
                   <span className="text-sm">{feature.label}</span>
-                </motion.div>
+                </m.div>
               ))}
 
-              <motion.div
+              <m.div
                 className="mt-6"
                 variants={{
                   hidden: { opacity: 0, y: 10 },
@@ -164,14 +171,14 @@ export function Navbar() {
               >
                 <Link
                   href="/login"
-                  className="bg-foreground text-background block w-full cursor-pointer rounded-lg py-3 text-center text-sm font-medium"
+                  className="bg-foreground text-background block w-full cursor-pointer py-3 text-center text-sm font-medium"
                   onClick={() => setMobileOpen(false)}
                 >
                   Empezar gratis
                 </Link>
-              </motion.div>
-            </motion.div>
-          </motion.div>
+              </m.div>
+            </m.div>
+          </m.div>
         )}
       </AnimatePresence>
     </>

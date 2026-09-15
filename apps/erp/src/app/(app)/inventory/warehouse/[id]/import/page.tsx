@@ -7,7 +7,19 @@
  * PRD: FEATURE_PRD_INVENTORY_IMPORT.md §15
  */
 
-import { InventoryImportWizard } from "~/modules/receiving/inventory-import/inventory-import-wizard";
+import dynamic from "next/dynamic";
+
+import { ListPageSkeleton } from "~/components/skeleton";
+
+const InventoryImportWizard = dynamic(
+  () =>
+    import("~/modules/receiving/inventory-import/inventory-import-wizard").then(
+      (m) => m.InventoryImportWizard,
+    ),
+  {
+    loading: () => <ListPageSkeleton />,
+  },
+);
 
 interface PageProps {
   params: Promise<{ id: string }>;

@@ -10,6 +10,7 @@
 import { useMemo, useState } from "react";
 
 import type { ImportMode, ValidatedRow } from "@cendaro/api";
+import { Icons } from "@cendaro/ui/icons";
 
 import type { InitializeValidatedRow } from "../lib/inventory-validators";
 
@@ -153,14 +154,14 @@ export function DryRunSummary({
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <div className="text-center">
-        <h2 className="text-foreground text-xl font-bold">
+        <h2 className="text-foreground text-xl font-medium">
           Resumen de Importación
         </h2>
         <p className="text-muted-foreground mt-1 text-sm">
           Almacén:{" "}
-          <span className="text-foreground font-semibold">{warehouseName}</span>{" "}
-          — Modo:{" "}
-          <span className="text-foreground font-semibold">
+          <span className="text-foreground font-medium">{warehouseName}</span> —
+          Modo:{" "}
+          <span className="text-foreground font-medium">
             {MODE_LABELS[mode]}
           </span>
         </p>
@@ -170,38 +171,30 @@ export function DryRunSummary({
       {isInitialize ? (
         // Initialize mode cards
         <div className="grid gap-4 sm:grid-cols-4">
-          <div className="border-border bg-card rounded-xl border p-4 text-center">
-            <span className="material-symbols-outlined text-2xl text-emerald-600">
-              inventory_2
-            </span>
-            <p className="text-foreground mt-1 text-2xl font-black">
+          <div className="border-border bg-card border p-4 text-center">
+            <Icons.Inventory2 className="size-6 text-emerald-600" />
+            <p className="text-foreground mt-1 font-mono text-2xl font-medium tabular-nums">
               {summary.toCommit}
             </p>
             <p className="text-muted-foreground text-xs">Productos a crear</p>
           </div>
-          <div className="border-border bg-card rounded-xl border p-4 text-center">
-            <span className="material-symbols-outlined text-2xl text-blue-600">
-              category
-            </span>
-            <p className="text-foreground mt-1 text-2xl font-black">
+          <div className="border-border bg-card border p-4 text-center">
+            <Icons.Category className="size-6 text-blue-600" />
+            <p className="text-foreground mt-1 font-mono text-2xl font-medium tabular-nums">
               {summary.brandsCount}
             </p>
             <p className="text-muted-foreground text-xs">Marcas a crear</p>
           </div>
-          <div className="border-border bg-card rounded-xl border p-4 text-center">
-            <span className="material-symbols-outlined text-2xl text-amber-600">
-              package_2
-            </span>
-            <p className="text-foreground mt-1 text-2xl font-black">
+          <div className="border-border bg-card border p-4 text-center">
+            <Icons.Package2 className="size-6 text-amber-600" />
+            <p className="text-foreground mt-1 font-mono text-2xl font-medium tabular-nums">
               {summary.totalBultos}
             </p>
             <p className="text-muted-foreground text-xs">Bultos totales</p>
           </div>
-          <div className="border-border bg-card rounded-xl border p-4 text-center">
-            <span className="material-symbols-outlined text-2xl text-sky-600">
-              deployed_code
-            </span>
-            <p className="text-foreground mt-1 text-2xl font-black">
+          <div className="border-border bg-card border p-4 text-center">
+            <Icons.DeployedCode className="size-6 text-sky-600" />
+            <p className="text-foreground mt-1 font-mono text-2xl font-medium tabular-nums">
               {summary.totalPositiveDelta}
             </p>
             <p className="text-muted-foreground text-xs">Unidades totales</p>
@@ -210,33 +203,27 @@ export function DryRunSummary({
       ) : (
         // Replace / Adjust mode cards
         <div className="grid gap-4 sm:grid-cols-3">
-          <div className="border-border bg-card rounded-xl border p-4 text-center">
-            <span className="material-symbols-outlined text-2xl text-emerald-600">
-              check_circle
-            </span>
-            <p className="text-foreground mt-1 text-2xl font-black">
+          <div className="border-border bg-card border p-4 text-center">
+            <Icons.CheckCircle className="size-6 text-emerald-600" />
+            <p className="text-foreground mt-1 font-mono text-2xl font-medium tabular-nums">
               {summary.toCommit}
             </p>
             <p className="text-muted-foreground text-xs">
               Productos a actualizar
             </p>
           </div>
-          <div className="border-border bg-card rounded-xl border p-4 text-center">
-            <span className="material-symbols-outlined text-2xl text-blue-600">
-              trending_up
-            </span>
-            <p className="text-foreground mt-1 text-2xl font-black">
+          <div className="border-border bg-card border p-4 text-center">
+            <Icons.TrendingUp className="size-6 text-blue-600" />
+            <p className="text-foreground mt-1 font-mono text-2xl font-medium tabular-nums">
               {summary.totalPositiveDelta > 0
                 ? `+${summary.totalPositiveDelta}`
                 : "0"}
             </p>
             <p className="text-muted-foreground text-xs">Delta positivo</p>
           </div>
-          <div className="border-border bg-card rounded-xl border p-4 text-center">
-            <span className="material-symbols-outlined text-2xl text-red-600">
-              trending_down
-            </span>
-            <p className="text-foreground mt-1 text-2xl font-black">
+          <div className="border-border bg-card border p-4 text-center">
+            <Icons.TrendingDown className="size-6 text-red-600" />
+            <p className="text-foreground mt-1 font-mono text-2xl font-medium tabular-nums">
               {summary.totalNegativeDelta}
             </p>
             <p className="text-muted-foreground text-xs">Delta negativo</p>
@@ -245,14 +232,14 @@ export function DryRunSummary({
       )}
 
       {/* Net change */}
-      <div className="border-border bg-card rounded-xl border p-4">
+      <div className="border-border bg-card border p-4">
         {isInitialize ? (
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground text-sm font-medium">
                 Bultos totales
               </span>
-              <span className="text-xl font-black text-amber-500">
+              <span className="font-mono text-xl font-medium text-amber-500 tabular-nums">
                 +{summary.totalBultos}
               </span>
             </div>
@@ -261,7 +248,7 @@ export function DryRunSummary({
               <span className="text-muted-foreground text-sm font-medium">
                 Unidades totales
               </span>
-              <span className="text-xl font-black text-emerald-600">
+              <span className="font-mono text-xl font-medium text-emerald-600 tabular-nums">
                 +{summary.netDelta}
               </span>
             </div>
@@ -272,7 +259,7 @@ export function DryRunSummary({
               Cambio neto total
             </span>
             <span
-              className={`text-xl font-black ${
+              className={`font-mono text-xl font-medium tabular-nums ${
                 summary.netDelta > 0
                   ? "text-emerald-600"
                   : summary.netDelta < 0
@@ -294,13 +281,13 @@ export function DryRunSummary({
 
       {/* Locked products option (owner/admin only) — not shown in Initialize */}
       {!isInitialize && summary.locked > 0 && canForceLock && (
-        <div className="border-border bg-card rounded-xl border p-4">
+        <div className="border-border bg-card border p-4">
           <label className="flex cursor-pointer items-start gap-3">
             <input
               type="checkbox"
               checked={forceLocked}
               onChange={(e) => onSetForceLocked(e.target.checked)}
-              className="border-border mt-0.5 size-4 rounded"
+              className="border-border mt-0.5 size-4 rounded-none"
             />
             <div>
               <p className="text-foreground text-sm font-medium">
@@ -331,7 +318,7 @@ export function DryRunSummary({
           disabled={isProcessing}
           className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5 text-sm font-medium transition-colors disabled:opacity-50"
         >
-          <span className="material-symbols-outlined text-lg">arrow_back</span>
+          <Icons.ArrowBack className="size-4.5" />
           Volver
         </button>
         <button
@@ -342,7 +329,7 @@ export function DryRunSummary({
               ? "Debe corregir todos los errores antes de continuar"
               : undefined
           }
-          className="bg-primary hover:bg-primary/90 inline-flex items-center gap-2 rounded-lg px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+          className="bg-primary hover:bg-primary/90 inline-flex h-9 items-center gap-2 px-4 text-xs font-medium text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50"
         >
           {isProcessing ? (
             <>
@@ -351,12 +338,12 @@ export function DryRunSummary({
             </>
           ) : hasErrors ? (
             <>
-              <span className="material-symbols-outlined text-lg">block</span>
+              <Icons.Block className="size-4.5" />
               Corregir errores para continuar
             </>
           ) : (
             <>
-              <span className="material-symbols-outlined text-lg">upload</span>
+              <Icons.Upload className="size-4.5" />
               {isInitialize
                 ? `Inicializar ${summary.toCommit} productos`
                 : `Importar ${summary.toCommit} productos`}
@@ -368,13 +355,11 @@ export function DryRunSummary({
       {/* Confirmation dialog */}
       {showConfirmDialog && (
         <div className="bg-background/80 fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm">
-          <div className="border-border bg-card mx-4 w-full max-w-md rounded-xl border p-6 shadow-xl">
+          <div className="border-border bg-card mx-4 w-full max-w-md border p-6">
             <div className="flex items-start gap-3">
-              <span className="material-symbols-outlined rounded-lg bg-amber-100 p-2 text-2xl text-amber-600 dark:bg-amber-900/30">
-                warning
-              </span>
+              <Icons.Warning className="bg-warning/10 text-warning size-6 p-1" />
               <div>
-                <h3 className="text-foreground text-lg font-bold">
+                <h3 className="text-foreground text-lg font-medium">
                   {isInitialize
                     ? "Confirmar Inicialización"
                     : "Confirmar Importación"}
@@ -387,13 +372,13 @@ export function DryRunSummary({
                       producto
                       {summary.toCommit !== 1 ? "s" : ""} y{" "}
                       {summary.totalPositiveDelta} unidades de stock en{" "}
-                      <span className="font-semibold">{warehouseName}</span>.
+                      <span className="font-medium">{warehouseName}</span>.
                     </>
                   ) : (
                     <>
                       Se actualizarán {summary.toCommit} productos en{" "}
-                      <span className="font-semibold">{warehouseName}</span>.
-                      Esta acción no se puede deshacer fácilmente.
+                      <span className="font-medium">{warehouseName}</span>. Esta
+                      acción no se puede deshacer fácilmente.
                     </>
                   )}
                 </p>
@@ -408,7 +393,7 @@ export function DryRunSummary({
               </button>
               <button
                 onClick={handleFinalConfirm}
-                className="bg-primary hover:bg-primary/90 rounded-lg px-6 py-2 text-sm font-semibold text-white transition-colors"
+                className="bg-primary hover:bg-primary/90 h-9 px-4 text-xs font-medium text-white transition-colors"
               >
                 Confirmar
               </button>
@@ -438,18 +423,16 @@ function ErrorBlockingPanel({
   const hasMore = hidden.length > 0;
 
   return (
-    <div className="space-y-3 rounded-xl border border-red-200 bg-red-50 p-4 dark:border-red-900 dark:bg-red-900/15">
+    <div className="border-destructive/30 bg-destructive/10 space-y-3 border p-4">
       {/* Header */}
       <div className="flex items-center gap-2">
-        <span className="material-symbols-outlined text-xl text-red-600 dark:text-red-400">
-          error
-        </span>
+        <Icons.Error className="text-destructive size-5" />
         <div>
-          <p className="text-sm font-semibold text-red-700 dark:text-red-300">
+          <p className="text-destructive text-sm font-medium">
             {errorRows.length} error{errorRows.length !== 1 ? "es" : ""}{" "}
             encontrado{errorRows.length !== 1 ? "s" : ""}
           </p>
-          <p className="text-xs text-red-600/80 dark:text-red-400/80">
+          <p className="text-destructive/80 text-xs">
             {isInitialize
               ? "Corrija los errores en su archivo Excel y vuelva a subir."
               : "Corrija los errores en su archivo Excel y vuelva a importar."}
@@ -469,13 +452,11 @@ function ErrorBlockingPanel({
         <div>
           <button
             onClick={() => setExpanded(!expanded)}
-            className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium text-red-700 transition-colors hover:bg-red-100 dark:text-red-400 dark:hover:bg-red-900/30"
+            className="text-destructive hover:bg-destructive/20 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors"
           >
-            <span
-              className={`material-symbols-outlined text-sm transition-transform ${expanded ? "rotate-180" : ""}`}
-            >
-              expand_more
-            </span>
+            <Icons.ExpandMore
+              className={`size-3.5 transition-transform ${expanded ? "rotate-180" : ""}`}
+            />
             {expanded
               ? "Ocultar"
               : `Ver ${hidden.length} error${hidden.length !== 1 ? "es" : ""} más`}
@@ -500,19 +481,19 @@ function ErrorRow({
   error: { rowNumber: number; context: string; message: string };
 }) {
   return (
-    <div className="rounded-lg border border-red-200/60 bg-white/60 px-3 py-2.5 dark:border-red-800/40 dark:bg-red-950/30">
+    <div className="border-destructive/20 bg-background/60 border px-3 py-2.5">
       <div className="flex items-start gap-3">
         {/* Row badge */}
-        <span className="mt-0.5 shrink-0 rounded bg-red-100 px-1.5 py-0.5 font-mono text-xs font-bold text-red-700 dark:bg-red-900/50 dark:text-red-300">
+        <span className="bg-destructive/15 text-destructive mt-0.5 shrink-0 px-1.5 py-0.5 font-mono text-xs font-medium">
           Fila {error.rowNumber}
         </span>
 
         {/* Details — text wraps for readability */}
         <div className="min-w-0 flex-1">
-          <p className="text-xs font-medium text-red-800 dark:text-red-300">
+          <p className="text-destructive text-xs font-medium">
             {error.context}
           </p>
-          <p className="mt-0.5 text-xs leading-relaxed text-wrap text-red-600 dark:text-red-400">
+          <p className="text-destructive/80 mt-0.5 text-xs leading-relaxed text-wrap">
             {error.message}
           </p>
         </div>
@@ -536,24 +517,20 @@ function BrandsDropdown({
   );
 
   return (
-    <div className="border-border bg-card rounded-xl border">
+    <div className="border-border bg-card border">
       <button
         onClick={() => setExpanded(!expanded)}
         className="hover:bg-muted/50 flex w-full items-center justify-between px-4 py-3 text-left transition-colors"
       >
         <div className="flex items-center gap-2">
-          <span className="material-symbols-outlined text-lg text-emerald-600">
-            category
-          </span>
+          <Icons.Category className="size-4.5 text-emerald-600" />
           <span className="text-foreground text-sm font-medium">
             Marcas nuevas a crear ({brands.length})
           </span>
         </div>
-        <span
-          className={`material-symbols-outlined text-muted-foreground text-lg transition-transform ${expanded ? "rotate-180" : ""}`}
-        >
-          expand_more
-        </span>
+        <Icons.ExpandMore
+          className={`text-muted-foreground size-4.5 transition-transform ${expanded ? "rotate-180" : ""}`}
+        />
       </button>
 
       {expanded && (

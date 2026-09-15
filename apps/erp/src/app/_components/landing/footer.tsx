@@ -58,7 +58,7 @@ export function Footer() {
         <div className="grid grid-cols-2 gap-8 md:grid-cols-4">
           {Object.entries(footerLinks).map(([category, links]) => (
             <div key={category}>
-              <h4 className="text-foreground text-sm font-semibold">
+              <h4 className="text-foreground text-sm font-medium">
                 {category}
               </h4>
               <ul className="mt-4 space-y-3">
@@ -86,7 +86,7 @@ export function Footer() {
               alt="Cendaro"
               width={24}
               height={24}
-              className="h-6 w-6"
+              className="h-6 w-6 invert dark:invert-0"
             />
             <span className="text-muted-foreground text-sm">
               © 2026 Cendaro. Todos los derechos reservados.
@@ -99,7 +99,7 @@ export function Footer() {
               href="https://github.com/cendaro"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-muted-foreground hover:bg-muted hover:text-foreground flex h-11 w-11 items-center justify-center rounded-lg transition-colors duration-200"
+              className="text-muted-foreground hover:bg-muted hover:text-foreground flex h-11 w-11 items-center justify-center transition-colors duration-200"
               aria-label="GitHub"
             >
               <GitHubIcon />
@@ -108,7 +108,7 @@ export function Footer() {
               href="https://x.com/cendaro"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-muted-foreground hover:bg-muted hover:text-foreground flex h-8 w-8 items-center justify-center rounded-lg transition-colors duration-200"
+              className="text-muted-foreground hover:bg-muted hover:text-foreground flex h-8 w-8 items-center justify-center transition-colors duration-200"
               aria-label="X (Twitter)"
             >
               <TwitterIcon />
@@ -117,7 +117,7 @@ export function Footer() {
               href="https://linkedin.com/company/cendaro"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-muted-foreground hover:bg-muted hover:text-foreground flex h-8 w-8 items-center justify-center rounded-lg transition-colors duration-200"
+              className="text-muted-foreground hover:bg-muted hover:text-foreground flex h-8 w-8 items-center justify-center transition-colors duration-200"
               aria-label="LinkedIn"
             >
               <LinkedInIcon />
@@ -126,10 +126,10 @@ export function Footer() {
 
           {/* Right: Trust badges + location */}
           <div className="text-muted-foreground flex items-center gap-3 text-xs">
-            <span className="border-border rounded border px-2 py-1 opacity-60">
+            <span className="border-border border px-2 py-1 opacity-60">
               GDPR
             </span>
-            <span className="border-border rounded border px-2 py-1 opacity-60">
+            <span className="border-border border px-2 py-1 opacity-60">
               SOC 2
             </span>
             <span className="opacity-50">Hecho en 🇪🇸 España</span>

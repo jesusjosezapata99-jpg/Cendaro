@@ -11,6 +11,10 @@
  */
 import { useCallback, useMemo, useState } from "react";
 
+import type { IconName } from "@cendaro/ui/icons";
+import { Icon, Icons } from "@cendaro/ui/icons";
+import { StatusPill } from "@cendaro/ui/status-pill";
+
 import type { ImportState } from "../hooks/use-inventory-import";
 import type { InitializeValidatedRow } from "../lib/inventory-validators";
 
@@ -156,7 +160,7 @@ export function CatalogPreview({
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h2 className="text-foreground text-xl font-bold">
+        <h2 className="text-foreground text-xl font-medium">
           Vista Previa del Catálogo
         </h2>
         <p className="text-muted-foreground mt-1 text-sm">
@@ -170,7 +174,7 @@ export function CatalogPreview({
         <StatCard
           label="Marcas nuevas"
           value={newBrands.length}
-          icon="add_circle"
+          icon="AddCircle"
           color="emerald"
           isActive={catalogFilter === "newBrands"}
           onClick={() => handleFilterClick("newBrands")}
@@ -178,7 +182,7 @@ export function CatalogPreview({
         <StatCard
           label="Marcas existentes"
           value={existingBrands.length}
-          icon="check_circle"
+          icon="CheckCircle"
           color="sky"
           isActive={catalogFilter === "existingBrands"}
           onClick={() => handleFilterClick("existingBrands")}
@@ -186,7 +190,7 @@ export function CatalogPreview({
         <StatCard
           label="Productos nuevos"
           value={newProducts.length}
-          icon="inventory_2"
+          icon="Inventory2"
           color="emerald"
           isActive={catalogFilter === "newProducts"}
           onClick={() => handleFilterClick("newProducts")}
@@ -194,7 +198,7 @@ export function CatalogPreview({
         <StatCard
           label="Productos existentes"
           value={existingProducts.length}
-          icon="inventory"
+          icon="Inventory"
           color="sky"
           isActive={catalogFilter === "existingProducts"}
           onClick={() => handleFilterClick("existingProducts")}
@@ -208,9 +212,9 @@ export function CatalogPreview({
             setTab("brands");
             if (catalogFilter.includes("Product")) setCatalogFilter("all");
           }}
-          className={`rounded-t-lg px-4 py-2 text-sm font-medium transition-colors ${
+          className={`px-4 py-2 text-xs font-medium transition-colors ${
             tab === "brands"
-              ? "text-foreground -mb-px border-b-2 border-emerald-500"
+              ? "text-foreground border-primary -mb-px border-b-2"
               : "text-muted-foreground hover:text-foreground"
           }`}
         >
@@ -221,9 +225,9 @@ export function CatalogPreview({
             setTab("products");
             if (catalogFilter.includes("Brand")) setCatalogFilter("all");
           }}
-          className={`rounded-t-lg px-4 py-2 text-sm font-medium transition-colors ${
+          className={`px-4 py-2 text-xs font-medium transition-colors ${
             tab === "products"
-              ? "text-foreground -mb-px border-b-2 border-emerald-500"
+              ? "text-foreground border-primary -mb-px border-b-2"
               : "text-muted-foreground hover:text-foreground"
           }`}
         >
@@ -232,8 +236,8 @@ export function CatalogPreview({
       </div>
 
       {/* Table */}
-      <div className="bg-card border-border overflow-hidden rounded-lg border">
-        <div className="max-h-[400px] overflow-auto">
+      <div className="bg-card border-border overflow-hidden border">
+        <div className="max-h-100 overflow-auto">
           {tab === "brands" ? (
             <table className="w-full text-sm">
               <thead className="bg-muted/50 sticky top-0">
@@ -337,16 +341,14 @@ export function CatalogPreview({
           onClick={onBack}
           className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-sm transition-colors"
         >
-          <span className="material-symbols-outlined text-lg">arrow_back</span>
+          <Icons.ArrowBack className="size-4.5" />
           Volver
         </button>
         <button
           onClick={onProceed}
-          className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-6 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:bg-emerald-700 hover:shadow-lg active:scale-95"
+          className="bg-primary hover:bg-primary/90 inline-flex h-9 items-center gap-2 px-4 text-xs font-medium text-white transition-colors"
         >
-          <span className="material-symbols-outlined text-lg">
-            check_circle
-          </span>
+          <Icons.CheckCircle className="size-4.5" />
           Continuar al Resumen
         </button>
       </div>
@@ -393,7 +395,7 @@ function EditableCell({
             setEditing(false);
           }
         }}
-        className="bg-background border-border text-foreground -mx-1.5 w-full rounded-md border px-1.5 py-0.5 text-sm outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+        className="bg-background border-border text-foreground focus:border-primary -mx-1.5 w-full border px-1.5 py-0.5 text-xs outline-none"
       />
     );
   }
@@ -408,9 +410,7 @@ function EditableCell({
       title="Haz clic para editar"
     >
       <span className="min-w-0 truncate">{value}</span>
-      <span className="material-symbols-outlined text-muted-foreground shrink-0 text-xs opacity-0 transition-opacity group-hover:opacity-100">
-        edit
-      </span>
+      <Icons.Edit className="text-muted-foreground size-3 shrink-0 opacity-0 transition-opacity group-hover:opacity-100" />
     </button>
   );
 }
@@ -425,24 +425,24 @@ function StatCard({
 }: {
   label: string;
   value: number;
-  icon: string;
+  icon: IconName;
   color: "emerald" | "sky";
   isActive?: boolean;
   onClick?: () => void;
 }) {
   const colorClasses =
     color === "emerald"
-      ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-400"
-      : "border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-800 dark:bg-sky-900/20 dark:text-sky-400";
+      ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+      : "border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-400";
 
   const activeClasses = isActive
     ? color === "emerald"
-      ? "ring-2 ring-emerald-500/60 scale-[1.02] shadow-sm"
-      : "ring-2 ring-sky-500/60 scale-[1.02] shadow-sm"
+      ? "ring-1 ring-emerald-500"
+      : "ring-1 ring-sky-500"
     : "";
 
   const hoverClasses = onClick
-    ? "cursor-pointer hover:shadow-sm hover:scale-[1.01] active:scale-[0.98] transition-all"
+    ? "cursor-pointer hover:border-primary/40 transition-colors"
     : "";
 
   const Tag = onClick ? "button" : "div";
@@ -450,11 +450,13 @@ function StatCard({
   return (
     <Tag
       onClick={onClick}
-      className={`rounded-lg border p-3 text-left ${colorClasses} ${activeClasses} ${hoverClasses}`}
+      className={`border p-3 text-left ${colorClasses} ${activeClasses} ${hoverClasses}`}
     >
       <div className="flex items-center gap-2">
-        <span className="material-symbols-outlined text-xl">{icon}</span>
-        <span className="text-2xl font-bold">{value}</span>
+        <Icon name={icon} className="size-5" />
+        <span className="font-mono text-2xl font-medium tabular-nums">
+          {value}
+        </span>
       </div>
       <p className="mt-1 text-xs font-medium opacity-80">{label}</p>
     </Tag>
@@ -462,18 +464,9 @@ function StatCard({
 }
 
 function StatusBadge({ isNew }: { isNew: boolean }) {
-  if (isNew) {
-    return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
-        <span className="material-symbols-outlined text-sm">add_circle</span>
-        Nueva
-      </span>
-    );
-  }
   return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-400">
-      <span className="material-symbols-outlined text-sm">check_circle</span>
-      Existente
-    </span>
+    <StatusPill tone={isNew ? "success" : "neutral"}>
+      {isNew ? "Nueva" : "Existente"}
+    </StatusPill>
   );
 }

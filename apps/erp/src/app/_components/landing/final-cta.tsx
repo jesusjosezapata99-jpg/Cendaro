@@ -10,7 +10,7 @@ export function FinalCTA() {
         className="pointer-events-none absolute inset-0 flex items-center justify-center"
         aria-hidden="true"
       >
-        <span className="font-serif text-[20vw] leading-none font-bold opacity-[0.03] select-none">
+        <span className="font-serif text-[20vw] leading-none font-medium opacity-[0.03] select-none">
           Cendaro
         </span>
       </div>
@@ -27,7 +27,7 @@ export function FinalCTA() {
           <div className="mt-10">
             <a
               href="/login"
-              className="group bg-background text-foreground inline-flex cursor-pointer items-center gap-2 rounded-lg px-8 py-3 text-base font-medium transition-all duration-200 hover:opacity-90 active:scale-[0.97]"
+              className="group bg-background text-foreground inline-flex cursor-pointer items-center gap-2 px-8 py-3 text-base font-medium transition-all duration-200 hover:opacity-90 active:scale-[0.97]"
             >
               Empezar gratis
               <ArrowRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5" />

@@ -4,7 +4,8 @@
  * PRD §23: Approval workflow for price changes, container close, cash closure, etc.
  * @see docs/architecture/module_api_blueprint_v1.md — Audit & Approvals
  */
-import { desc, eq } from "drizzle-orm";
+import { TRPCError } from "@trpc/server";
+import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import { Approval, approvalTypeEnum, Signature } from "@cendaro/db/schema";
@@ -35,7 +36,12 @@ export const approvalsRouter = createTRPCRouter({
           expiresAt: Approval.expiresAt,
         })
         .from(Approval)
-        .where(eq(Approval.status, "pending"))
+        .where(
+          and(
+            eq(Approval.status, "pending"),
+            eq(Approval.workspaceId, ctx.workspace.workspaceId),
+          ),
+        )
         .orderBy(desc(Approval.requestedAt))
         .limit(input.limit)
         .offset(input.offset);
@@ -51,7 +57,13 @@ export const approvalsRouter = createTRPCRouter({
       }),
     )
     .query(async ({ ctx, input }) => {
-      let query = ctx.db
+      const conditions = [eq(Approval.workspaceId, ctx.workspace.workspaceId)];
+
+      if (input.type) {
+        conditions.push(eq(Approval.approvalType, input.type));
+      }
+
+      return ctx.db
         .select({
           id: Approval.id,
           approvalType: Approval.approvalType,
@@ -65,13 +77,7 @@ export const approvalsRouter = createTRPCRouter({
           reason: Approval.reason,
         })
         .from(Approval)
-        .$dynamic();
-
-      if (input.type) {
-        query = query.where(eq(Approval.approvalType, input.type));
-      }
-
-      return query
+        .where(and(...conditions))
         .orderBy(desc(Approval.requestedAt))
         .limit(input.limit)
         .offset(input.offset);
@@ -84,7 +90,12 @@ export const approvalsRouter = createTRPCRouter({
       const [approval] = await ctx.db
         .select()
         .from(Approval)
-        .where(eq(Approval.id, input.id))
+        .where(
+          and(
+            eq(Approval.id, input.id),
+            eq(Approval.workspaceId, ctx.workspace.workspaceId),
+          ),
+        )
         .limit(1);
 
       if (!approval) return null;
@@ -92,7 +103,12 @@ export const approvalsRouter = createTRPCRouter({
       const signatures = await ctx.db
         .select()
         .from(Signature)
-        .where(eq(Signature.approvalId, input.id));
+        .where(
+          and(
+            eq(Signature.approvalId, input.id),
+            eq(Signature.workspaceId, ctx.workspace.workspaceId),
+          ),
+        );
 
       return { ...approval, signatures };
     }),
@@ -113,6 +129,7 @@ export const approvalsRouter = createTRPCRouter({
       const [approval] = await ctx.db
         .insert(Approval)
         .values({
+          workspaceId: ctx.workspace.workspaceId,
           approvalType: input.approvalType,
           entityType: input.entityType,
           entityId: input.entityId,
@@ -124,6 +141,7 @@ export const approvalsRouter = createTRPCRouter({
         .returning();
 
       await logAudit(ctx.db, ctx.user, {
+        workspaceId: ctx.workspace.workspaceId,
         action: "approval.request",
         entity: "approval",
         entityId: approval?.id,
@@ -146,8 +164,46 @@ export const approvalsRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const userRole = (ctx.user.user_metadata as { role?: string } | undefined)
-        ?.role;
+      if (!["owner", "admin", "supervisor"].includes(ctx.workspace.role)) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message:
+            "Solo supervisores, administradores o propietarios pueden aprobar solicitudes",
+        });
+      }
+
+      const [approval] = await ctx.db
+        .select()
+        .from(Approval)
+        .where(
+          and(
+            eq(Approval.id, input.id),
+            eq(Approval.workspaceId, ctx.workspace.workspaceId),
+          ),
+        )
+        .limit(1);
+
+      if (!approval) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Solicitud de aprobación no encontrada",
+        });
+      }
+
+      if (approval.status !== "pending") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `La solicitud ya fue ${approval.status === "approved" ? "aprobada" : "rechazada"}`,
+        });
+      }
+
+      if (approval.requestedBy === ctx.user.id) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message:
+            "Separación de funciones: no puedes auto-aprobar tu propia solicitud",
+        });
+      }
 
       const [updated] = await ctx.db
         .update(Approval)
@@ -157,20 +213,27 @@ export const approvalsRouter = createTRPCRouter({
           resolvedAt: new Date(),
           reason: input.reason,
         })
-        .where(eq(Approval.id, input.id))
+        .where(
+          and(
+            eq(Approval.id, input.id),
+            eq(Approval.workspaceId, ctx.workspace.workspaceId),
+          ),
+        )
         .returning();
 
       // Create signature record
-      if (updated && userRole) {
+      if (updated) {
         await ctx.db.insert(Signature).values({
+          workspaceId: ctx.workspace.workspaceId,
           approvalId: input.id,
           signedBy: ctx.user.id,
-          role: userRole as "owner" | "admin" | "supervisor",
+          role: ctx.workspace.role as "owner" | "admin" | "supervisor",
           action: "approve",
         });
       }
 
       await logAudit(ctx.db, ctx.user, {
+        workspaceId: ctx.workspace.workspaceId,
         action: "approval.approve",
         entity: "approval",
         entityId: input.id,
@@ -188,8 +251,46 @@ export const approvalsRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const userRole = (ctx.user.user_metadata as { role?: string } | undefined)
-        ?.role;
+      if (!["owner", "admin", "supervisor"].includes(ctx.workspace.role)) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message:
+            "Solo supervisores, administradores o propietarios pueden rechazar solicitudes",
+        });
+      }
+
+      const [approval] = await ctx.db
+        .select()
+        .from(Approval)
+        .where(
+          and(
+            eq(Approval.id, input.id),
+            eq(Approval.workspaceId, ctx.workspace.workspaceId),
+          ),
+        )
+        .limit(1);
+
+      if (!approval) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Solicitud de aprobación no encontrada",
+        });
+      }
+
+      if (approval.status !== "pending") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `La solicitud ya fue ${approval.status === "approved" ? "aprobada" : "rechazada"}`,
+        });
+      }
+
+      if (approval.requestedBy === ctx.user.id) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message:
+            "Separación de funciones: no puedes rechazar tu propia solicitud",
+        });
+      }
 
       const [updated] = await ctx.db
         .update(Approval)
@@ -199,19 +300,26 @@ export const approvalsRouter = createTRPCRouter({
           resolvedAt: new Date(),
           reason: input.reason,
         })
-        .where(eq(Approval.id, input.id))
+        .where(
+          and(
+            eq(Approval.id, input.id),
+            eq(Approval.workspaceId, ctx.workspace.workspaceId),
+          ),
+        )
         .returning();
 
-      if (updated && userRole) {
+      if (updated) {
         await ctx.db.insert(Signature).values({
+          workspaceId: ctx.workspace.workspaceId,
           approvalId: input.id,
           signedBy: ctx.user.id,
-          role: userRole as "owner" | "admin" | "supervisor",
+          role: ctx.workspace.role as "owner" | "admin" | "supervisor",
           action: "reject",
         });
       }
 
       await logAudit(ctx.db, ctx.user, {
+        workspaceId: ctx.workspace.workspaceId,
         action: "approval.reject",
         entity: "approval",
         entityId: input.id,
