@@ -3,6 +3,7 @@
   "buildCommand": "pnpm build",
   "installCommand": "pnpm install",
   "framework": "nextjs",
+  "regions": ["cdg1"],
   "outputDirectory": ".next",
   "ignoreCommand": "npx turbo-ignore"
 }

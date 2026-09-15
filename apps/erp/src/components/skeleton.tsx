@@ -1,8 +1,56 @@
+import Image from "next/image";
+
 import { Skeleton as UiSkeleton } from "@cendaro/ui";
 
 import { Delayed } from "~/components/delayed";
 
 export { UiSkeleton as Skeleton };
+
+/**
+ * First-paint fallback for the authenticated app layout while the server
+ * resolves the shell data (user, workspaces, rates). Renders the static
+ * chrome — rail, logo, header rule — with the exact geometry of `Rail`,
+ * `Header` and `AppShell` (w-17.5 / h-17.5 / md:ml-17.5), so the frame is
+ * painted immediately instead of a blank screen and nothing shifts when the
+ * real shell streams in. The frame itself is NOT delayed (it is identical
+ * to what replaces it); only the pulsing content placeholder is.
+ */
+export function ShellSkeleton() {
+  return (
+    <div className="flex h-dvh overflow-hidden" aria-busy="true">
+      <div className="border-border bg-background fixed top-0 z-50 hidden h-screen w-17.5 border-r md:block">
+        <div className="border-border relative h-17.5 w-17.25 border-b">
+          <Image
+            src="/cendaro-logo.png"
+            alt=""
+            width={24}
+            height={24}
+            className="absolute top-1/2 left-5.5 size-6 -translate-y-1/2 invert dark:invert-0"
+            priority
+          />
+        </div>
+      </div>
+      <div className="flex flex-1 flex-col overflow-hidden md:ml-17.5">
+        <div className="border-border h-17.5 shrink-0 md:border-b" />
+        <div className="bg-background flex-1 px-4 md:px-8">
+          <Delayed>
+            <div className="animate-in fade-in space-y-6 py-4 duration-200 lg:py-8">
+              <div className="space-y-2">
+                <UiSkeleton className="h-8 w-56" />
+                <UiSkeleton className="h-4 w-48" />
+              </div>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <UiSkeleton key={i} className="h-52 w-full" />
+                ))}
+              </div>
+            </div>
+          </Delayed>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 /**
  * Suspense fallback shaped like the standard list pages (header, stat

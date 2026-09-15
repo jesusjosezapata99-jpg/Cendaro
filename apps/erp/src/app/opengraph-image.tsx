@@ -1,10 +1,19 @@
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { ImageResponse } from "next/og";
 
 export const alt = "Cendaro — ERP Omnicanal";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
-export default function OGImage() {
+export default async function OGImage() {
+  // Embed the logo from /public instead of fetching it over the network:
+  // the previous `https://cendaro.com/cendaro-logo.png` fetch failed at build
+  // time ("Can't load image … fetch failed"), so every shared link preview
+  // shipped without the logo. Reading the local file is deterministic.
+  const logo = await readFile(join(process.cwd(), "public/cendaro-logo.png"));
+  const logoSrc = `data:image/png;base64,${logo.toString("base64")}`;
+
   return new ImageResponse(
     <div
       style={{
@@ -36,7 +45,7 @@ export default function OGImage() {
 
       {/* Logo */}
       <img
-        src={new URL("/cendaro-logo.png", "https://cendaro.com").toString()}
+        src={logoSrc}
         alt="Cendaro"
         width={64}
         height={64}

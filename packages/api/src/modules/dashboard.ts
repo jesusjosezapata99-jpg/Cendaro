@@ -94,7 +94,7 @@ const LOW_STOCK_THRESHOLD = 5;
 const EXCLUDED_ORDER_STATUSES = ["cancelled", "returned"] as const;
 
 async function computeSales(ctx: Context, range: PeriodRange) {
-  const rows = await ctx.db.execute<{
+  const { rows } = await ctx.db.execute<{
     bucket: string | Date;
     total: string;
     order_count: string;
@@ -121,7 +121,7 @@ async function computeSales(ctx: Context, range: PeriodRange) {
 }
 
 async function computeGrossProfit(ctx: Context, range: PeriodRange) {
-  const rows = await ctx.db.execute<{
+  const { rows } = await ctx.db.execute<{
     bucket: string | Date;
     revenue: string;
     cost: string;
@@ -186,7 +186,7 @@ async function computeReceivables(ctx: Context) {
 }
 
 async function computeLowStock(ctx: Context) {
-  const topRows = await ctx.db.execute<{
+  const { rows: topRows } = await ctx.db.execute<{
     name: string;
     qty: string;
   }>(sql`
@@ -200,7 +200,9 @@ async function computeLowStock(ctx: Context) {
     LIMIT 5
   `);
 
-  const [countRow] = await ctx.db.execute<{ total: string }>(sql`
+  const {
+    rows: [countRow],
+  } = await ctx.db.execute<{ total: string }>(sql`
     SELECT COUNT(*)::text AS total FROM (
       SELECT sl.product_id
       FROM stock_ledger sl
@@ -254,7 +256,7 @@ async function computeRate(ctx: Context) {
 }
 
 async function computeTopProducts(ctx: Context, range: PeriodRange) {
-  const rows = await ctx.db.execute<{
+  const { rows } = await ctx.db.execute<{
     name: string;
     qty: string;
     total: string;
