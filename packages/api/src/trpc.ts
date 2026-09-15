@@ -146,12 +146,22 @@ export interface WorkspaceMembership {
   plan: (typeof workspacePlanEnum.enumValues)[number];
 }
 
+const UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Validate that a value is a standard RFC 4122 UUID */
+export function isValidUuid(val: unknown): val is string {
+  return typeof val === "string" && UUID_REGEX.test(val);
+}
+
 export const createTRPCContext = (opts: {
   headers: Headers;
   user: AuthenticatedUser | null;
 }) => {
   const requestId = opts.headers.get("x-request-id") ?? generateRequestId();
-  const workspaceId = opts.headers.get("x-workspace-id") ?? null;
+  const rawWorkspaceId = opts.headers.get("x-workspace-id");
+  const workspaceId =
+    rawWorkspaceId && isValidUuid(rawWorkspaceId) ? rawWorkspaceId : null;
 
   // Create a request-scoped logger with user context
   const userRole = opts.user?.user_metadata?.role;
@@ -407,6 +417,20 @@ async function resolveWorkspaceMembership(
     throw new TRPCError({
       code: "BAD_REQUEST",
       message: "x-workspace-id header is required",
+    });
+  }
+
+  if (!isValidUuid(ctx.workspaceId)) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "x-workspace-id header must be a valid UUID",
+    });
+  }
+
+  if (!isValidUuid(ctx.user.id)) {
+    throw new TRPCError({
+      code: "UNAUTHORIZED",
+      message: "User ID must be a valid UUID",
     });
   }
 

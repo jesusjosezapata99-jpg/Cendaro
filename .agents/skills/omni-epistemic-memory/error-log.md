@@ -1,7 +1,7 @@
 ---
-version: "3.6"
-last-audit: "2026-09-13"
-entries: 18
+version: "3.7"
+last-audit: "2026-09-15"
+entries: 19
 shared-by: ["Gemini/Antigravity"]
 ---
 
@@ -41,6 +41,7 @@ This file is the **single source of truth** for error history. Every entry makes
 | 24  | Always import and use `m.*` components inside `<LazyMotion strict>` trees; never import or render `motion.*` components to prevent runtime tree-shaking violations.                                                                   | Framer Motion / Next.js      |
 | 25  | Filter out all Recharts internal props (`allowEscapeViewBox`, `coordinate`, etc.) in custom tooltip and legend content before spreading `...props` to native DOM elements (`<div>`) to prevent React 19 DOM attribute console errors. | Recharts / React 19 / UI     |
 | 26  | In raw SQL queries (`sql` tagged template), always use `date.toISOString()` for timestamp parameters (preventing locale-dependent date formatting on Windows) and explicitly cast enum columns (`status::text NOT IN (...)`).         | Drizzle / Postgres / Raw SQL |
+| 27  | Validate RFC 4122 UUID format on `x-workspace-id` header in tRPC context & middleware before passing to PostgreSQL queries (`::uuid`) to prevent unhandled Postgres 22P02 `INTERNAL_SERVER_ERROR` (500).                              | Multi-tenant tRPC / Postgres |
 
 ## Entry Template
 
@@ -254,16 +255,32 @@ This file is the **single source of truth** for error history. Every entry makes
 - **Severity**: Critical (Endpoint Runtime 500)
 - **Recurrence**: 1st (Rule #26)
 
+### [2026-09-15] PostgreSQL Error 22P02: invalid input syntax for type uuid: "undefined" in `catalog.listProducts` (500 Error)
+
+- **Error**: `https://cendaro-erp.vercel.app/catalog` failed with HTTP 500 (`INTERNAL_SERVER_ERROR`) on `GET /api/trpc/catalog.listProducts?batch=1&input=...`. The UI showed "TOTAL PRODUCTOS 0", "MOSTRANDO 0", and the `DataTableErrorState` recovery banner ("No se pudo cargar la información... [Reintentar]").
+- **Root Cause**: When a client session has a cookie or localStorage value with the string literal `"undefined"`, the client context treated it as ready because `"undefined" !== null`. In `packages/api/src/trpc.ts`, `resolveWorkspaceMembership` only checked `if (!ctx.workspaceId)`. Since `"undefined"` is truthy, the value was passed directly into `SELECT * FROM is_workspace_member(${ctx.user.id}::uuid, ${ctx.workspaceId}::uuid)`. PostgreSQL failed with `ERROR: 22P02: invalid input syntax for type uuid: "undefined"`, which tRPC's production errorFormatter masked as a generic `INTERNAL_SERVER_ERROR` (500).
+- **Fix**:
+  1. Hardened tRPC context (`packages/api/src/trpc.ts`) with RFC 4122 `isValidUuid(val)` validator.
+  2. Normalized invalid workspace headers to `null` in `createTRPCContext` and guarded `resolveWorkspaceMembership` to immediately reject non-UUID workspace IDs with `BAD_REQUEST` (400) and non-UUID user IDs with `UNAUTHORIZED` (401), preventing malformed parameters from ever reaching PostgreSQL.
+  3. Hardened `apps/erp/src/hooks/use-workspace.tsx` to validate UUIDs in cookies and localStorage, purging corrupt strings like `"undefined"` automatically, and defined `isReady` as `isValidUuid(workspaceId)`.
+  4. Gated client-side tRPC queries in `apps/erp/src/app/(app)/catalog/client.tsx` on `workspaceReady && isValidUuid(workspaceId)`.
+  5. Injected `cendaro-workspace-id` cookie on successful login in `apps/erp/src/app/api/auth/login/route.ts`.
+  6. Added security invariant unit tests in `packages/api/src/__tests__/security-invariants.test.ts`.
+- **Prevention**: Never pass unvalidated external headers or client identifiers directly to PostgreSQL `::uuid` casts. Always sanitize and validate RFC 4122 UUID compliance in the tRPC context layer and client request headers.
+- **Workspace**: `@cendaro/api` (`packages/api/src/trpc.ts`), `@cendaro/erp` (`apps/erp/src/hooks/use-workspace.tsx`, `apps/erp/src/app/(app)/catalog/client.tsx`)
+- **Severity**: Critical (Endpoint Runtime 500 on core ERP catalog)
+- **Recurrence**: 1st (Rule #27)
+
 ---
 
 ## Statistics
 
 | Metric                    | Value                        |
 | ------------------------- | ---------------------------- |
-| **Total entries**         | 16                           |
-| **Critical**              | 6                            |
+| **Total entries**         | 17                           |
+| **Critical**              | 7                            |
 | **Major**                 | 8                            |
 | **Minor**                 | 2                            |
-| **Most common workspace** | Root monorepo (8/16 entries) |
-| **Date of last entry**    | 2026-09-14                   |
-| **Quick Reference rules** | 26                           |
+| **Most common workspace** | Root monorepo (8/17 entries) |
+| **Date of last entry**    | 2026-09-15                   |
+| **Quick Reference rules** | 27                           |

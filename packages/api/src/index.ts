@@ -7,6 +7,7 @@ export { appRouter } from "./root";
 export {
   createTRPCContext,
   createCallerFactory,
+  isValidUuid,
   mapClaimsToUser,
 } from "./trpc";
 export type { AuthenticatedUser } from "./trpc";

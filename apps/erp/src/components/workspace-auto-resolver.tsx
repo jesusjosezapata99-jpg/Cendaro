@@ -11,7 +11,7 @@
 import { useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 
-import { useWorkspace } from "~/hooks/use-workspace";
+import { isValidUuid, useWorkspace } from "~/hooks/use-workspace";
 import { useTRPC } from "~/trpc/client";
 
 export function WorkspaceAutoResolver({
@@ -37,10 +37,10 @@ export function WorkspaceAutoResolver({
     if (isReady || didResolve.current) return;
 
     if (workspaces && workspaces.length > 0) {
-      didResolve.current = true;
-      // Pick the first active workspace
-      const first = workspaces[0];
+      // Pick the first active workspace with a valid UUID
+      const first = workspaces.find((w) => isValidUuid(w.id));
       if (first) {
+        didResolve.current = true;
         switchWorkspace(first.id);
       }
     }
