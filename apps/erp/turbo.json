@@ -1,3 +1,17 @@
 {
-  "extends": ["//"]
+  "$schema": "https://turborepo.com/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "build": {
+      "env": ["NEXT_PUBLIC_SENTRY_DSN", "VERCEL_GIT_COMMIT_SHA"],
+      "passThroughEnv": [
+        "SENTRY_AUTH_TOKEN",
+        "SENTRY_LOG_LEVEL",
+        "VERCEL_TARGET_ENV",
+        "VERCEL_GIT_PREVIOUS_SHA",
+        "VERCEL_GIT_REPO_OWNER",
+        "VERCEL_GIT_REPO_SLUG"
+      ]
+    }
+  }
 }
