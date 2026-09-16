@@ -341,7 +341,7 @@ cendaro/
 |     | Technology       | Details               |
 | --- | ---------------- | --------------------- |
 | ▲   | **Vercel**       | Edge network          |
-| 🏗  | **turbo-ignore** | Smart build skipping  |
+| 🏗   | **turbo-ignore** | Smart build skipping  |
 | 🌍  | **dotenv-cli**   | Env management        |
 | 📊  | **Sentry**       | Error tracking (prod) |
 
@@ -1104,7 +1104,8 @@ pnpm dev:erp      # ERP app only
 | `NEXT_PUBLIC_SUPABASE_URL`      |    ✅    | Supabase project URL         |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` |    ✅    | Supabase anonymous key       |
 | `SUPABASE_SERVICE_ROLE_KEY`     |    ✅    | Service role key (backend)   |
-| `SENTRY_DSN`                    |    —     | Error tracking (production)  |
+| `NEXT_PUBLIC_SENTRY_DSN`        |    —     | Error tracking (production)  |
+| `SENTRY_AUTH_TOKEN`             |    —     | Sentry source maps (build)   |
 | `GROQ_API_KEY`                  |    —     | AI/LLM inference (Groq)      |
 | `EXCHANGE_RATE_API_KEY`         |    —     | Fallback CNY rate source     |
 | `MERCADOLIBRE_APP_ID`           |    —     | Mercado Libre OAuth          |
