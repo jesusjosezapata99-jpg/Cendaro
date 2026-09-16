@@ -212,11 +212,18 @@ export async function POST(request: Request) {
   }
 
   // ── Step 7: Resolve Supabase env ────────────────────────────────────────
+  // env validation is skipped when CI is set (see env.ts), so the service key
+  // can still be missing at runtime. Fail closed: the anon key cannot read
+  // user_profile (no grants, RLS), so falling back to it would silently turn
+  // every login into a generic "Credenciales incorrectas".
   const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   const serviceKey = env.SUPABASE_SERVICE_ROLE_KEY;
 
-  if (!supabaseUrl || !supabaseKey) {
+  if (!supabaseUrl || !supabaseKey || !serviceKey) {
+    console.error(
+      "[auth/login] Supabase env incomplete (URL, anon key or SUPABASE_SERVICE_ROLE_KEY missing); refusing login",
+    );
     return NextResponse.json(
       { error: "Configuración del servidor incompleta" },
       { status: 500, headers: AUTH_SECURITY_HEADERS },
@@ -225,7 +232,7 @@ export async function POST(request: Request) {
 
   // ── Step 8: Username → email + role lookup ──────────────────────────────
   const { createClient } = await import("@supabase/supabase-js");
-  const admin = createClient(supabaseUrl, serviceKey || supabaseKey);
+  const admin = createClient(supabaseUrl, serviceKey);
 
   const { data: profile, error: profileError } = await admin
     .from("user_profile")
