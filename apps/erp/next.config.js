@@ -1,3 +1,5 @@
+import { withSentryConfig } from "@sentry/nextjs/config";
+
 /** @type {import("next").NextConfig} */
 const config = {
   reactStrictMode: true,
@@ -114,4 +116,19 @@ const config = {
   },
 };
 
-export default config;
+export default withSentryConfig(config, {
+  org: "cendaro",
+  project: "javascript-nextjs",
+  // Source maps upload only when the build has SENTRY_AUTH_TOKEN (a Vercel
+  // env var). Local and CI builds without it skip the upload instead of
+  // failing.
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  sourcemaps: { disable: !process.env.SENTRY_AUTH_TOKEN },
+  widenClientFileUpload: true,
+  // Browser events go through /monitoring on our own origin: ad blockers
+  // don't drop them and CSP 'self' covers them. The route is public in
+  // src/lib/public-routes.ts.
+  tunnelRoute: "/monitoring",
+  silent: !process.env.CI,
+  telemetry: false,
+});

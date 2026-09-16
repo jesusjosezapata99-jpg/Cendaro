@@ -506,31 +506,40 @@ export const catalogImportRouter = createTRPCRouter({
           );
 
           // Batch query 1: category-name fuzzy match for all unresolved at once
-          const batchResults = await ctx.db.execute<{
-            input_name: string;
-            id: string;
-            name: string;
-            score: number;
-          }>(sql`
-            SELECT
-              t.input_name,
-              c.id,
-              c.name,
-              similarity(LOWER(c.name), LOWER(t.input_name)) AS score
-            FROM unnest(${sql`ARRAY[${sql.join(
-              unresolvedNames.map((n) => sql`${n}`),
-              sql`, `,
-            )}]`}::text[]) AS t(input_name)
-            INNER JOIN LATERAL (
-              SELECT id, name
-              FROM category c
-              WHERE c."workspaceId" = ${ctx.workspace.workspaceId}::uuid
-                AND similarity(LOWER(c.name), LOWER(t.input_name)) >= 0.2
-              ORDER BY similarity(LOWER(c.name), LOWER(t.input_name)) DESC
-              LIMIT 5
-            ) c ON true
-            ORDER BY t.input_name, score DESC
-          `);
+          //
+          // Each fuzzy query runs in its own SAVEPOINT (Drizzle nested
+          // transaction): a failure rolls back only that savepoint, so the
+          // surrounding workspaceProcedure transaction stays usable and the
+          // session-status UPDATE below still commits. Without it, one failed
+          // query aborted the whole transaction (25P02) and validate returned
+          // 500 — which is how the camelCase column bug surfaced (2026-09-15).
+          const batchResults = await ctx.db.transaction((sp) =>
+            sp.execute<{
+              input_name: string;
+              id: string;
+              name: string;
+              score: number;
+            }>(sql`
+              SELECT
+                t.input_name,
+                c.id,
+                c.name,
+                similarity(LOWER(c.name), LOWER(t.input_name)) AS score
+              FROM unnest(${sql`ARRAY[${sql.join(
+                unresolvedNames.map((n) => sql`${n}`),
+                sql`, `,
+              )}]`}::text[]) AS t(input_name)
+              INNER JOIN LATERAL (
+                SELECT id, name
+                FROM category c
+                WHERE c.workspace_id = ${ctx.workspace.workspaceId}::uuid
+                  AND similarity(LOWER(c.name), LOWER(t.input_name)) >= 0.2
+                ORDER BY similarity(LOWER(c.name), LOWER(t.input_name)) DESC
+                LIMIT 5
+              ) c ON true
+              ORDER BY t.input_name, score DESC
+            `),
+          );
 
           // Group results by input_name
           const resultsByCategory = new Map<
@@ -576,45 +585,50 @@ export const catalogImportRouter = createTRPCRouter({
             const sampleNames = sampleEntries.map(([, name]) => name);
             const rawCategories = sampleEntries.map(([raw]) => raw);
 
-            const batchProductResults = await ctx.db.execute<{
-              input_name: string;
-              id: string;
-              name: string;
-              avg_score: number;
-              match_count: number;
-            }>(sql`
-              SELECT
-                t.input_name,
-                c.id,
-                c.name,
-                AVG(similarity(LOWER(p.name), LOWER(t.sample))) AS avg_score,
-                COUNT(p.id)::int AS match_count
-              FROM unnest(
-                ${sql`ARRAY[${sql.join(
-                  rawCategories.map((n) => sql`${n}`),
-                  sql`, `,
-                )}]`}::text[],
-                ${sql`ARRAY[${sql.join(
-                  sampleNames.map((n) => sql`${n}`),
-                  sql`, `,
-                )}]`}::text[]
-              ) AS t(input_name, sample)
-              INNER JOIN LATERAL (
-                SELECT c2.id, c2.name
-                FROM category c2
-                INNER JOIN product p ON p."categoryId" = c2.id AND p."workspaceId" = ${ctx.workspace.workspaceId}::uuid
-                WHERE c2."workspaceId" = ${ctx.workspace.workspaceId}::uuid
+            // Own SAVEPOINT for the same reason as batch query 1. The outer
+            // SELECT reads the lateral alias `sub` (the previous `c.id, c.name`
+            // referenced an alias that does not exist here → 42P01).
+            const batchProductResults = await ctx.db.transaction((sp) =>
+              sp.execute<{
+                input_name: string;
+                id: string;
+                name: string;
+                avg_score: number;
+                match_count: number;
+              }>(sql`
+                SELECT
+                  t.input_name,
+                  sub.id,
+                  sub.name,
+                  AVG(similarity(LOWER(p.name), LOWER(t.sample))) AS avg_score,
+                  COUNT(p.id)::int AS match_count
+                FROM unnest(
+                  ${sql`ARRAY[${sql.join(
+                    rawCategories.map((n) => sql`${n}`),
+                    sql`, `,
+                  )}]`}::text[],
+                  ${sql`ARRAY[${sql.join(
+                    sampleNames.map((n) => sql`${n}`),
+                    sql`, `,
+                  )}]`}::text[]
+                ) AS t(input_name, sample)
+                INNER JOIN LATERAL (
+                  SELECT c2.id, c2.name
+                  FROM category c2
+                  INNER JOIN product p ON p.category_id = c2.id AND p.workspace_id = ${ctx.workspace.workspaceId}::uuid
+                  WHERE c2.workspace_id = ${ctx.workspace.workspaceId}::uuid
+                    AND similarity(LOWER(p.name), LOWER(t.sample)) >= 0.15
+                  GROUP BY c2.id, c2.name
+                  HAVING AVG(similarity(LOWER(p.name), LOWER(t.sample))) >= 0.2
+                ) sub ON true
+                INNER JOIN product p ON p.category_id = sub.id AND p.workspace_id = ${ctx.workspace.workspaceId}::uuid
+                WHERE p.workspace_id = ${ctx.workspace.workspaceId}::uuid
                   AND similarity(LOWER(p.name), LOWER(t.sample)) >= 0.15
-                GROUP BY c2.id, c2.name
+                GROUP BY t.input_name, sub.id, sub.name
                 HAVING AVG(similarity(LOWER(p.name), LOWER(t.sample))) >= 0.2
-              ) sub ON true
-              INNER JOIN product p ON p."categoryId" = sub.id AND p."workspaceId" = ${ctx.workspace.workspaceId}::uuid
-              WHERE p."workspaceId" = ${ctx.workspace.workspaceId}::uuid
-                AND similarity(LOWER(p.name), LOWER(t.sample)) >= 0.15
-              GROUP BY t.input_name, sub.id, sub.name
-              HAVING AVG(similarity(LOWER(p.name), LOWER(t.sample))) >= 0.2
-              ORDER BY avg_score DESC
-            `);
+                ORDER BY avg_score DESC
+              `),
+            );
 
             for (const r of batchProductResults.rows) {
               const key = String(r.input_name);
@@ -702,8 +716,15 @@ export const catalogImportRouter = createTRPCRouter({
 
             unresolved.suggestions = suggestions;
           }
-        } catch {
-          // pg_trgm not available — graceful fallback
+        } catch (error) {
+          // Suggestions are best-effort: log and continue without them. The
+          // savepoints above keep the surrounding transaction usable, so the
+          // session-status UPDATE below still commits.
+          ctx.log.warn(
+            "catalog-import: fuzzy category suggestions failed",
+            { sessionId: session.id },
+            error,
+          );
           for (const unresolved of unresolvedCategories) {
             unresolved.suggestions = [];
           }

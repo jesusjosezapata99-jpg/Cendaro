@@ -36,8 +36,12 @@ describe("Proxy Route Allowlist Security Invariants (C4)", () => {
     expect(PUBLIC_ROUTES_EXACT).toEqual(["/", "/opengraph-image"]);
   });
 
-  it("ensures PUBLIC_ROUTES_PREFIX contains only login and auth endpoints", () => {
-    expect(PUBLIC_ROUTES_PREFIX).toEqual(["/login", "/api/auth"]);
+  it("ensures PUBLIC_ROUTES_PREFIX contains only login, auth endpoints and the Sentry tunnel", () => {
+    expect(PUBLIC_ROUTES_PREFIX).toEqual([
+      "/login",
+      "/api/auth",
+      "/monitoring",
+    ]);
   });
 
   it("regression guard: ensures /en is strictly NOT in any public allowlist", () => {

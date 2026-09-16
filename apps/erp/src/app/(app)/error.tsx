@@ -1,6 +1,8 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
+import * as Sentry from "@sentry/nextjs";
 
 import { Button } from "@cendaro/ui";
 import { Icons } from "@cendaro/ui/icons";
@@ -21,6 +23,10 @@ export default function AppError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  useEffect(() => {
+    Sentry.captureException(error);
+  }, [error]);
+
   return (
     <div className="flex h-[calc(100vh-8rem)] w-full items-center justify-center p-6">
       <div className="flex max-w-md flex-col items-center text-center">

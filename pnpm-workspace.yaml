@@ -32,6 +32,7 @@ catalogs:
 linkWorkspacePackages: true
 
 onlyBuiltDependencies:
+  - "@sentry/cli"
   - "@tailwindcss/oxide"
   - core-js-pure
   - esbuild

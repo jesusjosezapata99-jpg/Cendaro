@@ -8,8 +8,10 @@
  *   • Structured logging (JSON in prod, pretty in dev)
  *   • Request-ID correlation via x-request-id header
  *   • Full error context in production logs
+ *   • Unexpected failures (INTERNAL_SERVER_ERROR) reported to Sentry
  */
 import { cookies } from "next/headers";
+import * as Sentry from "@sentry/nextjs";
 import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
 
 import type { AuthenticatedUser } from "@cendaro/api";
@@ -90,9 +92,18 @@ const handler = async (req: Request) => {
         headers: new Headers(req.headers),
         user,
       }),
-    // Error logging is handled by the loggingMiddleware in trpc.ts
-    // No need for onError here — all procedure errors are already logged
-    // with full structured context (requestId, userId, path, duration)
+    // Structured logging of every procedure error stays in the
+    // loggingMiddleware (trpc.ts). Sentry only receives unexpected failures:
+    // tRPC turns thrown errors into 500 responses itself, so onRequestError
+    // in instrumentation.ts never sees them. Expected errors (UNAUTHORIZED,
+    // FORBIDDEN, BAD_REQUEST, NOT_FOUND…) are not reported.
+    onError: ({ error, path }) => {
+      if (error.code === "INTERNAL_SERVER_ERROR") {
+        Sentry.captureException(error.cause ?? error, {
+          tags: { trpcPath: path ?? "unknown" },
+        });
+      }
+    },
   });
 
   return response;

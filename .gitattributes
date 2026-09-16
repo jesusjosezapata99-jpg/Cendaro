@@ -1,5 +1,8 @@
-# Auto-detect text files and normalize line endings
-* text=auto
+# Auto-detect text files; store and check them out with LF on every OS.
+# eol=lf overrides core.autocrlf=true on Windows, which otherwise checks files
+# out as CRLF and makes Prettier (endOfLine "lf") flag every file locally.
+# The repo has no .bat/.cmd files; .ps1 and .sh run fine with LF.
+* text=auto eol=lf
 
 # Husky hooks must stay LF — Git Bash / sh cannot parse CRLF scripts
 .husky/* text eol=lf

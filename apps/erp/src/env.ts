@@ -6,10 +6,6 @@ export const env = createEnv({
     DATABASE_URL: z.string().url(),
     LTX_API_KEY: z.string().startsWith("ltxv_").optional(),
     SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
-    SENTRY_DSN: z.preprocess(
-      (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
-      z.string().url().optional(),
-    ),
     GROQ_API_KEY: z.string().min(1).optional(),
     EXCHANGE_RATE_API_KEY: z.string().min(1).optional(),
     MERCADOLIBRE_APP_ID: z.string().optional(),
@@ -25,10 +21,16 @@ export const env = createEnv({
   client: {
     NEXT_PUBLIC_SUPABASE_URL: z.string().url(),
     NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1),
+    // Sentry DSN (public by design). Empty/missing → Sentry disabled.
+    NEXT_PUBLIC_SENTRY_DSN: z.preprocess(
+      (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+      z.string().url().optional(),
+    ),
   },
   experimental__runtimeEnv: {
     NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
     NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    NEXT_PUBLIC_SENTRY_DSN: process.env.NEXT_PUBLIC_SENTRY_DSN,
   },
   skipValidation:
     !!process.env.CI || process.env.npm_lifecycle_event === "lint",
