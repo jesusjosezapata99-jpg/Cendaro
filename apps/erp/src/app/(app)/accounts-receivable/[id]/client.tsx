@@ -11,7 +11,7 @@ import { Icons } from "@cendaro/ui/icons";
 import { StatusPill } from "@cendaro/ui/status-pill";
 
 import { EmptyState } from "~/components/empty-state";
-import { RoleGuard } from "~/components/role-guard";
+import { Can } from "~/components/role-guard";
 import { DetailSkeleton } from "~/components/skeleton";
 import { StatCard } from "~/components/stat-card";
 import { useBcvRate } from "~/hooks/use-bcv-rate";
@@ -125,7 +125,7 @@ export default function ArDetailClient() {
         </div>
 
         {balance > 0 && (
-          <RoleGuard allow={["owner", "admin", "supervisor", "employee"]}>
+          <Can module="receivables" action="update">
             <Button
               onClick={() => setShowPayment(true)}
               className="h-9 flex-1 px-3 text-xs sm:flex-initial"
@@ -133,7 +133,7 @@ export default function ArDetailClient() {
               <Icons.Payments className="mr-1.5 size-4" />
               Registrar Abono
             </Button>
-          </RoleGuard>
+          </Can>
         )}
       </div>
 

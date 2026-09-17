@@ -22,7 +22,7 @@ import { Icon, Icons } from "@cendaro/ui/icons";
 import { StatusPill } from "@cendaro/ui/status-pill";
 
 import { EmptyState } from "~/components/empty-state";
-import { RoleGuard } from "~/components/role-guard";
+import { Can } from "~/components/role-guard";
 import { Skeleton } from "~/components/skeleton";
 import { StatCard } from "~/components/stat-card";
 import { useBcvRate } from "~/hooks/use-bcv-rate";
@@ -533,7 +533,7 @@ export default function ContainerDetailPage() {
           </div>
 
           {/* Status Transitions Workflow */}
-          <RoleGuard allow={["owner", "admin", "supervisor"]}>
+          <Can module="containers" action="update">
             <div className="flex flex-wrap items-center gap-2">
               {container.status === "created" && (
                 <Button
@@ -560,19 +560,21 @@ export default function ContainerDetailPage() {
                 </Button>
               )}
               {container.status === "received" && (
-                <Button
-                  onClick={() =>
-                    statusMutation.mutate({ id, status: "closed" })
-                  }
-                  disabled={statusMutation.isPending}
-                  className="min-h-11 gap-2 bg-emerald-600 text-white hover:bg-emerald-500"
-                >
-                  <Icons.CheckCircle className="size-4" />
-                  Cerrar y Liquidar Carga
-                </Button>
+                <Can module="containers" action="approve">
+                  <Button
+                    onClick={() =>
+                      statusMutation.mutate({ id, status: "closed" })
+                    }
+                    disabled={statusMutation.isPending}
+                    className="min-h-11 gap-2 bg-emerald-600 text-white hover:bg-emerald-500"
+                  >
+                    <Icons.CheckCircle className="size-4" />
+                    Cerrar y Liquidar Carga
+                  </Button>
+                </Can>
               )}
             </div>
-          </RoleGuard>
+          </Can>
         </div>
       </div>
 

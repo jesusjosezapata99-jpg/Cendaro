@@ -132,6 +132,7 @@ const EXPECTED_CHILD_HREFS: Record<UserRole, string[]> = {
     "/quotes",
     "/orders?createOrder=true",
     "/customers",
+    "/customers?createCustomer=true",
     "/catalog",
     "/catalog/categories",
     "/catalog/brands",
@@ -142,16 +143,16 @@ const EXPECTED_CHILD_HREFS: Record<UserRole, string[]> = {
   vendor: [
     "/orders",
     "/quotes",
+    "/orders?createOrder=true",
     "/customers",
     "/catalog",
     "/catalog/categories",
     "/catalog/brands",
     "/catalog/suppliers",
   ],
+  // Marketing works only the Mercado Libre channel (SECURITY-REMEDIATION F2,
+  // decision 2026-09-17): no orders, quotes or customers.
   marketing: [
-    "/orders",
-    "/quotes",
-    "/customers",
     "/catalog",
     "/catalog/categories",
     "/catalog/brands",
@@ -173,20 +174,12 @@ describe("getVisibleNav — per-role truth table", () => {
 
   it("null role (profile still loading) sees only role-agnostic parents/children — matches legacy hasRole() semantics", () => {
     const visible = getVisibleNav(null);
-    expect(visible.map((p) => p.id)).toEqual([
-      "overview",
-      "sales",
-      "customers",
-      "catalog",
-    ]);
+    expect(visible.map((p) => p.id)).toEqual(["overview", "catalog"]);
     const childHrefs = visible.flatMap(
       (parent) => parent.children?.map((c) => c.href) ?? [],
     );
     expect(childHrefs.sort()).toEqual(
       [
-        "/orders",
-        "/quotes",
-        "/customers",
         "/catalog",
         "/catalog/categories",
         "/catalog/brands",

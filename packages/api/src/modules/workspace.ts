@@ -18,16 +18,20 @@ import {
 
 import {
   createTRPCRouter,
-  protectedProcedure,
-  workspaceProcedure,
-  workspaceReadProcedure,
+  invalidateUserAuthzCache,
+  memberReadProcedure,
+  selfProcedure,
+  wsPermissionProcedure,
+  wsReadPermissionProcedure,
 } from "../trpc";
 import { logAudit } from "./audit";
 
 // ── Plan defaults (sync with erpModuleEnum in schema.ts) ──────────
 // Exact enum values: dashboard, catalog, inventory, containers, pricing, rates,
-// pos, orders, customers, vendors, payments, cash_closure, marketplace, whatsapp,
-// users, audit, settings
+// pos, orders, customers, vendors, payments, cash_closure, receivables,
+// marketplace, whatsapp, users, audit, settings
+// Core modules (dashboard, users, settings, audit — CORE_MODULES in
+// @cendaro/validators) are enabled for every plan regardless of these rows.
 
 const STARTER_MODULES = [
   "dashboard",
@@ -36,6 +40,8 @@ const STARTER_MODULES = [
   "orders",
   "pos",
   "customers",
+  // POS checkout records the payment (payments.create)
+  "payments",
 ] as const;
 
 const PRO_MODULES = [
@@ -51,6 +57,7 @@ const PRO_MODULES = [
   "vendors",
   "payments",
   "cash_closure",
+  "receivables",
   "marketplace",
   "whatsapp",
   "users",
@@ -104,7 +111,7 @@ export const workspaceRouter = createTRPCRouter({
    * List all workspaces the current user is a member of.
    * No workspace context needed — runs as postgres.
    */
-  list: protectedProcedure.query(async ({ ctx }) => {
+  list: selfProcedure.query(async ({ ctx }) => {
     const rows = await ctx.db
       .select({
         id: Workspace.id,
@@ -131,7 +138,7 @@ export const workspaceRouter = createTRPCRouter({
    * Get current workspace details + modules + quota.
    * Requires workspace context (SET LOCAL already applied).
    */
-  current: workspaceReadProcedure.query(async ({ ctx }) => {
+  current: memberReadProcedure.query(async ({ ctx }) => {
     const ws = ctx.workspace;
 
     const [workspace] = await ctx.db
@@ -171,7 +178,7 @@ export const workspaceRouter = createTRPCRouter({
    * Create a new workspace.
    * Runs as postgres (no workspace context).
    */
-  create: protectedProcedure
+  create: selfProcedure
     .input(
       z.object({
         name: z.string().min(2).max(128),
@@ -247,7 +254,7 @@ export const workspaceRouter = createTRPCRouter({
    * Update workspace settings (name only — no logoUrl in schema).
    * Requires workspace context.
    */
-  update: workspaceProcedure
+  update: wsPermissionProcedure("settings", "update")
     .input(
       z.object({
         name: z.string().min(2).max(128).optional(),
@@ -294,7 +301,7 @@ export const workspaceRouter = createTRPCRouter({
   /**
    * List workspace members with profile info.
    */
-  members: workspaceReadProcedure.query(async ({ ctx }) => {
+  members: wsReadPermissionProcedure("users", "read").query(async ({ ctx }) => {
     const ws = ctx.workspace;
 
     const rows = await ctx.db
@@ -319,7 +326,7 @@ export const workspaceRouter = createTRPCRouter({
   /**
    * Invite a new member to the workspace.
    */
-  inviteMember: workspaceProcedure
+  inviteMember: wsPermissionProcedure("users", "create")
     .input(
       z.object({
         email: z.email(),
@@ -401,7 +408,7 @@ export const workspaceRouter = createTRPCRouter({
   /**
    * Remove a member from the workspace.
    */
-  removeMember: workspaceProcedure
+  removeMember: wsPermissionProcedure("users", "delete")
     .input(z.object({ memberId: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       const ws = ctx.workspace;
@@ -466,6 +473,8 @@ export const workspaceRouter = createTRPCRouter({
           ),
         )
         .returning();
+
+      invalidateUserAuthzCache(target.userId);
 
       await logAudit(ctx.db, ctx.user, {
         workspaceId: ws.workspaceId,

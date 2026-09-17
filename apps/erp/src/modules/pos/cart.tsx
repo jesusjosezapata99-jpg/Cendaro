@@ -2,8 +2,14 @@
 
 import { Button } from "@cendaro/ui";
 import { Icons } from "@cendaro/ui/icons";
+import {
+  FISCAL_ID_TYPE_LABELS,
+  fiscalIdTypeOf,
+  isFiscalInvoiceReady,
+} from "@cendaro/validators";
 
 import type { CartLine, CustomerInfo } from "./types";
+import { Can } from "~/components/role-guard";
 import { formatDualCurrency } from "~/lib/format-currency";
 
 interface PosCartProps {
@@ -37,20 +43,11 @@ export function PosCart({
   onUpdateUnitPrice,
   onRemoveLine,
 }: PosCartProps) {
-  const filteredCustomers = customerSearch.trim()
-    ? customers
-        .filter(
-          (c) =>
-            c.name.toLowerCase().includes(customerSearch.toLowerCase()) ||
-            Boolean(
-              c.identification
-                ?.toLowerCase()
-                .includes(customerSearch.toLowerCase()),
-            ) ||
-            Boolean(c.phone?.includes(customerSearch)),
-        )
-        .slice(0, 8)
-    : customers.slice(0, 8);
+  // `customers` is already filtered server-side by `customerSearch`.
+  const selectedIdType = fiscalIdTypeOf(selectedCustomer?.identification);
+  const selectedFiscalReady = selectedCustomer
+    ? isFiscalInvoiceReady(selectedCustomer)
+    : true;
 
   return (
     <div>
@@ -63,14 +60,16 @@ export function PosCart({
               Ticket de Venta (Mostrador)
             </h3>
           </div>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={onCreateCustomer}
-            className="min-h-8 px-2.5 text-[11px] font-medium"
-          >
-            <Icons.PersonAdd className="size-3" />+ Nuevo Cliente
-          </Button>
+          <Can module="customers" action="create">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onCreateCustomer}
+              className="min-h-8 px-2.5 text-[11px] font-medium"
+            >
+              <Icons.PersonAdd className="size-3" />+ Nuevo Cliente
+            </Button>
+          </Can>
         </div>
 
         {/* Customer Dropdown Selector */}
@@ -91,8 +90,8 @@ export function PosCart({
                   </span>
                   <span className="text-muted-foreground block truncate font-mono text-[10px]">
                     {selectedCustomer?.identification
-                      ? `RIF: ${selectedCustomer.identification}`
-                      : "Sin RIF · Detal"}
+                      ? `${selectedIdType ? FISCAL_ID_TYPE_LABELS[selectedIdType] : "Doc."}: ${selectedCustomer.identification}`
+                      : "Sin documento · Detal"}
                   </span>
                 </div>
               </div>
@@ -111,6 +110,17 @@ export function PosCart({
             )}
           </div>
 
+          {!selectedFiscalReady && (
+            <p
+              role="status"
+              className="bg-status-warning-bg text-status-warning-fg mt-1.5 flex items-start gap-1.5 px-2 py-1.5 text-[11px]"
+            >
+              <Icons.Warning className="mt-px size-3.5 shrink-0" />
+              Datos fiscales incompletos para factura SENIAT (documento válido y
+              domicilio fiscal). Actualiza el cliente antes de facturar.
+            </p>
+          )}
+
           {/* Dropdown Menu */}
           {showCustomerDropdown && (
             <div className="border-border bg-card absolute z-30 mt-1 max-h-64 w-full overflow-auto border p-2 shadow-md">
@@ -125,17 +135,20 @@ export function PosCart({
                   onChange={(e) => onCustomerSearchChange(e.target.value)}
                   className="border-border bg-secondary text-foreground w-full border px-2.5 py-1.5 text-xs focus:outline-none"
                 />
-                <button
-                  type="button"
-                  onClick={() => {
-                    onToggleCustomerDropdown(false);
-                    onCreateCustomer();
-                  }}
-                  className="bg-primary/10 text-primary hover:bg-primary/20 border-primary/30 flex size-8 shrink-0 items-center justify-center border text-xs"
-                  title="Crear cliente nuevo"
-                >
-                  <Icons.PersonAdd className="size-3.5" />
-                </button>
+                <Can module="customers" action="create">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onToggleCustomerDropdown(false);
+                      onCreateCustomer();
+                    }}
+                    className="bg-primary/10 text-primary hover:bg-primary/20 border-primary/30 flex size-8 shrink-0 items-center justify-center border text-xs"
+                    title="Crear cliente nuevo"
+                    aria-label="Crear cliente nuevo"
+                  >
+                    <Icons.PersonAdd className="size-3.5" />
+                  </button>
+                </Can>
               </div>
 
               <button
@@ -154,7 +167,13 @@ export function PosCart({
                 </span>
               </button>
 
-              {filteredCustomers.map((c) => (
+              {customers.length === 0 && customerSearch.trim() && (
+                <p className="text-muted-foreground p-2 text-[11px]">
+                  Sin resultados. Registra al cliente con el botón +.
+                </p>
+              )}
+
+              {customers.map((c) => (
                 <button
                   key={c.id}
                   type="button"
@@ -169,7 +188,7 @@ export function PosCart({
                       {c.name}
                     </span>
                     <span className="text-muted-foreground font-mono text-[10px]">
-                      {c.identification ?? "Sin RIF"}
+                      {c.identification ?? "Sin documento"}
                     </span>
                   </div>
                   {c.phone && (

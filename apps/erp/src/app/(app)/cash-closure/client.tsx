@@ -11,7 +11,7 @@ import { StatusPill } from "@cendaro/ui/status-pill";
 import { DataTable } from "~/components/data-table/data-table";
 import { EmptyState } from "~/components/empty-state";
 import { PageHeader } from "~/components/page-header";
-import { RoleGuard } from "~/components/role-guard";
+import { Can, RoleGuard } from "~/components/role-guard";
 import { StatCard } from "~/components/stat-card";
 import { useClosureParams } from "~/hooks/params/use-closure-params";
 import { useBcvRate } from "~/hooks/use-bcv-rate";
@@ -229,7 +229,7 @@ export default function CashClosureClient() {
         title="Cierre de Caja"
         description="Arqueo de fondos, conciliación diaria y control de discrepancias"
         actions={
-          <RoleGuard allow={["owner", "admin", "supervisor", "employee"]}>
+          <Can module="cash_closure" action="create">
             <Button
               onClick={() => void setClosureParams({ createClosure: true })}
               className="min-h-11 flex-1 sm:flex-initial"
@@ -237,7 +237,7 @@ export default function CashClosureClient() {
               <Icons.LockClock className="size-4.5" />
               Cerrar Día
             </Button>
-          </RoleGuard>
+          </Can>
         }
       />
 

@@ -17,8 +17,9 @@ import {
 
 import {
   createTRPCRouter,
-  workspaceProcedure,
-  workspaceReadProcedure,
+  memberReadProcedure,
+  wsPermissionProcedure,
+  wsReadPermissionProcedure,
 } from "../trpc";
 import { logAudit } from "./audit";
 
@@ -26,7 +27,7 @@ export const pricingRouter = createTRPCRouter({
   // ─── Exchange Rates (PRD §12.3) ──────────────
 
   /** Get latest rate for each type */
-  latestRates: workspaceReadProcedure.query(async ({ ctx }) => {
+  latestRates: memberReadProcedure.query(async ({ ctx }) => {
     const allRates = await ctx.db
       .select({
         id: ExchangeRate.id,
@@ -51,7 +52,7 @@ export const pricingRouter = createTRPCRouter({
   }),
 
   /** Get rate history */
-  rateHistory: workspaceReadProcedure
+  rateHistory: wsReadPermissionProcedure("rates", "read")
     .input(
       z.object({
         rateType: z.enum(rateTypeEnum.enumValues).optional(),
@@ -85,7 +86,7 @@ export const pricingRouter = createTRPCRouter({
    * Rates can ONLY be set by automated sync processes (DolarAPI, Frankfurter).
    * Human-entered rates are explicitly blocked to prevent price manipulation.
    */
-  setRate: workspaceProcedure
+  setRate: wsPermissionProcedure("rates", "update")
     .input(
       z.object({
         rateType: z.enum(rateTypeEnum.enumValues),
@@ -136,7 +137,7 @@ export const pricingRouter = createTRPCRouter({
 
   // ─── Currency Calculator (PRD §12.7) ─────────
 
-  convert: workspaceReadProcedure
+  convert: memberReadProcedure
     .input(
       z.object({
         amount: z.number().nonnegative(),
@@ -187,7 +188,7 @@ export const pricingRouter = createTRPCRouter({
 
   // ─── Price History (PRD §12.8) ───────────────
 
-  priceHistory: workspaceReadProcedure
+  priceHistory: wsReadPermissionProcedure("pricing", "read")
     .input(
       z.object({
         productId: z.string().uuid().optional(),
@@ -220,7 +221,7 @@ export const pricingRouter = createTRPCRouter({
 
   // ─── Repricing Events ────────────────────────
 
-  listRepricingEvents: workspaceReadProcedure
+  listRepricingEvents: wsReadPermissionProcedure("pricing", "read")
     .input(
       z.object({
         limit: z.number().int().min(1).max(50).default(20),
@@ -247,7 +248,7 @@ export const pricingRouter = createTRPCRouter({
         .limit(input.limit);
     }),
 
-  approveRepricing: workspaceProcedure
+  approveRepricing: wsPermissionProcedure("pricing", "approve")
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       if (!["owner", "admin"].includes(ctx.workspace.role)) {

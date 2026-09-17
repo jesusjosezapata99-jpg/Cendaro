@@ -18,11 +18,12 @@ import {
   SalesOrder,
 } from "@cendaro/db/schema";
 
-import { createTRPCRouter, workspaceProcedure } from "../trpc";
+import { createTRPCRouter, wsPermissionProcedure } from "../trpc";
 import { logAudit } from "./audit";
+import { assertVendorCustomer, vendorScopeId } from "./vendor-scope";
 
 export const quotesRouter = createTRPCRouter({
-  list: workspaceProcedure
+  list: wsPermissionProcedure("orders", "read")
     .input(
       z.object({
         limit: z.number().int().min(1).max(100).default(25),
@@ -32,6 +33,10 @@ export const quotesRouter = createTRPCRouter({
     )
     .query(async ({ ctx, input }) => {
       const conditions = [eq(Quote.workspaceId, ctx.workspace.workspaceId)];
+      const vendorId = vendorScopeId(ctx);
+      if (vendorId) {
+        conditions.push(eq(Quote.createdBy, vendorId));
+      }
       if (input.status) {
         conditions.push(eq(Quote.status, input.status));
       }
@@ -54,9 +59,10 @@ export const quotesRouter = createTRPCRouter({
         .offset(input.offset);
     }),
 
-  byId: workspaceProcedure
+  byId: wsPermissionProcedure("orders", "read")
     .input(z.object({ id: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
+      const vendorId = vendorScopeId(ctx);
       const [quote] = await ctx.db
         .select()
         .from(Quote)
@@ -64,6 +70,7 @@ export const quotesRouter = createTRPCRouter({
           and(
             eq(Quote.id, input.id),
             eq(Quote.workspaceId, ctx.workspace.workspaceId),
+            vendorId ? eq(Quote.createdBy, vendorId) : undefined,
           ),
         )
         .limit(1);
@@ -101,7 +108,7 @@ export const quotesRouter = createTRPCRouter({
       return { ...quote, items };
     }),
 
-  create: workspaceProcedure
+  create: wsPermissionProcedure("orders", "create")
     .input(
       z.object({
         customerId: z.string().uuid().optional(),
@@ -119,6 +126,8 @@ export const quotesRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      await assertVendorCustomer(ctx, input.customerId);
+
       // Validate all products belong to workspace
       const productIds = input.items.map((i) => i.productId);
       if (productIds.length > 0) {
@@ -192,7 +201,7 @@ export const quotesRouter = createTRPCRouter({
       return quote;
     }),
 
-  updateStatus: workspaceProcedure
+  updateStatus: wsPermissionProcedure("orders", "update")
     .input(
       z.object({
         id: z.string().uuid(),
@@ -229,9 +238,10 @@ export const quotesRouter = createTRPCRouter({
       return updated;
     }),
 
-  convertToOrder: workspaceProcedure
+  convertToOrder: wsPermissionProcedure("orders", "create")
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
+      const vendorId = vendorScopeId(ctx);
       const [quote] = await ctx.db
         .select()
         .from(Quote)
@@ -239,6 +249,7 @@ export const quotesRouter = createTRPCRouter({
           and(
             eq(Quote.id, input.id),
             eq(Quote.workspaceId, ctx.workspace.workspaceId),
+            vendorId ? eq(Quote.createdBy, vendorId) : undefined,
           ),
         )
         .limit(1);

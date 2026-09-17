@@ -4,9 +4,9 @@
  * One `⌘K` query fans out to 6 result types in parallel: products,
  * customers, orders (incl. invoices/delivery-notes, which are just orders
  * with a different document), quotes, containers, suppliers. `workspace_id`
- * is filtered explicitly on every sub-query — this route uses
- * `workspaceReadProcedure`, which skips RLS/SET LOCAL for read performance
- * (see `../trpc`), so there is no database-level backstop here.
+ * is filtered explicitly on every sub-query — this route is a non-transactional
+ * read (`wsReadPermissionProcedure`), which skips RLS/SET LOCAL for read
+ * performance (see `../trpc`), so there is no database-level backstop here.
  */
 import { TRPCError } from "@trpc/server";
 import { and, desc, eq, ilike, or } from "drizzle-orm";
@@ -23,10 +23,11 @@ import {
   SalesOrder,
   Supplier,
 } from "@cendaro/db/schema";
-import { NAV_ROLE_RULES } from "@cendaro/validators";
+import { can, NAV_ROLE_RULES } from "@cendaro/validators";
 
 import type { createTRPCContext } from "../trpc";
-import { createTRPCRouter, workspaceReadProcedure } from "../trpc";
+import { createTRPCRouter, wsReadPermissionProcedure } from "../trpc";
+import { vendorScopeId } from "./vendor-scope";
 
 const RESULTS_PER_TYPE = 5;
 
@@ -165,6 +166,7 @@ async function searchProducts(
 async function searchCustomers(
   ctx: Context,
   pattern: string,
+  vendorId: string | null,
 ): Promise<SearchItem[]> {
   const rows = await ctx.db
     .select({
@@ -177,6 +179,7 @@ async function searchCustomers(
     .where(
       and(
         eq(Customer.workspaceId, ctx.workspace.workspaceId),
+        vendorId ? eq(Customer.assignedVendorId, vendorId) : undefined,
         or(
           ilike(Customer.name, pattern),
           ilike(Customer.identification, pattern),
@@ -199,6 +202,7 @@ async function searchOrders(
   ctx: Context,
   pattern: string,
   role: UserRole | null | undefined,
+  vendorId: string | null,
 ): Promise<SearchItem[]> {
   const sources: Promise<SearchItem[]>[] = [
     ctx.db
@@ -212,6 +216,7 @@ async function searchOrders(
       .where(
         and(
           eq(SalesOrder.workspaceId, ctx.workspace.workspaceId),
+          vendorId ? eq(SalesOrder.createdBy, vendorId) : undefined,
           ilike(SalesOrder.orderNumber, pattern),
         ),
       )
@@ -302,6 +307,7 @@ async function searchOrders(
 async function searchQuotes(
   ctx: Context,
   pattern: string,
+  vendorId: string | null,
 ): Promise<SearchItem[]> {
   const rows = await ctx.db
     .select({
@@ -313,6 +319,7 @@ async function searchQuotes(
     .where(
       and(
         eq(Quote.workspaceId, ctx.workspace.workspaceId),
+        vendorId ? eq(Quote.createdBy, vendorId) : undefined,
         ilike(Quote.quoteNumber, pattern),
       ),
     )
@@ -388,23 +395,36 @@ async function searchSuppliers(
 }
 
 export const searchRouter = createTRPCRouter({
-  global: workspaceReadProcedure
+  global: wsReadPermissionProcedure("dashboard", "read")
     .input(z.object({ q: z.string().trim().min(2).max(64) }))
     .query(async ({ ctx, input }): Promise<SearchItem[]> => {
       checkSearchRateLimit(ctx.user.id);
 
       const start = performance.now();
-      const role = ctx.user.user_metadata?.role;
+      const role = ctx.workspace.role;
       const pattern = `%${escapeLike(input.q)}%`;
 
-      const groups: Promise<SearchItem[]>[] = [
-        searchProducts(ctx, pattern),
-        searchCustomers(ctx, pattern),
-        searchOrders(ctx, pattern, role),
-        searchQuotes(ctx, pattern),
-        searchSuppliers(ctx, pattern),
-      ];
+      // Each result type follows the same read permission and vendor row
+      // scoping as its own procedures, so search never reveals what the
+      // caller cannot open.
+      const vendorId = vendorScopeId(ctx);
+      const groups: Promise<SearchItem[]>[] = [];
 
+      if (can(role, "catalog", "read")) {
+        groups.push(
+          searchProducts(ctx, pattern),
+          searchSuppliers(ctx, pattern),
+        );
+      }
+      if (can(role, "customers", "read")) {
+        groups.push(searchCustomers(ctx, pattern, vendorId));
+      }
+      if (can(role, "orders", "read")) {
+        groups.push(
+          searchOrders(ctx, pattern, role, vendorId),
+          searchQuotes(ctx, pattern, vendorId),
+        );
+      }
       if (canSearchContainers(role)) {
         groups.push(searchContainers(ctx, pattern));
       }

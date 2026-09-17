@@ -1,12 +1,17 @@
 /**
  * Cendaro — Users Router
  *
- * CRUD operations for user profiles. Admin-only for write operations.
+ * Profile reads and updates. Account creation lives in
+ * `POST /api/auth/create-user` (auth user + profile + workspace membership
+ * created atomically with the service role), not in this router.
  * Reads allowed for supervisors+.
  *
- * Owner-protection rules:
- *  - Only owner can assign the "owner" role
- *  - Only owner can demote another owner
+ * Update rules (roles are per workspace: `workspace_member.role` is what the
+ * server authorizes with; `user_profile.role` is kept in sync for display):
+ *  - Only owner/admin can update members
+ *  - Nobody changes their own role
+ *  - Only owner can assign "owner" or "admin"
+ *  - Only owner can modify an owner or an admin
  *  - Owner cannot change another owner's role (peer protection)
  */
 import { TRPCError } from "@trpc/server";
@@ -25,15 +30,17 @@ import { UiPreferencesSchema } from "@cendaro/validators";
 
 import {
   createTRPCRouter,
-  protectedProcedure,
-  workspaceProcedure,
-  workspaceReadProcedure,
+  invalidateUserAuthzCache,
+  memberReadProcedure,
+  selfProcedure,
+  wsPermissionProcedure,
+  wsReadPermissionProcedure,
 } from "../trpc";
 import { logAudit } from "./audit";
 
 export const usersRouter = createTRPCRouter({
   /** List all users in current workspace (admin, owner, supervisor) */
-  list: workspaceReadProcedure.query(async ({ ctx }) => {
+  list: wsReadPermissionProcedure("users", "read").query(async ({ ctx }) => {
     if (!["owner", "admin", "supervisor"].includes(ctx.workspace.role)) {
       throw new TRPCError({
         code: "FORBIDDEN",
@@ -61,7 +68,7 @@ export const usersRouter = createTRPCRouter({
   }),
 
   /** Get current user's profile */
-  me: protectedProcedure.query(async ({ ctx }) => {
+  me: selfProcedure.query(async ({ ctx }) => {
     const [profile] = await ctx.db
       .select()
       .from(UserProfile)
@@ -71,7 +78,7 @@ export const usersRouter = createTRPCRouter({
   }),
 
   /** Get user by ID (admin, owner, supervisor) */
-  byId: workspaceProcedure
+  byId: wsPermissionProcedure("users", "read")
     .input(z.object({ id: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       if (!["owner", "admin", "supervisor"].includes(ctx.workspace.role)) {
@@ -106,56 +113,8 @@ export const usersRouter = createTRPCRouter({
       return member ?? null;
     }),
 
-  /** Create user profile (admin, owner) */
-  create: workspaceProcedure
-    .input(
-      z.object({
-        id: z.string().uuid(),
-        email: z.email(),
-        username: z.string().min(3).max(128),
-        fullName: z.string().min(1).max(256),
-        role: z.enum(userRoleEnum.enumValues),
-        phone: z.string().max(32).optional(),
-      }),
-    )
-    .mutation(async ({ ctx, input }) => {
-      // Owner-protection: only owner can create another owner
-      const callerRole = ctx.user.user_metadata?.role;
-      if (input.role === "owner" && callerRole !== "owner") {
-        throw new (await import("@trpc/server")).TRPCError({
-          code: "FORBIDDEN",
-          message: "Solo un dueño puede asignar el rol de dueño a otro usuario",
-        });
-      }
-
-      const [created] = await ctx.db
-        .insert(UserProfile)
-        .values({
-          id: input.id,
-          email: input.email,
-          username: input.username,
-          fullName: input.fullName,
-          role: input.role,
-          phone: input.phone,
-        })
-        .returning();
-
-      await logAudit(ctx.db, ctx.user, {
-        action: "user.create",
-        entity: "user_profile",
-        entityId: input.id,
-        newValue: {
-          email: input.email,
-          username: input.username,
-          role: input.role,
-        },
-      });
-
-      return created;
-    }),
-
-  /** Update user profile (admin, owner) with owner-protection */
-  update: workspaceProcedure
+  /** Update a workspace member (owner, admin) — see the rules in the header */
+  update: wsPermissionProcedure("users", "update")
     .input(
       z.object({
         id: z.string().uuid(),
@@ -166,12 +125,19 @@ export const usersRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const { id, ...updates } = input;
+      const { id, role, ...profileUpdates } = input;
       const callerRole = ctx.workspace.role;
+      const isCallerOwner = callerRole === "owner";
 
-      // Verify target user belongs to current workspace
+      if (callerRole !== "owner" && callerRole !== "admin") {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Solo propietarios o administradores pueden editar usuarios",
+        });
+      }
+
       const [targetMember] = await ctx.db
-        .select()
+        .select({ role: WorkspaceMember.role })
         .from(WorkspaceMember)
         .where(
           and(
@@ -188,45 +154,31 @@ export const usersRouter = createTRPCRouter({
         });
       }
 
-      // Get target user's current profile
-      const [targetProfile] = await ctx.db
-        .select({ role: UserProfile.role })
-        .from(UserProfile)
-        .where(eq(UserProfile.id, id))
-        .limit(1);
-
-      if (!targetProfile) {
+      const isTargetPrivileged =
+        targetMember.role === "owner" || targetMember.role === "admin";
+      if (isTargetPrivileged && !isCallerOwner) {
         throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Usuario no encontrado",
+          code: "FORBIDDEN",
+          message: "Solo un dueño puede modificar a un dueño o administrador",
         });
       }
 
-      // Owner-protection rules
-      if (input.role !== undefined) {
-        // Rule 1: Only owner can assign owner role
-        if (input.role === "owner" && callerRole !== "owner") {
+      const roleChanges = role !== undefined && role !== targetMember.role;
+      if (roleChanges) {
+        if (ctx.user.id === id) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "No puedes cambiar tu propio rol",
+          });
+        }
+        if ((role === "owner" || role === "admin") && !isCallerOwner) {
           throw new TRPCError({
             code: "FORBIDDEN",
             message:
-              "Solo un dueño puede asignar el rol de dueño a otro usuario",
+              "Solo un dueño puede asignar el rol de dueño o administrador",
           });
         }
-
-        // Rule 2: Cannot change an owner's role if you're not an owner
-        if (targetMember.role === "owner" && callerRole !== "owner") {
-          throw new TRPCError({
-            code: "FORBIDDEN",
-            message: "Solo un dueño puede cambiar el rol de otro dueño",
-          });
-        }
-
-        // Rule 3: Owner cannot change another owner's role (peer protection)
-        if (
-          targetMember.role === "owner" &&
-          callerRole === "owner" &&
-          ctx.user.id !== id
-        ) {
+        if (targetMember.role === "owner") {
           throw new TRPCError({
             code: "FORBIDDEN",
             message: "No puedes cambiar el rol de otro dueño",
@@ -234,27 +186,44 @@ export const usersRouter = createTRPCRouter({
         }
       }
 
-      // Get old values for audit trail
       const [oldProfile] = await ctx.db
-        .select()
+        .select({ status: UserProfile.status })
         .from(UserProfile)
         .where(eq(UserProfile.id, id))
         .limit(1);
 
+      if (roleChanges) {
+        await ctx.db
+          .update(WorkspaceMember)
+          .set({ role })
+          .where(
+            and(
+              eq(WorkspaceMember.workspaceId, ctx.workspace.workspaceId),
+              eq(WorkspaceMember.userId, id),
+            ),
+          );
+      }
+
       const [updated] = await ctx.db
         .update(UserProfile)
-        .set(updates)
+        .set(roleChanges ? { ...profileUpdates, role } : profileUpdates)
         .where(eq(UserProfile.id, id))
         .returning();
 
+      if (roleChanges || profileUpdates.status !== undefined) {
+        invalidateUserAuthzCache(id);
+      }
+
       await logAudit(ctx.db, ctx.user, {
+        workspaceId: ctx.workspace.workspaceId,
         action: "user.update",
         entity: "user_profile",
         entityId: id,
-        oldValue: oldProfile
-          ? { role: oldProfile.role, status: oldProfile.status }
-          : null,
-        newValue: updates,
+        oldValue: {
+          memberRole: targetMember.role,
+          status: oldProfile?.status ?? null,
+        },
+        newValue: roleChanges ? { ...profileUpdates, role } : profileUpdates,
       });
 
       return updated;
@@ -265,7 +234,7 @@ export const usersRouter = createTRPCRouter({
   // only ever read or write their own preferences.
 
   /** Get the current user's UI preferences (dashboard widget order/visibility) */
-  uiPreferences: protectedProcedure.query(async ({ ctx }) => {
+  uiPreferences: selfProcedure.query(async ({ ctx }) => {
     const [row] = await ctx.db
       .select({ uiPreferences: UserProfile.uiPreferences })
       .from(UserProfile)
@@ -276,7 +245,7 @@ export const usersRouter = createTRPCRouter({
   }),
 
   /** Merge-update the current user's UI preferences */
-  updateUiPreferences: protectedProcedure
+  updateUiPreferences: selfProcedure
     .input(UiPreferencesSchema)
     .mutation(async ({ ctx, input }) => {
       const [current] = await ctx.db
@@ -298,12 +267,14 @@ export const usersRouter = createTRPCRouter({
 
   // ─── MFA Compliance Status (SOC 2 CC6.1 / ISO 27001 A.8.5) ───
 
-  /** Get current user's MFA status and compliance posture */
-  mfaStatus: protectedProcedure.query(({ ctx }) => {
-    const meta = ctx.user.user_metadata as Record<string, unknown> | undefined;
-    const role = typeof meta?.role === "string" ? meta.role : "employee";
+  /**
+   * Current session's MFA posture. `enrolled` means this session is verified
+   * with a second factor (JWT `aal2`); the role is the DB workspace role.
+   */
+  mfaStatus: memberReadProcedure.query(({ ctx }) => {
+    const role = ctx.workspace.role;
     const isPrivileged = ["owner", "admin", "supervisor"].includes(role);
-    const mfaEnrolled = Boolean(meta?.mfa_enrolled ?? meta?.totp_enabled);
+    const mfaEnrolled = ctx.user.aal === "aal2";
 
     return {
       enrolled: mfaEnrolled,
@@ -322,7 +293,7 @@ export const usersRouter = createTRPCRouter({
    * Export all personal data belonging to the authenticated user.
    * Complies with ISO/IEC 27018 §A.10 and GDPR Article 15/20 (Data Portability).
    */
-  exportMyData: protectedProcedure.query(async ({ ctx }) => {
+  exportMyData: selfProcedure.query(async ({ ctx }) => {
     const [profile] = await ctx.db
       .select()
       .from(UserProfile)
@@ -392,7 +363,7 @@ export const usersRouter = createTRPCRouter({
    * Complies with ISO/IEC 27018 §A.11 and GDPR Article 17 (Right to Erasure).
    * Preserves historical UUID links for financial/tax compliance (SOC 1 ICFR).
    */
-  anonymizeMyData: protectedProcedure
+  anonymizeMyData: selfProcedure
     .input(
       z.object({
         confirmation: z.literal("CONFIRMAR_ELIMINACION_DE_DATOS"),

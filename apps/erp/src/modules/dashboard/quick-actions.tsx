@@ -5,7 +5,7 @@ import Link from "next/link";
 import type { IconName } from "@cendaro/ui/icons";
 import type { UserRole } from "@cendaro/validators";
 import { Icon } from "@cendaro/ui/icons";
-import { NAV_ROLE_RULES, USER_ROLES } from "@cendaro/validators";
+import { NAV_ROLE_RULES } from "@cendaro/validators";
 
 import { useCurrentUser } from "~/hooks/use-current-user";
 
@@ -27,8 +27,8 @@ const ACTIONS: QuickAction[] = [
     label: "Nueva cotización",
     icon: "RequestQuote",
     href: "/quotes?createQuote=true",
-    // "Cotizaciones" has no role restriction in the nav table (§5.8.3: "todos").
-    roles: USER_ROLES,
+    // quotes.create is gated by orders.create on the server.
+    roles: NAV_ROLE_RULES.createOrder,
   },
   {
     label: "Registrar pago",

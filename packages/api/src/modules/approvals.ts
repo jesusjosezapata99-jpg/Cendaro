@@ -10,12 +10,12 @@ import { z } from "zod/v4";
 
 import { Approval, approvalTypeEnum, Signature } from "@cendaro/db/schema";
 
-import { createTRPCRouter, workspaceProcedure } from "../trpc";
+import { createTRPCRouter, wsPermissionProcedure } from "../trpc";
 import { logAudit } from "./audit";
 
 export const approvalsRouter = createTRPCRouter({
   // ─── List pending approvals ───────────────────
-  listPending: workspaceProcedure
+  listPending: wsPermissionProcedure("dashboard", "read")
     .input(
       z.object({
         limit: z.number().int().min(1).max(100).default(25),
@@ -48,7 +48,7 @@ export const approvalsRouter = createTRPCRouter({
     }),
 
   // ─── List all approvals ───────────────────────
-  list: workspaceProcedure
+  list: wsPermissionProcedure("dashboard", "read")
     .input(
       z.object({
         limit: z.number().int().min(1).max(100).default(25),
@@ -84,7 +84,7 @@ export const approvalsRouter = createTRPCRouter({
     }),
 
   // ─── Get approval by ID with signatures ───────
-  byId: workspaceProcedure
+  byId: wsPermissionProcedure("dashboard", "read")
     .input(z.object({ id: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       const [approval] = await ctx.db
@@ -114,7 +114,9 @@ export const approvalsRouter = createTRPCRouter({
     }),
 
   // ─── Request approval ─────────────────────────
-  request: workspaceProcedure
+  // entityType/entityId are not verified against the workspace, so only
+  // management may open requests (no ERP screen calls this yet).
+  request: wsPermissionProcedure("dashboard", "update")
     .input(
       z.object({
         approvalType: z.enum(approvalTypeEnum.enumValues),
@@ -156,7 +158,7 @@ export const approvalsRouter = createTRPCRouter({
     }),
 
   // ─── Approve ──────────────────────────────────
-  approve: workspaceProcedure
+  approve: wsPermissionProcedure("dashboard", "approve")
     .input(
       z.object({
         id: z.string().uuid(),
@@ -243,7 +245,7 @@ export const approvalsRouter = createTRPCRouter({
     }),
 
   // ─── Reject ───────────────────────────────────
-  reject: workspaceProcedure
+  reject: wsPermissionProcedure("dashboard", "approve")
     .input(
       z.object({
         id: z.string().uuid(),

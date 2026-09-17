@@ -16,14 +16,14 @@ import {
 
 import {
   createTRPCRouter,
-  workspaceProcedure,
-  workspaceReadProcedure,
+  wsPermissionProcedure,
+  wsReadPermissionProcedure,
 } from "../trpc";
 import { logAudit } from "./audit";
 
 export const receivablesRouter = createTRPCRouter({
   // ─── List all AR accounts ─────────────────────
-  list: workspaceReadProcedure
+  list: wsReadPermissionProcedure("receivables", "read")
     .input(
       z.object({
         limit: z.number().int().min(1).max(100).default(25),
@@ -52,7 +52,7 @@ export const receivablesRouter = createTRPCRouter({
     }),
 
   // ─── Get by ID with installments + allocations ─
-  byId: workspaceReadProcedure
+  byId: wsReadPermissionProcedure("receivables", "read")
     .input(z.object({ id: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       const [receivable] = await ctx.db
@@ -93,7 +93,7 @@ export const receivablesRouter = createTRPCRouter({
     }),
 
   // ─── Create installments for AR ───────────────
-  createInstallments: workspaceProcedure
+  createInstallments: wsPermissionProcedure("receivables", "create")
     .input(
       z.object({
         receivableId: z.string().uuid(),
@@ -149,7 +149,7 @@ export const receivablesRouter = createTRPCRouter({
     }),
 
   // ─── Mark installment as paid ─────────────────
-  markPaid: workspaceProcedure
+  markPaid: wsPermissionProcedure("receivables", "approve")
     .input(
       z.object({
         installmentId: z.string().uuid(),
@@ -194,24 +194,26 @@ export const receivablesRouter = createTRPCRouter({
     }),
 
   // ─── Summary stats ────────────────────────────
-  summary: workspaceReadProcedure.query(async ({ ctx }) => {
-    const [stats] = await ctx.db
-      .select({
-        totalActive: sql<number>`count(*) filter (where ${AccountReceivable.status} = 'pending')`,
-        totalOverdue: sql<number>`count(*) filter (where ${AccountReceivable.status} = 'overdue')`,
-        totalAmount: sql<number>`coalesce(sum(${AccountReceivable.totalAmount}), 0)`,
-        paidAmount: sql<number>`coalesce(sum(${AccountReceivable.paidAmount}), 0)`,
-      })
-      .from(AccountReceivable)
-      .where(eq(AccountReceivable.workspaceId, ctx.workspace.workspaceId));
+  summary: wsReadPermissionProcedure("receivables", "read").query(
+    async ({ ctx }) => {
+      const [stats] = await ctx.db
+        .select({
+          totalActive: sql<number>`count(*) filter (where ${AccountReceivable.status} = 'pending')`,
+          totalOverdue: sql<number>`count(*) filter (where ${AccountReceivable.status} = 'overdue')`,
+          totalAmount: sql<number>`coalesce(sum(${AccountReceivable.totalAmount}), 0)`,
+          paidAmount: sql<number>`coalesce(sum(${AccountReceivable.paidAmount}), 0)`,
+        })
+        .from(AccountReceivable)
+        .where(eq(AccountReceivable.workspaceId, ctx.workspace.workspaceId));
 
-    return (
-      stats ?? {
-        totalActive: 0,
-        totalOverdue: 0,
-        totalAmount: 0,
-        paidAmount: 0,
-      }
-    );
-  }),
+      return (
+        stats ?? {
+          totalActive: 0,
+          totalOverdue: 0,
+          totalAmount: 0,
+          paidAmount: 0,
+        }
+      );
+    },
+  ),
 });

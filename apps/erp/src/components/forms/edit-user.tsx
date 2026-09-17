@@ -102,20 +102,15 @@ export function EditUserDialog({
     }),
   );
 
-  // Owner-protection logic for UI
-  const isTargetOwner = user.role === "owner";
+  // Mirrors the server rules in users.update: an owner's role is never
+  // editable here, only an owner can modify an admin, and only an owner can
+  // assign the owner or admin roles.
   const isCallerOwner = currentUserRole === "owner";
-
-  // Determine if role dropdown should be disabled
-  // - Target is owner AND caller is not owner → disabled
-  // - Target is owner AND caller is owner (peer protection) → disabled
-  const isRoleDisabled = isTargetOwner;
-
-  // Filter available roles
-  // - Only owner can see/assign "owner" role
+  const isRoleDisabled =
+    user.role === "owner" || (user.role === "admin" && !isCallerOwner);
   const availableRoles = isCallerOwner
     ? ALL_ROLES
-    : ALL_ROLES.filter((r) => r.value !== "owner");
+    : ALL_ROLES.filter((r) => r.value !== "owner" && r.value !== "admin");
 
   return (
     <SheetModal

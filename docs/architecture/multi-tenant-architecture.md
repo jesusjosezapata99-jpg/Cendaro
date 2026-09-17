@@ -24,9 +24,10 @@ Cendaro implements **shared-database, shared-schema** multi-tenancy. All tenants
 ### 🔒 Backend — At a Glance
 
 - **19 tRPC routers**: 18 domain routers on `workspaceProcedure`, 1 health (public)
-- **4-layer middleware chain**: `protectedProcedure` → `workspaceProcedure` → `moduleProcedure` → `wsPermissionProcedure`
-- Every workspace call: validates JWT → validates membership → `SET LOCAL ROLE` → `SET LOCAL app.workspace_id` → executes inside transaction
-- **`orgAdminProcedure`** for cross-workspace owner access (no RLS)
+- **Authorization chain** (SECURITY-REMEDIATION F2): `protectedProcedure` → `workspaceProcedure` / `workspaceReadProcedure` → `wsPermissionProcedure(module, action)` / `wsReadPermissionProcedure(module, action)`, which check the static `ROLE_PERMISSIONS` matrix (`@cendaro/validators`) with the `workspace_member` role, then the plan module (`workspace_module`; core modules dashboard/users/settings/audit are always on)
+- Every procedure declares `meta.authz` (`permission`, `member`, `self` or `public`); `procedure-authz-coverage.test.ts` pins all of them
+- Every workspace write: validates JWT → validates membership → role permission → plan module → `SET LOCAL ROLE` → `set_config('app.workspace_id')` → executes inside transaction
+- `role_permission` is a generated mirror of the matrix (migration 012), not read at runtime
 
 ### 🖥 Frontend — At a Glance
 
@@ -74,9 +75,8 @@ graph TB
         direction TB
         AUTH["protectedProcedure - JWT Auth"]
         WSP["workspaceProcedure - Membership + RLS"]
-        MOD["moduleProcedure - Module gate"]
-        PERM["wsPermissionProcedure - RBAC"]
-        ORG["orgAdminProcedure - Cross-workspace"]
+        PERM["wsPermissionProcedure - Role matrix + module gate"]
+        SELF["selfProcedure - Own data, no workspace"]
     end
 
     subgraph DATABASE ["PostgreSQL - Supabase"]
@@ -319,27 +319,30 @@ graph LR
     A["publicProcedure - Logging"]
     B["protectedProcedure - JWT Auth"]
     C["workspaceProcedure - Membership + RLS"]
-    D["moduleProcedure - Module gate"]
-    E["wsPermissionProcedure - RBAC"]
-    F["orgAdminProcedure - Cross-workspace"]
+    D["wsPermissionProcedure - Role matrix + module gate"]
+    E["memberReadProcedure - Any active member"]
+    F["selfProcedure - Own data, no workspace"]
 
     A --> B
     B --> C
     C --> D
-    D --> E
-    B -.-> F
+    C --> E
+    B --> F
 ```
 
 ### 4.2 Procedure Reference
 
-| Procedure                         | Inherits  | Validates                       |             Routers              |
-| --------------------------------- | --------- | ------------------------------- | :------------------------------: |
-| `publicProcedure`                 | —         | Request logging                 |            1 (health)            |
-| `protectedProcedure`              | public    | Supabase JWT session            | 2 (`users.me`, `workspace.list`) |
-| **`workspaceProcedure`**          | protected | **Membership + SET LOCAL**      |              **18**              |
-| `moduleProcedure(mod)`            | workspace | Module in `workspace_module`    |            Available             |
-| `wsPermissionProcedure(mod, act)` | module    | Permission in `role_permission` |            Available             |
-| `orgAdminProcedure`               | protected | Owner role (no SET LOCAL)       |            Admin ops             |
+Every procedure exposed by `appRouter` must use one of the builders below (`meta.authz` is enforced by `procedure-authz-coverage.test.ts`).
+
+| Builder                                   | `meta.authz` | Validates                                                                 |
+| ----------------------------------------- | ------------ | ------------------------------------------------------------------------- |
+| `publicHealthProcedure`                   | `public`     | Request logging only (`health.ping`)                                      |
+| `selfProcedure`                           | `self`       | Supabase JWT; caller acts on own data (`users.me`, `workspace.list`)      |
+| `memberReadProcedure`                     | `member`     | Active membership (e.g. `pricing.latestRates`, `workspace.current`)       |
+| **`wsPermissionProcedure(mod, act)`**     | `permission` | **Membership + `ROLE_PERMISSIONS` + plan module + SET LOCAL transaction** |
+| **`wsReadPermissionProcedure(mod, act)`** | `permission` | Membership + `ROLE_PERMISSIONS` + plan module (no transaction)            |
+
+Vendors additionally get row scoping (`modules/vendor-scope.ts`): only their own orders and quotes, and customers assigned to them.
 
 ### 4.3 Router Migration Status
 

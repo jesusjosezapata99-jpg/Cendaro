@@ -94,20 +94,20 @@ export const userRoleSchema = z.enum(USER_ROLES);
  * NAV_ROLE_RULES — single source of truth for "which roles see this" across
  * the sidebar (`~/lib/navigation.ts`), the global search redaction
  * (`search.global`, T2.11) and any other UI gate that used to hardcode a
- * `roles: UserRole[]` list. Values for the "create X" entries mirror the
- * actual grants in `role_permission` (read 2026-09-13) rather than a guess:
- * `orders.create` → admin/employee/owner/supervisor, `customers.create` and
- * `catalog.create` → admin/owner/supervisor. `catalog` has no dedicated
- * "import" permission in the DB, so the import wizard is gated the same as
- * `catalogCreate`.
+ * `roles: UserRole[]` list. Each entry equals the roles of the permission
+ * behind its page in `ROLE_PERMISSIONS` (./authz.ts), pinned by
+ * packages/api/src/__tests__/authz-matrix.test.ts. `catalog` has no dedicated
+ * "import" permission, so the import wizard is gated by `catalog.create`.
  */
 export const NAV_ROLE_RULES = {
   pos: ["owner", "admin", "supervisor", "employee"],
+  orders: ["owner", "admin", "supervisor", "employee", "vendor"],
+  customers: ["owner", "admin", "supervisor", "employee", "vendor"],
   deliveryNotes: ["owner", "admin", "supervisor"],
   invoices: ["owner", "admin", "supervisor"],
   vendors: ["owner", "admin", "supervisor"],
-  createOrder: ["owner", "admin", "supervisor", "employee"],
-  createCustomer: ["owner", "admin", "supervisor"],
+  createOrder: ["owner", "admin", "supervisor", "employee", "vendor"],
+  createCustomer: ["owner", "admin", "supervisor", "employee"],
   pricing: ["owner", "admin", "supervisor"],
   catalogImport: ["owner", "admin", "supervisor"],
   createProduct: ["owner", "admin", "supervisor"],
@@ -126,6 +126,9 @@ export const NAV_ROLE_RULES = {
 } as const satisfies Record<string, readonly UserRole[]>;
 
 export type NavRoleRuleKey = keyof typeof NAV_ROLE_RULES;
+
+export * from "./authz";
+export * from "./fiscal";
 
 // ──────────────────────────────────────────────
 // Composite form schemas (frontend ↔ backend)
@@ -194,7 +197,7 @@ export const createUserSchema = z.object({
   username: z.string().min(3, "Mínimo 3 caracteres").max(128),
   fullName: z.string().min(1, "Nombre requerido").max(256),
   email: z.string().email("Correo electrónico inválido"),
-  password: z.string().min(6, "Mínimo 6 caracteres").max(256),
+  password: z.string().min(12, "Mínimo 12 caracteres").max(256),
   role: userRoleSchema,
   phone: z.string().max(32).optional(),
 });

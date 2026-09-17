@@ -17,24 +17,27 @@ import {
   containerStatusEnum,
   Product,
 } from "@cendaro/db/schema";
+import { can } from "@cendaro/validators";
 
 import {
   createTRPCRouter,
-  workspaceProcedure,
-  workspaceReadProcedure,
+  wsPermissionProcedure,
+  wsReadPermissionProcedure,
 } from "../trpc";
 import { logAudit } from "./audit";
 
 export const containerRouter = createTRPCRouter({
-  list: workspaceReadProcedure.query(async ({ ctx }) => {
-    return ctx.db
-      .select()
-      .from(Container)
-      .where(eq(Container.workspaceId, ctx.workspace.workspaceId))
-      .orderBy(desc(Container.createdAt));
-  }),
+  list: wsReadPermissionProcedure("containers", "read").query(
+    async ({ ctx }) => {
+      return ctx.db
+        .select()
+        .from(Container)
+        .where(eq(Container.workspaceId, ctx.workspace.workspaceId))
+        .orderBy(desc(Container.createdAt));
+    },
+  ),
 
-  byId: workspaceProcedure
+  byId: wsPermissionProcedure("containers", "read")
     .input(z.object({ id: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       const [container] = await ctx.db
@@ -63,7 +66,7 @@ export const containerRouter = createTRPCRouter({
       return { ...container, items };
     }),
 
-  create: workspaceProcedure
+  create: wsPermissionProcedure("containers", "create")
     .input(
       z.object({
         containerNumber: z.string().min(1).max(64),
@@ -98,7 +101,7 @@ export const containerRouter = createTRPCRouter({
       return container;
     }),
 
-  updateStatus: workspaceProcedure
+  updateStatus: wsPermissionProcedure("containers", "update")
     .input(
       z.object({
         id: z.string().uuid(),
@@ -106,9 +109,10 @@ export const containerRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      // Closing releases the container: containers.approve (owner/admin).
       if (
         input.status === "closed" &&
-        !["owner", "admin"].includes(ctx.workspace.role)
+        !can(ctx.workspace.role, "containers", "approve")
       ) {
         throw new TRPCError({
           code: "FORBIDDEN",
@@ -150,7 +154,7 @@ export const containerRouter = createTRPCRouter({
       return updated;
     }),
 
-  addItems: workspaceProcedure
+  addItems: wsPermissionProcedure("containers", "update")
     .input(
       z.object({
         containerId: z.string().uuid(),
@@ -204,21 +208,23 @@ export const containerRouter = createTRPCRouter({
     }),
 
   // ── AI Prompt Config ───────────────────────────────
-  getAIPromptConfig: workspaceReadProcedure.query(async ({ ctx }) => {
-    const [config] = await ctx.db
-      .select()
-      .from(AiPromptConfig)
-      .where(
-        and(
-          eq(AiPromptConfig.workspaceId, ctx.workspace.workspaceId),
-          eq(AiPromptConfig.active, true),
-        ),
-      )
-      .limit(1);
-    return config ?? null;
-  }),
+  getAIPromptConfig: wsReadPermissionProcedure("containers", "read").query(
+    async ({ ctx }) => {
+      const [config] = await ctx.db
+        .select()
+        .from(AiPromptConfig)
+        .where(
+          and(
+            eq(AiPromptConfig.workspaceId, ctx.workspace.workspaceId),
+            eq(AiPromptConfig.active, true),
+          ),
+        )
+        .limit(1);
+      return config ?? null;
+    },
+  ),
 
-  updateAIPromptConfig: workspaceProcedure
+  updateAIPromptConfig: wsPermissionProcedure("settings", "update")
     .input(
       z.object({
         configKey: z.string().min(1).max(64),
@@ -277,37 +283,39 @@ export const containerRouter = createTRPCRouter({
     }),
 
   // ── Catalog Snapshot (for context injection) ──────
-  getCatalogSnapshot: workspaceReadProcedure.query(async ({ ctx }) => {
-    const categories = await ctx.db
-      .select({ id: Category.id, name: Category.name, slug: Category.slug })
-      .from(Category)
-      .where(eq(Category.workspaceId, ctx.workspace.workspaceId))
-      .limit(200);
+  getCatalogSnapshot: wsReadPermissionProcedure("containers", "read").query(
+    async ({ ctx }) => {
+      const categories = await ctx.db
+        .select({ id: Category.id, name: Category.name, slug: Category.slug })
+        .from(Category)
+        .where(eq(Category.workspaceId, ctx.workspace.workspaceId))
+        .limit(200);
 
-    const brands = await ctx.db
-      .select({ id: Brand.id, name: Brand.name })
-      .from(Brand)
-      .where(eq(Brand.workspaceId, ctx.workspace.workspaceId))
-      .limit(100);
+      const brands = await ctx.db
+        .select({ id: Brand.id, name: Brand.name })
+        .from(Brand)
+        .where(eq(Brand.workspaceId, ctx.workspace.workspaceId))
+        .limit(100);
 
-    const products = await ctx.db
-      .select({
-        id: Product.id,
-        sku: Product.sku,
-        name: Product.name,
-        categoryId: Product.categoryId,
-        brandId: Product.brandId,
-      })
-      .from(Product)
-      .where(eq(Product.workspaceId, ctx.workspace.workspaceId))
-      .orderBy(desc(Product.createdAt))
-      .limit(100);
+      const products = await ctx.db
+        .select({
+          id: Product.id,
+          sku: Product.sku,
+          name: Product.name,
+          categoryId: Product.categoryId,
+          brandId: Product.brandId,
+        })
+        .from(Product)
+        .where(eq(Product.workspaceId, ctx.workspace.workspaceId))
+        .orderBy(desc(Product.createdAt))
+        .limit(100);
 
-    return { categories, brands, products };
-  }),
+      return { categories, brands, products };
+    },
+  ),
 
   // ── Confirm with Matching (v2) ───────────────────
-  confirmWithMatching: workspaceProcedure
+  confirmWithMatching: wsPermissionProcedure("containers", "update")
     .input(
       z.object({
         containerId: z.string().uuid(),
@@ -452,7 +460,7 @@ export const containerRouter = createTRPCRouter({
     }),
 
   // ── Save Correction (few-shot learning) ──────────
-  saveCorrection: workspaceProcedure
+  saveCorrection: wsPermissionProcedure("containers", "update")
     .input(
       z.object({
         original: z.string(),
@@ -513,7 +521,7 @@ export const containerRouter = createTRPCRouter({
     }),
 
   /** Get packing list items for a container (paginated for virtual scroll) */
-  getPackingListItems: workspaceReadProcedure
+  getPackingListItems: wsReadPermissionProcedure("containers", "read")
     .input(
       z.object({
         containerId: z.string().uuid(),

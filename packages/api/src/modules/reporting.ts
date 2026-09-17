@@ -15,11 +15,11 @@ import {
   StockLedger,
 } from "@cendaro/db/schema";
 
-import { createTRPCRouter, workspaceReadProcedure } from "../trpc";
+import { createTRPCRouter, wsReadPermissionProcedure } from "../trpc";
 
 export const reportingRouter = createTRPCRouter({
   // ─── Sales summary by date range ──────────────
-  salesSummary: workspaceReadProcedure
+  salesSummary: wsReadPermissionProcedure("dashboard", "export")
     .input(
       z.object({
         from: z.string().datetime(),
@@ -45,7 +45,7 @@ export const reportingRouter = createTRPCRouter({
     }),
 
   // ─── Sales by channel ─────────────────────────
-  salesByChannel: workspaceReadProcedure
+  salesByChannel: wsReadPermissionProcedure("dashboard", "export")
     .input(
       z.object({
         from: z.string().datetime(),
@@ -70,7 +70,7 @@ export const reportingRouter = createTRPCRouter({
     }),
 
   // ─── Payment method breakdown ─────────────────
-  paymentMethods: workspaceReadProcedure
+  paymentMethods: wsReadPermissionProcedure("dashboard", "export")
     .input(
       z.object({
         from: z.string().datetime(),
@@ -95,20 +95,22 @@ export const reportingRouter = createTRPCRouter({
     }),
 
   // ─── Inventory valuation ──────────────────────
-  inventoryValuation: workspaceReadProcedure.query(async ({ ctx }) => {
-    return ctx.db
-      .select({
-        warehouseId: StockLedger.warehouseId,
-        totalProducts: sql<number>`count(distinct ${StockLedger.productId})`,
-        totalUnits: sql<number>`coalesce(sum(${StockLedger.quantity}), 0)`,
-      })
-      .from(StockLedger)
-      .where(eq(StockLedger.workspaceId, ctx.workspace.workspaceId))
-      .groupBy(StockLedger.warehouseId);
-  }),
+  inventoryValuation: wsReadPermissionProcedure("dashboard", "export").query(
+    async ({ ctx }) => {
+      return ctx.db
+        .select({
+          warehouseId: StockLedger.warehouseId,
+          totalProducts: sql<number>`count(distinct ${StockLedger.productId})`,
+          totalUnits: sql<number>`coalesce(sum(${StockLedger.quantity}), 0)`,
+        })
+        .from(StockLedger)
+        .where(eq(StockLedger.workspaceId, ctx.workspace.workspaceId))
+        .groupBy(StockLedger.warehouseId);
+    },
+  ),
 
   // ─── Top selling products ─────────────────────
-  topProducts: workspaceReadProcedure
+  topProducts: wsReadPermissionProcedure("dashboard", "export")
     .input(
       z.object({
         from: z.string().datetime(),
@@ -145,7 +147,10 @@ export const reportingRouter = createTRPCRouter({
    * Reconciles financial ledgers (Orders, Payments, Receivables) and verifies StockLedger consistency.
    * Restrict access to supervisor, admin, owner.
    */
-  reconcileFinancialLedger: workspaceReadProcedure.query(async ({ ctx }) => {
+  reconcileFinancialLedger: wsReadPermissionProcedure(
+    "dashboard",
+    "export",
+  ).query(async ({ ctx }) => {
     if (!["owner", "admin", "supervisor"].includes(ctx.workspace.role)) {
       throw new TRPCError({
         code: "FORBIDDEN",

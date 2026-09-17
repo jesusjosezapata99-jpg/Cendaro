@@ -14,6 +14,7 @@ import { StatusPill } from "@cendaro/ui/status-pill";
 
 import { DataTable } from "~/components/data-table/data-table";
 import { PageHeader } from "~/components/page-header";
+import { Can } from "~/components/role-guard";
 import { StatCard } from "~/components/stat-card";
 import { useCustomerParams } from "~/hooks/params/use-customer-params";
 import { useBcvRate } from "~/hooks/use-bcv-rate";
@@ -275,13 +276,15 @@ export default function CustomersClient() {
         title="Directorio de Clientes"
         description="Gestión integral de clientes comerciales, líneas de crédito y contacto directo"
         actions={
-          <Button
-            onClick={() => void setCustomerParams({ createCustomer: true })}
-            className="min-h-11 w-full gap-2 sm:w-auto"
-          >
-            <Icons.PersonAdd className="size-4.5" />
-            Nuevo Cliente
-          </Button>
+          <Can module="customers" action="create">
+            <Button
+              onClick={() => void setCustomerParams({ createCustomer: true })}
+              className="min-h-11 w-full gap-2 sm:w-auto"
+            >
+              <Icons.PersonAdd className="size-4.5" />
+              Nuevo Cliente
+            </Button>
+          </Can>
         }
       />
 

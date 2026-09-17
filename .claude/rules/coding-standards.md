@@ -203,7 +203,7 @@ apps/erp/
 
 - Env validation via `@t3-oss/env-nextjs` — crash on missing vars
 - Auth middleware in `packages/auth/middleware` — validates Supabase session on every request
-- tRPC context injects auth — procedures use `protectedProcedure` for RBAC
+- tRPC context injects auth — every procedure must be built from an authorization builder that records `meta.authz`: `wsPermissionProcedure` / `wsReadPermissionProcedure(module, action)` (role matrix `ROLE_PERMISSIONS` in `@cendaro/validators` + plan module), `memberReadProcedure`, `selfProcedure` or `publicHealthProcedure`. `procedure-authz-coverage.test.ts` fails for any procedure without it. Never authorize from `user_metadata`; UI action buttons use `<Can module action>` from `~/components/role-guard`
 - File uploads: client-side parsing + chunked JSON (avoid Vercel's 4.5MB serverless limit)
 - Never expose `SUPABASE_SERVICE_ROLE_KEY` to client — server-only
 

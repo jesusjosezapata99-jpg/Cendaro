@@ -28,6 +28,7 @@ import { createSupabaseServerClient } from "@cendaro/auth/server";
 
 import { env } from "~/env";
 import { rateLimit } from "~/lib/rate-limit";
+import { isTrustedOrigin } from "~/lib/trusted-origin";
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -36,60 +37,6 @@ const AUTH_SECURITY_HEADERS = {
   Pragma: "no-cache",
   "X-Content-Type-Options": "nosniff",
 } as const;
-
-// ── Origin validation ────────────────────────────────────────────────────────
-
-/**
- * Extracts the effective host from the Supabase project URL.
- * Used as the trusted origin for CSRF validation.
- *
- * The app host is inferred from the NEXT_PUBLIC_SUPABASE_URL env var
- * (which always contains the project domain), combined with the request's
- * own Host header. This avoids needing a separate NEXT_PUBLIC_APP_URL env var.
- */
-function isTrustedOrigin(requestHeaders: Headers, requestUrl: string): boolean {
-  // Extract the app's own host from the incoming request URL
-  let appHost: string;
-  try {
-    appHost = new URL(requestUrl).host;
-  } catch {
-    return false;
-  }
-
-  // Development: always allow localhost and 127.0.0.1
-  if (
-    appHost.startsWith("localhost") ||
-    appHost.startsWith("127.0.0.1") ||
-    appHost.startsWith("0.0.0.0")
-  ) {
-    return true;
-  }
-
-  // Check Origin header first (most reliable, set by browsers on CORS requests)
-  const origin = requestHeaders.get("origin");
-  if (origin) {
-    try {
-      const originHost = new URL(origin).host;
-      return originHost === appHost;
-    } catch {
-      return false;
-    }
-  }
-
-  // Fall back to Referer header (older browsers, some proxies)
-  const referer = requestHeaders.get("referer");
-  if (referer) {
-    try {
-      const refererHost = new URL(referer).host;
-      return refererHost === appHost;
-    } catch {
-      return false;
-    }
-  }
-
-  // No Origin or Referer — reject (defensive: same-origin requests always include one)
-  return false;
-}
 
 // ── Route handler ─────────────────────────────────────────────────────────────
 

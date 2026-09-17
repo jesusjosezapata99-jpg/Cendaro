@@ -24,6 +24,8 @@ export interface CustomerInfo {
   id: string;
   name: string;
   identification?: string | null;
+  /** Domicilio fiscal (required by SENIAT on the invoice). */
+  address?: string | null;
   phone?: string | null;
   customerType?: string;
 }

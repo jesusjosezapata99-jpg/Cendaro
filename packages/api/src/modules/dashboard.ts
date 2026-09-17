@@ -23,8 +23,8 @@ import { NAV_ROLE_RULES } from "@cendaro/validators";
 import type { createTRPCContext } from "../trpc";
 import {
   createTRPCRouter,
-  workspaceProcedure,
-  workspaceReadProcedure,
+  wsPermissionProcedure,
+  wsReadPermissionProcedure,
 } from "../trpc";
 import { logAudit } from "./audit";
 
@@ -456,11 +456,11 @@ async function computeSalesSummary(ctx: Context) {
 export const dashboardRouter = createTRPCRouter({
   // ─── Overview (PLAN-2026-09-DESIGN-SYSTEM §T3.1) ──
 
-  overview: workspaceReadProcedure
+  overview: wsReadPermissionProcedure("dashboard", "read")
     .input(z.object({ period: dashboardPeriodSchema.default("30d") }))
     .query(async ({ ctx, input }) => {
-      const role = ctx.user.user_metadata?.role;
-      const cacheKey = `overview:${ctx.workspace.workspaceId}:${input.period}:${role ?? "none"}`;
+      const role = ctx.workspace.role;
+      const cacheKey = `overview:${ctx.workspace.workspaceId}:${input.period}:${role}`;
       const cached = dashboardCache.get(cacheKey);
       if (cached && Date.now() < cached.expiry) {
         return cached.data as Awaited<ReturnType<typeof computeOverview>>;
@@ -476,22 +476,24 @@ export const dashboardRouter = createTRPCRouter({
 
   // ─── KPI Summary (PRD §22) ──────────────────
 
-  salesSummary: workspaceReadProcedure.query(async ({ ctx }) => {
-    const cacheKey = ctx.workspace.workspaceId;
-    const cached = dashboardCache.get(cacheKey);
-    if (cached && Date.now() < cached.expiry) {
-      return cached.data as Awaited<ReturnType<typeof computeSalesSummary>>;
-    }
+  salesSummary: wsReadPermissionProcedure("dashboard", "export").query(
+    async ({ ctx }) => {
+      const cacheKey = ctx.workspace.workspaceId;
+      const cached = dashboardCache.get(cacheKey);
+      if (cached && Date.now() < cached.expiry) {
+        return cached.data as Awaited<ReturnType<typeof computeSalesSummary>>;
+      }
 
-    const result = await computeSalesSummary(ctx);
-    dashboardCache.set(cacheKey, {
-      data: result,
-      expiry: Date.now() + DASHBOARD_CACHE_TTL,
-    });
-    return result;
-  }),
+      const result = await computeSalesSummary(ctx);
+      dashboardCache.set(cacheKey, {
+        data: result,
+        expiry: Date.now() + DASHBOARD_CACHE_TTL,
+      });
+      return result;
+    },
+  ),
 
-  latestClosures: workspaceReadProcedure
+  latestClosures: wsReadPermissionProcedure("cash_closure", "read")
     .input(z.object({ limit: z.number().int().min(1).max(7).default(5) }))
     .query(async ({ ctx, input }) => {
       return ctx.db
@@ -513,7 +515,7 @@ export const dashboardRouter = createTRPCRouter({
 
   // ─── System Alerts (PRD §23) ─────────────────
 
-  listAlerts: workspaceReadProcedure
+  listAlerts: wsReadPermissionProcedure("dashboard", "read")
     .input(
       z.object({
         alertType: z.enum(alertTypeEnum.enumValues).optional(),
@@ -548,29 +550,31 @@ export const dashboardRouter = createTRPCRouter({
         .limit(input.limit);
     }),
 
-  activeAlertCount: workspaceReadProcedure.query(async ({ ctx }) => {
-    try {
-      const [result] = await ctx.db
-        .select({ count: count(SystemAlert.id) })
-        .from(SystemAlert)
-        .where(
-          and(
-            eq(SystemAlert.workspaceId, ctx.workspace.workspaceId),
-            eq(SystemAlert.isDismissed, false),
-          ),
+  activeAlertCount: wsReadPermissionProcedure("dashboard", "read").query(
+    async ({ ctx }) => {
+      try {
+        const [result] = await ctx.db
+          .select({ count: count(SystemAlert.id) })
+          .from(SystemAlert)
+          .where(
+            and(
+              eq(SystemAlert.workspaceId, ctx.workspace.workspaceId),
+              eq(SystemAlert.isDismissed, false),
+            ),
+          );
+        return result?.count ?? 0;
+      } catch (error) {
+        ctx.log.warn(
+          "activeAlertCount query fell back to 0",
+          { workspaceId: ctx.workspace.workspaceId },
+          error,
         );
-      return result?.count ?? 0;
-    } catch (error) {
-      ctx.log.warn(
-        "activeAlertCount query fell back to 0",
-        { workspaceId: ctx.workspace.workspaceId },
-        error,
-      );
-      return 0;
-    }
-  }),
+        return 0;
+      }
+    },
+  ),
 
-  dismissAlert: workspaceProcedure
+  dismissAlert: wsPermissionProcedure("dashboard", "update")
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       const [updated] = await ctx.db
@@ -597,7 +601,7 @@ export const dashboardRouter = createTRPCRouter({
       return updated;
     }),
 
-  dismissAllByType: workspaceProcedure
+  dismissAllByType: wsPermissionProcedure("dashboard", "update")
     .input(z.object({ alertType: z.enum(alertTypeEnum.enumValues) }))
     .mutation(async ({ ctx, input }) => {
       const result = await ctx.db

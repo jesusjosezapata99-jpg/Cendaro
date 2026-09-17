@@ -11,6 +11,7 @@ export {
   mapClaimsToUser,
 } from "./trpc";
 export type { AuthenticatedUser } from "./trpc";
+export { buildAuditIntegrityMetadata } from "./modules/audit";
 export { logger } from "./logger";
 export type { ILogger, LogContext } from "./logger";
 

@@ -47,8 +47,18 @@ export const NAV_ITEMS: NavParent[] = [
     label: "Ventas",
     icon: "ReceiptLong",
     children: [
-      { label: "Pedidos", href: "/orders", kind: "link" },
-      { label: "Cotizaciones", href: "/quotes", kind: "link" },
+      {
+        label: "Pedidos",
+        href: "/orders",
+        roles: NAV_ROLE_RULES.orders,
+        kind: "link",
+      },
+      {
+        label: "Cotizaciones",
+        href: "/quotes",
+        roles: NAV_ROLE_RULES.orders,
+        kind: "link",
+      },
       {
         label: "Notas de entrega",
         href: "/delivery-notes",
@@ -80,6 +90,7 @@ export const NAV_ITEMS: NavParent[] = [
     label: "Clientes",
     icon: "Groups",
     href: "/customers",
+    roles: NAV_ROLE_RULES.customers,
     children: [
       { label: "Clientes", href: "/customers", kind: "link" },
       {

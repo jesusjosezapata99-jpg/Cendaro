@@ -1,0 +1,1 @@
+- [UI authz drift](project_ui-authz-drift.md) — buttons/RoleGuard arrays drift from ROLE_PERMISSIONS; checklist for authz-change reviews

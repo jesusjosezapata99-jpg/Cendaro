@@ -33,13 +33,42 @@ import {
   SalesOrder,
   StockMovement,
 } from "@cendaro/db/schema";
+import {
+  can,
+  createCustomerSchema,
+  normalizeFiscalId,
+} from "@cendaro/validators";
 
 import {
   createTRPCRouter,
-  workspaceProcedure,
-  workspaceReadProcedure,
+  wsPermissionProcedure,
+  wsReadPermissionProcedure,
 } from "../trpc";
 import { logAudit } from "./audit";
+import { escapeLike } from "./search";
+import { assertVendorCustomer, vendorScopeId } from "./vendor-scope";
+
+function duplicateCustomerError(identification: string, name?: string) {
+  return new TRPCError({
+    code: "CONFLICT",
+    message: name
+      ? `Ya existe un cliente registrado con ${identification}: ${name}. Búscalo en la lista de clientes.`
+      : `Ya existe un cliente registrado con ${identification}. Búscalo en la lista de clientes.`,
+  });
+}
+
+/** Postgres unique_violation (23505), directly or wrapped by Drizzle. */
+function isUniqueViolation(error: unknown): boolean {
+  const codeOf = (value: unknown): unknown =>
+    typeof value === "object" && value !== null && "code" in value
+      ? value.code
+      : undefined;
+  const cause =
+    typeof error === "object" && error !== null && "cause" in error
+      ? error.cause
+      : undefined;
+  return codeOf(error) === "23505" || codeOf(cause) === "23505";
+}
 
 export const listOrdersInputSchema = z.object({
   limit: z.number().int().min(1).max(100).default(25),
@@ -68,18 +97,38 @@ export type ListOrdersInput = z.infer<typeof listOrdersInputSchema>;
 export const salesRouter = createTRPCRouter({
   // ─── Customers (PRD §17) ─────────────────────
 
-  listCustomers: workspaceReadProcedure
+  listCustomers: wsReadPermissionProcedure("customers", "read")
     .input(
       z.object({
         limit: z.number().int().min(1).max(100).default(25),
         offset: z.number().int().min(0).default(0),
         customerType: z.enum(customerTypeEnum.enumValues).optional(),
+        /** Name, legal name, phone or RIF/cédula (with or without dashes). */
+        search: z.string().trim().max(64).optional(),
       }),
     )
     .query(async ({ ctx, input }) => {
       const conditions = [eq(Customer.workspaceId, ctx.workspace.workspaceId)];
+      const vendorId = vendorScopeId(ctx);
+      if (vendorId) {
+        conditions.push(eq(Customer.assignedVendorId, vendorId));
+      }
       if (input.customerType) {
         conditions.push(eq(Customer.customerType, input.customerType));
+      }
+      if (input.search) {
+        const pattern = `%${escapeLike(input.search)}%`;
+        const compactId = input.search.toUpperCase().replace(/[^A-Z0-9]/g, "");
+        const searchCondition = or(
+          ilike(Customer.name, pattern),
+          ilike(Customer.legalName, pattern),
+          ilike(Customer.phone, pattern),
+          ilike(Customer.identification, pattern),
+          compactId
+            ? sql`upper(regexp_replace(${Customer.identification}, '[^A-Za-z0-9]', '', 'g')) LIKE ${`%${compactId}%`}`
+            : undefined,
+        );
+        if (searchCondition) conditions.push(searchCondition);
       }
       return ctx.db
         .select({
@@ -102,9 +151,10 @@ export const salesRouter = createTRPCRouter({
         .offset(input.offset);
     }),
 
-  customerById: workspaceReadProcedure
+  customerById: wsReadPermissionProcedure("customers", "read")
     .input(z.object({ id: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
+      const vendorId = vendorScopeId(ctx);
       const [customer] = await ctx.db
         .select()
         .from(Customer)
@@ -112,51 +162,104 @@ export const salesRouter = createTRPCRouter({
           and(
             eq(Customer.id, input.id),
             eq(Customer.workspaceId, ctx.workspace.workspaceId),
+            vendorId ? eq(Customer.assignedVendorId, vendorId) : undefined,
           ),
         )
         .limit(1);
       return customer ?? null;
     }),
 
-  createCustomer: workspaceProcedure
-    .input(
-      z.object({
-        name: z.string().min(1).max(256),
-        legalName: z.string().max(512).optional(),
-        identification: z.string().max(32).optional(),
-        customerType: z.enum(customerTypeEnum.enumValues).default("retail"),
-        phone: z.string().max(32).optional(),
-        email: z.email().optional(),
-        address: z.string().optional(),
-        creditLimit: z.number().nonnegative().optional(),
-        creditDays: z.number().int().nonnegative().optional(),
-      }),
-    )
+  /**
+   * Registers a buyer with the data SENIAT requires on an invoice (name or
+   * razón social, RIF / cédula / passport, domicilio fiscal — see
+   * @cendaro/validators fiscal.ts). The identification is stored in
+   * canonical form and is unique per workspace.
+   */
+  createCustomer: wsPermissionProcedure("customers", "create")
+    .input(createCustomerSchema)
     .mutation(async ({ ctx, input }) => {
-      const [c] = await ctx.db
-        .insert(Customer)
-        .values({
-          ...input,
-          workspaceId: ctx.workspace.workspaceId,
-        })
-        .returning();
+      const fiscalId = normalizeFiscalId(input.idType, input.identification);
+      if (!fiscalId.ok) {
+        // Unreachable after schema validation; kept as a server-side guard.
+        throw new TRPCError({ code: "BAD_REQUEST", message: fiscalId.message });
+      }
+
+      const grantsCredit =
+        (input.creditLimit ?? 0) > 0 || (input.creditDays ?? 0) > 0;
+      if (grantsCredit && !can(ctx.workspace.role, "customers", "approve")) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "Solo la gerencia puede otorgar crédito a un cliente",
+        });
+      }
+
+      const [existing] = await ctx.db
+        .select({ id: Customer.id, name: Customer.name })
+        .from(Customer)
+        .where(
+          and(
+            eq(Customer.workspaceId, ctx.workspace.workspaceId),
+            eq(Customer.identification, fiscalId.value),
+          ),
+        )
+        .limit(1);
+      if (existing) {
+        throw duplicateCustomerError(fiscalId.value, existing.name);
+      }
+
+      let created: typeof Customer.$inferSelect | undefined;
+      try {
+        [created] = await ctx.db
+          .insert(Customer)
+          .values({
+            workspaceId: ctx.workspace.workspaceId,
+            name: input.name,
+            // Blank optional fields (already trimmed) are stored as NULL.
+            legalName: input.legalName === "" ? undefined : input.legalName,
+            identification: fiscalId.value,
+            address: input.address,
+            customerType: input.customerType,
+            phone: input.phone === "" ? undefined : input.phone,
+            email: input.email,
+            creditLimit: input.creditLimit,
+            creditDays: input.creditDays,
+          })
+          .returning();
+      } catch (error) {
+        // uq_customer_workspace_identification (migration 013) closes the
+        // race between the lookup above and the insert.
+        if (isUniqueViolation(error)) {
+          throw duplicateCustomerError(fiscalId.value);
+        }
+        throw error;
+      }
+
       await logAudit(ctx.db, ctx.user, {
+        workspaceId: ctx.workspace.workspaceId,
         action: "customer.create",
         entity: "customer",
-        entityId: c?.id,
-        newValue: { name: input.name, type: input.customerType },
+        entityId: created?.id,
+        newValue: {
+          name: input.name,
+          identification: fiscalId.value,
+          type: input.customerType,
+        },
       });
-      return c;
+      return created;
     }),
 
   // ─── Orders (PRD §14-16) ─────────────────────
 
-  listOrders: workspaceReadProcedure
+  listOrders: wsReadPermissionProcedure("orders", "read")
     .input(listOrdersInputSchema)
     .query(async ({ ctx, input }) => {
       const conditions = [
         eq(SalesOrder.workspaceId, ctx.workspace.workspaceId),
       ];
+      const vendorId = vendorScopeId(ctx);
+      if (vendorId) {
+        conditions.push(eq(SalesOrder.createdBy, vendorId));
+      }
 
       // Status filters (multi-status takes precedence, fallback to single status)
       if (input.statuses && input.statuses.length > 0) {
@@ -251,9 +354,10 @@ export const salesRouter = createTRPCRouter({
         .offset(input.cursor ?? input.offset);
     }),
 
-  orderById: workspaceReadProcedure
+  orderById: wsReadPermissionProcedure("orders", "read")
     .input(z.object({ id: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
+      const vendorId = vendorScopeId(ctx);
       const [order] = await ctx.db
         .select()
         .from(SalesOrder)
@@ -261,6 +365,7 @@ export const salesRouter = createTRPCRouter({
           and(
             eq(SalesOrder.id, input.id),
             eq(SalesOrder.workspaceId, ctx.workspace.workspaceId),
+            vendorId ? eq(SalesOrder.createdBy, vendorId) : undefined,
           ),
         )
         .limit(1);
@@ -303,7 +408,7 @@ export const salesRouter = createTRPCRouter({
       return { ...order, items, payments };
     }),
 
-  createOrder: workspaceProcedure
+  createOrder: wsPermissionProcedure("orders", "create")
     .input(
       z.object({
         customerId: z.string().uuid().optional(),
@@ -320,6 +425,8 @@ export const salesRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      await assertVendorCustomer(ctx, input.customerId);
+
       const subtotal = input.items.reduce(
         (sum, i) => sum + i.unitPrice * i.quantity,
         0,
@@ -371,7 +478,7 @@ export const salesRouter = createTRPCRouter({
       return order;
     }),
 
-  updateOrderStatus: workspaceProcedure
+  updateOrderStatus: wsPermissionProcedure("orders", "update")
     .input(
       z.object({
         id: z.string().uuid(),
@@ -492,7 +599,7 @@ export const salesRouter = createTRPCRouter({
 
   // ─── Payments (PRD §19) ──────────────────────
 
-  listPayments: workspaceReadProcedure
+  listPayments: wsReadPermissionProcedure("payments", "read")
     .input(
       z.object({
         limit: z.number().int().min(1).max(100).default(50),
@@ -523,7 +630,7 @@ export const salesRouter = createTRPCRouter({
         .limit(input.limit);
     }),
 
-  addPayment: workspaceProcedure
+  addPayment: wsPermissionProcedure("payments", "create")
     .input(
       z.object({
         orderId: z.string().uuid(),
@@ -587,7 +694,7 @@ export const salesRouter = createTRPCRouter({
       return payment;
     }),
 
-  validatePayment: workspaceProcedure
+  validatePayment: wsPermissionProcedure("payments", "approve")
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       if (!["owner", "admin", "supervisor"].includes(ctx.workspace.role)) {
@@ -626,26 +733,28 @@ export const salesRouter = createTRPCRouter({
 
   // ─── Cash Closure (PRD §19.6) ────────────────
 
-  listClosures: workspaceReadProcedure.query(async ({ ctx }) => {
-    return ctx.db
-      .select({
-        id: CashClosure.id,
-        closureDate: CashClosure.closureDate,
-        totalSales: CashClosure.totalSales,
-        totalCash: CashClosure.totalCash,
-        totalDigital: CashClosure.totalDigital,
-        expectedTotal: CashClosure.expectedTotal,
-        actualTotal: CashClosure.actualTotal,
-        discrepancy: CashClosure.discrepancy,
-        status: CashClosure.status,
-      })
-      .from(CashClosure)
-      .where(eq(CashClosure.workspaceId, ctx.workspace.workspaceId))
-      .orderBy(desc(CashClosure.closureDate))
-      .limit(100);
-  }),
+  listClosures: wsReadPermissionProcedure("cash_closure", "read").query(
+    async ({ ctx }) => {
+      return ctx.db
+        .select({
+          id: CashClosure.id,
+          closureDate: CashClosure.closureDate,
+          totalSales: CashClosure.totalSales,
+          totalCash: CashClosure.totalCash,
+          totalDigital: CashClosure.totalDigital,
+          expectedTotal: CashClosure.expectedTotal,
+          actualTotal: CashClosure.actualTotal,
+          discrepancy: CashClosure.discrepancy,
+          status: CashClosure.status,
+        })
+        .from(CashClosure)
+        .where(eq(CashClosure.workspaceId, ctx.workspace.workspaceId))
+        .orderBy(desc(CashClosure.closureDate))
+        .limit(100);
+    },
+  ),
 
-  createClosure: workspaceProcedure
+  createClosure: wsPermissionProcedure("cash_closure", "create")
     .input(
       z.object({
         closureDate: z.string().datetime(),
@@ -689,7 +798,7 @@ export const salesRouter = createTRPCRouter({
       return closure;
     }),
 
-  reviewClosure: workspaceProcedure
+  reviewClosure: wsPermissionProcedure("cash_closure", "approve")
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       if (!["owner", "admin", "supervisor"].includes(ctx.workspace.role)) {

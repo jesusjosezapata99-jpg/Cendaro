@@ -23,8 +23,8 @@ import {
 
 import {
   createTRPCRouter,
-  workspaceProcedure,
-  workspaceReadProcedure,
+  wsPermissionProcedure,
+  wsReadPermissionProcedure,
 } from "../trpc";
 import { logAudit } from "./audit";
 
@@ -132,7 +132,7 @@ export const catalogImportRouter = createTRPCRouter({
    *
    * RBAC: owner, admin, supervisor (PRD §4)
    */
-  create: workspaceProcedure
+  create: wsPermissionProcedure("catalog", "create")
     .input(catalogImportCreateSchema)
     .mutation(async ({ ctx, input }) => {
       // Auto-cancel any existing active sessions for this user.
@@ -229,7 +229,7 @@ export const catalogImportRouter = createTRPCRouter({
    *
    * RBAC: owner, admin, supervisor (PRD §4)
    */
-  validate: workspaceProcedure
+  validate: wsPermissionProcedure("catalog", "create")
     .input(z.object({ sessionId: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       // Load session
@@ -858,7 +858,7 @@ export const catalogImportRouter = createTRPCRouter({
    *
    * RBAC: owner, admin, supervisor (PRD §4)
    */
-  resolveCategories: workspaceProcedure
+  resolveCategories: wsPermissionProcedure("catalog", "create")
     .input(
       z.object({
         sessionId: z.string().uuid(),
@@ -989,7 +989,7 @@ export const catalogImportRouter = createTRPCRouter({
    *
    * RBAC: any authenticated user (PRD §4)
    */
-  dryRun: workspaceReadProcedure
+  dryRun: wsReadPermissionProcedure("catalog", "create")
     .input(z.object({ sessionId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       const [session] = await ctx.db
@@ -1074,7 +1074,7 @@ export const catalogImportRouter = createTRPCRouter({
    *
    * RBAC: owner, admin only (PRD §4)
    */
-  commit: workspaceProcedure
+  commit: wsPermissionProcedure("catalog", "create")
     .input(z.object({ sessionId: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       const [session] = await ctx.db
@@ -1345,7 +1345,7 @@ export const catalogImportRouter = createTRPCRouter({
    *
    * RBAC: any authenticated user (PRD §4)
    */
-  getSession: workspaceReadProcedure
+  getSession: wsReadPermissionProcedure("catalog", "create")
     .input(z.object({ sessionId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       const [session] = await ctx.db

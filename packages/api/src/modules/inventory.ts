@@ -24,8 +24,8 @@ import {
 
 import {
   createTRPCRouter,
-  workspaceProcedure,
-  workspaceReadProcedure,
+  wsPermissionProcedure,
+  wsReadPermissionProcedure,
 } from "../trpc";
 import { logAudit } from "./audit";
 
@@ -74,20 +74,22 @@ export type WarehouseStockInput = z.infer<typeof warehouseStockInputSchema>;
 export const inventoryRouter = createTRPCRouter({
   // ─── Warehouses ──────────────────────────────
 
-  listWarehouses: workspaceReadProcedure.query(async ({ ctx }) => {
-    return ctx.db
-      .select({
-        id: Warehouse.id,
-        name: Warehouse.name,
-        type: Warehouse.type,
-        location: Warehouse.location,
-      })
-      .from(Warehouse)
-      .where(eq(Warehouse.workspaceId, ctx.workspace.workspaceId))
-      .orderBy(Warehouse.name);
-  }),
+  listWarehouses: wsReadPermissionProcedure("inventory", "read").query(
+    async ({ ctx }) => {
+      return ctx.db
+        .select({
+          id: Warehouse.id,
+          name: Warehouse.name,
+          type: Warehouse.type,
+          location: Warehouse.location,
+        })
+        .from(Warehouse)
+        .where(eq(Warehouse.workspaceId, ctx.workspace.workspaceId))
+        .orderBy(Warehouse.name);
+    },
+  ),
 
-  createWarehouse: workspaceProcedure
+  createWarehouse: wsPermissionProcedure("inventory", "create")
     .input(
       z.object({
         name: z.string().min(1).max(256),
@@ -114,7 +116,7 @@ export const inventoryRouter = createTRPCRouter({
 
   // ─── Stock Overview (all products) ──────────
 
-  stockOverview: workspaceReadProcedure
+  stockOverview: wsReadPermissionProcedure("inventory", "read")
     .input(stockOverviewInputSchema)
     .query(async ({ ctx, input }) => {
       // Single SQL query with LEFT JOIN + GROUP BY — pushes all aggregation
@@ -209,25 +211,27 @@ export const inventoryRouter = createTRPCRouter({
       }));
     }),
 
-  channelSummary: workspaceReadProcedure.query(async ({ ctx }) => {
-    const rows = await ctx.db
-      .select({
-        channel: ChannelAllocation.channel,
-        totalStock: sum(ChannelAllocation.quantity),
-      })
-      .from(ChannelAllocation)
-      .where(eq(ChannelAllocation.workspaceId, ctx.workspace.workspaceId))
-      .groupBy(ChannelAllocation.channel);
+  channelSummary: wsReadPermissionProcedure("inventory", "read").query(
+    async ({ ctx }) => {
+      const rows = await ctx.db
+        .select({
+          channel: ChannelAllocation.channel,
+          totalStock: sum(ChannelAllocation.quantity),
+        })
+        .from(ChannelAllocation)
+        .where(eq(ChannelAllocation.workspaceId, ctx.workspace.workspaceId))
+        .groupBy(ChannelAllocation.channel);
 
-    return rows.map((r) => ({
-      channel: r.channel,
-      stock: Number(r.totalStock) || 0,
-    }));
-  }),
+      return rows.map((r) => ({
+        channel: r.channel,
+        stock: Number(r.totalStock) || 0,
+      }));
+    },
+  ),
 
   // ─── Stock Overview (single product) ────────
 
-  stockByProduct: workspaceReadProcedure
+  stockByProduct: wsReadPermissionProcedure("inventory", "read")
     .input(z.object({ productId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       const [ledger, channels] = await Promise.all([
@@ -255,7 +259,7 @@ export const inventoryRouter = createTRPCRouter({
 
   // ─── Channel Transfers (PRD §9.4) ───────────
 
-  transferStock: workspaceProcedure
+  transferStock: wsPermissionProcedure("inventory", "update")
     .input(
       z.object({
         productId: z.string().uuid(),
@@ -339,7 +343,7 @@ export const inventoryRouter = createTRPCRouter({
 
   // ─── Stock Lock/Unlock (PRD §9.5) ───────────
 
-  toggleLock: workspaceProcedure
+  toggleLock: wsPermissionProcedure("inventory", "update")
     .input(
       z.object({
         stockLedgerId: z.string().uuid(),
@@ -376,7 +380,7 @@ export const inventoryRouter = createTRPCRouter({
 
   // ─── Movements ───────────────────────────────
 
-  listMovements: workspaceReadProcedure
+  listMovements: wsReadPermissionProcedure("inventory", "read")
     .input(
       z.object({
         limit: z.number().int().min(1).max(100).default(25),
@@ -419,7 +423,7 @@ export const inventoryRouter = createTRPCRouter({
 
   // ─── Warehouse Detail ───────────────────────
 
-  getWarehouseDetail: workspaceReadProcedure
+  getWarehouseDetail: wsReadPermissionProcedure("inventory", "read")
     .input(z.object({ id: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       const { rows } = await ctx.db.execute<{
@@ -465,7 +469,7 @@ export const inventoryRouter = createTRPCRouter({
       };
     }),
 
-  warehouseStock: workspaceReadProcedure
+  warehouseStock: wsReadPermissionProcedure("inventory", "read")
     .input(warehouseStockInputSchema)
     .query(async ({ ctx, input }) => {
       const searchPattern = input.search
@@ -536,7 +540,7 @@ export const inventoryRouter = createTRPCRouter({
       }));
     }),
 
-  updateStockQuantity: workspaceProcedure
+  updateStockQuantity: wsPermissionProcedure("inventory", "update")
     .input(
       z.object({
         stockLedgerId: z.string().uuid(),
@@ -594,23 +598,25 @@ export const inventoryRouter = createTRPCRouter({
 
   // ─── Inventory Counts (PRD §9.7) ─────────────
 
-  listCounts: workspaceReadProcedure.query(async ({ ctx }) => {
-    return ctx.db
-      .select({
-        id: InventoryCount.id,
-        warehouseId: InventoryCount.warehouseId,
-        status: InventoryCount.status,
-        scheduledAt: InventoryCount.scheduledAt,
-        createdBy: InventoryCount.createdBy,
-        createdAt: InventoryCount.createdAt,
-      })
-      .from(InventoryCount)
-      .where(eq(InventoryCount.workspaceId, ctx.workspace.workspaceId))
-      .orderBy(desc(InventoryCount.createdAt))
-      .limit(100);
-  }),
+  listCounts: wsReadPermissionProcedure("inventory", "read").query(
+    async ({ ctx }) => {
+      return ctx.db
+        .select({
+          id: InventoryCount.id,
+          warehouseId: InventoryCount.warehouseId,
+          status: InventoryCount.status,
+          scheduledAt: InventoryCount.scheduledAt,
+          createdBy: InventoryCount.createdBy,
+          createdAt: InventoryCount.createdAt,
+        })
+        .from(InventoryCount)
+        .where(eq(InventoryCount.workspaceId, ctx.workspace.workspaceId))
+        .orderBy(desc(InventoryCount.createdAt))
+        .limit(100);
+    },
+  ),
 
-  createCount: workspaceProcedure
+  createCount: wsPermissionProcedure("inventory", "update")
     .input(
       z.object({
         warehouseId: z.string().uuid(),
@@ -658,7 +664,7 @@ export const inventoryRouter = createTRPCRouter({
       return c;
     }),
 
-  approveCount: workspaceProcedure
+  approveCount: wsPermissionProcedure("inventory", "approve")
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       if (!["owner", "admin", "supervisor"].includes(ctx.workspace.role)) {
@@ -701,7 +707,7 @@ export const inventoryRouter = createTRPCRouter({
 
   // ─── Count Items ─────────────────────────────
 
-  listCountItems: workspaceReadProcedure
+  listCountItems: wsReadPermissionProcedure("inventory", "read")
     .input(z.object({ countId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       const { rows } = await ctx.db.execute<{
@@ -746,7 +752,7 @@ export const inventoryRouter = createTRPCRouter({
       }));
     }),
 
-  addCountItems: workspaceProcedure
+  addCountItems: wsPermissionProcedure("inventory", "update")
     .input(
       z.object({
         countId: z.string().uuid(),
@@ -800,7 +806,7 @@ export const inventoryRouter = createTRPCRouter({
       return { success: true, itemsAdded: input.productIds.length };
     }),
 
-  submitCountItem: workspaceProcedure
+  submitCountItem: wsPermissionProcedure("inventory", "update")
     .input(
       z.object({
         itemId: z.string().uuid(),
@@ -848,7 +854,7 @@ export const inventoryRouter = createTRPCRouter({
       return updated;
     }),
 
-  finalizeCount: workspaceProcedure
+  finalizeCount: wsPermissionProcedure("inventory", "approve")
     .input(z.object({ countId: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       // Verify count belongs to workspace

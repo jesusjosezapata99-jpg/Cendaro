@@ -67,6 +67,7 @@ export const erpModuleEnum = pgEnum("erp_module", [
   "vendors",
   "payments",
   "cash_closure",
+  "receivables",
   "marketplace",
   "whatsapp",
   "users",
@@ -451,8 +452,11 @@ export const UserProfile = pgTable(
     index("idx_user_profile_email").on(table.email),
 
     // PLAN-2026-09-PROD-HARDENING F1 — preserve exactly what app_user does
-    // today inside workspaceProcedure: read (users.byId, inviteMember),
-    // create (users.create) and edit (users.update). No DELETE: no app_user
+    // today inside workspaceProcedure: read (users.byId, inviteMember) and
+    // edit (users.update). The INSERT policy no longer has an app_user caller
+    // (users.create was removed; accounts are created by /api/auth/create-user
+    // with the service role) and is dropped in SECURITY-REMEDIATION F3's
+    // migration 013. No DELETE: no app_user
     // path deletes profiles (anonymizeMyData runs as postgres). The login
     // lookup uses service_role, which bypasses RLS.
     pgPolicy("user_profile_app_user_select", {
@@ -488,8 +492,9 @@ export const Permission = pgTable(
   (table) => [
     unique("uq_permission_module_action").on(table.module, table.action),
 
-    // PLAN-2026-09-PROD-HARDENING F1 — read-only for app_user
-    // (wsPermissionProcedure joins permission inside the transaction).
+    // PLAN-2026-09-PROD-HARDENING F1 — read-only for app_user. Since
+    // SECURITY-REMEDIATION F2 the API enforces ROLE_PERMISSIONS from
+    // @cendaro/validators; this table is its mirror (migration 012).
     pgPolicy("permission_app_user_select", {
       as: "permissive",
       for: "select",
@@ -520,8 +525,9 @@ export const RolePermission = pgTable(
     unique("uq_role_permission").on(table.role, table.permissionId),
     index("idx_role_permission_role").on(table.role),
 
-    // PLAN-2026-09-PROD-HARDENING F1 — read-only for app_user
-    // (wsPermissionProcedure reads role_permission inside the transaction).
+    // PLAN-2026-09-PROD-HARDENING F1 — read-only for app_user. Mirror of
+    // ROLE_PERMISSIONS in @cendaro/validators (SECURITY-REMEDIATION F2,
+    // migration 012); the API does not query it at request time.
     pgPolicy("role_permission_app_user_select", {
       as: "permissive",
       for: "select",
@@ -1845,6 +1851,12 @@ export const Customer = pgTable(
     index("idx_customer_type").on(table.customerType),
     index("idx_customer_name").on(table.name),
     index("idx_customer_vendor").on(table.assignedVendorId),
+    // One customer per RIF / cédula / passport per workspace (migration 013).
+    // NULL identifications stay allowed for legacy rows.
+    unique("uq_customer_workspace_identification").on(
+      table.workspaceId,
+      table.identification,
+    ),
 
     workspacePolicy("customer"),
   ],

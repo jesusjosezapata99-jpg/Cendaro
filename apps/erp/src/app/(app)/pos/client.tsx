@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import type {
   CartLine,
@@ -12,6 +12,7 @@ import type {
   ProductItem,
 } from "~/modules/pos";
 import { useBcvRate } from "~/hooks/use-bcv-rate";
+import { useDebounce } from "~/hooks/use-debounce";
 import { formatDualCurrency } from "~/lib/format-currency";
 import {
   PosCart,
@@ -139,9 +140,21 @@ export default function PosClient() {
   const { data: categoriesData } = useQuery(
     trpc.catalog.listCategories.queryOptions(),
   );
-  const { data: customersData } = useQuery(
-    trpc.sales.listCustomers.queryOptions({ limit: 100 }),
-  );
+  // Customer lookup runs on the server so the whole customer base is
+  // searchable (name, phone, RIF/cédula with or without dashes).
+  const [customerSearch, setCustomerSearch] = useState("");
+  const debouncedCustomerSearch = useDebounce(customerSearch.trim(), 300);
+  const { data: customersData } = useQuery({
+    ...trpc.sales.listCustomers.queryOptions({
+      limit: 20,
+      // Single characters would match almost everything; wait for two.
+      search:
+        debouncedCustomerSearch.length >= 2
+          ? debouncedCustomerSearch
+          : undefined,
+    }),
+    placeholderData: keepPreviousData,
+  });
   const { data: storeOrdersData } = useQuery(
     trpc.sales.listOrders.queryOptions({ channel: "store", limit: 100 }),
   );
@@ -182,7 +195,6 @@ export default function PosClient() {
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerInfo | null>(
     null,
   );
-  const [customerSearch, setCustomerSearch] = useState("");
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
   const [createCustomerOpen, setCreateCustomerOpen] = useState(false);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
@@ -498,6 +510,7 @@ export default function PosClient() {
             id: newCust.id,
             name: newCust.name,
             identification: newCust.identification,
+            address: newCust.address,
             phone: newCust.phone,
             customerType: newCust.customerType,
           });

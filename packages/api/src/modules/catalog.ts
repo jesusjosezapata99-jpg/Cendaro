@@ -22,8 +22,8 @@ import {
 
 import {
   createTRPCRouter,
-  workspaceProcedure,
-  workspaceReadProcedure,
+  wsPermissionProcedure,
+  wsReadPermissionProcedure,
 } from "../trpc";
 import { logAudit } from "./audit";
 
@@ -93,7 +93,7 @@ export const catalogRouter = createTRPCRouter({
   // ─── Products ────────────────────────────────
 
   /** List products with search, filters, and pagination */
-  listProducts: workspaceReadProcedure
+  listProducts: wsReadPermissionProcedure("catalog", "read")
     .input(listProductsInputSchema)
     .query(async ({ ctx, input }) => {
       const conditions = [eq(Product.workspaceId, ctx.workspace.workspaceId)];
@@ -192,7 +192,7 @@ export const catalogRouter = createTRPCRouter({
     }),
 
   /** Get product by ID with relations */
-  productById: workspaceReadProcedure
+  productById: wsReadPermissionProcedure("catalog", "read")
     .input(z.object({ id: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       const [product] = await ctx.db
@@ -238,7 +238,7 @@ export const catalogRouter = createTRPCRouter({
     }),
 
   /** Create product — catalog-level only (owner, admin, supervisor) */
-  createProduct: workspaceProcedure
+  createProduct: wsPermissionProcedure("catalog", "create")
     .input(
       z.object({
         sku: z.string().min(1).max(64),
@@ -279,7 +279,7 @@ export const catalogRouter = createTRPCRouter({
       return product;
     }),
 
-  updateProduct: workspaceProcedure
+  updateProduct: wsPermissionProcedure("catalog", "update")
     .input(
       z.object({
         id: z.string().uuid(),
@@ -317,24 +317,26 @@ export const catalogRouter = createTRPCRouter({
 
   // ─── Brands ──────────────────────────────────
 
-  listBrands: workspaceReadProcedure.query(async ({ ctx }) => {
-    return getCachedData(ctx.workspace.workspaceId, "brands", () =>
-      ctx.db
-        .select({
-          id: Brand.id,
-          name: Brand.name,
-          slug: Brand.slug,
-          logoUrl: Brand.logoUrl,
-          description: Brand.description,
-        })
-        .from(Brand)
-        .where(eq(Brand.workspaceId, ctx.workspace.workspaceId))
-        .orderBy(Brand.name)
-        .limit(200),
-    );
-  }),
+  listBrands: wsReadPermissionProcedure("catalog", "read").query(
+    async ({ ctx }) => {
+      return getCachedData(ctx.workspace.workspaceId, "brands", () =>
+        ctx.db
+          .select({
+            id: Brand.id,
+            name: Brand.name,
+            slug: Brand.slug,
+            logoUrl: Brand.logoUrl,
+            description: Brand.description,
+          })
+          .from(Brand)
+          .where(eq(Brand.workspaceId, ctx.workspace.workspaceId))
+          .orderBy(Brand.name)
+          .limit(200),
+      );
+    },
+  ),
 
-  createBrand: workspaceProcedure
+  createBrand: wsPermissionProcedure("catalog", "create")
     .input(
       z.object({
         name: z.string().min(1).max(256),
@@ -357,25 +359,27 @@ export const catalogRouter = createTRPCRouter({
 
   // ─── Categories ──────────────────────────────
 
-  listCategories: workspaceReadProcedure.query(async ({ ctx }) => {
-    return getCachedData(ctx.workspace.workspaceId, "categories", () =>
-      ctx.db
-        .select({
-          id: Category.id,
-          name: Category.name,
-          slug: Category.slug,
-          parentId: Category.parentId,
-          depth: Category.depth,
-          sortOrder: Category.sortOrder,
-        })
-        .from(Category)
-        .where(eq(Category.workspaceId, ctx.workspace.workspaceId))
-        .orderBy(Category.sortOrder, Category.name)
-        .limit(500),
-    );
-  }),
+  listCategories: wsReadPermissionProcedure("catalog", "read").query(
+    async ({ ctx }) => {
+      return getCachedData(ctx.workspace.workspaceId, "categories", () =>
+        ctx.db
+          .select({
+            id: Category.id,
+            name: Category.name,
+            slug: Category.slug,
+            parentId: Category.parentId,
+            depth: Category.depth,
+            sortOrder: Category.sortOrder,
+          })
+          .from(Category)
+          .where(eq(Category.workspaceId, ctx.workspace.workspaceId))
+          .orderBy(Category.sortOrder, Category.name)
+          .limit(500),
+      );
+    },
+  ),
 
-  createCategory: workspaceProcedure
+  createCategory: wsPermissionProcedure("catalog", "create")
     .input(
       z.object({
         name: z.string().min(1).max(256),
@@ -406,25 +410,27 @@ export const catalogRouter = createTRPCRouter({
 
   // ─── Suppliers ───────────────────────────────
 
-  listSuppliers: workspaceReadProcedure.query(async ({ ctx }) => {
-    return getCachedData(ctx.workspace.workspaceId, "suppliers", () =>
-      ctx.db
-        .select({
-          id: Supplier.id,
-          name: Supplier.name,
-          country: Supplier.country,
-          contactName: Supplier.contactName,
-          contactEmail: Supplier.contactEmail,
-          status: Supplier.status,
-        })
-        .from(Supplier)
-        .where(eq(Supplier.workspaceId, ctx.workspace.workspaceId))
-        .orderBy(Supplier.name)
-        .limit(200),
-    );
-  }),
+  listSuppliers: wsReadPermissionProcedure("catalog", "read").query(
+    async ({ ctx }) => {
+      return getCachedData(ctx.workspace.workspaceId, "suppliers", () =>
+        ctx.db
+          .select({
+            id: Supplier.id,
+            name: Supplier.name,
+            country: Supplier.country,
+            contactName: Supplier.contactName,
+            contactEmail: Supplier.contactEmail,
+            status: Supplier.status,
+          })
+          .from(Supplier)
+          .where(eq(Supplier.workspaceId, ctx.workspace.workspaceId))
+          .orderBy(Supplier.name)
+          .limit(200),
+      );
+    },
+  ),
 
-  createSupplier: workspaceProcedure
+  createSupplier: wsPermissionProcedure("catalog", "create")
     .input(
       z.object({
         name: z.string().min(1).max(256),
@@ -453,7 +459,7 @@ export const catalogRouter = createTRPCRouter({
 
   // ─── Product Prices ──────────────────────────
 
-  setPrice: workspaceProcedure
+  setPrice: wsPermissionProcedure("pricing", "update")
     .input(
       z.object({
         productId: z.string().uuid(),
@@ -490,7 +496,7 @@ export const catalogRouter = createTRPCRouter({
 
   // ─── Product Attributes ──────────────────────
 
-  setAttributes: workspaceProcedure
+  setAttributes: wsPermissionProcedure("catalog", "update")
     .input(
       z.object({
         productId: z.string().uuid(),
