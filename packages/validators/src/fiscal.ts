@@ -122,7 +122,16 @@ function normalizeCedula(raw: string): FiscalIdResult {
     };
   }
   const [, letter = "", digits = ""] = match;
-  return { ok: true, value: `${letter}-${String(Number(digits))}` };
+  // Leading zeros are dropped, so the remaining number must still have 5.
+  const number = String(Number(digits));
+  if (number.length < 5) {
+    return {
+      ok: false,
+      message:
+        "La cédula debe tener V o E y entre 5 y 9 dígitos (ej: V-12345678)",
+    };
+  }
+  return { ok: true, value: `${letter}-${number}` };
 }
 
 function normalizePassport(raw: string): FiscalIdResult {
@@ -149,6 +158,24 @@ export function normalizeFiscalId(
     case "pasaporte":
       return normalizePassport(raw);
   }
+}
+
+/**
+ * Key that identifies the person behind a canonical identification. A
+ * Venezuelan or foreign resident's personal RIF is their cédula padded to 8
+ * digits plus a check digit (V-12345678 ⇄ V-12345678-X), so both map to the
+ * cédula form; every other identification is its own key.
+ *
+ * Mirrors the `customer.person_key` generated column (migration 014,
+ * CUSTOMER_PERSON_KEY_SQL in @cendaro/db/schema), whose unique index is what
+ * actually prevents registering the same person twice.
+ */
+export function fiscalPersonKey(identification: string): string {
+  const rif = /^([VE])-(\d{8})-\d$/.exec(identification);
+  if (!rif) return identification;
+  const [, letter = "", digits = ""] = rif;
+  if (digits === "00000000") return identification;
+  return `${letter}-${digits.replace(/^0+/, "")}`;
 }
 
 /** Detects the type of an identification already stored in canonical form. */
@@ -182,48 +209,69 @@ export function isFiscalInvoiceReady(customer: {
   );
 }
 
+/** Blank optional text is accepted so a form can clear a stored value. */
+const optionalEmail = z.union([z.email(), z.literal("")]).optional();
+
 /**
- * Create-customer input shared by the form and `sales.createCustomer`.
- * `identification` is validated for its type here; the server stores the
- * canonical value returned by `normalizeFiscalId`.
+ * Customer fields shared by the form, `sales.createCustomer` and
+ * `sales.updateCustomer`. `identification` is validated for its type; the
+ * server stores the canonical value returned by `normalizeFiscalId`.
  */
-export const createCustomerSchema = z
-  .object({
-    name: z
-      .string()
-      .trim()
-      .min(2, "Indica el nombre y apellido o la razón social")
-      .max(256),
-    legalName: z.string().trim().max(512).optional(),
-    idType: z.enum(FISCAL_ID_TYPES),
-    identification: z
-      .string()
-      .trim()
-      .min(1, "El documento de identificación es obligatorio")
-      .max(32),
-    address: z
-      .string()
-      .trim()
-      .min(
-        FISCAL_ADDRESS_MIN,
-        "El domicilio fiscal es obligatorio para la factura (mínimo 10 caracteres)",
-      )
-      .max(512),
-    customerType: z.enum(CUSTOMER_TYPES).default("retail"),
-    phone: z.string().trim().max(32).optional(),
-    email: z.email().optional(),
-    creditLimit: z.number().nonnegative().optional(),
-    creditDays: z.number().int().nonnegative().optional(),
-  })
-  .superRefine((input, ctx) => {
-    const result = normalizeFiscalId(input.idType, input.identification);
-    if (!result.ok) {
-      ctx.addIssue({
-        code: "custom",
-        path: ["identification"],
-        message: result.message,
-      });
-    }
-  });
+const customerFieldsSchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(2, "Indica el nombre y apellido o la razón social")
+    .max(256),
+  legalName: z.string().trim().max(512).optional(),
+  idType: z.enum(FISCAL_ID_TYPES),
+  identification: z
+    .string()
+    .trim()
+    .min(1, "El documento de identificación es obligatorio")
+    .max(32),
+  address: z
+    .string()
+    .trim()
+    .min(
+      FISCAL_ADDRESS_MIN,
+      "El domicilio fiscal es obligatorio para la factura (mínimo 10 caracteres)",
+    )
+    .max(512),
+  customerType: z.enum(CUSTOMER_TYPES).default("retail"),
+  phone: z.string().trim().max(32).optional(),
+  email: optionalEmail,
+  creditLimit: z.number().nonnegative().optional(),
+  creditDays: z.number().int().nonnegative().optional(),
+});
+
+function refineFiscalId(
+  input: { idType: FiscalIdType; identification: string },
+  ctx: z.RefinementCtx,
+): void {
+  const result = normalizeFiscalId(input.idType, input.identification);
+  if (!result.ok) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["identification"],
+      message: result.message,
+    });
+  }
+}
+
+export const createCustomerSchema =
+  customerFieldsSchema.superRefine(refineFiscalId);
 
 export type CreateCustomerInput = z.input<typeof createCustomerSchema>;
+
+/**
+ * Update-customer input: the same fiscal requirements as creation, so a
+ * customer with incomplete data (legacy or seed rows) can only be saved once
+ * it is invoice-ready. Omitted credit fields keep their stored value; the
+ * customer type is required so an omission cannot reset it to "retail".
+ */
+export const updateCustomerSchema = customerFieldsSchema
+  .extend({ id: z.uuid(), customerType: z.enum(CUSTOMER_TYPES) })
+  .superRefine(refineFiscalId);
+
+export type UpdateCustomerInput = z.input<typeof updateCustomerSchema>;

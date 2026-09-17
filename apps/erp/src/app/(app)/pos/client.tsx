@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
+import { isFiscalInvoiceReady } from "@cendaro/validators";
+
 import type {
   CartLine,
   CategoryItem,
@@ -197,12 +199,19 @@ export default function PosClient() {
   );
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
   const [createCustomerOpen, setCreateCustomerOpen] = useState(false);
+  const [editCustomerOpen, setEditCustomerOpen] = useState(false);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [receiptOpen, setReceiptOpen] = useState(false);
   const [lastReceipt, setLastReceipt] = useState<PosReceiptData | null>(null);
   const [scannerFeedback, setScannerFeedback] = useState<string | null>(null);
 
   const barcodeInputRef = useRef<HTMLInputElement>(null);
+
+  // SENIAT: a registered buyer needs complete fiscal data before the sale is
+  // invoiced (the server rejects it too). Consumidor Final is always allowed.
+  const customerFiscalReady =
+    !selectedCustomer || isFiscalInvoiceReady(selectedCustomer);
+  const canCheckout = cart.length > 0 && customerFiscalReady;
 
   // Scanner Focus Retention Helper (T6.3)
   const refocusScanner = useCallback(() => {
@@ -229,10 +238,11 @@ export default function PosClient() {
         barcodeInputRef.current?.focus();
       } else if (e.key === "F4") {
         if (
-          cart.length > 0 &&
+          canCheckout &&
           !checkoutOpen &&
           !receiptOpen &&
-          !createCustomerOpen
+          !createCustomerOpen &&
+          !editCustomerOpen
         ) {
           e.preventDefault();
           setCheckoutOpen(true);
@@ -241,7 +251,13 @@ export default function PosClient() {
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [cart.length, checkoutOpen, receiptOpen, createCustomerOpen]);
+  }, [
+    canCheckout,
+    checkoutOpen,
+    receiptOpen,
+    createCustomerOpen,
+    editCustomerOpen,
+  ]);
 
   // Filter products by category and search
   const filteredProducts = useMemo(() => {
@@ -472,6 +488,7 @@ export default function PosClient() {
                 refocusScanner();
               }}
               onCreateCustomer={() => setCreateCustomerOpen(true)}
+              onEditCustomer={() => setEditCustomerOpen(true)}
               customers={customers}
               customerSearch={customerSearch}
               onCustomerSearchChange={setCustomerSearch}
@@ -491,7 +508,7 @@ export default function PosClient() {
               subtotal={cartSubtotal}
               discount={cartDiscount}
               cartDual={cartDual}
-              disabled={cart.length === 0}
+              disabled={!canCheckout}
               onCheckout={() => setCheckoutOpen(true)}
             />
           </div>
@@ -516,6 +533,26 @@ export default function PosClient() {
           });
           setCreateCustomerOpen(false);
           refocusScanner();
+        }}
+      />
+
+      {/* Complete the selected customer's fiscal data */}
+      <CreateCustomerDialog
+        open={editCustomerOpen}
+        customerId={selectedCustomer?.id}
+        onClose={() => {
+          setEditCustomerOpen(false);
+          refocusScanner();
+        }}
+        onCustomerUpdated={(cust) => {
+          setSelectedCustomer({
+            id: cust.id,
+            name: cust.name,
+            identification: cust.identification,
+            address: cust.address,
+            phone: cust.phone,
+            customerType: cust.customerType,
+          });
         }}
       />
 

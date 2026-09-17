@@ -5,6 +5,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { Button } from "@cendaro/ui";
 import { Icon, Icons } from "@cendaro/ui/icons";
+import { isFiscalInvoiceReady } from "@cendaro/validators";
 
 import { Dialog } from "~/components/dialog";
 import { formatDualCurrency } from "~/lib/format-currency";
@@ -127,7 +128,6 @@ export function PosCheckoutDialog({
 
   // Registered payment lines for this checkout
   const [payments, setPayments] = useState<PaymentEntry[]>([]);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   const totalDual = useMemo(
@@ -170,6 +170,13 @@ export function PosCheckoutDialog({
   const handleAddPayment = () => {
     const val = parseFloat(amountInput);
     if (isNaN(val) || val <= 0) return;
+    if (currency === "VES" && bcvRate <= 0) {
+      setSubmitError(
+        "No hay tasa BCV disponible: registra el pago en USD o sincroniza la tasa.",
+      );
+      return;
+    }
+    setSubmitError(null);
 
     const amountUsd =
       currency === "USD" ? val : bcvRate > 0 ? val / bcvRate : 0;
@@ -195,87 +202,74 @@ export function PosCheckoutDialog({
     setPayments((prev) => prev.filter((_, i) => i !== index));
   };
 
-  // Mutations
-  const createOrderMutation = useMutation(
-    trpc.sales.createOrder.mutationOptions(),
-  );
-  const addPaymentMutation = useMutation(trpc.payments.add.mutationOptions());
-  const updateStatusMutation = useMutation(
-    trpc.sales.updateOrderStatus.mutationOptions(),
-  );
+  // One atomic server call: the order, its payments, the invoice and the stock
+  // deduction commit together or not at all, so a failed sale can simply be
+  // retried and never produces a receipt.
+  const checkout = useMutation(trpc.sales.checkoutPos.mutationOptions());
+  const isSubmitting = checkout.isPending;
 
   const handleConfirmCheckout = async () => {
-    if (cart.items.length === 0) return;
+    if (cart.items.length === 0 || isSubmitting) return;
     if (totalPaidUsd < cart.total - 0.001) {
       setSubmitError("El monto pagado no cubre el total de la venta.");
       return;
     }
+    if (customer && !isFiscalInvoiceReady(customer)) {
+      setSubmitError(
+        "El cliente no tiene los datos fiscales que exige el SENIAT. Complétalos o cobra como Consumidor Final.",
+      );
+      return;
+    }
+    // Same rule as the server: change (vuelto) can only come out of cash.
+    const cashUsd = payments
+      .filter((p) => p.method === "cash")
+      .reduce((sum, p) => sum + p.amountUsd, 0);
+    if (changeUsd > cashUsd + 0.005) {
+      setSubmitError(
+        "Solo se puede dar vuelto de pagos en efectivo: ajusta los pagos que no son en efectivo al total de la venta.",
+      );
+      return;
+    }
 
-    setIsSubmitting(true);
     setSubmitError(null);
 
-    let orderId = `pos-${Date.now()}`;
-    let orderNumber = `ORD-POS-${Date.now().toString(36).toUpperCase()}`;
-
+    let sale: Awaited<ReturnType<typeof checkout.mutateAsync>>;
     try {
-      // 1. Create Sales Order
-      const order = await createOrderMutation.mutateAsync({
+      sale = await checkout.mutateAsync({
         customerId: customer?.id,
-        channel: "store",
-        notes: `POS Mostrador — Pago cubierto ($${totalPaidUsd.toFixed(2)})`,
         items: cart.items.map((item) => ({
           productId: item.id,
           quantity: item.quantity,
           unitPrice: item.unitPrice,
           discount: item.discount,
         })),
+        payments: payments.map((p) => ({
+          method: p.method,
+          amount: p.amountUsd,
+          currency: p.currency,
+          amountBs: p.currency === "VES" ? p.amountBs : undefined,
+          reference: p.reference,
+          bankName: p.bankName,
+        })),
       });
-
-      if (order?.id) {
-        orderId = order.id;
-        orderNumber = order.orderNumber;
-
-        // 2. Register each payment
-        for (const p of payments) {
-          try {
-            await addPaymentMutation.mutateAsync({
-              orderId: order.id,
-              method: p.method,
-              amount: p.amountUsd,
-              reference: p.reference,
-              bankName: p.bankName,
-              payerName: customer?.name ?? "Consumidor Final",
-              notes: `Pago POS (${p.currency === "VES" ? `Bs ${p.amountBs.toFixed(2)}` : `$${p.amountUsd.toFixed(2)}`})`,
-            });
-          } catch {
-            // Payment record failure non-blocking
-          }
-        }
-
-        // 3. Transition order status to invoiced
-        try {
-          await updateStatusMutation.mutateAsync({
-            id: order.id,
-            status: "invoiced",
-          });
-        } catch {
-          // Status update failure non-blocking
-        }
-      }
-    } catch {
-      // Offline / seedless environment fallback
+    } catch (error) {
+      // Nothing was saved: the cashier can fix the cause and confirm again.
+      setSubmitError(
+        `No se registró la venta: ${
+          error instanceof Error ? error.message : "error desconocido"
+        }`,
+      );
+      return;
     }
 
-    // 4. Invalidate related caches
     void qc.invalidateQueries({ queryKey: [["sales"]] });
     void qc.invalidateQueries({ queryKey: [["payments"]] });
     void qc.invalidateQueries({ queryKey: [["inventory"]] });
     void qc.invalidateQueries({ queryKey: [["dashboard"]] });
 
-    // 5. Notify parent with receipt data
     onPaymentComplete({
-      orderId,
-      orderNumber,
+      orderId: sale.id,
+      orderNumber: sale.orderNumber,
       customerName: customer?.name ?? "Consumidor Final",
       customerIdentification: customer?.identification ?? undefined,
       items: cart.items,
@@ -295,23 +289,25 @@ export function PosCheckoutDialog({
       date: new Date(),
     });
 
-    // Close checkout dialog & reset
     onClose();
     setPayments([]);
     setAmountInput("");
     setReference("");
     setBankName("");
-    setIsSubmitting(false);
   };
 
   const isCovered = totalPaidUsd >= cart.total - 0.001;
 
+  const handleClose = () => {
+    if (isSubmitting) return;
+    setSubmitError(null);
+    onClose();
+  };
+
   return (
     <Dialog
       open={open}
-      onClose={() => {
-        if (!isSubmitting) onClose();
-      }}
+      onClose={handleClose}
       title="Cobro de Venta — Terminal POS Mostrador"
       description={`Cliente: ${customer?.name ?? "Consumidor Final"} · Total a Cobrar: ${totalDual.usd} (${totalDual.bs})`}
       className="max-h-[92vh] overflow-y-auto md:max-w-4xl lg:max-w-5xl"
@@ -754,7 +750,7 @@ export function PosCheckoutDialog({
             <Button
               type="button"
               variant="outline"
-              onClick={onClose}
+              onClick={handleClose}
               disabled={isSubmitting}
               className="min-h-11"
             >

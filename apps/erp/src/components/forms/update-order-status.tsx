@@ -52,9 +52,13 @@ export function UpdateOrderStatusDialog({
             old ? { ...old, status: variables.status } : old,
           );
         }
+        return { previousOrder, queryKey };
+      },
+      // Confirm only after the server accepts: invoicing can be rejected when
+      // the customer lacks SENIAT fiscal data.
+      onSuccess: (_data, variables) => {
         toast.success(`Estado del pedido actualizado a ${variables.status}`);
         onClose();
-        return { previousOrder, queryKey };
       },
       onError: (err, _variables, context) => {
         if (context?.queryKey && context.previousOrder) {

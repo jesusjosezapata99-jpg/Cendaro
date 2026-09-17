@@ -5,12 +5,17 @@ import { useCallback, useMemo } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  useInfiniteQuery,
+  useQuery,
+} from "@tanstack/react-query";
 
 import type { StatusTone } from "@cendaro/ui/status-pill";
 import { Button } from "@cendaro/ui";
 import { Icons } from "@cendaro/ui/icons";
 import { StatusPill } from "@cendaro/ui/status-pill";
+import { CUSTOMER_TYPES, isFiscalInvoiceReady } from "@cendaro/validators";
 
 import { DataTable } from "~/components/data-table/data-table";
 import { PageHeader } from "~/components/page-header";
@@ -18,6 +23,7 @@ import { Can } from "~/components/role-guard";
 import { StatCard } from "~/components/stat-card";
 import { useCustomerParams } from "~/hooks/params/use-customer-params";
 import { useBcvRate } from "~/hooks/use-bcv-rate";
+import { useDebounce } from "~/hooks/use-debounce";
 import { formatDualCurrency } from "~/lib/format-currency";
 import { useTRPC } from "~/trpc/client";
 
@@ -48,6 +54,15 @@ const FILTER_TYPES = [
   { key: "vendor_client", label: "Vendedores" },
 ] as const;
 
+/** Page size of the directory; keep in sync with the prefetch in page.tsx. */
+const CUSTOMERS_PAGE_SIZE = 50;
+
+type CustomerType = (typeof CUSTOMER_TYPES)[number];
+
+function isCustomerType(value: string): value is CustomerType {
+  return (CUSTOMER_TYPES as readonly string[]).includes(value);
+}
+
 interface CustomerListItem {
   id: string;
   name: string;
@@ -69,53 +84,48 @@ export default function CustomersClient() {
   const [{ createCustomer, search, type: typeFilter }, setCustomerParams] =
     useCustomerParams();
 
+  // Search and type filter run on the server so the whole directory is
+  // reachable (name, legal name, phone or RIF/cédula with or without dashes).
+  // listCustomers accepts up to 64 characters.
+  const debouncedSearch = useDebounce(search.trim().slice(0, 64), 300);
   const {
-    data: customers,
+    data: customerPages,
     isLoading,
     isError,
     refetch,
-  } = useQuery(trpc.sales.listCustomers.queryOptions({ limit: 100 }));
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery({
+    ...trpc.sales.listCustomers.infiniteQueryOptions(
+      {
+        limit: CUSTOMERS_PAGE_SIZE,
+        search: debouncedSearch.length >= 2 ? debouncedSearch : undefined,
+        customerType: isCustomerType(typeFilter) ? typeFilter : undefined,
+      },
+      {
+        getNextPageParam: (lastPage, allPages) =>
+          lastPage.length < CUSTOMERS_PAGE_SIZE
+            ? undefined
+            : allPages.length * CUSTOMERS_PAGE_SIZE,
+      },
+    ),
+    placeholderData: keepPreviousData,
+  });
+
+  const { data: stats, isLoading: statsLoading } = useQuery(
+    trpc.sales.customerStats.queryOptions(),
+  );
 
   const list = useMemo(
-    () => (customers ?? []) as CustomerListItem[],
-    [customers],
+    () => (customerPages?.pages.flat() ?? []) as CustomerListItem[],
+    [customerPages],
   );
 
-  const filtered = useMemo(() => {
-    return list.filter((c) => {
-      const matchesType =
-        typeFilter === "all" ? true : c.customerType === typeFilter;
-      if (!matchesType) return false;
-
-      if (!search.trim()) return true;
-      const q = search.toLowerCase();
-      return (
-        c.name.toLowerCase().includes(q) ||
-        Boolean(c.phone?.toLowerCase().includes(q)) ||
-        Boolean(c.email?.toLowerCase().includes(q)) ||
-        Boolean(c.identification?.toLowerCase().includes(q))
-      );
-    });
-  }, [list, typeFilter, search]);
-
-  const totalWithCredit = useMemo(
-    () => list.filter((c) => Number(c.creditLimit ?? 0) > 0).length,
-    [list],
-  );
-
-  const totalWholesale = useMemo(
-    () =>
-      list.filter(
-        (c) =>
-          c.customerType === "wholesale" || c.customerType === "distributor",
-      ).length,
-    [list],
-  );
-
-  const totalCreditAssigned = useMemo(
-    () => list.reduce((s, c) => s + Number(c.creditLimit ?? 0), 0),
-    [list],
-  );
+  const totalWithCredit = stats?.withCredit ?? 0;
+  const totalWholesale =
+    (stats?.byType.wholesale ?? 0) + (stats?.byType.distributor ?? 0);
+  const totalCreditAssigned = stats?.creditTotal ?? 0;
 
   const dualCredit = useMemo(
     () => formatDualCurrency(totalCreditAssigned, bcv.rate),
@@ -154,6 +164,12 @@ export default function CustomersClient() {
                   {c.identification ?? c.legalName}
                 </span>
               ) : null}
+              {!isFiscalInvoiceReady(c) && (
+                <span className="text-status-warning-fg flex items-center gap-1 text-[11px]">
+                  <Icons.Warning className="size-3" />
+                  Datos fiscales incompletos
+                </span>
+              )}
             </div>
           );
         },
@@ -292,28 +308,28 @@ export default function CustomersClient() {
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           label="Total Clientes"
-          value={isLoading ? "—" : list.length}
+          value={statsLoading ? "—" : (stats?.total ?? 0)}
           icon="Group"
           tone="default"
           sub="Directorio consolidado"
         />
         <StatCard
           label="Con Línea de Crédito"
-          value={isLoading ? "—" : totalWithCredit}
+          value={statsLoading ? "—" : totalWithCredit}
           icon="AccountBalance"
           tone="success"
           sub="Cuentas con crédito habilitado"
         />
         <StatCard
           label="Mayoristas & Distribuidores"
-          value={isLoading ? "—" : totalWholesale}
+          value={statsLoading ? "—" : totalWholesale}
           icon="Business"
           tone="primary"
           sub="Cuentas corporativas B2B"
         />
         <StatCard
           label="Línea de Crédito Total"
-          value={isLoading ? "—" : dualCredit.usd}
+          value={statsLoading ? "—" : dualCredit.usd}
           icon="AttachMoney"
           tone="warning"
           sub={`Equivalente oficial: ${dualCredit.bs}`}
@@ -339,8 +355,8 @@ export default function CustomersClient() {
             const isActive = typeFilter === tab.key;
             const count =
               tab.key === "all"
-                ? list.length
-                : list.filter((c) => c.customerType === tab.key).length;
+                ? (stats?.total ?? 0)
+                : (stats?.byType[tab.key] ?? 0);
 
             return (
               <button
@@ -372,10 +388,13 @@ export default function CustomersClient() {
       {/* Main Data Table with 45px rows */}
       <DataTable
         columns={columns}
-        data={filtered}
+        data={list}
         isLoading={isLoading}
         isError={isError}
         onRetry={() => void refetch()}
+        isFetchingNextPage={isFetchingNextPage}
+        hasNextPage={hasNextPage}
+        fetchNextPage={() => void fetchNextPage()}
         onRowClick={handleRowClick}
         onResetFilters={() =>
           void setCustomerParams({ search: "", type: "all" })

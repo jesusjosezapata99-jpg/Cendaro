@@ -18,6 +18,8 @@ interface PosCartProps {
   selectedCustomer: CustomerInfo | null;
   onSelectCustomer: (customer: CustomerInfo | null) => void;
   onCreateCustomer: () => void;
+  /** Opens the selected customer's form to complete their fiscal data. */
+  onEditCustomer: () => void;
   customers: CustomerInfo[];
   customerSearch: string;
   onCustomerSearchChange: (q: string) => void;
@@ -34,6 +36,7 @@ export function PosCart({
   selectedCustomer,
   onSelectCustomer,
   onCreateCustomer,
+  onEditCustomer,
   customers,
   customerSearch,
   onCustomerSearchChange,
@@ -111,14 +114,37 @@ export function PosCart({
           </div>
 
           {!selectedFiscalReady && (
-            <p
+            <div
               role="status"
               className="bg-status-warning-bg text-status-warning-fg mt-1.5 flex items-start gap-1.5 px-2 py-1.5 text-[11px]"
             >
               <Icons.Warning className="mt-px size-3.5 shrink-0" />
-              Datos fiscales incompletos para factura SENIAT (documento válido y
-              domicilio fiscal). Actualiza el cliente antes de facturar.
-            </p>
+              <div className="flex-1">
+                <p>
+                  Datos fiscales incompletos para factura SENIAT (documento
+                  válido y domicilio fiscal). No se puede cobrar a este cliente
+                  hasta completarlos.
+                </p>
+                <Can
+                  module="customers"
+                  action="update"
+                  fallback={
+                    <p className="mt-1">
+                      Pide a un supervisor que complete la ficha, o cobra como
+                      Consumidor Final.
+                    </p>
+                  }
+                >
+                  <button
+                    type="button"
+                    onClick={onEditCustomer}
+                    className="mt-1 font-medium underline underline-offset-2"
+                  >
+                    Completar datos del cliente
+                  </button>
+                </Can>
+              </div>
+            </div>
           )}
 
           {/* Dropdown Menu */}

@@ -1818,6 +1818,16 @@ export const RepricingEvent = pgTable(
 // ║ PHASE 5 — Sales, Payments & Cash             ║
 // ╚══════════════════════════════════════════════╝
 
+/**
+ * Person behind a customer's identification: a natural person's personal RIF
+ * (V/E-########-#) maps to their cédula form (V-12345678), everything else is
+ * its own key. Kept byte-identical to migration 014 (guarded by
+ * customer-fiscal.test.ts) and mirrored by `fiscalPersonKey` in
+ * @cendaro/validators.
+ */
+export const CUSTOMER_PERSON_KEY_SQL =
+  "CASE WHEN identification ~ '^[VE]-[0-9]{8}-[0-9]$' AND substr(identification, 3, 8) <> '00000000' THEN substr(identification, 1, 2) || ltrim(substr(identification, 3, 8), '0') ELSE identification END";
+
 export const Customer = pgTable(
   "customer",
   (t) => ({
@@ -1830,6 +1840,10 @@ export const Customer = pgTable(
     name: t.varchar({ length: 256 }).notNull(),
     legalName: t.varchar({ length: 512 }),
     identification: t.varchar({ length: 32 }),
+    /** Generated (migration 014); never written by the app. */
+    personKey: t
+      .varchar({ length: 32 })
+      .generatedAlwaysAs(sql.raw(CUSTOMER_PERSON_KEY_SQL)),
     customerType: customerTypeEnum().notNull().default("retail"),
     phone: t.varchar({ length: 32 }),
     phone2: t.varchar({ length: 32 }),
@@ -1851,11 +1865,12 @@ export const Customer = pgTable(
     index("idx_customer_type").on(table.customerType),
     index("idx_customer_name").on(table.name),
     index("idx_customer_vendor").on(table.assignedVendorId),
-    // One customer per RIF / cédula / passport per workspace (migration 013).
-    // NULL identifications stay allowed for legacy rows.
-    unique("uq_customer_workspace_identification").on(
+    // One customer per person per workspace (migration 014, replaces 013's
+    // uq_customer_workspace_identification): a cédula and the personal RIF
+    // built from it collide. NULL identifications stay allowed.
+    unique("uq_customer_workspace_person_key").on(
       table.workspaceId,
-      table.identification,
+      table.personKey,
     ),
 
     workspacePolicy("customer"),

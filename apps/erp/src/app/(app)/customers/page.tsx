@@ -32,9 +32,19 @@ async function CustomersPrefetch() {
   const queryClient = getQueryClient();
 
   try {
-    await queryClient.prefetchQuery(
-      trpc.sales.listCustomers.queryOptions({ limit: 100 }),
-    );
+    // Must match the first page requested by CustomersClient (page size 50).
+    await Promise.all([
+      queryClient.prefetchInfiniteQuery(
+        trpc.sales.listCustomers.infiniteQueryOptions(
+          { limit: 50 },
+          {
+            getNextPageParam: (lastPage, allPages) =>
+              lastPage.length < 50 ? undefined : allPages.length * 50,
+          },
+        ),
+      ),
+      queryClient.prefetchQuery(trpc.sales.customerStats.queryOptions()),
+    ]);
   } catch {
     // Prefetch failure is non-critical — client will fetch on hydration
   }
