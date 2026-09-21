@@ -83,7 +83,7 @@ export async function POST(request: Request) {
   // ── Rate limiting (3 attempts per 60s per IP) ──
   const ip =
     request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
-  const { success: allowed, reset } = rateLimit(`create-user:${ip}`, {
+  const { success: allowed, reset } = await rateLimit(`create-user:${ip}`, {
     window: 60_000,
     max: 3,
   });

@@ -91,6 +91,7 @@ describe("mapClaimsToUser", () => {
       id: "a0000000-0000-0000-0000-00000000c1a1",
       email: "attacker@example.com",
       aal: "aal1",
+      sessionId: null,
     });
   });
 
@@ -110,13 +111,15 @@ type Row = Record<string, unknown>;
 /**
  * Minimal Drizzle stand-in for resolveWorkspaceMembership: `execute` answers
  * is_workspace_member(); `select().from(table)...limit()` answers by shape.
+ * `transaction` stands in for the F9.2 read-only RLS wrapper: it hands the
+ * callback the same object, so the wrapped handler sees the same answers.
  */
 function fakeMembershipDb(opts: {
   memberRole: string;
   plan: string;
   fullName: string;
 }) {
-  return {
+  const db = {
     execute: () =>
       Promise.resolve({
         rows: [
@@ -137,6 +140,10 @@ function fakeMembershipDb(opts: {
       };
       return chain;
     },
+  };
+  return {
+    ...db,
+    transaction: (fn: (tx: typeof db) => Promise<unknown>) => fn(db),
   };
 }
 
@@ -167,6 +174,9 @@ describe("C1 behavior: workspace role comes from the database", () => {
         fullName: "Empleado Real",
       }) as never,
       requestId: "req-c1",
+      membershipCache: new Map(),
+      afterCommit: [],
+      sessionActivityChecked: true,
       log: logger.child({ requestId: "req-c1" }),
       workspaceId: "b0000000-0000-0000-0000-000000000001",
     });

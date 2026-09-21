@@ -15,13 +15,28 @@ import {
   RepricingEvent,
 } from "@cendaro/db/schema";
 
+import type { UpstreamRate, VesRates } from "../services/exchange-rate-sources";
+import type { HeldRate, RateSyncResult } from "./rate-sync";
+import { getUsdCnyRate, getVesRates } from "../services/exchange-rate-sources";
 import {
   createTRPCRouter,
   memberReadProcedure,
+  runInWorkspaceRls,
   wsPermissionProcedure,
   wsReadPermissionProcedure,
 } from "../trpc";
 import { logAudit } from "./audit";
+import {
+  listHeldRates,
+  syncAutomaticRates,
+  toRateCandidates,
+} from "./rate-sync";
+
+export interface SyncRatesResult {
+  results: RateSyncResult[];
+  /** Live upstream values, so the page can show them without another fetch. */
+  live: { ves: VesRates | null; cny: UpstreamRate | null };
+}
 
 export const pricingRouter = createTRPCRouter({
   // ─── Exchange Rates (PRD §12.3) ──────────────
@@ -81,59 +96,39 @@ export const pricingRouter = createTRPCRouter({
     }),
 
   /**
-   * Update a rate (automated sources only — PRD §12.6)
+   * Refresh this workspace's automatic rates (PRD §12.6: no human-entered
+   * rates; PLAN-2026-09-SECURITY-REMEDIATION F4.1).
    *
-   * Rates can ONLY be set by automated sync processes (DolarAPI, Frankfurter).
-   * Human-entered rates are explicitly blocked to prevent price manipulation.
+   * The server fetches BCV / DolarAPI / Frankfurter itself: the client only
+   * asks for a refresh and can no longer choose a rate or its source (the
+   * former setRate trusted both). Jumps beyond ±15 % are held for approval
+   * (modules/rate-sync). Built on the read builder on purpose: the upstream
+   * fetch can take seconds, so it runs before the short RLS transaction that
+   * writes, instead of holding a pooled connection open meanwhile.
    */
-  setRate: wsPermissionProcedure("rates", "update")
-    .input(
-      z.object({
-        rateType: z.enum(rateTypeEnum.enumValues),
-        rate: z.number().positive(),
-        source: z.string().max(128).optional(),
-        notes: z.string().optional(),
-      }),
-    )
-    .mutation(async ({ ctx, input }) => {
-      // ── Source validation: only automated sources allowed ──
-      const ALLOWED_SOURCE_PREFIXES = [
-        "dolarapi-",
-        "frankfurter",
-        "system-sync",
-      ];
-      const source = input.source ?? "";
-      const isAllowed = ALLOWED_SOURCE_PREFIXES.some((prefix) =>
-        source.startsWith(prefix),
-      );
-      if (!isAllowed) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message:
-            "Las tasas de cambio solo pueden ser actualizadas por fuentes automatizadas (DolarAPI, Frankfurter)",
-        });
-      }
-      const [newRate] = await ctx.db
-        .insert(ExchangeRate)
-        .values({
-          workspaceId: ctx.workspace.workspaceId,
-          rateType: input.rateType,
-          rate: input.rate,
-          source: input.source,
-          notes: input.notes,
-          updatedBy: ctx.user.id,
-        })
-        .returning();
-
-      await logAudit(ctx.db, ctx.user, {
-        action: "rate.update",
-        entity: "exchange_rate",
-        entityId: newRate?.id,
-        newValue: { rateType: input.rateType, rate: input.rate },
-      });
-
-      return newRate;
+  syncRates: wsReadPermissionProcedure("rates", "update")
+    .input(z.object({ force: z.boolean().default(false) }))
+    .mutation(async ({ ctx, input }): Promise<SyncRatesResult> => {
+      const [ves, cny] = await Promise.all([
+        getVesRates({ fresh: input.force }),
+        getUsdCnyRate({ fresh: input.force }),
+      ]);
+      const candidates = toRateCandidates(ves, cny);
+      const workspaceId = ctx.workspace.workspaceId;
+      const results =
+        candidates.length === 0
+          ? []
+          : await runInWorkspaceRls(ctx.db, workspaceId, (tx) =>
+              syncAutomaticRates(tx, ctx.user, workspaceId, candidates),
+            );
+      return { results, live: { ves, cny } };
     }),
+
+  /** Rates held for a decision because they jumped beyond ±15 % (F4.1). */
+  heldRates: wsReadPermissionProcedure("rates", "read").query(
+    ({ ctx }): Promise<HeldRate[]> =>
+      listHeldRates(ctx.db, ctx.workspace.workspaceId),
+  ),
 
   // ─── Currency Calculator (PRD §12.7) ─────────
 

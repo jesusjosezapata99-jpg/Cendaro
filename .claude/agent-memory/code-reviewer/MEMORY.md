@@ -1,2 +1,3 @@
 - [UI authz drift](project_ui-authz-drift.md) — buttons/RoleGuard arrays drift from ROLE_PERMISSIONS; checklist for authz-change reviews
 - [DB objects outside git](project_db-objects-outside-git.md) — prod triggers/functions/app_user grants not in migrations; verify via pg_get_triggerdef
+- [Fake-DB test gaps](project_fake-db-test-gaps.md) — API authz tests match SQL text, not params/filters; verify they'd fail on wrong impl

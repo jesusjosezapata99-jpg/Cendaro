@@ -1,5 +1,7 @@
 import { withSentryConfig } from "@sentry/nextjs/config";
 
+import { buildContentSecurityPolicy } from "./csp.mjs";
+
 /** @type {import("next").NextConfig} */
 const config = {
   reactStrictMode: true,
@@ -51,31 +53,8 @@ const config = {
   async headers() {
     const isDev = process.env.NODE_ENV !== "production";
 
-    // Content-Security-Policy directives:
-    //   script-src 'unsafe-inline' — required by Next.js for inline hydration
-    //   script-src 'unsafe-eval' — required by React 19 / Turbopack in development mode for
-    //              sourcemap decoding, stack trace reconstruction, and Fast Refresh
-    //   style-src  'unsafe-inline' — Tailwind + Next inline styles. All fonts
-    //              are self-hosted via next/font (no external font CDNs).
-    //   img-src    *.supabase.co — product images in Supabase Storage
-    //              blob: data: — AI image previews in the packing-list pipeline
-    //   connect-src ws: wss: (dev) — Turbopack HMR / Fast Refresh WebSocket connections
-    //   connect-src (all) — Supabase API, Groq AI, Sentry telemetry, exchange-rate APIs
-    //   frame-ancestors 'none' — clickjacking prevention (CSP-level, supplements X-Frame-Options)
-    const ContentSecurityPolicy = [
-      "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-      "style-src 'self' 'unsafe-inline'",
-      "font-src 'self'",
-      "img-src 'self' data: blob: https://*.supabase.co",
-      "media-src 'self'",
-      "object-src 'none'",
-      "frame-ancestors 'none'",
-      `connect-src 'self'${isDev ? " ws: wss:" : ""} https://*.supabase.co https://api.groq.com https://ve.dolarapi.com https://api.frankfurter.dev https://v6.exchangerate-api.com https://*.sentry.io`,
-      "base-uri 'self'",
-      "form-action 'self'",
-      ...(isDev ? [] : ["upgrade-insecure-requests"]),
-    ].join("; ");
+    // CSP policy and the reason it is not nonce-based: see ./csp.mjs.
+    const ContentSecurityPolicy = buildContentSecurityPolicy(isDev);
 
     return [
       {

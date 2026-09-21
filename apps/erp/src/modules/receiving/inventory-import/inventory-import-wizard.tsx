@@ -16,6 +16,7 @@ import type { ImportMode } from "@cendaro/api";
 import { Icons } from "@cendaro/ui/icons";
 
 import type { WarehouseProduct } from "./lib/inventory-template-builder";
+import { useCurrentUser } from "~/hooks/use-current-user";
 import { useTRPC } from "~/trpc/client";
 import { useInventoryImport } from "./hooks/use-inventory-import";
 import { useParseInventoryFile } from "./hooks/use-parse-inventory-file";
@@ -118,6 +119,11 @@ export function InventoryImportWizard({
   warehouseId,
 }: InventoryImportWizardProps) {
   const trpc = useTRPC();
+  const { profile } = useCurrentUser();
+  // Mirrors inventoryImport: overwriting locked stock and resetting a
+  // warehouse are owner/admin only (the server rejects anyone else).
+  const canOverrideStock =
+    profile?.role === "owner" || profile?.role === "admin";
 
   // Fetch warehouse details
   const { data: warehouse } = useQuery(
@@ -492,7 +498,11 @@ export function InventoryImportWizard({
       {/* Step content */}
       <div className="min-h-75">
         {state.step === 1 && (
-          <ModeSelect selectedMode={state.mode} onSelect={selectMode} />
+          <ModeSelect
+            selectedMode={state.mode}
+            onSelect={selectMode}
+            canInitialize={canOverrideStock}
+          />
         )}
 
         {state.step === 2 && state.mode && (
@@ -579,7 +589,7 @@ export function InventoryImportWizard({
               onConfirm={handleConfirmImport}
               onBack={() => goToStep(4)}
               isProcessing={state.isProcessing}
-              canForceLock={true}
+              canForceLock={canOverrideStock}
             />
           ))}
 

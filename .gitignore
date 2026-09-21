@@ -7,6 +7,7 @@
 *Midday*
 
 # ── 2. Memoria Operativa Interna, Planes & Reportes de IA ────────────────────
+plans/
 .opencode/
 claude_code_implementation_plan
 .gemini/
@@ -84,3 +85,7 @@ Desktop.ini
 
 # Crash dumps (Git Bash / MSYS2 on Windows)
 *.stackdump
+# AgentShield evidence bundles are generated for a specific audit and can
+# contain local paths; the baseline and its README are versioned, they are not.
+.agentshield/evidence/
+agentshield.sarif

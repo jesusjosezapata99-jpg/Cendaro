@@ -51,6 +51,7 @@ import {
   wsReadPermissionProcedure,
 } from "../trpc";
 import { logAudit } from "./audit";
+import { isUniqueViolation } from "./db-errors";
 import { escapeLike } from "./search";
 import { assertVendorCustomer, vendorScopeId } from "./vendor-scope";
 
@@ -112,19 +113,6 @@ function duplicateCustomerError(identification: string, name?: string) {
       ? `Ya existe un cliente registrado con ${identification}: ${name}. Búscalo en la lista de clientes.`
       : `Ya existe un cliente registrado con ${identification}. Búscalo en la lista de clientes.`,
   });
-}
-
-/** Postgres unique_violation (23505), directly or wrapped by Drizzle. */
-function isUniqueViolation(error: unknown): boolean {
-  const codeOf = (value: unknown): unknown =>
-    typeof value === "object" && value !== null && "code" in value
-      ? value.code
-      : undefined;
-  const cause =
-    typeof error === "object" && error !== null && "cause" in error
-      ? error.cause
-      : undefined;
-  return codeOf(error) === "23505" || codeOf(cause) === "23505";
 }
 
 interface SalesWriteContext {

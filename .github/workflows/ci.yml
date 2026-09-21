@@ -14,6 +14,11 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Least privilege for GITHUB_TOKEN (PLAN-2026-09-SECURITY-REMEDIATION F10.1).
+# Actions are pinned by commit SHA; Dependabot (github-actions) bumps them.
+permissions:
+  contents: read
+
 env:
   NODE_VERSION: "24"
   PNPM_VERSION: "10.30.3"
@@ -33,15 +38,17 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v5
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
         with:
           version: ${{ env.PNPM_VERSION }}
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: "pnpm"
@@ -66,3 +73,67 @@ jobs:
 
       - name: Test
         run: pnpm test
+
+  agentshield:
+    name: AgentShield (AI agent configuration)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    # Only this job may write to the Security tab; the workflow default stays
+    # `contents: read`.
+    permissions:
+      contents: read
+      security-events: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # The scanner is an exact devDependency verified by the lockfile, not a
+      # third-party action that fetches code at run time: the supply chain of
+      # the supply-chain check is itself pinned.
+      #
+      # Absolute floor: any high or critical finding fails the build, with no
+      # baseline to hide behind.
+      - name: Fail on high-severity findings
+        run: pnpm exec agentshield scan --path . --min-severity high
+
+      # Drift gate: compares against .agentshield/baseline.json at the same
+      # severity the baseline was recorded at (medium), so ANY new finding or
+      # a lower score fails — the accepted medium false positives cannot
+      # silently grow. Also verifies MCP packages against known-bad names and
+      # typosquats.
+      - name: Gate against the recorded baseline
+        run: |
+          pnpm exec agentshield scan --path . \
+            --min-severity medium \
+            --baseline .agentshield/baseline.json --gate \
+            --supply-chain \
+            --compliance soc2,iso \
+            --format sarif -o agentshield.sarif
+
+      # Findings land in the repository Security tab, reviewed like any other
+      # code-scanning alert. Runs even when the gate failed, so the alerts are
+      # visible for the failing run.
+      - name: Upload findings to code scanning
+        if: always()
+        uses: github/codeql-action/upload-sarif@1c5b675653bb5c22dbe9b12b556ec555138e09fd # v4.38.1
+        with:
+          sarif_file: agentshield.sarif
+          category: agentshield

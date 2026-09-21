@@ -55,7 +55,7 @@ export async function POST(request: Request) {
   const rawIp = request.headers.get("x-forwarded-for") ?? "";
   const ip = rawIp.split(",")[0]?.trim() ?? "unknown";
 
-  const { success: allowed, reset } = rateLimit(`logout:ip:${ip}`, {
+  const { success: allowed, reset } = await rateLimit(`logout:ip:${ip}`, {
     window: 60_000,
     max: 10,
   });

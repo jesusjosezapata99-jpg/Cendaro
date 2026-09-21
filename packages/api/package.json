@@ -16,7 +16,8 @@
     "format": "prettier --check . --ignore-path ../../.gitignore",
     "lint": "eslint --cache --cache-location .cache/.eslintcache",
     "typecheck": "tsc --noEmit --emitDeclarationOnly false",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:integration": "vitest run src/__tests__/integration.workspace-rls.test.ts src/__tests__/integration.read-procedures.test.ts"
   },
   "dependencies": {
     "@cendaro/db": "workspace:*",

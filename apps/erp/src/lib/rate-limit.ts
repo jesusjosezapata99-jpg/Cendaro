@@ -1,37 +1,23 @@
 /**
- * Cendaro — Hardened In-Memory Rate Limiter
+ * Cendaro — Rate limiting for route handlers
  *
- * Sliding-window rate limiter with multi-key composite support,
- * per-username hard lockout, and automatic store cleanup.
+ * Thin wrapper over the shared store in `@cendaro/api`
+ * (PLAN-2026-09-SECURITY-REMEDIATION F6). The counters used to live in a
+ * module-scoped Map here, which on Vercel means one counter per serverless
+ * instance: a burst spread over cold starts got the allowance several times
+ * over, and every deploy cleared every lockout. They now live in Postgres
+ * (migration 019) and are shared by every instance, with this instance's
+ * memory as the fallback when the database is unreachable.
  *
- * Strategy:
- *   • rateLimit(key, opts)            — single key check (IP, etc.)
- *   • rateLimitComposite(keys, opts)   — all keys checked atomically
- *   • lockout(key, durationMs)         — hard time-based block (e.g. after N failures)
- *   • isLockedOut(key)                 — check hard lockout status
- *
- * Design constraints:
- *   • Zero dependencies — no Redis, no Upstash
- *   • Serverless-compatible (module-scoped Map)
- *   • Resets on cold starts — acceptable for in-memory tier
- *   • Periodic self-cleaning to prevent unbounded memory growth
- *
- * Migration path: swap rateLimit() calls with @upstash/ratelimit for
- * persistent cross-instance rate limiting when scaling horizontally.
+ * Every function is async — it talks to the database. They must be called
+ * from route handlers or from tRPC code running on the pooled `postgres`
+ * connection, never inside the workspace RLS transaction (`app_user` has no
+ * privileges on the limiter tables).
  */
+import type { RateLimitResult, RateLimitRule } from "@cendaro/api";
+import { getRateLimitStore } from "@cendaro/api";
 
-// ── Types ──────────────────────────────────────────────────────────────────
-
-export interface RateLimitResult {
-  /** Whether the request is allowed to proceed */
-  success: boolean;
-  /** Number of remaining requests in the current window */
-  remaining: number;
-  /** Unix timestamp (ms) when the window resets */
-  reset: number;
-  /** Which key triggered the block (composite mode) */
-  blockedBy?: string;
-}
+export type { RateLimitResult, RateLimitRule };
 
 export interface RateLimitOptions {
   /** Time window in milliseconds (default: 60_000 = 1 min) */
@@ -40,207 +26,76 @@ export interface RateLimitOptions {
   max?: number;
 }
 
-// ── Internal state ─────────────────────────────────────────────────────────
-
-/** Sliding-window timestamp store: key → sorted list of request timestamps */
-const windowStore = new Map<string, number[]>();
-
-/** Hard lockout store: key → unlock timestamp */
-const lockoutStore = new Map<string, number>();
-
-/** Cleanup runs at most once per 5 minutes */
-const CLEANUP_INTERVAL_MS = 5 * 60 * 1_000;
-let lastCleanup = Date.now();
-
-// ── Internal helpers ───────────────────────────────────────────────────────
-
-function pruneStores(windowMs: number): void {
-  const now = Date.now();
-  if (now - lastCleanup < CLEANUP_INTERVAL_MS) return;
-  lastCleanup = now;
-
-  const cutoff = now - windowMs;
-
-  for (const [key, timestamps] of windowStore) {
-    const valid = timestamps.filter((t) => t > cutoff);
-    if (valid.length === 0) windowStore.delete(key);
-    else windowStore.set(key, valid);
-  }
-
-  for (const [key, unlockAt] of lockoutStore) {
-    if (now >= unlockAt) lockoutStore.delete(key);
-  }
-}
-
-function checkWindow(
-  key: string,
-  windowMs: number,
-  max: number,
-  now: number,
-): RateLimitResult & { _valid: number[] } {
-  const cutoff = now - windowMs;
-  const timestamps = windowStore.get(key) ?? [];
-  const valid = timestamps.filter((t) => t > cutoff);
-
-  const oldest = valid[0];
-  const reset = oldest ? oldest + windowMs : now + windowMs;
-
-  if (valid.length >= max) {
-    windowStore.set(key, valid);
-    return { success: false, remaining: 0, reset, _valid: valid };
-  }
-
-  return {
-    success: true,
-    remaining: max - valid.length - 1,
-    reset,
-    _valid: valid,
-  };
-}
-
-// ── Public API ─────────────────────────────────────────────────────────────
-
-/**
- * Check rate limit for a single key (e.g. IP address).
- * Records the request if allowed.
- *
- * @example
- * const { success, reset } = rateLimit(`login:${ip}`, { window: 60_000, max: 5 });
- */
-export function rateLimit(
-  key: string,
-  opts?: RateLimitOptions,
-): RateLimitResult {
-  const windowMs = opts?.window ?? 60_000;
-  const max = opts?.max ?? 5;
-  const now = Date.now();
-
-  pruneStores(windowMs);
-
-  // Check hard lockout first (fastest path)
-  const lockUntil = lockoutStore.get(key);
-  if (lockUntil && now < lockUntil) {
-    return { success: false, remaining: 0, reset: lockUntil };
-  }
-
-  const result = checkWindow(key, windowMs, max, now);
-
-  if (result.success) {
-    result._valid.push(now);
-    windowStore.set(key, result._valid);
-  }
-
-  const { _valid: _, ...publicResult } = result;
-  return publicResult;
-}
-
-/**
- * Check multiple rate-limit keys atomically.
- * ALL keys must pass — the first failure blocks the request.
- * Records the request on ALL passing keys only if ALL pass.
- *
- * Used for dual-vector auth protection:
- *   key[0] = `login:ip:${ip}`       — per-IP rolling window
- *   key[1] = `login:user:${user}`   — per-username rolling window
- *
- * @example
- * const { success, blockedBy } = rateLimitComposite(
- *   [{ key: `login:ip:${ip}`, window: 60_000, max: 5 },
- *    { key: `login:user:${username}`, window: 900_000, max: 10 }]
- * );
- */
 export interface CompositeKey {
   key: string;
   window?: number;
   max?: number;
 }
 
-export function rateLimitComposite(keys: CompositeKey[]): RateLimitResult {
-  const now = Date.now();
-  pruneStores(60_000);
-
-  const checks: { key: string; result: ReturnType<typeof checkWindow> }[] = [];
-
-  let worstReset = 0;
-
-  for (const { key, window: windowMs = 60_000, max = 5 } of keys) {
-    // Hard lockout check
-    const lockUntil = lockoutStore.get(key);
-    if (lockUntil && now < lockUntil) {
-      return { success: false, remaining: 0, reset: lockUntil, blockedBy: key };
-    }
-
-    const result = checkWindow(key, windowMs, max, now);
-    checks.push({ key, result });
-
-    if (!result.success) {
-      return {
-        success: false,
-        remaining: 0,
-        reset: result.reset,
-        blockedBy: key,
-      };
-    }
-
-    if (result.reset > worstReset) worstReset = result.reset;
-  }
-
-  // All keys passed — record the request on all of them
-  for (const { key, result } of checks) {
-    result._valid.push(now);
-    windowStore.set(key, result._valid);
-  }
-
-  const minRemaining = Math.min(...checks.map((c) => c.result.remaining));
-  return { success: true, remaining: minRemaining, reset: worstReset };
+function toRule({
+  key,
+  window = 60_000,
+  max = 5,
+}: CompositeKey): RateLimitRule {
+  return { key, windowMs: window, max };
 }
 
 /**
- * Apply a hard time-based lockout to a key.
- * Overrides the sliding window — nothing can unblock until the duration expires.
+ * Checks and charges a single key.
  *
- * Use after N consecutive failures to enforce a cool-down period.
+ * @example
+ * const { success, reset } = await rateLimit(`login:${ip}`, { window: 60_000, max: 5 });
+ */
+export function rateLimit(
+  key: string,
+  opts?: RateLimitOptions,
+): Promise<RateLimitResult> {
+  return getRateLimitStore().consume([toRule({ key, ...opts })], Date.now());
+}
+
+/**
+ * Checks several keys at once. All must pass; when one rejects, none is
+ * charged, so a request refused by the username rule does not also spend the
+ * IP budget.
  *
- * @param key - Key to lock (e.g. `lockout:user:${username}`)
- * @param durationMs - Lock duration in milliseconds
+ * @example
+ * const { success, blockedBy } = await rateLimitComposite([
+ *   { key: `login:ip:${ip}`, window: 60_000, max: 5 },
+ *   { key: `login:user:${username}`, window: 900_000, max: 10 },
+ * ]);
  */
-export function applyLockout(key: string, durationMs: number): void {
-  const unlockAt = Date.now() + durationMs;
-  lockoutStore.set(key, unlockAt);
+export function rateLimitComposite(
+  keys: CompositeKey[],
+): Promise<RateLimitResult> {
+  return getRateLimitStore().consume(keys.map(toRule), Date.now());
 }
 
 /**
- * Check if a key is currently hard-locked out.
- * Returns the unlock timestamp (ms) if locked, or null if free.
+ * Blocks a key outright until the duration expires, whatever its request
+ * window says. Used after repeated authentication failures.
  */
-export function getLockoutExpiry(key: string): number | null {
-  const unlockAt = lockoutStore.get(key);
-  if (!unlockAt) return null;
-  if (Date.now() >= unlockAt) {
-    lockoutStore.delete(key);
-    return null;
-  }
-  return unlockAt;
+export function applyLockout(
+  key: string,
+  durationMs: number,
+  reason?: string,
+): Promise<void> {
+  return getRateLimitStore().lock(key, Date.now() + durationMs, reason);
 }
 
-/**
- * Get the current failure count for a sliding-window key without recording a request.
- * Used to check if a lockout threshold has been reached.
- */
-export function getFailureCount(key: string, windowMs = 900_000): number {
-  const now = Date.now();
-  const cutoff = now - windowMs;
-  const timestamps = windowStore.get(key) ?? [];
-  return timestamps.filter((t) => t > cutoff).length;
+/** When a key stops being blocked (unix ms), or null if it is free. */
+export function getLockoutExpiry(key: string): Promise<number | null> {
+  return getRateLimitStore().lockedUntil(key, Date.now());
 }
 
-/**
- * Record a failed attempt for a key without applying the rate-limit check.
- * Use this to count auth failures independently from the request rate.
- */
-export function recordFailure(key: string): void {
-  const now = Date.now();
-  const timestamps = windowStore.get(key) ?? [];
-  timestamps.push(now);
-  windowStore.set(key, timestamps);
+/** Counts an event (a failed login) without spending the request budget. */
+export function recordFailure(key: string, windowMs = 900_000): Promise<void> {
+  return getRateLimitStore().recordFailure(key, windowMs, Date.now());
+}
+
+/** How many events a key has recorded in the window, without charging one. */
+export function getFailureCount(
+  key: string,
+  windowMs = 900_000,
+): Promise<number> {
+  return getRateLimitStore().count(key, windowMs, Date.now());
 }

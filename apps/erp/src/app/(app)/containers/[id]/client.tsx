@@ -26,6 +26,7 @@ import { Can } from "~/components/role-guard";
 import { Skeleton } from "~/components/skeleton";
 import { StatCard } from "~/components/stat-card";
 import { useBcvRate } from "~/hooks/use-bcv-rate";
+import { getWorkspaceId } from "~/hooks/use-workspace";
 import { formatDualCurrency } from "~/lib/format-currency";
 import { getStatus } from "~/lib/status";
 import { useTRPC } from "~/trpc/client";
@@ -218,9 +219,13 @@ export default function ContainerDetailPage() {
 
             for (let attempt = 0; attempt < maxRetries; attempt++) {
               try {
+                const workspaceId = getWorkspaceId();
                 const response = await fetch("/api/ai/parse-packing-list", {
                   method: "POST",
-                  headers: { "Content-Type": "application/json" },
+                  headers: {
+                    "Content-Type": "application/json",
+                    ...(workspaceId ? { "x-workspace-id": workspaceId } : {}),
+                  },
                   body: JSON.stringify({
                     rows: chunks[i],
                     containerId: id,
@@ -347,8 +352,10 @@ export default function ContainerDetailPage() {
           formData.append("file", file);
           formData.append("containerId", id);
 
+          const workspaceId = getWorkspaceId();
           const response = await fetch("/api/ai/parse-packing-list", {
             method: "POST",
+            headers: workspaceId ? { "x-workspace-id": workspaceId } : {},
             body: formData,
           });
 

@@ -418,6 +418,9 @@ function callerFor(opts: FakeOptions) {
     user: { id: nextId(), email: "caller@example.com" },
     db: db as never,
     requestId: "req-customer-fiscal",
+    membershipCache: new Map(),
+    afterCommit: [],
+    sessionActivityChecked: true,
     log: logger.child({ requestId: "req-customer-fiscal" }),
     workspaceId: nextId(),
   });

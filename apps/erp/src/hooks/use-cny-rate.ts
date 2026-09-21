@@ -2,6 +2,8 @@
 
 import { useQuery } from "@tanstack/react-query";
 
+import { pickTrustedRate } from "@cendaro/validators";
+
 import { useTRPC } from "~/trpc/client";
 
 interface CnyRateResult {
@@ -72,8 +74,12 @@ export function useCnyRate(): CnyRateResult {
     retry: 1,
   });
 
-  // If proxy returned data, use it
-  if (apiResult) {
+  const rmbFromDb = dbRates?.find((r) => r.rateType === "rmb_usd");
+  // A live rate beyond the automatic limit is held server-side for approval;
+  // the stored rate stays in force until someone accepts it.
+  const origin = pickTrustedRate(apiResult?.rate, rmbFromDb?.rate);
+
+  if (origin === "live" && apiResult) {
     return {
       rate: apiResult.rate,
       date: apiResult.date,
@@ -83,9 +89,7 @@ export function useCnyRate(): CnyRateResult {
     };
   }
 
-  // Fallback to DB
-  const rmbFromDb = dbRates?.find((r) => r.rateType === "rmb_usd");
-  if (rmbFromDb) {
+  if (origin === "stored" && rmbFromDb) {
     return {
       rate: rmbFromDb.rate,
       date: new Date(rmbFromDb.createdAt).toISOString().slice(0, 10),

@@ -3,6 +3,7 @@
 import { Suspense, useState } from "react";
 
 import { Delayed } from "~/components/delayed";
+import { MfaBanner } from "~/components/mfa-banner";
 import { GlobalSheets } from "~/components/sheets/global-sheets";
 import { Header } from "~/components/shell/header";
 import { MobileMenu } from "~/components/shell/mobile-menu";
@@ -90,6 +91,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       />
       <div className="flex flex-1 flex-col overflow-hidden md:ml-17.5">
         <Header onToggleMobileMenu={() => setMobileMenuOpen((o) => !o)} />
+        <MfaBanner />
         <main className="bg-background safe-pb flex-1 overflow-y-auto overscroll-contain px-4 [-webkit-overflow-scrolling:touch] md:px-8">
           <WorkspaceGate>{children}</WorkspaceGate>
         </main>

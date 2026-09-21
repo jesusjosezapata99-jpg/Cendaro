@@ -26,6 +26,7 @@ import {
 import { can, NAV_ROLE_RULES } from "@cendaro/validators";
 
 import type { createTRPCContext } from "../trpc";
+import { getRateLimitStore } from "../services/rate-limit";
 import { createTRPCRouter, wsReadPermissionProcedure } from "../trpc";
 import { vendorScopeId } from "./vendor-scope";
 
@@ -90,43 +91,42 @@ export function canSearchDeliveryNotes(
 }
 
 // ──────────────────────────────────────────────
-// Rate limit — 20 req / 10s per user, in-memory token bucket
-// (same pattern as `permissionCache` in `../trpc`: process-local, no Redis)
+// Rate limit — 20 req / 10s per user, in the store shared by every instance
 // ──────────────────────────────────────────────
 
 const RATE_LIMIT_WINDOW_MS = 10_000;
 const RATE_LIMIT_MAX_REQUESTS = 20;
-const RATE_LIMIT_MAX_BUCKETS = 1000;
 
-interface RateBucket {
-  count: number;
-  windowStart: number;
-}
+/**
+ * Throws TOO_MANY_REQUESTS if `userId` exceeds the search rate limit.
+ *
+ * Counters live in the shared store (F6), not in a per-instance Map: search
+ * hits every table with trigram indexes, so an unbounded caller is expensive,
+ * and with one counter per serverless instance the real limit was
+ * 20 × (number of warm instances).
+ *
+ * Runs on the pooled `postgres` connection: `search.global` is a read
+ * procedure, outside the workspace RLS transaction, and the limiter tables are
+ * not reachable by `app_user`.
+ */
+export async function checkSearchRateLimit(userId: string): Promise<void> {
+  const { success } = await getRateLimitStore().consume(
+    [
+      {
+        key: `search:user:${userId}`,
+        windowMs: RATE_LIMIT_WINDOW_MS,
+        max: RATE_LIMIT_MAX_REQUESTS,
+      },
+    ],
+    Date.now(),
+  );
 
-const rateLimitBuckets = new Map<string, RateBucket>();
-
-/** Throws TOO_MANY_REQUESTS if `userId` exceeds the search rate limit. */
-export function checkSearchRateLimit(userId: string): void {
-  const now = Date.now();
-  const bucket = rateLimitBuckets.get(userId);
-
-  if (!bucket || now - bucket.windowStart >= RATE_LIMIT_WINDOW_MS) {
-    if (rateLimitBuckets.size >= RATE_LIMIT_MAX_BUCKETS) {
-      const oldest = rateLimitBuckets.keys().next().value;
-      if (oldest) rateLimitBuckets.delete(oldest);
-    }
-    rateLimitBuckets.set(userId, { count: 1, windowStart: now });
-    return;
-  }
-
-  if (bucket.count >= RATE_LIMIT_MAX_REQUESTS) {
+  if (!success) {
     throw new TRPCError({
       code: "TOO_MANY_REQUESTS",
       message: "Demasiadas búsquedas — espera unos segundos e intenta de nuevo",
     });
   }
-
-  bucket.count += 1;
 }
 
 // ──────────────────────────────────────────────
@@ -398,7 +398,7 @@ export const searchRouter = createTRPCRouter({
   global: wsReadPermissionProcedure("dashboard", "read")
     .input(z.object({ q: z.string().trim().min(2).max(64) }))
     .query(async ({ ctx, input }): Promise<SearchItem[]> => {
-      checkSearchRateLimit(ctx.user.id);
+      await checkSearchRateLimit(ctx.user.id);
 
       const start = performance.now();
       const role = ctx.workspace.role;

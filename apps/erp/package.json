@@ -45,7 +45,7 @@
     "sharp": "^0.35.4",
     "sonner": "^2.0.8",
     "superjson": "2.2.6",
-    "xlsx": "https://cdn.sheetjs.com/xlsx-latest/xlsx-latest.tgz",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
     "zod": "catalog:"
   },
   "devDependencies": {

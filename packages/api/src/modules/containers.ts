@@ -228,9 +228,9 @@ export const containerRouter = createTRPCRouter({
     .input(
       z.object({
         configKey: z.string().min(1).max(64),
-        systemPrompt: z.string().min(10),
-        businessContext: z.string().nullable().optional(),
-        categoryRules: z.string().nullable().optional(),
+        systemPrompt: z.string().min(10).max(20_000),
+        businessContext: z.string().max(20_000).nullable().optional(),
+        categoryRules: z.string().max(20_000).nullable().optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {

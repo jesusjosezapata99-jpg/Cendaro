@@ -129,6 +129,7 @@ export type NavRoleRuleKey = keyof typeof NAV_ROLE_RULES;
 
 export * from "./authz";
 export * from "./fiscal";
+export * from "./rates";
 
 // ──────────────────────────────────────────────
 // Composite form schemas (frontend ↔ backend)

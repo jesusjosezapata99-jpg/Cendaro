@@ -79,7 +79,13 @@ function isWorkspaceActor(user: AuditActor): user is WorkspaceActor {
  * workspace procedure the role is unknown (null) and the name falls back to
  * the verified email — never to `user_metadata`, which the user controls.
  */
-export async function logAudit(db: Db, user: AuditActor, entry: AuditEntry) {
+export async function logAudit(
+  db: Db,
+  user: AuditActor,
+  entry: AuditEntry,
+): Promise<string> {
+  // Generated here so callers get the id without RETURNING or a racy re-read.
+  const id = crypto.randomUUID();
   const actorRole = isWorkspaceActor(user) ? user.workspaceRole : null;
   const actorName =
     (isWorkspaceActor(user) ? user.displayName : null) ??
@@ -92,6 +98,7 @@ export async function logAudit(db: Db, user: AuditActor, entry: AuditEntry) {
   );
 
   await db.insert(AuditLog).values({
+    id,
     workspaceId: entry.workspaceId,
     actorId: user?.id,
     actorRole,
@@ -104,4 +111,6 @@ export async function logAudit(db: Db, user: AuditActor, entry: AuditEntry) {
     metadata: metadataWithIntegrity,
     correlationId: entry.correlationId,
   });
+
+  return id;
 }

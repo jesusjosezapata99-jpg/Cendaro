@@ -41,6 +41,33 @@ const mocks = vi.hoisted(() => {
   return state;
 });
 
+// F6: `~/lib/rate-limit` delegates to `getRateLimitStore()` in `@cendaro/api`.
+// This suite mocks `@cendaro/api` wholesale (below), so it must supply its
+// own in-memory store rather than relying on `src/test-setup.ts`, which
+// never runs against a mocked module.
+const rateLimitState = vi.hoisted(() => {
+  interface Store {
+    consume: (
+      rules: { key: string; windowMs: number; max: number }[],
+      now: number,
+    ) => Promise<{ success: boolean; remaining: number; reset: number }>;
+  }
+  const buckets = new Map<string, number>();
+  const store: Store = {
+    consume: (rules) => {
+      for (const rule of rules) {
+        const count = (buckets.get(rule.key) ?? 0) + 1;
+        if (count > rule.max) {
+          return Promise.resolve({ success: false, remaining: 0, reset: 0 });
+        }
+        buckets.set(rule.key, count);
+      }
+      return Promise.resolve({ success: true, remaining: 999, reset: 0 });
+    },
+  };
+  return { store, buckets };
+});
+
 vi.mock("~/env", () => ({ env: mocks.env }));
 vi.mock("next/headers", () => ({
   cookies: vi.fn(() =>
@@ -65,6 +92,7 @@ vi.mock("@cendaro/api", () => ({
     typeof v === "string" &&
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v),
   logger: { error: mocks.loggerError },
+  getRateLimitStore: () => rateLimitState.store,
 }));
 vi.mock("@supabase/supabase-js", () => ({ createClient: mocks.createClient }));
 
@@ -222,6 +250,7 @@ describe("POST /api/auth/create-user", () => {
     mocks.cookieWorkspace = undefined;
     mocks.createClient.mockReset();
     mocks.loggerError.mockReset();
+    rateLimitState.buckets.clear();
   });
 
   afterEach(() => {

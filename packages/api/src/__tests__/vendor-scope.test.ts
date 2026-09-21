@@ -106,6 +106,9 @@ function callerFor(role: string, emptyWhen?: RegExp) {
     user: { id: userId, email: "caller@example.com" },
     db: db as never,
     requestId: "req-vendor-scope",
+    membershipCache: new Map(),
+    afterCommit: [],
+    sessionActivityChecked: true,
     log: logger.child({ requestId: "req-vendor-scope" }),
     workspaceId: nextId(),
   });

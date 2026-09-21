@@ -62,14 +62,34 @@ const USERNAME_WINDOW_MS = 15 * 60 * 1_000; // 15 min
 const USERNAME_MAX = 10;
 
 /**
- * Hard lockout duration after exceeding username threshold.
- * 15 minutes — long enough to deter automation, short enough
- * that a real user can recover without support intervention.
+ * Lockouts are keyed by username **and** IP, never by username alone
+ * (PLAN-2026-09-SECURITY-REMEDIATION F6.3). A username-only lock hands an
+ * attacker a denial of service: eight wrong passwords from anywhere would
+ * lock the real owner out of their account. Keyed by the pair, the attacker
+ * only locks themselves out, and the per-username request window above still
+ * caps a distributed attempt.
  */
-const LOCKOUT_DURATION_MS = 15 * 60 * 1_000; // 15 min
-
-/** Lockout threshold: lock after this many failures in the window */
 const LOCKOUT_THRESHOLD = 8;
+
+/**
+ * Escalating lockout: each further burst of failures from the same pair costs
+ * more. Deliberately not implemented as a sleep — holding a serverless
+ * function open is itself a way to exhaust the account, so the answer is an
+ * immediate 429 with `Retry-After` instead.
+ */
+const LOCKOUT_STEPS_MS = [
+  5 * 60 * 1_000, // 8 failures  → 5 min
+  15 * 60 * 1_000, // 12 failures → 15 min
+  60 * 60 * 1_000, // 16 failures → 1 h
+] as const;
+
+function lockoutDurationFor(failureCount: number): number {
+  const step = Math.floor((failureCount - LOCKOUT_THRESHOLD) / 4);
+  return (
+    LOCKOUT_STEPS_MS[Math.min(step, LOCKOUT_STEPS_MS.length - 1)] ??
+    LOCKOUT_STEPS_MS[0]
+  );
+}
 
 // ── Security headers injected on every auth response ────────────────────────
 
@@ -181,11 +201,11 @@ export async function POST(request: Request) {
   const { username, password } = parsed.data;
   const normalizedUsername = username.toLowerCase();
 
-  // ── Step 5: Per-username hard lockout check ─────────────────────────────
-  // Check BEFORE the composite rate limit so we short-circuit immediately
-  // without DB calls if the account is already locked out.
-  const lockoutKey = `lockout:user:${normalizedUsername}`;
-  const lockUntil = getLockoutExpiry(lockoutKey);
+  // ── Step 5: Hard lockout check for this username from this IP ───────────
+  // Keyed by the pair: a username-only lock would let anyone lock a real
+  // account out with eight wrong passwords (F6.3).
+  const lockoutKey = `lockout:user:${normalizedUsername}:ip:${ip}`;
+  const lockUntil = await getLockoutExpiry(lockoutKey);
   if (lockUntil) {
     const retryAfter = Math.ceil((lockUntil - Date.now()) / 1_000);
     return rateLimitResponse(retryAfter);
@@ -197,7 +217,7 @@ export async function POST(request: Request) {
   //  Key B: `login:user:<username>`    — 10 req / 15min
   //
   // Both must pass. The first to fail blocks the request.
-  const rlResult = rateLimitComposite([
+  const rlResult = await rateLimitComposite([
     { key: `login:ip:${ip}`, window: 60_000, max: 5 },
     {
       key: `login:user:${normalizedUsername}`,
@@ -266,15 +286,19 @@ export async function POST(request: Request) {
 
   // ── Step 10: Handle failures with failure accounting ───────────────────
   if (profileError || authError) {
-    // Record failure for per-username tracking (separate from rate-limit window)
-    const failureKey = `failures:user:${normalizedUsername}`;
-    recordFailure(failureKey);
+    // Failures are counted per username+IP, the same pair the lockout uses,
+    // so failures coming from elsewhere never lock this person out.
+    const failureKey = `failures:user:${normalizedUsername}:ip:${ip}`;
+    await recordFailure(failureKey, USERNAME_WINDOW_MS);
 
-    const failCount = getFailureCount(failureKey, USERNAME_WINDOW_MS);
+    const failCount = await getFailureCount(failureKey, USERNAME_WINDOW_MS);
 
-    // Apply hard lockout when threshold is reached
     if (failCount >= LOCKOUT_THRESHOLD) {
-      applyLockout(lockoutKey, LOCKOUT_DURATION_MS);
+      await applyLockout(
+        lockoutKey,
+        lockoutDurationFor(failCount),
+        "repeated failed logins",
+      );
     }
 
     // Always return the same generic error — no enumeration information

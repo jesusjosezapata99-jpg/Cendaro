@@ -8,6 +8,11 @@ export const env = createEnv({
     SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
     GROQ_API_KEY: z.string().min(1).optional(),
     EXCHANGE_RATE_API_KEY: z.string().min(1).optional(),
+    // Vercel Cron bearer secret for /api/cron/*. Optional so builds work
+    // without it; the cron routes refuse to run (503) until it is set to at
+    // least 32 characters. The length is checked there, not here: a short
+    // value must disable the cron, not crash every page at startup.
+    CRON_SECRET: z.string().optional(),
     MERCADOLIBRE_APP_ID: z.string().optional(),
     MERCADOLIBRE_SECRET: z.string().optional(),
     VERCEL_URL: z
