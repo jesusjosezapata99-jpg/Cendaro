@@ -1,4 +1,6 @@
+import JSZip from "jszip";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import * as XLSX from "xlsx";
 
 /**
  * POST /api/ai/parse-packing-list
@@ -8,10 +10,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  * x-workspace-id was optional and silently defaulted to "any workspace this
  * user belongs to"), and forwarded client-supplied imageUrls straight to
  * Groq's server-to-server image fetcher with no origin check. These tests
- * cover only the guards this phase changed — the full parse pipeline (Groq
- * calls, file parsing) is not exercised here; see F8.3's known gap note in
- * the plan's execution log for why the zip-bomb caps are not covered by an
- * automated test in this session.
+ * cover the guards this phase changed and the F8.3 decompression-bomb limits
+ * (real .xlsx archives through the real handler). The Groq pipeline itself is
+ * not exercised here.
  */
 
 const WORKSPACE = "b0000000-0000-0000-0000-000000000001";
@@ -177,5 +178,67 @@ describe("POST /api/ai/parse-packing-list", () => {
     const res = await POST(jsonRequest({ workspace: WORKSPACE }) as never);
     expect(res.status).toBe(500);
     mocks.env.GROQ_API_KEY = "groq-test-key";
+  });
+
+  // F8.3 (zip / decompression bombs): a real, valid .xlsx with extra archive
+  // entries, sent through the real handler. Both limits must answer 413
+  // before anything is decompressed.
+  describe("decompression-bomb limits", () => {
+    async function xlsxRequest(mutate: (zip: JSZip) => void): Promise<Request> {
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(
+        workbook,
+        XLSX.utils.aoa_to_sheet([
+          ["a", "b"],
+          ["1", "2"],
+        ]),
+        "S1",
+      );
+      const zip = await JSZip.loadAsync(
+        XLSX.write(workbook, { type: "buffer", bookType: "xlsx" }) as Buffer,
+      );
+      mutate(zip);
+      const buffer = await zip.generateAsync({
+        type: "nodebuffer",
+        compression: "DEFLATE",
+      });
+
+      const form = new FormData();
+      form.append(
+        "file",
+        new Blob([new Uint8Array(buffer)], {
+          type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        }),
+        "packing.xlsx",
+      );
+      form.append("containerId", "c0000000-0000-0000-0000-000000000001");
+      return new Request("https://erp.example.com/api/ai/parse-packing-list", {
+        method: "POST",
+        headers: { "x-workspace-id": WORKSPACE },
+        body: form,
+      });
+    }
+
+    it("rejects an archive with more than 2000 entries with 413", async () => {
+      const req = await xlsxRequest((zip) => {
+        for (let i = 0; i < 2001; i++) zip.file(`xl/media/f${i}.png`, "x");
+      });
+      const res = await POST(req as never);
+
+      expect(res.status).toBe(413);
+      expect(((await res.json()) as { error: string }).error).toContain(
+        "demasiadas entradas",
+      );
+    }, 30_000);
+
+    it("rejects more than 50 MB once decompressed with 413, from a tiny upload", async () => {
+      const req = await xlsxRequest((zip) => {
+        zip.file("xl/media/big.png", Buffer.alloc(60 * 1024 * 1024));
+      });
+      const res = await POST(req as never);
+
+      expect(res.status).toBe(413);
+      expect(((await res.json()) as { error: string }).error).toContain("50MB");
+    }, 30_000);
   });
 });
