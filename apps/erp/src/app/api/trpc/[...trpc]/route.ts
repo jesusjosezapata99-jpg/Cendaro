@@ -19,11 +19,14 @@ import { appRouter, createTRPCContext, mapClaimsToUser } from "@cendaro/api";
 import { createSupabaseServerClient } from "@cendaro/auth/server";
 
 import { env } from "~/env";
+import { readBodyWithByteLimit } from "~/lib/request-body-limit";
 
 const MAX_BATCH_SIZE = 15;
 const MAX_PAYLOAD_BYTES = 10 * 1024 * 1024; // 10MB
 
-const handler = async (req: Request) => {
+const handler = async (incoming: Request) => {
+  let req = incoming;
+
   // ── DoS Guard: Batch Query Amplification Limit ──
   try {
     const url = new URL(req.url);
@@ -64,6 +67,29 @@ const handler = async (req: Request) => {
         headers: { "Content-Type": "application/json" },
       },
     );
+  }
+
+  // ── DoS Guard: streamed bodies (no content-length header) ──
+  // F9.4: a chunked POST bypasses the header check above by definition.
+  // Read it once with the same hard cap; on breach answer 413 without
+  // buffering the rest.
+  if (!contentLength) {
+    const limited = await readBodyWithByteLimit(req, MAX_PAYLOAD_BYTES);
+    if (!limited.ok) {
+      return new Response(
+        JSON.stringify({
+          error: {
+            message: "Cuerpo de solicitud demasiado grande (máx 10MB)",
+            code: -32600,
+          },
+        }),
+        {
+          status: 413,
+          headers: { "Content-Type": "application/json" },
+        },
+      );
+    }
+    req = limited.request;
   }
 
   const supabaseUrl = env.NEXT_PUBLIC_SUPABASE_URL;

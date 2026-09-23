@@ -14,7 +14,7 @@
  * rather than claiming integration coverage that doesn't exist.
  */
 import { TRPCError } from "@trpc/server";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { z } from "zod/v4";
 
 import {
@@ -83,50 +83,50 @@ describe("role redaction (mirrors NAV_ROLE_RULES)", () => {
 });
 
 describe("checkSearchRateLimit", () => {
-  beforeEach(() => {
-    vi.useRealTimers();
+  // src/test-setup.ts resets the shared store to a fresh MemoryRateLimitStore
+  // before every test here — no DB, no bleed between cases.
+
+  it("allows up to 20 requests within the 10s window", async () => {
+    const userId = `rate-limit-test-${crypto.randomUUID()}`;
+    for (let i = 0; i < 20; i++) await checkSearchRateLimit(userId);
   });
 
-  it("allows up to 20 requests within the 10s window", () => {
+  it("throws TOO_MANY_REQUESTS on the 21st request within the window", async () => {
     const userId = `rate-limit-test-${crypto.randomUUID()}`;
-    expect(() => {
-      for (let i = 0; i < 20; i++) checkSearchRateLimit(userId);
-    }).not.toThrow();
-  });
+    for (let i = 0; i < 20; i++) await checkSearchRateLimit(userId);
 
-  it("throws TOO_MANY_REQUESTS on the 21st request within the window", () => {
-    const userId = `rate-limit-test-${crypto.randomUUID()}`;
-    for (let i = 0; i < 20; i++) checkSearchRateLimit(userId);
-
-    expect(() => checkSearchRateLimit(userId)).toThrow(TRPCError);
+    await expect(checkSearchRateLimit(userId)).rejects.toThrow(TRPCError);
     try {
-      checkSearchRateLimit(userId);
+      await checkSearchRateLimit(userId);
     } catch (err) {
       expect((err as TRPCError).code).toBe("TOO_MANY_REQUESTS");
     }
   });
 
-  it("resets the bucket once the window elapses", () => {
+  it("resets the bucket once the window elapses", async () => {
     vi.useFakeTimers();
     const userId = `rate-limit-test-${crypto.randomUUID()}`;
     try {
-      for (let i = 0; i < 20; i++) checkSearchRateLimit(userId);
-      expect(() => checkSearchRateLimit(userId)).toThrow(TRPCError);
+      for (let i = 0; i < 20; i++) await checkSearchRateLimit(userId);
+      await expect(checkSearchRateLimit(userId)).rejects.toThrow(TRPCError);
 
-      vi.advanceTimersByTime(10_001);
+      // The store is a weighted sliding window (F6), so a charge can still
+      // carry a fraction of weight into the very next window; two full
+      // windows guarantees it has fully decayed regardless of alignment.
+      await vi.advanceTimersByTimeAsync(20_001);
 
-      expect(() => checkSearchRateLimit(userId)).not.toThrow();
+      await expect(checkSearchRateLimit(userId)).resolves.toBeUndefined();
     } finally {
       vi.useRealTimers();
     }
   });
 
-  it("tracks separate users independently", () => {
+  it("tracks separate users independently", async () => {
     const userA = `rate-limit-test-a-${crypto.randomUUID()}`;
     const userB = `rate-limit-test-b-${crypto.randomUUID()}`;
-    for (let i = 0; i < 20; i++) checkSearchRateLimit(userA);
+    for (let i = 0; i < 20; i++) await checkSearchRateLimit(userA);
 
-    expect(() => checkSearchRateLimit(userA)).toThrow(TRPCError);
-    expect(() => checkSearchRateLimit(userB)).not.toThrow();
+    await expect(checkSearchRateLimit(userA)).rejects.toThrow(TRPCError);
+    await expect(checkSearchRateLimit(userB)).resolves.toBeUndefined();
   });
 });

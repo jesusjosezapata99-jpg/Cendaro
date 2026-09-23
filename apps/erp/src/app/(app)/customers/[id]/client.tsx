@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
@@ -9,13 +10,23 @@ import type { StatusTone } from "@cendaro/ui/status-pill";
 import { Button } from "@cendaro/ui";
 import { Icons } from "@cendaro/ui/icons";
 import { StatusPill } from "@cendaro/ui/status-pill";
+import { isFiscalInvoiceReady } from "@cendaro/validators";
 
 import { EmptyState } from "~/components/empty-state";
+import { Can } from "~/components/role-guard";
 import { Skeleton } from "~/components/skeleton";
 import { StatCard } from "~/components/stat-card";
 import { useBcvRate } from "~/hooks/use-bcv-rate";
 import { formatDualCurrency } from "~/lib/format-currency";
 import { useTRPC } from "~/trpc/client";
+
+const CreateCustomerDialog = dynamic(
+  () =>
+    import("~/components/forms/create-customer").then((m) => ({
+      default: m.CreateCustomerDialog,
+    })),
+  { ssr: false },
+);
 
 const CUSTOMER_TYPE_MAP: Record<string, { label: string; tone: StatusTone }> = {
   wholesale: { label: "Mayorista", tone: "info" },
@@ -31,6 +42,7 @@ export default function CustomerDetailPage() {
   const id = params.id as string;
   const trpc = useTRPC();
   const bcv = useBcvRate();
+  const [editOpen, setEditOpen] = useState(false);
 
   const { data: customer, isLoading } = useQuery(
     trpc.sales.customerById.queryOptions({ id }),
@@ -139,6 +151,16 @@ export default function CustomerDetailPage() {
 
           {/* Direct Actions */}
           <div className="flex flex-wrap items-center gap-2">
+            <Can module="customers" action="update">
+              <Button
+                variant="outline"
+                onClick={() => setEditOpen(true)}
+                className="min-h-10 gap-2"
+              >
+                <Icons.Edit className="size-4" />
+                Editar
+              </Button>
+            </Can>
             {customer.phone && (
               <>
                 <a
@@ -172,7 +194,24 @@ export default function CustomerDetailPage() {
             )}
           </div>
         </div>
+
+        {!isFiscalInvoiceReady(customer) && (
+          <p
+            role="status"
+            className="bg-status-warning-bg text-status-warning-fg mt-5 flex items-start gap-2 px-3 py-2 text-xs"
+          >
+            <Icons.Warning className="mt-px size-4 shrink-0" />
+            Datos fiscales incompletos: falta un RIF, cédula o pasaporte válido
+            o el domicilio fiscal. No se le puede facturar hasta completarlos.
+          </p>
+        )}
       </div>
+
+      <CreateCustomerDialog
+        open={editOpen}
+        customerId={customer.id}
+        onClose={() => setEditOpen(false)}
+      />
 
       {/* 4 KPIs */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">

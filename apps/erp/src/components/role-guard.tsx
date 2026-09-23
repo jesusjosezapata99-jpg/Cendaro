@@ -11,7 +11,12 @@
  */
 "use client";
 
-import type { UserRole } from "@cendaro/validators";
+import type {
+  ErpModule,
+  PermissionAction,
+  UserRole,
+} from "@cendaro/validators";
+import { can } from "@cendaro/validators";
 
 import { useCurrentUser } from "~/hooks/use-current-user";
 
@@ -36,6 +41,36 @@ export function RoleGuard({
   const userRole = profile?.role;
 
   if (!userRole || !allow.includes(userRole)) {
+    return <>{fallback}</>;
+  }
+
+  return <>{children}</>;
+}
+
+interface CanProps {
+  module: ErpModule;
+  action: PermissionAction;
+  fallback?: React.ReactNode;
+  children: React.ReactNode;
+}
+
+/**
+ * Renders children only when the current role holds `module.action` in the
+ * server authorization matrix (ROLE_PERMISSIONS), so an action button is
+ * never shown to a role the API would reject. Prefer this over a hardcoded
+ * RoleGuard list for anything that calls a gated procedure.
+ *
+ * Usage:
+ *   <Can module="catalog" action="create">
+ *     <NewProductButton />
+ *   </Can>
+ */
+export function Can({ module, action, fallback = null, children }: CanProps) {
+  const { profile, loading } = useCurrentUser();
+
+  if (loading) return null;
+
+  if (!can(profile?.role, module, action)) {
     return <>{fallback}</>;
   }
 

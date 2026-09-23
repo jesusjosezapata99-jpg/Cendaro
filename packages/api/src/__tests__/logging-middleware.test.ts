@@ -47,6 +47,9 @@ function buildCaller() {
     user: null,
     db: {} as never, // unused — none of the test procedures touch ctx.db
     requestId: "test-req",
+    membershipCache: new Map(),
+    afterCommit: [],
+    sessionActivityChecked: true,
     log: logger.child({ requestId: "test-req" }),
     workspaceId: null,
   };

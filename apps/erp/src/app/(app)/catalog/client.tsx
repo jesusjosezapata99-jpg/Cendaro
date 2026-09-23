@@ -12,6 +12,7 @@ import { StatusPill } from "@cendaro/ui/status-pill";
 import type { ActiveFilterItem, FilterSection } from "~/components/data-table";
 import { DataTable, DataTableFilterBar } from "~/components/data-table";
 import { PageHeader } from "~/components/page-header";
+import { Can } from "~/components/role-guard";
 import { StatCard } from "~/components/stat-card";
 import { useProductParams } from "~/hooks/params";
 import { useProductFilterParams } from "~/hooks/params/use-product-filter-params";
@@ -257,20 +258,22 @@ export default function CatalogClient() {
         title="Catálogo de Productos"
         description={`Gestiona tu catálogo de ${total.toLocaleString("es-VE")} referencias`}
         actions={
-          <div className="flex w-full gap-2 sm:w-auto">
-            <Button variant="outline" asChild className="min-h-11">
-              <Link href="/catalog/import">
-                <Icons.UploadFile className="size-4.5" />
-                Importar
-              </Link>
-            </Button>
-            <Button asChild className="min-h-11">
-              <Link href="/catalog?createProduct=true">
-                <Icons.Add className="size-4.5" />
-                Nuevo Producto
-              </Link>
-            </Button>
-          </div>
+          <Can module="catalog" action="create">
+            <div className="flex w-full gap-2 sm:w-auto">
+              <Button variant="outline" asChild className="min-h-11">
+                <Link href="/catalog/import">
+                  <Icons.UploadFile className="size-4.5" />
+                  Importar
+                </Link>
+              </Button>
+              <Button asChild className="min-h-11">
+                <Link href="/catalog?createProduct=true">
+                  <Icons.Add className="size-4.5" />
+                  Nuevo Producto
+                </Link>
+              </Button>
+            </div>
+          </Can>
         }
       />
 

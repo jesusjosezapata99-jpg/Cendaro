@@ -3,6 +3,9 @@
 import { useCallback, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { pickTrustedRate } from "@cendaro/validators";
+
+import { useSyncRates } from "~/hooks/use-sync-rates";
 import { useTRPC } from "~/trpc/client";
 
 // ── Types ─────────────────────────────────────
@@ -75,8 +78,9 @@ async function fetchFromProxy(
   forceRefresh = false,
 ): Promise<ProxyResponse | null> {
   try {
-    const url = forceRefresh ? "/api/bcv-rate?refresh=true" : "/api/bcv-rate";
-    const res = await fetch(url, {
+    // The route serves the server's 15-min cache; a forced upstream refresh
+    // is pricing.syncRates (rates.update), not a public query flag.
+    const res = await fetch("/api/bcv-rate", {
       signal: AbortSignal.timeout(10000),
       cache: forceRefresh ? "no-store" : "default",
     });
@@ -92,6 +96,59 @@ async function fetchFromProxy(
   return null;
 }
 
+// ── Live vs stored ────────────────────────────
+
+interface LiveRate {
+  rate: number;
+  date: string;
+  dateText?: string;
+  source: string;
+}
+
+interface StoredRate {
+  rate: number;
+  createdAt: Date | string;
+}
+
+/**
+ * The live rate unless it moved beyond the automatic limit from the stored
+ * one: the server holds such a rate for an owner/admin, so screens keep
+ * pricing with the stored rate until it is accepted (F4.1, decision 6).
+ */
+function resolveRate(
+  live: LiveRate | null | undefined,
+  stored: StoredRate | undefined,
+  pending: { isLoading: boolean; error: string | null },
+): RateInfo {
+  const origin = pickTrustedRate(live?.rate, stored?.rate);
+  if (origin === "live" && live) {
+    return {
+      rate: live.rate,
+      date: live.date,
+      dateText: live.dateText,
+      source: live.source,
+      isLoading: false,
+      error: null,
+    };
+  }
+  if (origin === "stored" && stored) {
+    return {
+      rate: stored.rate,
+      date: new Date(stored.createdAt).toISOString().slice(0, 10),
+      source: "database",
+      isLoading: false,
+      error: null,
+    };
+  }
+  return {
+    rate: 0,
+    date: new Date().toISOString().slice(0, 10),
+    source: "manual",
+    isLoading: pending.isLoading,
+    error: pending.error,
+  };
+}
+
 // ── Primary hook: both rates + spread + sync ─────────
 
 /**
@@ -102,11 +159,15 @@ async function fetchFromProxy(
  *   1. Direct BCV portal scraper (bcv.org.ve)
  *   2. DolarAPI (ve.dolarapi.com)
  *   3. Database (pricing.latestRates)
+ *
+ * A live rate more than 15 % away from the stored one is not used: the
+ * server holds it for approval and the stored rate stays in force.
  */
 export function useVesRates(): VesRatesResult {
   const trpc = useTRPC();
   const qc = useQueryClient();
   const [isSyncing, setIsSyncing] = useState(false);
+  const { canSync, sync } = useSyncRates({ auto: false });
 
   // DB fallback: latest rates from ExchangeRate table
   const { data: dbRates } = useQuery(trpc.pricing.latestRates.queryOptions());
@@ -127,6 +188,16 @@ export function useVesRates(): VesRatesResult {
   const syncRate = useCallback(async () => {
     setIsSyncing(true);
     try {
+      // Roles with rates.update ask the server to fetch and store fresh
+      // rates (its onSuccess seeds the caches); others re-read the proxy.
+      if (canSync) {
+        try {
+          await sync(true);
+          return;
+        } catch {
+          // Fall through to a plain re-read; the page keeps working.
+        }
+      }
       const fresh = await fetchFromProxy(true);
       if (fresh) {
         qc.setQueryData(["ves-rates-proxy"], fresh);
@@ -136,41 +207,26 @@ export function useVesRates(): VesRatesResult {
     } finally {
       setIsSyncing(false);
     }
-  }, [qc, refetch]);
+  }, [canSync, sync, qc, refetch]);
 
-  // ── Build oficial rate ──────────────────────
+  // ── Oficial and paralelo: live unless held ──
 
-  let oficial: RateInfo;
-
-  if (apiResult?.oficial) {
-    oficial = {
-      rate: apiResult.oficial.rate,
-      date: apiResult.oficial.date,
-      dateText: apiResult.oficial.dateText,
-      source: apiResult.oficial.source,
-      isLoading: false,
-      error: null,
-    };
-  } else {
-    const bcvFromDb = dbRates?.find((r) => r.rateType === "bcv");
-    if (bcvFromDb) {
-      oficial = {
-        rate: bcvFromDb.rate,
-        date: new Date(bcvFromDb.createdAt).toISOString().slice(0, 10),
-        source: "database",
-        isLoading: false,
-        error: null,
-      };
-    } else {
-      oficial = {
-        rate: 0,
-        date: new Date().toISOString().slice(0, 10),
-        source: "manual",
-        isLoading,
-        error: error ? "No se pudo obtener la tasa oficial" : null,
-      };
-    }
-  }
+  const oficial = resolveRate(
+    apiResult?.oficial,
+    dbRates?.find((r) => r.rateType === "bcv"),
+    {
+      isLoading,
+      error: error ? "No se pudo obtener la tasa oficial" : null,
+    },
+  );
+  const paralelo = resolveRate(
+    apiResult?.paralelo,
+    dbRates?.find((r) => r.rateType === "parallel"),
+    {
+      isLoading,
+      error: error ? "No se pudo obtener la tasa paralela" : null,
+    },
+  );
 
   // ── Build euro rate ─────────────────────────
   const euro: RateInfo | null = apiResult?.euro
@@ -183,52 +239,16 @@ export function useVesRates(): VesRatesResult {
       }
     : null;
 
-  // ── Build paralelo rate ─────────────────────
-
-  let paralelo: RateInfo;
-
-  if (apiResult?.paralelo) {
-    paralelo = {
-      rate: apiResult.paralelo.rate,
-      date: apiResult.paralelo.date,
-      source: apiResult.paralelo.source,
-      isLoading: false,
-      error: null,
-    };
-  } else {
-    const paraleloFromDb = dbRates?.find((r) => r.rateType === "parallel");
-    if (paraleloFromDb) {
-      paralelo = {
-        rate: paraleloFromDb.rate,
-        date: new Date(paraleloFromDb.createdAt).toISOString().slice(0, 10),
-        source: "database",
-        isLoading: false,
-        error: null,
-      };
-    } else {
-      paralelo = {
-        rate: 0,
-        date: new Date().toISOString().slice(0, 10),
-        source: "manual",
-        isLoading,
-        error: error ? "No se pudo obtener la tasa paralela" : null,
-      };
-    }
-  }
-
   // ── Spread calculation ──────────────────────
+  // From the rates actually shown: the upstream spread would describe a live
+  // rate that may be held.
 
+  const hasBoth = oficial.rate > 0 && paralelo.rate > 0;
   const spread = {
-    absolute:
-      apiResult?.spread?.absolute ??
-      (oficial.rate > 0 && paralelo.rate > 0
-        ? paralelo.rate - oficial.rate
-        : 0),
-    percentage:
-      apiResult?.spread?.percentage ??
-      (oficial.rate > 0 && paralelo.rate > 0
-        ? ((paralelo.rate - oficial.rate) / oficial.rate) * 100
-        : 0),
+    absolute: hasBoth ? paralelo.rate - oficial.rate : 0,
+    percentage: hasBoth
+      ? ((paralelo.rate - oficial.rate) / oficial.rate) * 100
+      : 0,
   };
 
   return { oficial, euro, paralelo, spread, syncRate, isSyncing };

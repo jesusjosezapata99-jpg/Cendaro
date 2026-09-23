@@ -11,7 +11,7 @@
  * - 1,200 Sales Orders & Order Items spread over 12 months with mixed statuses
  * - 80 Accounts Receivable (with ~1/3 overdue)
  *
- * All records have 'SEED-' prefix and are logged in .opencode/reports/assets/seed-manifest.json.
+ * All records have 'SEED-' prefix and are logged in plans/reports/assets/seed-manifest.json.
  * Supports --dry-run.
  */
 
@@ -33,7 +33,7 @@ const postgres = req("postgres");
 const WORKSPACE_ID = "a0000000-0000-0000-0000-000000000001"; // OmniCore Default
 const WAREHOUSE_MAIN = "944b7fc1-8a95-4d08-ba13-5c239666da5b"; // Almacén Principal
 const WAREHOUSE_STORE = "b1402fb6-6cae-477a-8d69-36d1384c7358"; // Tienda / Exhibición
-const MANIFEST_PATH = path.resolve(".opencode/reports/assets/seed-manifest.json");
+const MANIFEST_PATH = path.resolve("plans/reports/assets/seed-manifest.json");
 
 const isDryRun = process.argv.includes("--dry-run");
 

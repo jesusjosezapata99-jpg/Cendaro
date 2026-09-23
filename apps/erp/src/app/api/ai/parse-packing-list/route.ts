@@ -3,9 +3,12 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import JSZip from "jszip";
 import sharp from "sharp";
+import { z } from "zod/v4";
 
+import type { UserRole } from "@cendaro/validators";
+import { isValidUuid, mapClaimsToUser } from "@cendaro/api";
 import { createSupabaseServerClient } from "@cendaro/auth/server";
-import { and, desc, eq } from "@cendaro/db";
+import { and, desc, eq, sql } from "@cendaro/db";
 import { getDb } from "@cendaro/db/client";
 import {
   AiPromptConfig,
@@ -13,22 +16,26 @@ import {
   Category,
   Container,
   Product,
-  WorkspaceMember,
 } from "@cendaro/db/schema";
+import { can } from "@cendaro/validators";
 
 import { env } from "~/env";
 
 // ── Types ──────────────────────────────────────────────
-interface ParsedItem {
-  original_name: string;
-  name_es: string;
-  quantity: number;
-  unit_cost: number | null;
-  weight_kg: number | null;
-  sku_hint: string | null;
-  category_hint: string | null;
-  confidence: number;
-}
+// AI-generated output is untrusted input (F8.4): validated with Zod right
+// where the LLM's JSON response is parsed (callGroq, analyzeImagesWithVision)
+// instead of blindly cast to a TypeScript interface.
+const ParsedItemSchema = z.object({
+  original_name: z.string(),
+  name_es: z.string(),
+  quantity: z.number(),
+  unit_cost: z.number().nullable(),
+  weight_kg: z.number().nullable(),
+  sku_hint: z.string().nullable(),
+  category_hint: z.string().nullable(),
+  confidence: z.number(),
+});
+type ParsedItem = z.infer<typeof ParsedItemSchema>;
 
 interface MatchedItem extends ParsedItem {
   suggested_product_id: string | null;
@@ -45,18 +52,19 @@ interface ExtractedImage {
   mimeType: string;
 }
 
-interface VisionResult {
-  index: number;
-  product_name_es: string;
-  visible_text: string;
-  category: string;
-  brand_visible: string | null;
-  material: string;
-  colors: string[];
-  size_estimate: string;
-  packaging: string;
-  confidence: number;
-}
+const VisionResultSchema = z.object({
+  index: z.number(),
+  product_name_es: z.string(),
+  visible_text: z.string(),
+  category: z.string(),
+  brand_visible: z.string().nullable(),
+  material: z.string(),
+  colors: z.array(z.string()),
+  size_estimate: z.string(),
+  packaging: z.string(),
+  confidence: z.number(),
+});
+type VisionResult = z.infer<typeof VisionResultSchema>;
 
 interface GroqMessage {
   role: "system" | "user" | "assistant";
@@ -95,6 +103,16 @@ const MAX_TOTAL_IMAGES = 20;
 const _MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB — reference for client-side validation
 const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
 
+// F8.3 — safe parsing limits (zip bombs / decompression bombs)
+const MAX_ZIP_ENTRIES = 2000;
+const MAX_ZIP_UNCOMPRESSED_BYTES = 50 * 1024 * 1024; // 50MB, summed across all decompressed entries
+const MAX_SHEET_ROWS = 20_000;
+const MAX_INPUT_PIXELS = 50_000_000; // sharp's decoded-pixel ceiling
+const MAX_REQUEST_BYTES = 10 * 1024 * 1024; // matches the tRPC route's own DoS guard (L2)
+
+/** Thrown when an uploaded file exceeds a decompression/size safety limit. */
+class PayloadTooLargeError extends Error {}
+
 const ALLOWED_EXTENSIONS = [".xlsx", ".xls", ".pdf"] as const;
 const ALLOWED_MIME_TYPES = new Set([
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -104,6 +122,18 @@ const ALLOWED_MIME_TYPES = new Set([
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** Keeps only array entries that match ParsedItemSchema; drops the rest (the
+ * LLM's JSON output is untrusted — F8.4) instead of trusting a blind cast. */
+function parseItemsArray(value: unknown): ParsedItem[] {
+  if (!Array.isArray(value)) return [];
+  const items: ParsedItem[] = [];
+  for (const entry of value) {
+    const result = ParsedItemSchema.safeParse(entry);
+    if (result.success) items.push(result.data);
+  }
+  return items;
 }
 
 // ── Levenshtein Distance ───────────────────────────────
@@ -303,7 +333,10 @@ function postProcessMatching(
 // ── File Parsing ───────────────────────────────────────
 async function parseExcel(buffer: ArrayBuffer): Promise<string[][]> {
   const XLSX = await import("xlsx");
-  const workbook = XLSX.read(buffer, { type: "array" });
+  const workbook = XLSX.read(buffer, {
+    type: "array",
+    sheetRows: MAX_SHEET_ROWS,
+  });
   const allRows: string[][] = [];
 
   for (const sheetName of workbook.SheetNames) {
@@ -353,10 +386,21 @@ async function extractImagesFromXlsx(
   buffer: ArrayBuffer,
 ): Promise<ExtractedImage[]> {
   const zip = await JSZip.loadAsync(buffer);
+  const entries = Object.entries(zip.files);
+  // Reject before decompressing anything — a zip bomb can carry far more
+  // entries than any real .xlsx workbook ever would (F8.3).
+  if (entries.length > MAX_ZIP_ENTRIES) {
+    throw new PayloadTooLargeError(
+      `El archivo contiene demasiadas entradas comprimidas (> ${MAX_ZIP_ENTRIES})`,
+    );
+  }
+
   const images: ExtractedImage[] = [];
   let idx = 0;
+  let uncompressedBytes = 0;
 
-  for (const [path, file] of Object.entries(zip.files)) {
+  for (const [path, file] of entries) {
+    if (images.length >= MAX_TOTAL_IMAGES) break; // Stop decompressing once we have enough
     if (file.dir) continue;
     // Images in XLSX are stored in xl/media/
     if (!path.startsWith("xl/media/")) continue;
@@ -364,6 +408,13 @@ async function extractImagesFromXlsx(
     if (!IMAGE_EXTENSIONS.has(ext)) continue;
 
     const data = await file.async("nodebuffer");
+    uncompressedBytes += data.length;
+    if (uncompressedBytes > MAX_ZIP_UNCOMPRESSED_BYTES) {
+      throw new PayloadTooLargeError(
+        `El contenido descomprimido del archivo excede ${MAX_ZIP_UNCOMPRESSED_BYTES / (1024 * 1024)}MB`,
+      );
+    }
+
     const compressed = await compressImage(data);
     const mimeType =
       ext === "png" ? "image/png" : ext === "gif" ? "image/gif" : "image/jpeg";
@@ -376,7 +427,7 @@ async function extractImagesFromXlsx(
     });
   }
 
-  return images.slice(0, MAX_TOTAL_IMAGES); // Limit total images
+  return images;
 }
 
 function extractImagesFromPdf(_buffer: ArrayBuffer): Promise<ExtractedImage[]> {
@@ -387,9 +438,13 @@ function extractImagesFromPdf(_buffer: ArrayBuffer): Promise<ExtractedImage[]> {
 }
 
 async function compressImage(input: Buffer): Promise<Buffer> {
+  // limitInputPixels rejects decompression-bomb images (a tiny file that
+  // decodes to an enormous pixel grid) before sharp allocates for them (F8.3).
+  const sharpOptions = { limitInputPixels: MAX_INPUT_PIXELS };
+
   // If already small enough, resize for faster API processing
   if (input.length <= MAX_IMAGE_BYTES) {
-    return sharp(input)
+    return sharp(input, sharpOptions)
       .resize(1024, 1024, { fit: "inside", withoutEnlargement: true })
       .jpeg({ quality: 85 })
       .toBuffer();
@@ -399,7 +454,7 @@ async function compressImage(input: Buffer): Promise<Buffer> {
   let quality = 80;
   let result = input;
   while (result.length > MAX_IMAGE_BYTES && quality > 20) {
-    result = await sharp(input)
+    result = await sharp(input, sharpOptions)
       .resize(1024, 1024, { fit: "inside", withoutEnlargement: true })
       .jpeg({ quality })
       .toBuffer();
@@ -499,9 +554,12 @@ async function analyzeImagesWithVision(
       const data = (await response.json()) as GroqVisionResponse;
       const content = data.choices[0]?.message.content ?? "{}";
       try {
-        const parsed = JSON.parse(content) as { images?: VisionResult[] };
+        const parsed = JSON.parse(content) as { images?: unknown };
         if (Array.isArray(parsed.images)) {
-          allResults.push(...parsed.images);
+          for (const entry of parsed.images) {
+            const result = VisionResultSchema.safeParse(entry);
+            if (result.success) allResults.push(result.data);
+          }
         }
       } catch {
         // Vision failed for this batch — continue with text-only
@@ -619,14 +677,14 @@ Devuelve SOLO {"items": [...]} sin explicaciones ni markdown.`,
     try {
       const parsed = JSON.parse(content) as Record<string, unknown>;
       for (const value of Object.values(parsed)) {
-        if (Array.isArray(value)) return value as ParsedItem[];
+        if (Array.isArray(value)) return parseItemsArray(value);
       }
       return [];
     } catch {
       const regex = /\[[\s\S]*\]/;
       const match = regex.exec(content);
       if (match) {
-        return JSON.parse(match[0]) as ParsedItem[];
+        return parseItemsArray(JSON.parse(match[0]) as unknown);
       }
       return [];
     }
@@ -701,22 +759,41 @@ export const maxDuration = 60; // seconds — AI processing needs time
 
 // ── Route Handler ──────────────────────────────────────
 
-// Types for client-parsed input (JSON body from browser pipeline)
-interface ClientParsedInput {
-  rows: string[][];
-  images?: {
-    base64: string;
-    mimeType: string;
-    index: number;
-    fileName: string;
-  }[];
-  /** Supabase Storage public URLs for Groq Vision via URL reference (Tier 3) */
-  imageUrls?: string[];
-  containerId: string;
-  /** Chunk index for chunked uploads (0-based) */
-  chunkIndex?: number;
-  /** Total number of chunks in this upload session */
-  totalChunks?: number;
+// Body validation for the client-parsed JSON path (F8.2) — the browser
+// already parsed the Excel file; this is the untrusted wire boundary.
+const ClientParsedInputSchema = z.object({
+  rows: z
+    .array(z.array(z.string().max(1000)).max(50))
+    .min(1)
+    .max(5000),
+  containerId: z.string().uuid(),
+  /** Supabase Storage URLs for Groq Vision via URL reference (Tier 3) —
+   * origin/path/workspace-scope checked in isOwnedStorageUrl before use. */
+  imageUrls: z.array(z.string().url()).max(MAX_TOTAL_IMAGES).optional(),
+  chunkIndex: z.number().int().min(0).optional(),
+  totalChunks: z.number().int().min(1).optional(),
+});
+type ClientParsedInput = z.infer<typeof ClientParsedInputSchema>;
+
+/**
+ * A packing-list image URL must point at this project's own Supabase Storage
+ * public bucket, under this caller's own workspace path — never an arbitrary
+ * external URL, since we hand it to Groq's server-to-server fetcher (SSRF /
+ * confused-deputy risk otherwise — F8.2).
+ */
+function isOwnedStorageUrl(url: string, workspaceId: string): boolean {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return false;
+  }
+  const storageOrigin = new URL(env.NEXT_PUBLIC_SUPABASE_URL).origin;
+  return (
+    parsed.origin === storageOrigin &&
+    parsed.pathname.startsWith("/storage/v1/object/public/") &&
+    parsed.pathname.includes(`/${workspaceId}/`)
+  );
 }
 
 export async function POST(request: NextRequest) {
@@ -734,44 +811,63 @@ export async function POST(request: NextRequest) {
     env.NEXT_PUBLIC_SUPABASE_URL,
     env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
   );
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // getClaims() verifies the JWT locally via cached JWKS — coherent with the
+  // rest of the app (proxy.ts, trpc context) instead of a network round-trip
+  // to Supabase Auth on every request (F8.1).
+  const { data: claimsData } = await supabase.auth.getClaims();
+  const user = mapClaimsToUser(claimsData?.claims);
   if (!user) {
     return NextResponse.json({ error: "No autenticado" }, { status: 401 });
   }
 
   // ── Multi-Tenant Workspace Resolution Guard ──
-  const db = getDb();
-  const headerWsId = request.headers.get("x-workspace-id");
-  const memberQuery = headerWsId
-    ? and(
-        eq(WorkspaceMember.userId, user.id),
-        eq(WorkspaceMember.workspaceId, headerWsId),
-      )
-    : eq(WorkspaceMember.userId, user.id);
-
-  const [member] = await db
-    .select({
-      workspaceId: WorkspaceMember.workspaceId,
-      role: WorkspaceMember.role,
-    })
-    .from(WorkspaceMember)
-    .where(memberQuery)
-    .limit(1);
-
-  if (!member) {
+  // x-workspace-id is now mandatory: the old fallback to "any workspace this
+  // user belongs to" silently picked an arbitrary one for multi-workspace
+  // users, which is the wrong workspace as often as it is the right one (F8.1).
+  const workspaceId = request.headers.get("x-workspace-id");
+  if (!workspaceId || !isValidUuid(workspaceId)) {
     return NextResponse.json(
-      { error: "Usuario no pertenece a un workspace activo" },
+      {
+        error: "Encabezado x-workspace-id requerido y debe ser un UUID válido",
+      },
+      { status: 400 },
+    );
+  }
+
+  const db = getDb();
+  // is_workspace_member() — same SQL function trpc.ts uses — only returns a
+  // row for an active member of an active workspace (migration 018), unlike
+  // the raw WorkspaceMember select this replaced.
+  const membershipResult = await db.execute<{ member_role: string }>(
+    sql`SELECT * FROM is_workspace_member(${user.id}::uuid, ${workspaceId}::uuid)`,
+  );
+  const membership = membershipResult.rows[0];
+
+  if (!membership) {
+    return NextResponse.json(
+      { error: "No eres miembro activo de este workspace" },
       { status: 403 },
     );
   }
+
+  const memberRole = membership.member_role as UserRole;
+  if (!can(memberRole, "containers", "update")) {
+    return NextResponse.json(
+      { error: "Permiso denegado: containers.update" },
+      { status: 403 },
+    );
+  }
+
+  const member = { workspaceId, role: memberRole };
 
   // ── Per-user Rate Limit ──
   // 3 parse requests per 60s per authenticated user.
   // Prevents a compromised session from draining the Groq API quota.
   const { rateLimit } = await import("~/lib/rate-limit");
-  const rlResult = rateLimit(`ai:user:${user.id}`, { window: 60_000, max: 3 });
+  const rlResult = await rateLimit(`ai:user:${user.id}`, {
+    window: 60_000,
+    max: 3,
+  });
   if (!rlResult.success) {
     const retryAfter = Math.ceil((rlResult.reset - Date.now()) / 1_000);
     return NextResponse.json(
@@ -783,6 +879,15 @@ export async function POST(request: NextRequest) {
         status: 429,
         headers: { "Retry-After": String(retryAfter) },
       },
+    );
+  }
+
+  // ── DoS Guard: Payload Size Limit (F8.2) ──
+  const contentLength = request.headers.get("content-length");
+  if (contentLength && parseInt(contentLength, 10) > MAX_REQUEST_BYTES) {
+    return NextResponse.json(
+      { error: "Cuerpo de solicitud demasiado grande (máx 10MB)" },
+      { status: 413 },
     );
   }
 
@@ -799,19 +904,17 @@ export async function POST(request: NextRequest) {
     if (contentType.includes("application/json")) {
       // ═══ JSON PATH: Client-parsed Excel data (chunked) ═══
       // Browser already parsed the file — we receive lightweight JSON chunks (≤2MB each)
-      const body = (await request.json()) as ClientParsedInput;
+      const rawBody: unknown = await request.json();
+      const parsedBody = ClientParsedInputSchema.safeParse(rawBody);
 
-      if (
-        !body.containerId ||
-        !Array.isArray(body.rows) ||
-        body.rows.length === 0
-      ) {
+      if (!parsedBody.success) {
         return NextResponse.json(
           { error: "rows (array) y containerId son requeridos" },
           { status: 400 },
         );
       }
 
+      const body: ClientParsedInput = parsedBody.data;
       containerId = body.containerId;
       rows = body.rows;
 
@@ -820,18 +923,32 @@ export async function POST(request: NextRequest) {
       //   a) Skipped entirely (text-only mode)
       //   b) Uploaded to Supabase Storage and referenced via imageUrls (Tier 3)
       // Legacy base64 images are ignored in chunked mode to stay under 4.5MB
-      if (Array.isArray(body.imageUrls) && body.imageUrls.length > 0) {
+      if (body.imageUrls && body.imageUrls.length > 0) {
         // Tier 3: Groq Vision via URL reference — images stay in Supabase Storage
-        // Each URL can be up to 20MB — Groq fetches directly, zero data through Vercel
-        extractedImages = body.imageUrls
-          .slice(0, MAX_TOTAL_IMAGES)
-          .map((url, idx) => ({
-            buffer: Buffer.alloc(0), // No binary data — URL-only mode
-            index: idx,
-            fileName: `image_${idx}`,
-            mimeType: "image/jpeg",
-            _url: url, // Store URL for vision pipeline
-          }));
+        // Each URL can be up to 20MB — Groq fetches directly, zero data through Vercel.
+        // Every URL must resolve to this project's own storage, under this
+        // caller's own workspace path (F8.2) — reject the whole request
+        // rather than silently drop offending URLs, since a URL that fails
+        // this check is a sign of a tampered client, not a benign mismatch.
+        const hasForeignUrl = body.imageUrls.some(
+          (url) => !isOwnedStorageUrl(url, member.workspaceId),
+        );
+        if (hasForeignUrl) {
+          return NextResponse.json(
+            {
+              error:
+                "imageUrls debe apuntar al almacenamiento de este workspace",
+            },
+            { status: 400 },
+          );
+        }
+        extractedImages = body.imageUrls.map((url, idx) => ({
+          buffer: Buffer.alloc(0), // No binary data — URL-only mode
+          index: idx,
+          fileName: `image_${idx}`,
+          mimeType: "image/jpeg",
+          _url: url, // Store URL for vision pipeline
+        }));
       }
       // Note: body.images (legacy base64) is intentionally ignored in chunked mode
     } else {
@@ -1014,6 +1131,11 @@ Responde ÚNICAMENTE con JSON válido:
       "[parse-packing-list] Error:",
       err instanceof Error ? err.message : err,
     );
+
+    if (err instanceof PayloadTooLargeError) {
+      return NextResponse.json({ error: err.message }, { status: 413 });
+    }
+
     return NextResponse.json(
       { error: "Error procesando packing list. Intente de nuevo más tarde." },
       { status: 500 },

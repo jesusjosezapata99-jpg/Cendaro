@@ -1,8 +1,9 @@
 "use client";
 
 import type { ColumnDef } from "@tanstack/react-table";
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { toast } from "sonner";
 
 import type { IconName } from "@cendaro/ui/icons";
 import type { StatusTone } from "@cendaro/ui/status-pill";
@@ -13,12 +14,12 @@ import { StatusPill } from "@cendaro/ui/status-pill";
 import { DataTable } from "~/components/data-table/data-table";
 import { EmptyState } from "~/components/empty-state";
 import { PageHeader } from "~/components/page-header";
-import { RoleGuard } from "~/components/role-guard";
+import { Can } from "~/components/role-guard";
 import { useVesRates } from "~/hooks/use-bcv-rate";
 import { useCnyRate } from "~/hooks/use-cny-rate";
-import { maybeSyncVesRates } from "~/lib/sync-bcv-rate";
-import { maybeSyncCnyRate } from "~/lib/sync-cny-rate";
+import { useSyncRates } from "~/hooks/use-sync-rates";
 import { useTRPC } from "~/trpc/client";
+import { HeldRatesPanel } from "./held-rates-panel";
 
 interface RateMeta {
   label: string;
@@ -64,7 +65,6 @@ interface RateHistoryItem {
 
 export default function RatesClient() {
   const trpc = useTRPC();
-  const qc = useQueryClient();
 
   const { data: latestRates, isLoading: ratesLoading } = useQuery(
     trpc.pricing.latestRates.queryOptions(),
@@ -109,38 +109,30 @@ export default function RatesClient() {
   /* Active Bs rate for calculator */
   const activeBsRate = convertRateType === "paralelo" ? liveParalelo : liveBcv;
 
-  /* Auto-sync both VES rates + CNY to ExchangeRate table */
-  const syncRate = useMutation(
-    trpc.pricing.setRate.mutationOptions({
-      onSuccess: () => {
-        void qc.invalidateQueries({ queryKey: [["pricing"]] });
-      },
-    }),
-  );
-  const syncRateRef = useRef(syncRate);
-  syncRateRef.current = syncRate;
-
-  useEffect(() => {
-    void maybeSyncVesRates({
-      latestRates: latestRates,
-      setRate: (input) => syncRateRef.current.mutateAsync(input),
-    });
-    void maybeSyncCnyRate({
-      latestRates: latestRates,
-      setRate: (input) => syncRateRef.current.mutateAsync(input),
-    });
-  }, [latestRates]);
+  /* Stored rates: the server fetches and stores them (pricing.syncRates) */
+  const rateSync = useSyncRates({ auto: true });
 
   const handleManualRefresh = () => {
-    void maybeSyncVesRates({
-      latestRates: latestRates,
-      setRate: (input) => syncRateRef.current.mutateAsync(input),
-    });
-    void maybeSyncCnyRate({
-      latestRates: latestRates,
-      setRate: (input) => syncRateRef.current.mutateAsync(input),
-    });
-    void qc.invalidateQueries({ queryKey: [["pricing"]] });
+    rateSync.sync(true).then(
+      (result) => {
+        const held = result.results.filter(
+          (r) => r.status === "held" || r.status === "rejected",
+        ).length;
+        if (held > 0) {
+          toast.warning(
+            `${held} ${held === 1 ? "tasa retenida" : "tasas retenidas"} por una variación inusual`,
+          );
+        } else {
+          toast.success("Tasas actualizadas");
+        }
+      },
+      (error: unknown) =>
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "No se pudieron actualizar las tasas",
+        ),
+    );
   };
 
   const handleSwapCurrencies = () => {
@@ -293,18 +285,20 @@ export default function RatesClient() {
         title="Tasas de Cambio"
         description="Panel centralizado de divisas, sincronización automática y brecha cambiaria"
         actions={
-          <RoleGuard allow={["owner", "admin", "supervisor"]}>
+          <Can module="rates" action="update">
             <Button
               onClick={handleManualRefresh}
               className="min-h-11 flex-1 sm:flex-initial"
-              disabled={syncRate.isPending}
+              disabled={rateSync.isSyncing}
             >
               <Icons.Sync className="size-4.5" />
-              {syncRate.isPending ? "Sincronizando..." : "Actualizar Tasas"}
+              {rateSync.isSyncing ? "Sincronizando..." : "Actualizar Tasas"}
             </Button>
-          </RoleGuard>
+          </Can>
         }
       />
+
+      <HeldRatesPanel />
 
       {/* 4 Currency Rate Cards */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">

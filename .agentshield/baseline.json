@@ -1,0 +1,57 @@
+{
+  "version": 1,
+  "timestamp": "2026-09-20T11:15:24.078Z",
+  "score": {
+    "grade": "A",
+    "numericScore": 95,
+    "breakdown": {
+      "secrets": 100,
+      "permissions": 75,
+      "hooks": 100,
+      "mcp": 100,
+      "agents": 100
+    }
+  },
+  "findings": [
+    {
+      "id": "codex-project-config-escalates",
+      "severity": "medium",
+      "category": "misconfiguration",
+      "title": "Repository Codex config overrides user policy",
+      "file": ".codex/config.toml",
+      "fingerprint": "codex-project-config-escalates::.codex/config.toml::sha256:5f8a59f685e95d50"
+    },
+    {
+      "id": "permissions-no-block",
+      "severity": "medium",
+      "category": "permissions",
+      "title": "No permissions block configured",
+      "file": ".vscode/extensions.json",
+      "fingerprint": "permissions-no-block::.vscode/extensions.json::sha256:no-evidence"
+    },
+    {
+      "id": "hooks-no-pretooluse",
+      "severity": "medium",
+      "category": "misconfiguration",
+      "title": "No PreToolUse security hooks configured",
+      "file": ".vscode/extensions.json",
+      "fingerprint": "hooks-no-pretooluse::.vscode/extensions.json::sha256:no-evidence"
+    },
+    {
+      "id": "permissions-no-block",
+      "severity": "medium",
+      "category": "permissions",
+      "title": "No permissions block configured",
+      "file": ".vscode/settings.json",
+      "fingerprint": "permissions-no-block::.vscode/settings.json::sha256:no-evidence"
+    },
+    {
+      "id": "hooks-no-pretooluse",
+      "severity": "medium",
+      "category": "misconfiguration",
+      "title": "No PreToolUse security hooks configured",
+      "file": ".vscode/settings.json",
+      "fingerprint": "hooks-no-pretooluse::.vscode/settings.json::sha256:no-evidence"
+    }
+  ]
+}

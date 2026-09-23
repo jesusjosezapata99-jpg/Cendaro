@@ -19,12 +19,14 @@ import {
   Product,
   StockLedger,
   StockMovement,
+  Warehouse,
 } from "@cendaro/db/schema";
 
+import type { createTRPCContext } from "../trpc";
 import {
   createTRPCRouter,
-  workspaceProcedure,
-  workspaceReadProcedure,
+  wsPermissionProcedure,
+  wsReadPermissionProcedure,
 } from "../trpc";
 import { logAudit } from "./audit";
 
@@ -124,6 +126,143 @@ function slugify(name: string): string {
     .replace(/^-|-$/g, "");
 }
 
+type Db = ReturnType<typeof createTRPCContext>["db"];
+
+/**
+ * The warehouse that receives initial stock comes from the client: it must be
+ * an active warehouse of this workspace (FKs only prove it exists somewhere).
+ */
+async function assertStockWarehouse(
+  db: Db,
+  workspaceId: string,
+  warehouseId: string,
+): Promise<void> {
+  const [warehouse] = await db
+    .select({ isActive: Warehouse.isActive })
+    .from(Warehouse)
+    .where(
+      and(
+        eq(Warehouse.id, warehouseId),
+        eq(Warehouse.workspaceId, workspaceId),
+      ),
+    )
+    .limit(1);
+
+  if (!warehouse?.isActive) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message:
+        "El almacén elegido para el stock inicial no está activo en este workspace",
+    });
+  }
+}
+
+type SessionRow = typeof ImportSessionRow.$inferSelect;
+type RowOutcome = "inserted" | "updated" | "skipped" | "failed";
+
+/**
+ * Applies one staged row. Runs inside its own savepoint (see commit), so a
+ * database error rolls back only this row.
+ */
+async function commitCatalogRow(
+  db: Db,
+  actor: { workspaceId: string; userId: string },
+  row: SessionRow,
+  defaultWarehouseId: string | undefined,
+): Promise<RowOutcome> {
+  const rawData = row.rawData as RawRowData;
+  const sku = String(rawData.sku ?? "")
+    .trim()
+    .toUpperCase();
+  const name = String(rawData.name ?? "").trim();
+
+  if (row.action === "insert") {
+    const costValue = rawData.cost ? String(rawData.cost) : undefined;
+    const [newProduct] = await db
+      .insert(Product)
+      .values({
+        workspaceId: actor.workspaceId,
+        sku,
+        name,
+        barcode: rawData.barcode ? String(rawData.barcode).trim() : null,
+        categoryId: row.resolvedCategoryId ?? null,
+        brandId: row.resolvedBrandId ?? null,
+        costAvg: costValue ?? "0",
+        weight: rawData.weight ? Number(rawData.weight) : undefined,
+        volume: rawData.volume ? Number(rawData.volume) : undefined,
+        descriptionShort: rawData.description
+          ? String(rawData.description).slice(0, 512)
+          : undefined,
+        status: "draft",
+      })
+      .returning({ id: Product.id });
+
+    if (!newProduct) return "failed";
+
+    // Create initial stock if quantity provided (PRD FR-35)
+    const qty = Number(rawData.quantity ?? 0);
+    if (qty > 0 && defaultWarehouseId) {
+      await db.insert(StockLedger).values({
+        workspaceId: actor.workspaceId,
+        productId: newProduct.id,
+        warehouseId: defaultWarehouseId,
+        quantity: qty,
+      });
+      await db.insert(StockMovement).values({
+        workspaceId: actor.workspaceId,
+        productId: newProduct.id,
+        movementType: "initial_stock",
+        quantity: qty,
+        warehouseId: defaultWarehouseId,
+        referenceType: "catalog_import",
+        createdBy: actor.userId,
+      });
+    }
+
+    await db
+      .update(ImportSessionRow)
+      .set({ status: "committed", resolvedProductId: newProduct.id })
+      .where(eq(ImportSessionRow.id, row.id));
+    return "inserted";
+  }
+
+  if (row.action === "update" && row.resolvedProductId) {
+    // UPDATE existing product (PRD FR-34: only non-null fields)
+    const updates: Record<string, unknown> = {};
+    if (name) updates.name = name;
+    if (rawData.barcode) updates.barcode = String(rawData.barcode).trim();
+    if (row.resolvedCategoryId) updates.categoryId = row.resolvedCategoryId;
+    if (row.resolvedBrandId) updates.brandId = row.resolvedBrandId;
+    if (rawData.cost) updates.costAvg = String(rawData.cost);
+    if (rawData.weight) updates.weight = Number(rawData.weight);
+    if (rawData.volume) updates.volume = Number(rawData.volume);
+
+    if (Object.keys(updates).length > 0) {
+      await db
+        .update(Product)
+        .set(updates)
+        .where(
+          and(
+            eq(Product.id, row.resolvedProductId),
+            eq(Product.workspaceId, actor.workspaceId),
+          ),
+        );
+    }
+
+    await db
+      .update(ImportSessionRow)
+      .set({ status: "committed" })
+      .where(eq(ImportSessionRow.id, row.id));
+    return "updated";
+  }
+
+  await db
+    .update(ImportSessionRow)
+    .set({ status: "skipped" })
+    .where(eq(ImportSessionRow.id, row.id));
+  return "skipped";
+}
+
 // ── Router ───────────────────────────────────────
 
 export const catalogImportRouter = createTRPCRouter({
@@ -132,9 +271,34 @@ export const catalogImportRouter = createTRPCRouter({
    *
    * RBAC: owner, admin, supervisor (PRD §4)
    */
-  create: workspaceProcedure
+  create: wsPermissionProcedure("catalog", "create")
     .input(catalogImportCreateSchema)
     .mutation(async ({ ctx, input }) => {
+      // Idempotency first: a repeated submit must get its own session back,
+      // not see it expired below as one of the caller's "stale" sessions.
+      const [existingIdempotency] = await ctx.db
+        .select({ id: ImportSession.id, status: ImportSession.status })
+        .from(ImportSession)
+        .where(
+          and(
+            eq(ImportSession.idempotencyKey, input.idempotencyKey),
+            eq(ImportSession.workspaceId, ctx.workspace.workspaceId),
+          ),
+        )
+        .limit(1);
+
+      if (existingIdempotency) {
+        return { sessionId: existingIdempotency.id };
+      }
+
+      if (input.defaultWarehouseId) {
+        await assertStockWarehouse(
+          ctx.db,
+          ctx.workspace.workspaceId,
+          input.defaultWarehouseId,
+        );
+      }
+
       // Auto-cancel any existing active sessions for this user.
       // This prevents stale sessions (from browser refresh / abandoned wizard)
       // from permanently blocking new imports.
@@ -164,22 +328,6 @@ export const catalogImportRouter = createTRPCRouter({
               staleSessions.map((s) => s.id),
             ),
           );
-      }
-
-      // Idempotency check
-      const [existingIdempotency] = await ctx.db
-        .select({ id: ImportSession.id, status: ImportSession.status })
-        .from(ImportSession)
-        .where(
-          and(
-            eq(ImportSession.idempotencyKey, input.idempotencyKey),
-            eq(ImportSession.workspaceId, ctx.workspace.workspaceId),
-          ),
-        )
-        .limit(1);
-
-      if (existingIdempotency) {
-        return { sessionId: existingIdempotency.id };
       }
 
       // Create session
@@ -229,7 +377,7 @@ export const catalogImportRouter = createTRPCRouter({
    *
    * RBAC: owner, admin, supervisor (PRD §4)
    */
-  validate: workspaceProcedure
+  validate: wsPermissionProcedure("catalog", "create")
     .input(z.object({ sessionId: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       // Load session
@@ -858,7 +1006,7 @@ export const catalogImportRouter = createTRPCRouter({
    *
    * RBAC: owner, admin, supervisor (PRD §4)
    */
-  resolveCategories: workspaceProcedure
+  resolveCategories: wsPermissionProcedure("catalog", "create")
     .input(
       z.object({
         sessionId: z.string().uuid(),
@@ -989,7 +1137,7 @@ export const catalogImportRouter = createTRPCRouter({
    *
    * RBAC: any authenticated user (PRD §4)
    */
-  dryRun: workspaceReadProcedure
+  dryRun: wsReadPermissionProcedure("catalog", "create")
     .input(z.object({ sessionId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       const [session] = await ctx.db
@@ -1070,11 +1218,15 @@ export const catalogImportRouter = createTRPCRouter({
     }),
 
   /**
-   * Execute the import: batched INSERT/UPDATE products.
+   * Execute the import: INSERT/UPDATE products row by row.
    *
-   * RBAC: owner, admin only (PRD §4)
+   * The session row is locked FOR UPDATE, so a double submit waits for the
+   * first commit and then returns its stored result. Each row runs in its own
+   * savepoint: a database error rolls back and reports only that row.
+   *
+   * RBAC: catalog.create (owner, admin, supervisor)
    */
-  commit: workspaceProcedure
+  commit: wsPermissionProcedure("catalog", "create")
     .input(z.object({ sessionId: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       const [session] = await ctx.db
@@ -1087,7 +1239,8 @@ export const catalogImportRouter = createTRPCRouter({
             eq(ImportSession.workspaceId, ctx.workspace.workspaceId),
           ),
         )
-        .limit(1);
+        .limit(1)
+        .for("update");
 
       if (!session) {
         throw new TRPCError({
@@ -1145,7 +1298,6 @@ export const catalogImportRouter = createTRPCRouter({
         )
         .orderBy(ImportSessionRow.rowIndex);
 
-      const BATCH_SIZE = 100;
       let inserted = 0;
       let updated = 0;
       let skipped = 0;
@@ -1160,145 +1312,74 @@ export const catalogImportRouter = createTRPCRouter({
       const defaultWarehouseId = (
         session.metadata as Record<string, unknown> | null
       )?.defaultWarehouseId as string | undefined;
+      if (defaultWarehouseId) {
+        // Re-checked at commit: the warehouse may have been deactivated
+        // since the session was created.
+        await assertStockWarehouse(
+          ctx.db,
+          ctx.workspace.workspaceId,
+          defaultWarehouseId,
+        );
+      }
 
-      for (let i = 0; i < rowsToCommit.length; i += BATCH_SIZE) {
-        const batch = rowsToCommit.slice(i, i + BATCH_SIZE);
+      const actor = {
+        workspaceId: ctx.workspace.workspaceId,
+        userId: ctx.user.id,
+      };
 
-        await ctx.db.transaction(async (tx) => {
-          for (const row of batch) {
-            const rawData = row.rawData as RawRowData;
-            const sku = String(rawData.sku ?? "")
-              .trim()
-              .toUpperCase();
-            const name = String(rawData.name ?? "").trim();
-            const rowNumber = Number(rawData.rowNumber ?? row.rowIndex + 2);
+      for (const row of rowsToCommit) {
+        const rawData = row.rawData as RawRowData;
+        const sku = String(rawData.sku ?? "")
+          .trim()
+          .toUpperCase();
+        const name = String(rawData.name ?? "").trim();
+        const rowNumber = Number(rawData.rowNumber ?? row.rowIndex + 2);
 
-            try {
-              if (row.action === "insert") {
-                // INSERT new product
-                const costValue = rawData.cost
-                  ? String(rawData.cost)
-                  : undefined;
-                const [newProduct] = await tx
-                  .insert(Product)
-                  .values({
-                    workspaceId: ctx.workspace.workspaceId,
-                    sku,
-                    name,
-                    barcode: rawData.barcode
-                      ? String(rawData.barcode).trim()
-                      : null,
-                    categoryId: row.resolvedCategoryId ?? null,
-                    brandId: row.resolvedBrandId ?? null,
-                    costAvg: costValue ?? "0",
-                    weight: rawData.weight ? Number(rawData.weight) : undefined,
-                    volume: rawData.volume ? Number(rawData.volume) : undefined,
-                    descriptionShort: rawData.description
-                      ? String(rawData.description).slice(0, 512)
-                      : undefined,
-                    status: "draft",
-                  })
-                  .returning({ id: Product.id });
+        let outcome: RowOutcome | "error";
+        try {
+          // Savepoint: a failing row is rolled back on its own and the
+          // transaction stays usable for the rest of the file.
+          outcome = await ctx.db.transaction((sp) =>
+            commitCatalogRow(
+              sp as unknown as typeof ctx.db,
+              actor,
+              row,
+              defaultWarehouseId,
+            ),
+          );
+        } catch (error) {
+          ctx.log.warn("catalog import row failed", { rowNumber, sku }, error);
+          outcome = "error";
+        }
 
-                if (!newProduct) {
-                  errors.push({
-                    rowNumber,
-                    sku,
-                    code: "PRODUCT_CREATE_FAILED",
-                    message: `No se pudo crear el producto "${name}"`,
-                  });
-                  failed++;
-                  await tx
-                    .update(ImportSessionRow)
-                    .set({ status: "failed" })
-                    .where(eq(ImportSessionRow.id, row.id));
-                  continue;
+        if (outcome === "inserted") {
+          inserted++;
+        } else if (outcome === "updated") {
+          updated++;
+        } else if (outcome === "skipped") {
+          skipped++;
+        } else {
+          failed++;
+          errors.push(
+            outcome === "failed"
+              ? {
+                  rowNumber,
+                  sku,
+                  code: "PRODUCT_CREATE_FAILED",
+                  message: `No se pudo crear el producto "${name}"`,
                 }
-
-                // Create initial stock if quantity provided (PRD FR-35)
-                if (
-                  rawData.quantity &&
-                  Number(rawData.quantity) > 0 &&
-                  defaultWarehouseId
-                ) {
-                  const qty = Number(rawData.quantity);
-                  await tx.insert(StockLedger).values({
-                    workspaceId: ctx.workspace.workspaceId,
-                    productId: newProduct.id,
-                    warehouseId: defaultWarehouseId,
-                    quantity: qty,
-                  });
-                  await tx.insert(StockMovement).values({
-                    workspaceId: ctx.workspace.workspaceId,
-                    productId: newProduct.id,
-                    movementType: "initial_stock",
-                    quantity: qty,
-                    warehouseId: defaultWarehouseId,
-                    referenceType: "catalog_import",
-                    createdBy: ctx.user.id,
-                  });
-                }
-
-                inserted++;
-                await tx
-                  .update(ImportSessionRow)
-                  .set({
-                    status: "committed",
-                    resolvedProductId: newProduct.id,
-                  })
-                  .where(eq(ImportSessionRow.id, row.id));
-              } else if (row.action === "update" && row.resolvedProductId) {
-                // UPDATE existing product (PRD FR-34: only non-null fields)
-                const updates: Record<string, unknown> = {};
-                if (name) updates.name = name;
-                if (rawData.barcode)
-                  updates.barcode = String(rawData.barcode).trim();
-                if (row.resolvedCategoryId)
-                  updates.categoryId = row.resolvedCategoryId;
-                if (row.resolvedBrandId) updates.brandId = row.resolvedBrandId;
-                if (rawData.cost) updates.costAvg = String(rawData.cost);
-                if (rawData.weight) updates.weight = Number(rawData.weight);
-                if (rawData.volume) updates.volume = Number(rawData.volume);
-
-                if (Object.keys(updates).length > 0) {
-                  await tx
-                    .update(Product)
-                    .set(updates)
-                    .where(
-                      and(
-                        eq(Product.id, row.resolvedProductId),
-                        eq(Product.workspaceId, ctx.workspace.workspaceId),
-                      ),
-                    );
-                }
-
-                updated++;
-                await tx
-                  .update(ImportSessionRow)
-                  .set({ status: "committed" })
-                  .where(eq(ImportSessionRow.id, row.id));
-              } else {
-                skipped++;
-                await tx
-                  .update(ImportSessionRow)
-                  .set({ status: "skipped" })
-                  .where(eq(ImportSessionRow.id, row.id));
-              }
-            } catch {
-              errors.push({
-                rowNumber,
-                sku,
-                code: "COMMIT_ERROR",
-                message: "Error al escribir en la base de datos",
-              });
-              failed++;
-              await tx
-                .update(ImportSessionRow)
-                .set({ status: "failed" })
-                .where(eq(ImportSessionRow.id, row.id));
-            }
-          }
-        });
+              : {
+                  rowNumber,
+                  sku,
+                  code: "COMMIT_ERROR",
+                  message: "Error al escribir en la base de datos",
+                },
+          );
+          await ctx.db
+            .update(ImportSessionRow)
+            .set({ status: "failed" })
+            .where(eq(ImportSessionRow.id, row.id));
+        }
       }
 
       // Update session with results
@@ -1345,7 +1426,7 @@ export const catalogImportRouter = createTRPCRouter({
    *
    * RBAC: any authenticated user (PRD §4)
    */
-  getSession: workspaceReadProcedure
+  getSession: wsReadPermissionProcedure("catalog", "create")
     .input(z.object({ sessionId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       const [session] = await ctx.db

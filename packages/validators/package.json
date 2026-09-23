@@ -15,7 +15,8 @@
     "dev": "tsc",
     "format": "prettier --check . --ignore-path ../../.gitignore",
     "lint": "eslint --cache --cache-location .cache/.eslintcache",
-    "typecheck": "tsc --noEmit --emitDeclarationOnly false"
+    "typecheck": "tsc --noEmit --emitDeclarationOnly false",
+    "test": "vitest run"
   },
   "dependencies": {
     "zod": "catalog:"
@@ -26,7 +27,8 @@
     "@cendaro/tsconfig": "workspace:*",
     "eslint": "catalog:",
     "prettier": "catalog:",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "vitest": "^4.1.11"
   },
   "prettier": "@cendaro/prettier-config",
   "author": "Cendaro",

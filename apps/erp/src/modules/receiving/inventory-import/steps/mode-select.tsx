@@ -14,6 +14,8 @@ import { StatusPill } from "@cendaro/ui/status-pill";
 interface ModeSelectProps {
   selectedMode: ImportMode | null;
   onSelect: (mode: ImportMode) => void;
+  /** Initialize resets a whole warehouse: owner/admin only on the server. */
+  canInitialize: boolean;
 }
 
 const modes: {
@@ -68,7 +70,11 @@ const modes: {
   },
 ];
 
-export function ModeSelect({ selectedMode, onSelect }: ModeSelectProps) {
+export function ModeSelect({
+  selectedMode,
+  onSelect,
+  canInitialize,
+}: ModeSelectProps) {
   return (
     <div className="mx-auto max-w-4xl space-y-8">
       {/* Header */}
@@ -85,14 +91,20 @@ export function ModeSelect({ selectedMode, onSelect }: ModeSelectProps) {
       <div className="grid gap-5 sm:grid-cols-3">
         {modes.map((m) => {
           const isSelected = selectedMode === m.value;
+          const isDisabled = m.value === "initialize" && !canInitialize;
           return (
             <button
               key={m.value}
+              type="button"
+              disabled={isDisabled}
+              aria-disabled={isDisabled}
               onClick={() => onSelect(m.value)}
-              className={`group relative flex cursor-pointer flex-col border p-0 text-left transition-colors duration-200 ${
-                isSelected
-                  ? "border-primary bg-primary/5"
-                  : "border-border bg-card hover:border-primary/40"
+              className={`group relative flex flex-col border p-0 text-left transition-colors duration-200 ${
+                isDisabled
+                  ? "border-border bg-card cursor-not-allowed opacity-60"
+                  : isSelected
+                    ? "border-primary bg-primary/5 cursor-pointer"
+                    : "border-border bg-card hover:border-primary/40 cursor-pointer"
               }`}
             >
               {/* ── Top section: icon + title ─────── */}
@@ -159,6 +171,13 @@ export function ModeSelect({ selectedMode, onSelect }: ModeSelectProps) {
                       {m.badge.label}
                     </StatusPill>
                   </div>
+                )}
+
+                {isDisabled && (
+                  <p className="text-muted-foreground flex items-center gap-1.5 text-xs">
+                    <Icons.Lock className="size-3" />
+                    Solo dueños y administradores
+                  </p>
                 )}
               </div>
             </button>

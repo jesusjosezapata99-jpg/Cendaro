@@ -12,15 +12,15 @@ import {
 
 import {
   createTRPCRouter,
-  workspaceProcedure,
-  workspaceReadProcedure,
+  wsPermissionProcedure,
+  wsReadPermissionProcedure,
 } from "../trpc";
 import { logAudit } from "./audit";
 
 export const vendorRouter = createTRPCRouter({
   // ─── Vendor Commissions (PRD §16) ────────────
 
-  myCommissions: workspaceProcedure
+  myCommissions: wsPermissionProcedure("vendors", "read")
     .input(
       z.object({
         limit: z.number().int().min(1).max(100).default(25),
@@ -50,7 +50,7 @@ export const vendorRouter = createTRPCRouter({
         .limit(input.limit);
     }),
 
-  myOrders: workspaceProcedure
+  myOrders: wsPermissionProcedure("vendors", "read")
     .input(
       z.object({
         limit: z.number().int().min(1).max(100).default(25),
@@ -79,27 +79,29 @@ export const vendorRouter = createTRPCRouter({
         .limit(input.limit);
     }),
 
-  myCustomers: workspaceReadProcedure.query(async ({ ctx }) => {
-    return ctx.db
-      .select({
-        id: Customer.id,
-        name: Customer.name,
-        customerType: Customer.customerType,
-        phone: Customer.phone,
-        email: Customer.email,
-      })
-      .from(Customer)
-      .where(
-        and(
-          eq(Customer.assignedVendorId, ctx.user.id),
-          eq(Customer.workspaceId, ctx.workspace.workspaceId),
-        ),
-      )
-      .orderBy(Customer.name)
-      .limit(200);
-  }),
+  myCustomers: wsReadPermissionProcedure("vendors", "read").query(
+    async ({ ctx }) => {
+      return ctx.db
+        .select({
+          id: Customer.id,
+          name: Customer.name,
+          customerType: Customer.customerType,
+          phone: Customer.phone,
+          email: Customer.email,
+        })
+        .from(Customer)
+        .where(
+          and(
+            eq(Customer.assignedVendorId, ctx.user.id),
+            eq(Customer.workspaceId, ctx.workspace.workspaceId),
+          ),
+        )
+        .orderBy(Customer.name)
+        .limit(200);
+    },
+  ),
 
-  allCommissions: workspaceProcedure
+  allCommissions: wsPermissionProcedure("vendors", "approve")
     .input(
       z.object({
         vendorId: z.string().uuid().optional(),
@@ -139,7 +141,7 @@ export const vendorRouter = createTRPCRouter({
         .limit(input.limit);
     }),
 
-  payCommission: workspaceProcedure
+  payCommission: wsPermissionProcedure("vendors", "approve")
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       if (!["owner", "admin", "supervisor"].includes(ctx.workspace.role)) {
@@ -180,7 +182,7 @@ export const vendorRouter = createTRPCRouter({
 
   // ─── Accounts Receivable / CxC (PRD §17.3) ──
 
-  listAR: workspaceProcedure
+  listAR: wsPermissionProcedure("receivables", "read")
     .input(
       z.object({
         customerId: z.string().uuid().optional(),
@@ -217,7 +219,7 @@ export const vendorRouter = createTRPCRouter({
         .limit(input.limit);
     }),
 
-  arById: workspaceProcedure
+  arById: wsPermissionProcedure("receivables", "read")
     .input(z.object({ id: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       const [row] = await ctx.db
@@ -253,31 +255,33 @@ export const vendorRouter = createTRPCRouter({
       return row ?? null;
     }),
 
-  overdueAR: workspaceReadProcedure.query(async ({ ctx }) => {
-    return ctx.db
-      .select({
-        id: AccountReceivable.id,
-        customerId: AccountReceivable.customerId,
-        orderId: AccountReceivable.orderId,
-        totalAmount: AccountReceivable.totalAmount,
-        balance: AccountReceivable.balance,
-        status: AccountReceivable.status,
-        dueDate: AccountReceivable.dueDate,
-        createdAt: AccountReceivable.createdAt,
-      })
-      .from(AccountReceivable)
-      .where(
-        and(
-          eq(AccountReceivable.workspaceId, ctx.workspace.workspaceId),
-          eq(AccountReceivable.status, "pending"),
-          lte(AccountReceivable.dueDate, new Date()),
-        ),
-      )
-      .orderBy(AccountReceivable.dueDate)
-      .limit(100);
-  }),
+  overdueAR: wsReadPermissionProcedure("receivables", "read").query(
+    async ({ ctx }) => {
+      return ctx.db
+        .select({
+          id: AccountReceivable.id,
+          customerId: AccountReceivable.customerId,
+          orderId: AccountReceivable.orderId,
+          totalAmount: AccountReceivable.totalAmount,
+          balance: AccountReceivable.balance,
+          status: AccountReceivable.status,
+          dueDate: AccountReceivable.dueDate,
+          createdAt: AccountReceivable.createdAt,
+        })
+        .from(AccountReceivable)
+        .where(
+          and(
+            eq(AccountReceivable.workspaceId, ctx.workspace.workspaceId),
+            eq(AccountReceivable.status, "pending"),
+            lte(AccountReceivable.dueDate, new Date()),
+          ),
+        )
+        .orderBy(AccountReceivable.dueDate)
+        .limit(100);
+    },
+  ),
 
-  createAR: workspaceProcedure
+  createAR: wsPermissionProcedure("receivables", "create")
     .input(
       z.object({
         customerId: z.string().uuid(),
@@ -332,7 +336,7 @@ export const vendorRouter = createTRPCRouter({
       return ar;
     }),
 
-  recordPayment: workspaceProcedure
+  recordPayment: wsPermissionProcedure("receivables", "update")
     .input(
       z.object({
         id: z.string().uuid(),

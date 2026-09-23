@@ -86,44 +86,6 @@ Read the full README at `.agents/skills/README.md` for detailed descriptions.
 | stitch-loop      | `.agents/skills/stitch-loop/SKILL.md`      | Iterative Stitch builds      |
 | remotion         | `.agents/skills/remotion/SKILL.md`         | Walkthrough video generation |
 
-## OpenCode Skills — `.opencode/skills/`
-
-### Superpowers (14 skills) — `.opencode/skills/superpowers/`
-
-| Skill                          | Path                                                                   |
-| :----------------------------- | :--------------------------------------------------------------------- |
-| using-superpowers              | `.opencode/skills/superpowers/using-superpowers/SKILL.md`              |
-| writing-plans                  | `.opencode/skills/superpowers/writing-plans/SKILL.md`                  |
-| executing-plans                | `.opencode/skills/superpowers/executing-plans/SKILL.md`                |
-| writing-skills                 | `.opencode/skills/superpowers/writing-skills/SKILL.md`                 |
-| systematic-debugging           | `.opencode/skills/superpowers/systematic-debugging/SKILL.md`           |
-| test-driven-development        | `.opencode/skills/superpowers/test-driven-development/SKILL.md`        |
-| receiving-code-review          | `.opencode/skills/superpowers/receiving-code-review/SKILL.md`          |
-| requesting-code-review         | `.opencode/skills/superpowers/requesting-code-review/SKILL.md`         |
-| brainstorming                  | `.opencode/skills/superpowers/brainstorming/SKILL.md`                  |
-| dispatching-parallel-agents    | `.opencode/skills/superpowers/dispatching-parallel-agents/SKILL.md`    |
-| subagent-driven-development    | `.opencode/skills/superpowers/subagent-driven-development/SKILL.md`    |
-| verification-before-completion | `.opencode/skills/superpowers/verification-before-completion/SKILL.md` |
-| finishing-a-development-branch | `.opencode/skills/superpowers/finishing-a-development-branch/SKILL.md` |
-| using-git-worktrees            | `.opencode/skills/superpowers/using-git-worktrees/SKILL.md`            |
-
-### ClaudeKit (5 skills) — `.opencode/skills/claudekit/`
-
-| Skill               | Path                                                      |
-| :------------------ | :-------------------------------------------------------- |
-| context-engineering | `.opencode/skills/claudekit/context-engineering/SKILL.md` |
-| problem-solving     | `.opencode/skills/claudekit/problem-solving/SKILL.md`     |
-| web-testing         | `.opencode/skills/claudekit/web-testing/SKILL.md`         |
-| mermaidjs-v11       | `.opencode/skills/claudekit/mermaidjs-v11/SKILL.md`       |
-| docs-seeker         | `.opencode/skills/claudekit/docs-seeker/SKILL.md`         |
-
-### Caveman (2 skills) — `.opencode/skills/caveman/`
-
-| Skill          | Path                                               |
-| :------------- | :------------------------------------------------- |
-| caveman        | `.opencode/skills/caveman/caveman/SKILL.md`        |
-| caveman-review | `.opencode/skills/caveman/caveman-review/SKILL.md` |
-
 ## How to Use
 
 1. **Find the right skill** — scan the tables above by category

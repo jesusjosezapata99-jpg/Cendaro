@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -14,7 +14,7 @@ import { CreatableSelect } from "~/components/creatable-select";
 import { PageHeader } from "~/components/page-header";
 import { RoleGuard } from "~/components/role-guard";
 import { useVesRates } from "~/hooks/use-bcv-rate";
-import { maybeSyncVesRates } from "~/lib/sync-bcv-rate";
+import { useSyncRates } from "~/hooks/use-sync-rates";
 import { useTRPC } from "~/trpc/client";
 
 /* ── Reusable form primitives ─────────────────── */
@@ -112,17 +112,8 @@ export default function CreateProductPage() {
     trpc.catalog.listSuppliers.queryOptions(),
   );
 
-  /* Auto-sync VES rates to ExchangeRate table */
-  const { data: dbRates } = useQuery(trpc.pricing.latestRates.queryOptions());
-  const syncRate = useMutation(trpc.pricing.setRate.mutationOptions());
-  const syncRateRef = useRef(syncRate);
-  syncRateRef.current = syncRate;
-  useEffect(() => {
-    void maybeSyncVesRates({
-      latestRates: dbRates,
-      setRate: (input) => syncRateRef.current.mutateAsync(input),
-    });
-  }, [dbRates]);
+  /* Keep stored rates current: the server fetches and stores them itself */
+  useSyncRates({ auto: true });
 
   /* Inline-create mutations */
   const createBrand = useMutation(

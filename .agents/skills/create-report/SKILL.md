@@ -1,7 +1,7 @@
 ---
 name: create-report
 description: >
-  Create a new report document in the canonical .opencode/reports/ directory.
+  Create a new report document in the canonical plans/reports/ directory.
   Use when the user says "create a report", "write a report", "audit report",
   "research report", "test report", or "incident report".
 disable-model-invocation: true
@@ -10,9 +10,9 @@ arguments: [category, subject]
 allowed-tools: Write, Read
 ---
 
-# Create Report — `.opencode/reports/`
+# Create Report — `plans/reports/`
 
-Create a new report at `.opencode/reports/$category-REPORT-$subject.md`
+Create a new report at `plans/reports/$category-REPORT-$subject.md`
 
 ## Template
 
@@ -20,7 +20,7 @@ Create a new report at `.opencode/reports/$category-REPORT-$subject.md`
 # $category-REPORT-$subject
 
 > **Date**: [current date]
-> **Author**: Codex
+> **Author**: [Claude Code | Antigravity | Codex | Human]
 > **Type**: $category
 
 ## Executive Summary
@@ -54,7 +54,8 @@ Create a new report at `.opencode/reports/$category-REPORT-$subject.md`
 
 ## Rules
 
-- **NEVER** save reports to project root, `/docs/`, or `/tmp/`
+- **NEVER** save reports to `.opencode/`, project root, `/docs/`, or `/tmp/`
+- Reports are stored canonically in `plans/reports/`
 - Reports are read-only after creation — create new files for follow-ups
 - Mark findings with severity levels
 - Always include date and author

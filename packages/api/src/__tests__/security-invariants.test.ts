@@ -142,6 +142,9 @@ describe("Security Invariant: Multi-Tenant Workspace Header Enforcement", () => 
       },
       db: {} as never,
       requestId: "req-1",
+      membershipCache: new Map(),
+      afterCommit: [],
+      sessionActivityChecked: true,
       log: logger.child({ requestId: "req-1" }),
       workspaceId: null, // Missing header
     });
@@ -162,6 +165,9 @@ describe("Security Invariant: Multi-Tenant Workspace Header Enforcement", () => 
       },
       db: {} as never,
       requestId: "req-1b",
+      membershipCache: new Map(),
+      afterCommit: [],
+      sessionActivityChecked: true,
       log: logger.child({ requestId: "req-1b" }),
       workspaceId: "undefined", // Malformed / string "undefined"
     });
@@ -179,6 +185,9 @@ describe("Security Invariant: Multi-Tenant Workspace Header Enforcement", () => 
       user: { id: "not-a-uuid", email: "user@example.com" },
       db: {} as never,
       requestId: "req-1c",
+      membershipCache: new Map(),
+      afterCommit: [],
+      sessionActivityChecked: true,
       log: logger.child({ requestId: "req-1c" }),
       workspaceId: "a0000000-0000-0000-0000-000000000001",
     });
@@ -199,6 +208,9 @@ describe("Security Invariant: Multi-Tenant Workspace Header Enforcement", () => 
       },
       db: {} as never,
       requestId: "req-2",
+      membershipCache: new Map(),
+      afterCommit: [],
+      sessionActivityChecked: true,
       log: logger.child({ requestId: "req-2" }),
       workspaceId: null, // Missing header
     });

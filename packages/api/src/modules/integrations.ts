@@ -18,15 +18,15 @@ import {
 
 import {
   createTRPCRouter,
-  workspaceProcedure,
-  workspaceReadProcedure,
+  wsPermissionProcedure,
+  wsReadPermissionProcedure,
 } from "../trpc";
 import { logAudit } from "./audit";
 
 export const integrationsRouter = createTRPCRouter({
   // ─── ML Listings (PRD §20) ───────────────────
 
-  listMlListings: workspaceReadProcedure
+  listMlListings: wsReadPermissionProcedure("marketplace", "read")
     .input(
       z.object({
         status: z.enum(mlListingStatusEnum.enumValues).optional(),
@@ -56,7 +56,7 @@ export const integrationsRouter = createTRPCRouter({
         .limit(input.limit);
     }),
 
-  syncMlListing: workspaceProcedure
+  syncMlListing: wsPermissionProcedure("marketplace", "update")
     .input(
       z.object({
         id: z.string().uuid(),
@@ -94,7 +94,7 @@ export const integrationsRouter = createTRPCRouter({
 
   // ─── ML Orders (PRD §20) ────────────────────
 
-  listMlOrders: workspaceReadProcedure
+  listMlOrders: wsReadPermissionProcedure("marketplace", "read")
     .input(
       z.object({
         imported: z.boolean().optional(),
@@ -123,7 +123,7 @@ export const integrationsRouter = createTRPCRouter({
         .limit(input.limit);
     }),
 
-  importMlOrder: workspaceProcedure
+  importMlOrder: wsPermissionProcedure("marketplace", "create")
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       const [updated] = await ctx.db
@@ -149,7 +149,7 @@ export const integrationsRouter = createTRPCRouter({
 
   // ─── Integration Logs (PRD §20 alerts) ──────
 
-  listLogs: workspaceReadProcedure
+  listLogs: wsReadPermissionProcedure("marketplace", "read")
     .input(
       z.object({
         source: z.string().optional(),
@@ -187,28 +187,30 @@ export const integrationsRouter = createTRPCRouter({
         .limit(input.limit);
     }),
 
-  unresolvedAlerts: workspaceReadProcedure.query(async ({ ctx }) => {
-    return ctx.db
-      .select({
-        id: IntegrationLog.id,
-        source: IntegrationLog.source,
-        level: IntegrationLog.level,
-        message: IntegrationLog.message,
-        createdAt: IntegrationLog.createdAt,
-      })
-      .from(IntegrationLog)
-      .where(
-        and(
-          eq(IntegrationLog.workspaceId, ctx.workspace.workspaceId),
-          eq(IntegrationLog.isResolved, false),
-          eq(IntegrationLog.level, "error"),
-        ),
-      )
-      .orderBy(desc(IntegrationLog.createdAt))
-      .limit(50);
-  }),
+  unresolvedAlerts: wsReadPermissionProcedure("marketplace", "read").query(
+    async ({ ctx }) => {
+      return ctx.db
+        .select({
+          id: IntegrationLog.id,
+          source: IntegrationLog.source,
+          level: IntegrationLog.level,
+          message: IntegrationLog.message,
+          createdAt: IntegrationLog.createdAt,
+        })
+        .from(IntegrationLog)
+        .where(
+          and(
+            eq(IntegrationLog.workspaceId, ctx.workspace.workspaceId),
+            eq(IntegrationLog.isResolved, false),
+            eq(IntegrationLog.level, "error"),
+          ),
+        )
+        .orderBy(desc(IntegrationLog.createdAt))
+        .limit(50);
+    },
+  ),
 
-  resolveLog: workspaceProcedure
+  resolveLog: wsPermissionProcedure("marketplace", "update")
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       const [updated] = await ctx.db

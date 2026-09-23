@@ -276,7 +276,6 @@ export default function UsersPage() {
           >
             <option value="">Todos los estados</option>
             <option value="active">Activo</option>
-            <option value="inactive">Inactivo</option>
             <option value="suspended">Suspendido</option>
           </select>
 

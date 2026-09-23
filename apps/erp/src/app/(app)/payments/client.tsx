@@ -12,7 +12,7 @@ import { StatusPill } from "@cendaro/ui/status-pill";
 
 import { DataTable } from "~/components/data-table/data-table";
 import { PageHeader } from "~/components/page-header";
-import { RoleGuard } from "~/components/role-guard";
+import { Can } from "~/components/role-guard";
 import { StatCard } from "~/components/stat-card";
 import { usePaymentParams } from "~/hooks/params/use-payment-params";
 import { useBcvRate } from "~/hooks/use-bcv-rate";
@@ -258,7 +258,7 @@ export default function PaymentsClient() {
           }
           return (
             <div className="text-right">
-              <RoleGuard allow={["owner", "admin", "supervisor", "employee"]}>
+              <Can module="payments" action="approve">
                 <button
                   type="button"
                   disabled={validate.isPending}
@@ -270,7 +270,7 @@ export default function PaymentsClient() {
                 >
                   Validar
                 </button>
-              </RoleGuard>
+              </Can>
             </div>
           );
         },
@@ -285,7 +285,7 @@ export default function PaymentsClient() {
         title="Pagos"
         description="Gestión, registro y conciliación de cobros comerciales"
         actions={
-          <RoleGuard allow={["owner", "admin", "supervisor", "employee"]}>
+          <Can module="payments" action="create">
             <Button
               onClick={() => void setPaymentParams({ registerPayment: true })}
               className="min-h-11 flex-1 sm:flex-initial"
@@ -293,7 +293,7 @@ export default function PaymentsClient() {
               <Icons.Add className="size-4.5" />
               Registrar Pago
             </Button>
-          </RoleGuard>
+          </Can>
         }
       />
 

@@ -22,7 +22,7 @@
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
-    "@sentry/nextjs": "10.74.0",
+    "@sentry/nextjs": "10.75.0",
     "@supabase/ssr": "^0.12.5",
     "@supabase/supabase-js": "^2.114.0",
     "@t3-oss/env-nextjs": "^0.13.11",
@@ -45,7 +45,7 @@
     "sharp": "^0.35.4",
     "sonner": "^2.0.8",
     "superjson": "2.2.6",
-    "xlsx": "https://cdn.sheetjs.com/xlsx-latest/xlsx-latest.tgz",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
     "zod": "catalog:"
   },
   "devDependencies": {
