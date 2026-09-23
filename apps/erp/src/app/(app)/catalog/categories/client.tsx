@@ -9,6 +9,7 @@ import { Icons } from "@cendaro/ui/icons";
 
 import { EmptyState } from "~/components/empty-state";
 import { PageHeader } from "~/components/page-header";
+import { Can } from "~/components/role-guard";
 import { Skeleton } from "~/components/skeleton";
 import { useTRPC } from "~/trpc/client";
 
@@ -87,13 +88,15 @@ export default function CategoriesPage() {
         title="Categorías"
         description={`${totalCategories.toLocaleString("es-VE")} categorías organizadas jerárquicamente`}
         actions={
-          <Button
-            onClick={() => setShowCreate(true)}
-            className="h-9 px-3 text-xs"
-          >
-            <Icons.Add className="mr-1.5 size-4" />
-            Nueva Categoría
-          </Button>
+          <Can module="catalog" action="create">
+            <Button
+              onClick={() => setShowCreate(true)}
+              className="h-9 px-3 text-xs"
+            >
+              <Icons.Add className="mr-1.5 size-4" />
+              Nueva Categoría
+            </Button>
+          </Can>
         }
       />
 

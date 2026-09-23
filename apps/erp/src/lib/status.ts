@@ -77,6 +77,8 @@ const STOCK_STATUS: Record<string, StatusEntry> = {
 const USER_STATUS: Record<string, StatusEntry> = {
   active: { label: "Activo", tone: "success" },
   inactive: { label: "Inactivo", tone: "neutral" },
+  // users.list reports access to the current workspace (workspace_member):
+  // only active and suspended members are listed.
   suspended: { label: "Suspendido", tone: "destructive" },
 };
 

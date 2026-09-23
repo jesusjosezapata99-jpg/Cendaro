@@ -8,7 +8,9 @@ import type { IconName } from "@cendaro/ui/icons";
 import { Button, cn } from "@cendaro/ui";
 import { Icon, Icons } from "@cendaro/ui/icons";
 import { Popover, PopoverContent, PopoverTrigger } from "@cendaro/ui/popover";
+import { can } from "@cendaro/validators";
 
+import { useCurrentUser } from "~/hooks/use-current-user";
 import { isValidUuid, useWorkspace } from "~/hooks/use-workspace";
 import { useTRPC } from "~/trpc/client";
 
@@ -66,6 +68,10 @@ export function NotificationCenter() {
   const qc = useQueryClient();
   const { workspaceId, isReady: workspaceReady } = useWorkspace();
   const [open, setOpen] = useState(false);
+  const { profile } = useCurrentUser();
+  // Dismissing hides an alert for the whole workspace, so only roles with
+  // dashboard.update may do it (the server enforces the same rule).
+  const canDismiss = can(profile?.role, "dashboard", "update");
 
   const isWorkspaceValid = workspaceReady && isValidUuid(workspaceId);
 
@@ -160,7 +166,7 @@ export function NotificationCenter() {
               </span>
             )}
           </div>
-          {alerts.length > 0 && (
+          {canDismiss && alerts.length > 0 && (
             <button
               onClick={() => void handleDismissAll()}
               className="text-muted-foreground hover:text-foreground text-xs transition-colors"
@@ -219,18 +225,20 @@ export function NotificationCenter() {
                         </div>
                       </div>
                     </div>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        dismiss.mutate({ id: alert.id });
-                      }}
-                      disabled={dismiss.isPending}
-                      className="text-muted-foreground hover:bg-secondary hover:text-foreground flex shrink-0 items-center justify-center p-1 text-xs transition-colors disabled:opacity-50"
-                      aria-label="Descartar alerta"
-                      title="Descartar"
-                    >
-                      <Icons.Close className="size-3.5" />
-                    </button>
+                    {canDismiss && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          dismiss.mutate({ id: alert.id });
+                        }}
+                        disabled={dismiss.isPending}
+                        className="text-muted-foreground hover:bg-secondary hover:text-foreground flex shrink-0 items-center justify-center p-1 text-xs transition-colors disabled:opacity-50"
+                        aria-label="Descartar alerta"
+                        title="Descartar"
+                      >
+                        <Icons.Close className="size-3.5" />
+                      </button>
+                    )}
                   </div>
                 </div>
               );

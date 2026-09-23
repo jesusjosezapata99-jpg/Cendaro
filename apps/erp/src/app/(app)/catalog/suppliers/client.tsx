@@ -11,6 +11,7 @@ import { StatusPill } from "@cendaro/ui/status-pill";
 
 import { DataTable } from "~/components/data-table/data-table";
 import { PageHeader } from "~/components/page-header";
+import { Can } from "~/components/role-guard";
 import { useTRPC } from "~/trpc/client";
 
 const CreateSupplierDialog = dynamic(
@@ -122,13 +123,15 @@ export default function SuppliersPage() {
         title="Proveedores"
         description={`${items.length.toLocaleString("es-VE")} proveedores registrados`}
         actions={
-          <Button
-            onClick={() => setShowCreate(true)}
-            className="h-9 px-3 text-xs"
-          >
-            <Icons.Add className="mr-1.5 size-4" />
-            Nuevo Proveedor
-          </Button>
+          <Can module="catalog" action="create">
+            <Button
+              onClick={() => setShowCreate(true)}
+              className="h-9 px-3 text-xs"
+            >
+              <Icons.Add className="mr-1.5 size-4" />
+              Nuevo Proveedor
+            </Button>
+          </Can>
         }
       />
 

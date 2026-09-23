@@ -982,34 +982,34 @@ graph TB
 <details>
 <summary><strong>📋 Full Security Layer Reference</strong></summary>
 
-| Layer  | Defense                   | Implementation                                                  | Protects Against                             |
-| ------ | ------------------------- | --------------------------------------------------------------- | -------------------------------------------- |
-| **L1** | Supabase Auth SSR         | Cookie-based sessions, `getUser()` verification                 | Session hijacking, token theft               |
-| **L1** | Proxy Guard               | Edge middleware redirects unauthenticated requests              | Unauthorized page access                     |
-| **L1** | Constant-Time Auth        | Dummy `signInWithPassword` on username-not-found                | Timing oracle username enumeration           |
-| **L1** | Unified Error Messages    | Same `"Credenciales incorrectas"` for all failures              | Error-based username enumeration             |
-| **L1** | Content-Type + Size Guard | 415 if not JSON, 413 if > 4KB                                   | Memory pressure attacks, malformed payloads  |
-| **L1** | **MFA/TOTP**              | Mandatory TOTP for owner/admin via Supabase MFA API             | Stolen password compromise                   |
-| **L1** | **AAL2 Enforcement**      | Proxy verifies assurance level, redirects to /login/mfa         | MFA bypass via direct navigation             |
-| **L1** | **Forced Enrollment**     | Owner/admin without MFA redirected to /login/mfa-setup          | Unenrolled admin vulnerability               |
-| **L2** | tRPC RBAC                 | `protectedProcedure`, `roleRestrictedProcedure()`               | Privilege escalation                         |
-| **L2** | DB Permissions            | `permissionProcedure(module, action)` queries `role_permission` | Unauthorized operations                      |
-| **L2** | Module Gating             | `moduleProcedure()` checks `workspace_module`                   | Access to disabled features                  |
-| **L3** | Workspace Isolation       | `SET LOCAL app.workspace_id` + RLS                              | Cross-tenant data leaks                      |
-| **L3** | Restrictive RLS           | `workspacePolicy()` factory with `restrictive` mode             | Direct DB access bypass                      |
-| **L3** | Parameterized Queries     | Drizzle ORM, zero `sql.raw()` or `sql.unsafe()`                 | SQL injection                                |
-| **L4** | Immutable Audit           | `audit_log` table, structured logging middleware                | Repudiation, forensics gaps                  |
-| **L5** | Dual-Vector Rate Limit    | `rateLimitComposite([IP, username])`                            | Distributed brute-force, credential stuffing |
-| **L5** | Hard Lockout              | 15-min lock after 8 failures per username                       | Slow brute-force, password spray             |
-| **L5** | Failure Accounting        | `recordFailure()` + `getFailureCount()`                         | Lockout evasion across IP rotation           |
-| **L6** | HSTS Preload              | `max-age=31536000; includeSubDomains; preload`                  | SSL stripping, downgrade attacks             |
-| **L6** | CSRF Validation           | Origin/Referer check on logout, localhost bypass                | Cross-site forced logout                     |
-| **L6** | Open-Redirect Allowlist   | `?redirect=` only accepts 22 known routes                       | Phishing via redirect parameter              |
-| **L6** | Cache-Control: no-store   | All `/api/auth/*` responses                                     | Session caching by proxies                   |
-| **L6** | X-Robots-Tag              | `noindex, nofollow` on `/login`                                 | Search engine credential page indexing       |
-| **L7** | **Idle Session Timeout**  | 30-min inactivity auto-logout via proxy cookie                  | Unattended device session hijacking          |
-| **L7** | **Activity Tracking**     | HTTPOnly secure cookie with timestamp                           | Session fixation after idle                  |
-| **L7** | **Session Expired UX**    | `?expired=1` contextual login notification                      | User confusion on forced re-auth             |
+| Layer  | Defense                   | Implementation                                                                                                                                            | Protects Against                             |
+| ------ | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| **L1** | Supabase Auth SSR         | Cookie-based sessions, `getUser()` verification                                                                                                           | Session hijacking, token theft               |
+| **L1** | Proxy Guard               | Edge middleware redirects unauthenticated requests                                                                                                        | Unauthorized page access                     |
+| **L1** | Constant-Time Auth        | Dummy `signInWithPassword` on username-not-found                                                                                                          | Timing oracle username enumeration           |
+| **L1** | Unified Error Messages    | Same `"Credenciales incorrectas"` for all failures                                                                                                        | Error-based username enumeration             |
+| **L1** | Content-Type + Size Guard | 415 if not JSON, 413 if > 4KB                                                                                                                             | Memory pressure attacks, malformed payloads  |
+| **L1** | **MFA/TOTP**              | Mandatory TOTP for owner/admin via Supabase MFA API                                                                                                       | Stolen password compromise                   |
+| **L1** | **AAL2 Enforcement**      | Proxy verifies assurance level, redirects to /login/mfa                                                                                                   | MFA bypass via direct navigation             |
+| **L1** | **Forced Enrollment**     | Owner/admin without MFA redirected to /login/mfa-setup                                                                                                    | Unenrolled admin vulnerability               |
+| **L2** | tRPC RBAC                 | `wsPermissionProcedure(module, action)` checks `ROLE_PERMISSIONS` with the `workspace_member` role; every procedure declares `meta.authz` (test-enforced) | Privilege escalation                         |
+| **L2** | Row Scoping               | Vendors only reach their own orders/quotes and assigned customers (`vendor-scope.ts`)                                                                     | Horizontal data leaks between vendors        |
+| **L2** | Module Gating             | Same builders check `workspace_module` (core modules always on)                                                                                           | Access to disabled features                  |
+| **L3** | Workspace Isolation       | `SET LOCAL app.workspace_id` + RLS                                                                                                                        | Cross-tenant data leaks                      |
+| **L3** | Restrictive RLS           | `workspacePolicy()` factory with `restrictive` mode                                                                                                       | Direct DB access bypass                      |
+| **L3** | Parameterized Queries     | Drizzle ORM, zero `sql.raw()` or `sql.unsafe()`                                                                                                           | SQL injection                                |
+| **L4** | Immutable Audit           | `audit_log` table, structured logging middleware                                                                                                          | Repudiation, forensics gaps                  |
+| **L5** | Dual-Vector Rate Limit    | `rateLimitComposite([IP, username])`                                                                                                                      | Distributed brute-force, credential stuffing |
+| **L5** | Hard Lockout              | 15-min lock after 8 failures per username                                                                                                                 | Slow brute-force, password spray             |
+| **L5** | Failure Accounting        | `recordFailure()` + `getFailureCount()`                                                                                                                   | Lockout evasion across IP rotation           |
+| **L6** | HSTS Preload              | `max-age=31536000; includeSubDomains; preload`                                                                                                            | SSL stripping, downgrade attacks             |
+| **L6** | CSRF Validation           | Origin/Referer check on logout, localhost bypass                                                                                                          | Cross-site forced logout                     |
+| **L6** | Open-Redirect Allowlist   | `?redirect=` only accepts 22 known routes                                                                                                                 | Phishing via redirect parameter              |
+| **L6** | Cache-Control: no-store   | All `/api/auth/*` responses                                                                                                                               | Session caching by proxies                   |
+| **L6** | X-Robots-Tag              | `noindex, nofollow` on `/login`                                                                                                                           | Search engine credential page indexing       |
+| **L7** | **Idle Session Timeout**  | 30-min inactivity auto-logout via proxy cookie                                                                                                            | Unattended device session hijacking          |
+| **L7** | **Activity Tracking**     | HTTPOnly secure cookie with timestamp                                                                                                                     | Session fixation after idle                  |
+| **L7** | **Session Expired UX**    | `?expired=1` contextual login notification                                                                                                                | User confusion on forced re-auth             |
 
 </details>
 

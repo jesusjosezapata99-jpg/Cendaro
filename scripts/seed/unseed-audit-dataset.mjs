@@ -4,7 +4,7 @@
  *
  * Fully reverts the dataset seeded by seed-audit-dataset.mjs.
  * Deletes records in strict reverse dependency order using IDs recorded in
- * .opencode/reports/assets/seed-manifest.json.
+ * plans/reports/assets/seed-manifest.json.
  * Supports --dry-run.
  */
 
@@ -22,7 +22,7 @@ try {
 const req = createRequire(path.resolve("./packages/db/package.json"));
 const postgres = req("postgres");
 
-const MANIFEST_PATH = path.resolve(".opencode/reports/assets/seed-manifest.json");
+const MANIFEST_PATH = path.resolve("plans/reports/assets/seed-manifest.json");
 const isDryRun = process.argv.includes("--dry-run");
 
 console.log("==================================================");

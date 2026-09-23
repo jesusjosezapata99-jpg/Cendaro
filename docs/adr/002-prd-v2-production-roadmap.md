@@ -9,7 +9,7 @@ Las desviaciones de calendario que propone el plan de ejecución (decisiones D-1
 
 - El [ADR-001](001-erp-v1-source-of-truth.md) adoptó el paquete ERP v1.0 como fuente de verdad funcional. Sobre esa base se construyó el esqueleto del sistema: 19 routers tRPC, 35 páginas y un schema Drizzle de unas 2.700 líneas.
 - El dueño del producto confirmó que la mayoría de los módulos marcados como "✅ completos" en el README son **estructurales**: existen tabla, endpoint y pantalla, pero el flujo no se puede completar de punta a punta con garantías.
-- El 2026-09-12 se ejecutó una auditoría de código línea por línea que **confirma y amplía** ese diagnóstico con evidencia (`archivo:línea`). Ver `.opencode/reports/AUDIT-REPORT-2026-09-PRD-V2-PRODUCTION-READINESS.md`.
+- El 2026-09-12 se ejecutó una auditoría de código línea por línea que **confirma y amplía** ese diagnóstico con evidencia (`archivo:línea`). Ver `plans/reports/AUDIT-REPORT-2026-09-PRD-V2-PRODUCTION-READINESS.md`.
 - El PRD v2.0 ("Cendaro Rumbo a Producción y Mercado") define seis frentes: cierre de brechas, notas de crédito, facturación fiscal integrada, multiempresa/multi-sucursal, rediseño RAG del pipeline de IA, y seguridad/auditoría profesional.
 
 ## Decisión
@@ -39,11 +39,11 @@ Las desviaciones de calendario que propone el plan de ejecución (decisiones D-1
 
 ### Artefactos
 
-| Artefacto                                     | Ubicación                                                               |
-| --------------------------------------------- | ----------------------------------------------------------------------- |
-| PRD v2.0 (texto íntegro + control documental) | `docs/product/PRD_v2.0_Produccion_y_Mercado.md`                         |
-| Auditoría de preparación para producción      | `.opencode/reports/AUDIT-REPORT-2026-09-PRD-V2-PRODUCTION-READINESS.md` |
-| Plan de ejecución por fases                   | `.opencode/plans/PLAN-2026-09-PRD-V2-PRODUCTION-ROADMAP.md`             |
+| Artefacto                                     | Ubicación                                                           |
+| --------------------------------------------- | ------------------------------------------------------------------- |
+| PRD v2.0 (texto íntegro + control documental) | `docs/product/PRD_v2.0_Produccion_y_Mercado.md`                     |
+| Auditoría de preparación para producción      | `plans/reports/AUDIT-REPORT-2026-09-PRD-V2-PRODUCTION-READINESS.md` |
+| Plan de ejecución por fases                   | `plans/PLAN-2026-09-PRD-V2-PRODUCTION-ROADMAP.md`                   |
 
 ## Consecuencias
 

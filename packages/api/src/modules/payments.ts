@@ -17,15 +17,15 @@ import {
 
 import {
   createTRPCRouter,
-  workspaceProcedure,
-  workspaceReadProcedure,
+  wsPermissionProcedure,
+  wsReadPermissionProcedure,
 } from "../trpc";
 import { logAudit } from "./audit";
 
 export const paymentsRouter = createTRPCRouter({
   // ─── Payments ──────────────────────────────────
 
-  list: workspaceReadProcedure
+  list: wsReadPermissionProcedure("payments", "read")
     .input(
       z.object({
         limit: z.number().int().min(1).max(100).default(50),
@@ -56,7 +56,7 @@ export const paymentsRouter = createTRPCRouter({
         .limit(input.limit);
     }),
 
-  add: workspaceProcedure
+  add: wsPermissionProcedure("payments", "create")
     .input(
       z.object({
         orderId: z.string().uuid(),
@@ -119,7 +119,7 @@ export const paymentsRouter = createTRPCRouter({
       return payment;
     }),
 
-  validate: workspaceProcedure
+  validate: wsPermissionProcedure("payments", "approve")
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       if (!["owner", "admin", "supervisor"].includes(ctx.workspace.role)) {
@@ -158,26 +158,28 @@ export const paymentsRouter = createTRPCRouter({
 
   // ─── Cash Closure ────────────────────────────────
 
-  listClosures: workspaceReadProcedure.query(async ({ ctx }) => {
-    return ctx.db
-      .select({
-        id: CashClosure.id,
-        closureDate: CashClosure.closureDate,
-        totalSales: CashClosure.totalSales,
-        totalCash: CashClosure.totalCash,
-        totalDigital: CashClosure.totalDigital,
-        expectedTotal: CashClosure.expectedTotal,
-        actualTotal: CashClosure.actualTotal,
-        discrepancy: CashClosure.discrepancy,
-        status: CashClosure.status,
-      })
-      .from(CashClosure)
-      .where(eq(CashClosure.workspaceId, ctx.workspace.workspaceId))
-      .orderBy(desc(CashClosure.closureDate))
-      .limit(100);
-  }),
+  listClosures: wsReadPermissionProcedure("cash_closure", "read").query(
+    async ({ ctx }) => {
+      return ctx.db
+        .select({
+          id: CashClosure.id,
+          closureDate: CashClosure.closureDate,
+          totalSales: CashClosure.totalSales,
+          totalCash: CashClosure.totalCash,
+          totalDigital: CashClosure.totalDigital,
+          expectedTotal: CashClosure.expectedTotal,
+          actualTotal: CashClosure.actualTotal,
+          discrepancy: CashClosure.discrepancy,
+          status: CashClosure.status,
+        })
+        .from(CashClosure)
+        .where(eq(CashClosure.workspaceId, ctx.workspace.workspaceId))
+        .orderBy(desc(CashClosure.closureDate))
+        .limit(100);
+    },
+  ),
 
-  createClosure: workspaceProcedure
+  createClosure: wsPermissionProcedure("cash_closure", "create")
     .input(
       z.object({
         closureDate: z.string().datetime(),
@@ -221,7 +223,7 @@ export const paymentsRouter = createTRPCRouter({
       return closure;
     }),
 
-  reviewClosure: workspaceProcedure
+  reviewClosure: wsPermissionProcedure("cash_closure", "approve")
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       if (!["owner", "admin", "supervisor"].includes(ctx.workspace.role)) {

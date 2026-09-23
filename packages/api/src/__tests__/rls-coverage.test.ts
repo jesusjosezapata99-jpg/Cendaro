@@ -52,12 +52,47 @@ describe("identity & RBAC table policies", () => {
     expect(policies(schema.Organization)).toEqual([]);
   });
 
-  it("user_profile allows app_user select/insert/update only", () => {
+  it("user_profile allows app_user select/update only", () => {
     expect(policies(schema.UserProfile)).toEqual([
-      { name: "user_profile_app_user_insert", for: "insert" },
       { name: "user_profile_app_user_select", for: "select" },
       { name: "user_profile_app_user_update", for: "update" },
     ]);
+  });
+
+  // SECURITY-REMEDIATION F3.1: a profile is shared by every workspace of its
+  // owner, so app_user may only reach profiles of the transaction's workspace.
+  it("user_profile policies are scoped to members of the current workspace", () => {
+    const dialect = new PgDialect();
+    for (const p of getTableConfig(schema.UserProfile).policies) {
+      for (const clause of [p.using, p.withCheck]) {
+        if (!clause) continue;
+        const text = dialect.sqlToQuery(clause).sql;
+        expect(text).not.toMatch(/^\s*true\s*$/i);
+        expect(text).toContain("public.workspace_member m");
+        expect(text).toContain("m.user_id = user_profile.id");
+      }
+    }
+  });
+
+  // A pending invitation or a removed membership is not a relationship with
+  // the workspace: it must grant no access to the shared profile.
+  it("user_profile access depends on the membership status", () => {
+    const dialect = new PgDialect();
+    const clauses = Object.fromEntries(
+      getTableConfig(schema.UserProfile).policies.map((p) => [
+        p.name,
+        [p.using, p.withCheck]
+          .filter((c): c is SQL => c !== undefined)
+          .map((c) => dialect.sqlToQuery(c).sql),
+      ]),
+    );
+    for (const text of clauses.user_profile_app_user_select ?? []) {
+      expect(text).toContain("m.status in ('active', 'suspended')");
+    }
+    expect(clauses.user_profile_app_user_update).toHaveLength(2);
+    for (const text of clauses.user_profile_app_user_update ?? []) {
+      expect(text).toContain("m.status = 'active'");
+    }
   });
 
   it("workspace allows app_user select and update only", () => {

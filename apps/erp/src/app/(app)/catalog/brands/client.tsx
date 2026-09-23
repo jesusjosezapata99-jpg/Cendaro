@@ -9,6 +9,7 @@ import { Icons } from "@cendaro/ui/icons";
 
 import { EmptyState } from "~/components/empty-state";
 import { PageHeader } from "~/components/page-header";
+import { Can } from "~/components/role-guard";
 import { Skeleton } from "~/components/skeleton";
 import { useTRPC } from "~/trpc/client";
 
@@ -50,13 +51,15 @@ export default function BrandsPage() {
         title="Marcas"
         description={`${(brands?.length ?? 0).toLocaleString("es-VE")} marcas registradas en el catálogo`}
         actions={
-          <Button
-            onClick={() => setShowCreate(true)}
-            className="h-9 px-3 text-xs"
-          >
-            <Icons.Add className="mr-1.5 size-4" />
-            Nueva Marca
-          </Button>
+          <Can module="catalog" action="create">
+            <Button
+              onClick={() => setShowCreate(true)}
+              className="h-9 px-3 text-xs"
+            >
+              <Icons.Add className="mr-1.5 size-4" />
+              Nueva Marca
+            </Button>
+          </Can>
         }
       />
 

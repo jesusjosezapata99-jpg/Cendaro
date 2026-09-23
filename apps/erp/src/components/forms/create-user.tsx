@@ -12,6 +12,7 @@ import {
   SheetFormActions,
   SheetModal,
 } from "~/components/sheet-modal";
+import { getWorkspaceId } from "~/hooks/use-workspace";
 
 interface CreateUserDialogProps {
   open: boolean;
@@ -44,11 +45,12 @@ export function CreateUserDialog({
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
-  // Filter roles: only owner can see/assign owner role
+  // Mirrors the server rule in /api/auth/create-user: only an owner can
+  // create owners or admins.
   const availableRoles =
     currentUserRole === "owner"
       ? ALL_ROLES
-      : ALL_ROLES.filter((r) => r.value !== "owner");
+      : ALL_ROLES.filter((r) => r.value !== "owner" && r.value !== "admin");
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -56,9 +58,13 @@ export function CreateUserDialog({
     setLoading(true);
 
     try {
+      const workspaceId = getWorkspaceId();
       const res = await fetch("/api/auth/create-user", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(workspaceId ? { "x-workspace-id": workspaceId } : {}),
+        },
         body: JSON.stringify({
           username: username.toLowerCase().trim(),
           fullName: fullName.trim(),
@@ -181,8 +187,8 @@ export function CreateUserDialog({
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                minLength={6}
-                placeholder="Mínimo 6 caracteres"
+                minLength={12}
+                placeholder="Mínimo 12 caracteres"
                 className="border-border bg-background focus:border-primary focus:ring-primary/20 w-full border px-3 py-2 pr-10 text-sm focus:ring-2 focus:outline-none"
               />
               <button

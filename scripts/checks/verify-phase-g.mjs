@@ -7,7 +7,7 @@
  * 2. Multi-viewport & theme screenshot audit across 6 core representative routes:
  *    - Viewports: 390x844 (mobile), 768x1024 (tablet), 1440x900 (desktop)
  *    - Themes: light, dark
- *    - Saved to: .opencode/reports/assets/visual-audit/
+ *    - Saved to: plans/reports/assets/visual-audit/
  */
 
 import { execSync } from "node:child_process";
@@ -18,7 +18,7 @@ const BASE_URL = "http://localhost:3000";
 const REPO_ROOT = path.resolve(import.meta.dirname, "../..");
 const SCREENSHOT_DIR = path.join(
   REPO_ROOT,
-  ".opencode/reports/assets/visual-audit"
+  "plans/reports/assets/visual-audit"
 );
 
 if (!existsSync(SCREENSHOT_DIR)) {

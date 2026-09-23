@@ -10,7 +10,7 @@ import { StatusPill } from "@cendaro/ui/status-pill";
 
 import { EmptyState } from "~/components/empty-state";
 import { PageHeader } from "~/components/page-header";
-import { RoleGuard } from "~/components/role-guard";
+import { Can } from "~/components/role-guard";
 import { Skeleton } from "~/components/skeleton";
 import { StatCard } from "~/components/stat-card";
 import { useTRPC } from "~/trpc/client";
@@ -256,7 +256,7 @@ export default function PricingClient() {
                         {event.isApproved ? (
                           <StatusPill tone="success">Aprobado</StatusPill>
                         ) : (
-                          <RoleGuard allow={["owner", "admin", "supervisor"]}>
+                          <Can module="pricing" action="approve">
                             <button
                               type="button"
                               onClick={() => approve.mutate({ id: event.id })}
@@ -267,7 +267,7 @@ export default function PricingClient() {
                                 ? "Aprobando..."
                                 : "Aprobar Repricing"}
                             </button>
-                          </RoleGuard>
+                          </Can>
                         )}
                       </div>
                     </div>

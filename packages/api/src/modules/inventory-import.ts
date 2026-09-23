@@ -7,7 +7,7 @@
  * PRD: FEATURE_PRD_INVENTORY_IMPORT.md §10, §14, §16, §23
  */
 import { TRPCError } from "@trpc/server";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import {
@@ -19,8 +19,15 @@ import {
   Warehouse,
 } from "@cendaro/db/schema";
 
-import { createTRPCRouter, workspaceProcedure } from "../trpc";
+import type { createTRPCContext, UserRole } from "../trpc";
+import type { LedgerSnapshot } from "./inventory-import-plan";
+import { createTRPCRouter, wsPermissionProcedure } from "../trpc";
 import { logAudit } from "./audit";
+import {
+  dedupeInitializeRows,
+  planInitializeMovement,
+  planStockAdjustments,
+} from "./inventory-import-plan";
 
 // ── Import Mode ───────────────────────────────────
 export const importModeSchema = z.enum(["replace", "adjust", "initialize"]);
@@ -175,6 +182,308 @@ function slugify(name: string): string {
     .replace(/^-|-$/g, "");
 }
 
+type Db = ReturnType<typeof createTRPCContext>["db"];
+type NewMovement = typeof StockMovement.$inferInsert;
+
+interface BrandedRow {
+  row: InitializeRow;
+  brandId: string;
+}
+
+const BULK_IMPORT_ACTION = "inventory.bulk_import";
+const INITIALIZE_IMPORT_ACTION = "inventory.initialize_import";
+const IMPORT_AUDIT_ENTITY = "inventory_import";
+
+/** Rows per multi-row statement, far below Postgres' 65 535 bind parameters. */
+const WRITE_CHUNK_SIZE = 500;
+
+/** Overwriting locked stock or resetting a warehouse needs one of these roles. */
+const STOCK_OVERRIDE_ROLES: readonly UserRole[] = ["owner", "admin"];
+
+function chunk<T>(items: readonly T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < items.length; i += size) {
+    chunks.push(items.slice(i, i + size));
+  }
+  return chunks;
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value !== null && typeof value === "object"
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function assertStockOverrideRole(role: UserRole, message: string): void {
+  if (!STOCK_OVERRIDE_ROLES.includes(role)) {
+    throw new TRPCError({ code: "FORBIDDEN", message });
+  }
+}
+
+async function assertActiveWarehouse(
+  db: Db,
+  workspaceId: string,
+  warehouseId: string,
+): Promise<void> {
+  const [warehouse] = await db
+    .select({ isActive: Warehouse.isActive })
+    .from(Warehouse)
+    .where(
+      and(
+        eq(Warehouse.id, warehouseId),
+        eq(Warehouse.workspaceId, workspaceId),
+      ),
+    )
+    .limit(1);
+
+  if (!warehouse?.isActive) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "Almacén no está activo",
+    });
+  }
+}
+
+/**
+ * Transaction-scoped advisory locks, always taken in the same order (key,
+ * then warehouse) so two imports cannot deadlock:
+ *  - the idempotency key: a double submit waits for the first run and then
+ *    finds its audit entry instead of applying the file twice;
+ *  - the warehouse: two imports cannot both start from "no ledger row" for
+ *    the same product (FOR UPDATE cannot lock a row that does not exist yet).
+ */
+async function lockImport(
+  db: Db,
+  workspaceId: string,
+  warehouseId: string,
+  action: string,
+  idempotencyKey: string,
+): Promise<void> {
+  await db.execute(
+    sql`SELECT pg_advisory_xact_lock(hashtextextended(${`${action}:${workspaceId}:${idempotencyKey}`}, 0))`,
+  );
+  await db.execute(
+    sql`SELECT pg_advisory_xact_lock(hashtextextended(${`stock_import:${workspaceId}:${warehouseId}`}, 0))`,
+  );
+}
+
+/** Audit entry of an earlier run with this idempotency key, if any. */
+async function findPreviousImport(
+  db: Db,
+  workspaceId: string,
+  action: string,
+  idempotencyKey: string,
+): Promise<{ id: string; newValue: unknown } | undefined> {
+  const [previous] = await db
+    .select({ id: AuditLog.id, newValue: AuditLog.newValue })
+    .from(AuditLog)
+    .where(
+      and(
+        eq(AuditLog.workspaceId, workspaceId),
+        eq(AuditLog.action, action),
+        eq(AuditLog.entity, IMPORT_AUDIT_ENTITY),
+        sql`${AuditLog.newValue} ->> 'idempotencyKey' = ${idempotencyKey}`,
+      ),
+    )
+    .limit(1);
+  return previous;
+}
+
+/**
+ * A replayed idempotency key only returns the first run's result when it is
+ * the same import. The same key for another warehouse or mode means the client
+ * reused it by mistake: answering with an unrelated result would report stock
+ * as applied when nothing was written.
+ */
+function assertSameImport(
+  previousValue: Record<string, unknown>,
+  warehouseId: string,
+  mode: string,
+): void {
+  if (
+    previousValue.warehouseId !== warehouseId ||
+    previousValue.mode !== mode
+  ) {
+    throw new TRPCError({
+      code: "CONFLICT",
+      message:
+        "Esta clave de importación ya se usó con otro almacén o modo. Vuelve a cargar el archivo.",
+    });
+  }
+}
+
+/** Ledger rows of `productIds` in one warehouse, locked until the import ends. */
+async function readLockedLedger(
+  db: Db,
+  workspaceId: string,
+  warehouseId: string,
+  productIds: readonly string[],
+): Promise<Map<string, LedgerSnapshot>> {
+  if (productIds.length === 0) return new Map();
+  const rows = await db
+    .select({
+      productId: StockLedger.productId,
+      quantity: StockLedger.quantity,
+      isLocked: StockLedger.isLocked,
+    })
+    .from(StockLedger)
+    .where(
+      and(
+        eq(StockLedger.workspaceId, workspaceId),
+        eq(StockLedger.warehouseId, warehouseId),
+        inArray(StockLedger.productId, [...productIds]),
+      ),
+    )
+    .for("update");
+  return new Map(
+    rows.map((r) => [
+      r.productId,
+      { quantity: r.quantity, isLocked: r.isLocked },
+    ]),
+  );
+}
+
+async function writeLedgerQuantities(
+  db: Db,
+  workspaceId: string,
+  warehouseId: string,
+  quantities: ReadonlyMap<string, number>,
+): Promise<void> {
+  const rows = [...quantities].map(([productId, quantity]) => ({
+    workspaceId,
+    productId,
+    warehouseId,
+    quantity,
+  }));
+  for (const part of chunk(rows, WRITE_CHUNK_SIZE)) {
+    await db
+      .insert(StockLedger)
+      .values(part)
+      .onConflictDoUpdate({
+        target: [
+          StockLedger.workspaceId,
+          StockLedger.productId,
+          StockLedger.warehouseId,
+        ],
+        set: { quantity: sql`excluded.quantity`, updatedAt: sql`now()` },
+      });
+  }
+}
+
+async function insertMovements(
+  db: Db,
+  movements: readonly NewMovement[],
+): Promise<void> {
+  for (const part of chunk(movements, WRITE_CHUNK_SIZE)) {
+    await db.insert(StockMovement).values(part);
+  }
+}
+
+/** Brand id by slug for `names`, creating the missing ones. */
+async function ensureBrands(
+  db: Db,
+  workspaceId: string,
+  names: readonly string[],
+): Promise<{ idsBySlug: Map<string, string>; created: number }> {
+  const nameBySlug = new Map<string, string>();
+  for (const name of names) {
+    const slug = slugify(name);
+    if (slug && !nameBySlug.has(slug)) nameBySlug.set(slug, name);
+  }
+  const slugs = [...nameBySlug.keys()];
+  if (slugs.length === 0) return { idsBySlug: new Map(), created: 0 };
+
+  const selectBySlug = (wanted: string[]) =>
+    db
+      .select({ id: Brand.id, slug: Brand.slug })
+      .from(Brand)
+      .where(
+        and(eq(Brand.workspaceId, workspaceId), inArray(Brand.slug, wanted)),
+      );
+
+  const idsBySlug = new Map(
+    (await selectBySlug(slugs)).map((b) => [b.slug, b.id]),
+  );
+  const missing = slugs.filter((slug) => !idsBySlug.has(slug));
+  let created = 0;
+  for (const part of chunk(missing, WRITE_CHUNK_SIZE)) {
+    const inserted = await db
+      .insert(Brand)
+      .values(
+        part.map((slug) => ({
+          workspaceId,
+          name: nameBySlug.get(slug) ?? slug,
+          slug,
+        })),
+      )
+      .onConflictDoNothing({ target: [Brand.workspaceId, Brand.slug] })
+      .returning({ id: Brand.id, slug: Brand.slug });
+    for (const brand of inserted) idsBySlug.set(brand.slug, brand.id);
+    created += inserted.length;
+  }
+
+  // Created concurrently by someone else (skipped by ON CONFLICT): read it.
+  const raced = missing.filter((slug) => !idsBySlug.has(slug));
+  if (raced.length > 0) {
+    for (const brand of await selectBySlug(raced)) {
+      idsBySlug.set(brand.slug, brand.id);
+    }
+  }
+  return { idsBySlug, created };
+}
+
+/** Product id by SKU for `rows`, creating the missing products. */
+async function ensureProducts(
+  db: Db,
+  workspaceId: string,
+  rows: readonly BrandedRow[],
+): Promise<{ idsBySku: Map<string, string>; created: number }> {
+  const skus = rows.map((r) => r.row.sku);
+  if (skus.length === 0) return { idsBySku: new Map(), created: 0 };
+
+  const selectBySku = (wanted: string[]) =>
+    db
+      .select({ id: Product.id, sku: Product.sku })
+      .from(Product)
+      .where(
+        and(eq(Product.workspaceId, workspaceId), inArray(Product.sku, wanted)),
+      );
+
+  const idsBySku = new Map((await selectBySku(skus)).map((p) => [p.sku, p.id]));
+  const missing = rows.filter((r) => !idsBySku.has(r.row.sku));
+  let created = 0;
+  for (const part of chunk(missing, WRITE_CHUNK_SIZE)) {
+    const inserted = await db
+      .insert(Product)
+      .values(
+        part.map(({ row, brandId }) => ({
+          workspaceId,
+          sku: row.sku,
+          name: row.productName,
+          brandId,
+          unitsPerBox: row.unidPerCaja,
+          boxesPerBulk: row.cajasPerBulk,
+          presentationQty: row.presentacion,
+          status: "active" as const,
+        })),
+      )
+      .onConflictDoNothing({ target: [Product.workspaceId, Product.sku] })
+      .returning({ id: Product.id, sku: Product.sku });
+    for (const product of inserted) idsBySku.set(product.sku, product.id);
+    created += inserted.length;
+  }
+
+  const raced = missing
+    .map((r) => r.row.sku)
+    .filter((sku) => !idsBySku.has(sku));
+  if (raced.length > 0) {
+    for (const product of await selectBySku(raced)) {
+      idsBySku.set(product.sku, product.id);
+    }
+  }
+  return { idsBySku, created };
+}
+
 // ── Router ────────────────────────────────────────
 
 export const inventoryImportRouter = createTRPCRouter({
@@ -184,7 +493,7 @@ export const inventoryImportRouter = createTRPCRouter({
    *
    * RBAC: owner, admin, supervisor (PRD §4)
    */
-  getWarehouseProducts: workspaceProcedure
+  getWarehouseProducts: wsPermissionProcedure("inventory", "update")
     .input(z.object({ warehouseId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       const { rows } = await ctx.db.execute<{
@@ -227,536 +536,286 @@ export const inventoryImportRouter = createTRPCRouter({
     }),
 
   /**
-   * Commit validated import rows to the database.
-   * Batched UPSERT to StockLedger + INSERT StockMovement + AuditLog.
+   * Apply validated rows to one warehouse (Replace = absolute, Adjust = delta).
    *
-   * RBAC: owner, admin only (PRD §4)
+   * Runs inside the procedure's RLS transaction. The stock of every product in
+   * the file is read FOR UPDATE and the new levels are computed from it, never
+   * from the preview the browser sends, then written in bulk. Expected per-row
+   * problems (unknown product, negative result, locked stock) are reported
+   * without writing those rows; any database error aborts the whole import, so
+   * a file is applied completely or not at all.
+   *
+   * RBAC: inventory.update (owner, admin, supervisor); overwriting locked stock
+   * (`forceLocked`) is owner/admin only.
    */
-  commit: workspaceProcedure
+  commit: wsPermissionProcedure("inventory", "update")
     .input(inventoryImportCommitSchema)
-    .mutation(async ({ ctx, input }) => {
-      // 1. Validate warehouse exists and is active
-      const [wh] = await ctx.db
-        .select({ id: Warehouse.id, isActive: Warehouse.isActive })
-        .from(Warehouse)
-        .where(
-          and(
-            eq(Warehouse.id, input.warehouseId),
-            eq(Warehouse.workspaceId, ctx.workspace.workspaceId),
-          ),
-        )
-        .limit(1);
-
-      if (!wh?.isActive) {
+    .mutation(async ({ ctx, input }): Promise<ImportResult> => {
+      if (input.forceLocked) {
+        assertStockOverrideRole(
+          ctx.workspace.role,
+          "Solo dueños y administradores pueden importar sobre productos bloqueados",
+        );
+      }
+      if (input.mode === "initialize") {
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message: "Almacén no está activo",
+          message: "El modo Inicializar usa su propia confirmación",
         });
       }
 
-      // 2. Idempotency check — search AuditLog for existing idempotency key
-      const existingAudit = await ctx.db
-        .select({ id: AuditLog.id, newValue: AuditLog.newValue })
-        .from(AuditLog)
-        .where(
-          and(
-            eq(AuditLog.workspaceId, ctx.workspace.workspaceId),
-            eq(AuditLog.action, "inventory.bulk_import"),
-            eq(AuditLog.entity, "inventory_import"),
-          ),
-        )
-        .limit(100);
+      const workspaceId = ctx.workspace.workspaceId;
+      await assertActiveWarehouse(ctx.db, workspaceId, input.warehouseId);
+      await lockImport(
+        ctx.db,
+        workspaceId,
+        input.warehouseId,
+        BULK_IMPORT_ACTION,
+        input.idempotencyKey,
+      );
 
-      const previousResult = existingAudit.find((a) => {
-        const val = a.newValue as Record<string, unknown> | null;
-        return val?.idempotencyKey === input.idempotencyKey;
-      });
-
-      if (previousResult) {
-        const val = previousResult.newValue as Record<string, unknown> | null;
+      const previous = await findPreviousImport(
+        ctx.db,
+        workspaceId,
+        BULK_IMPORT_ACTION,
+        input.idempotencyKey,
+      );
+      if (previous) {
+        const val = asRecord(previous.newValue);
+        assertSameImport(val, input.warehouseId, input.mode);
         return {
-          committed: Number(val?.committed ?? 0),
-          skipped: Number(val?.skipped ?? 0),
-          failed: Number(val?.failed ?? 0),
-          totalDelta: Number(val?.totalDelta ?? 0),
-          errors: [] as {
-            rowNumber: number;
-            sku: string;
-            code: string;
-            message: string;
-          }[],
-          auditLogId: previousResult.id,
+          committed: Number(val.committed ?? 0),
+          skipped: Number(val.skipped ?? 0),
+          failed: Number(val.failed ?? 0),
+          totalDelta: Number(val.totalDelta ?? 0),
+          errors: [],
+          auditLogId: previous.id,
         };
       }
 
-      // 3. Process rows in batches of 100
-      const BATCH_SIZE = 100;
-      let committed = 0;
-      let skipped = 0;
-      let failed = 0;
-      let totalDelta = 0;
-      const errors: {
-        rowNumber: number;
-        sku: string;
-        code: string;
-        message: string;
-      }[] = [];
-
-      for (let i = 0; i < input.rows.length; i += BATCH_SIZE) {
-        const batch = input.rows.slice(i, i + BATCH_SIZE);
-
-        await ctx.db.transaction(async (tx) => {
-          for (const row of batch) {
-            try {
-              // Re-check lock status on server (PRD §17: Locked product bypass)
-              if (!input.forceLocked) {
-                const [sl] = await tx
-                  .select({ isLocked: StockLedger.isLocked })
-                  .from(StockLedger)
-                  .where(
-                    and(
-                      eq(StockLedger.workspaceId, ctx.workspace.workspaceId),
-                      eq(StockLedger.productId, row.productId),
-                      eq(StockLedger.warehouseId, input.warehouseId),
-                    ),
-                  )
-                  .limit(1);
-
-                if (sl?.isLocked) {
-                  skipped++;
-                  continue;
-                }
-              }
-
-              // Verify product exists in workspace
-              const [product] = await tx
-                .select({ id: Product.id })
-                .from(Product)
-                .where(
-                  and(
-                    eq(Product.id, row.productId),
-                    eq(Product.workspaceId, ctx.workspace.workspaceId),
-                  ),
-                )
-                .limit(1);
-
-              if (!product) {
-                errors.push({
-                  rowNumber: row.rowNumber,
-                  sku: row.sku,
-                  code: "PRODUCT_NOT_FOUND",
-                  message: `Producto con SKU "${row.sku}" no encontrado`,
-                });
-                failed++;
-                continue;
-              }
-
-              // Compute delta and new quantity
-              const delta =
-                input.mode === "replace"
-                  ? row.quantity - row.currentQuantity
-                  : row.quantity;
-
-              const newQuantity =
-                input.mode === "replace"
-                  ? row.quantity
-                  : row.currentQuantity + row.quantity;
-
-              // Validate non-negative result
-              if (newQuantity < 0) {
-                errors.push({
-                  rowNumber: row.rowNumber,
-                  sku: row.sku,
-                  code: "NEGATIVE_RESULT",
-                  message: `La cantidad resultante sería negativa (${newQuantity})`,
-                });
-                failed++;
-                continue;
-              }
-
-              // Upsert StockLedger
-              await tx
-                .insert(StockLedger)
-                .values({
-                  workspaceId: ctx.workspace.workspaceId,
-                  productId: row.productId,
-                  warehouseId: input.warehouseId,
-                  quantity: newQuantity,
-                })
-                .onConflictDoUpdate({
-                  target: [
-                    StockLedger.workspaceId,
-                    StockLedger.productId,
-                    StockLedger.warehouseId,
-                  ],
-                  set: { quantity: newQuantity },
-                });
-
-              // Record StockMovement
-              await tx.insert(StockMovement).values({
-                workspaceId: ctx.workspace.workspaceId,
-                productId: row.productId,
-                movementType: delta >= 0 ? "adjustment_in" : "adjustment_out",
-                quantity: Math.abs(delta),
-                warehouseId: input.warehouseId,
-                referenceType: "inventory_import",
-                notes: `Import ${input.mode}: ${row.sku}`,
-                createdBy: ctx.user.id,
-              });
-
-              totalDelta += delta;
-              committed++;
-            } catch {
-              // Individual row failure — record and continue
-              errors.push({
-                rowNumber: row.rowNumber,
-                sku: row.sku,
-                code: "COMMIT_ERROR",
-                message: "Error al escribir en la base de datos",
-              });
-              failed++;
-            }
-          }
-        });
-      }
-
-      // 4. Audit log
-      const auditPayload = {
-        warehouseId: input.warehouseId,
-        mode: input.mode,
-        filename: input.filename,
-        idempotencyKey: input.idempotencyKey,
-        committed,
-        skipped,
-        failed,
-        totalDelta,
-      };
-
-      await logAudit(ctx.db, ctx.user, {
-        workspaceId: ctx.workspace.workspaceId,
-        action: "inventory.bulk_import",
-        entity: "inventory_import",
-        entityId: input.warehouseId,
-        newValue: auditPayload,
-      });
-
-      // 5. Get the audit log ID for reference
-      const [auditEntry] = await ctx.db
-        .select({ id: AuditLog.id })
-        .from(AuditLog)
+      const productIds = [...new Set(input.rows.map((r) => r.productId))];
+      const products = await ctx.db
+        .select({ id: Product.id })
+        .from(Product)
         .where(
           and(
-            eq(AuditLog.workspaceId, ctx.workspace.workspaceId),
-            eq(AuditLog.action, "inventory.bulk_import"),
-            eq(AuditLog.entity, "inventory_import"),
-            eq(AuditLog.entityId, input.warehouseId),
+            eq(Product.workspaceId, workspaceId),
+            inArray(Product.id, productIds),
           ),
-        )
-        .orderBy(sql`${AuditLog.createdAt} DESC`)
-        .limit(1);
+        );
+      const ledger = await readLockedLedger(
+        ctx.db,
+        workspaceId,
+        input.warehouseId,
+        productIds,
+      );
+
+      const plan = planStockAdjustments({
+        mode: input.mode,
+        rows: input.rows,
+        knownProductIds: new Set(products.map((p) => p.id)),
+        ledger,
+        forceLocked: input.forceLocked,
+      });
+
+      await writeLedgerQuantities(
+        ctx.db,
+        workspaceId,
+        input.warehouseId,
+        plan.finalQuantities,
+      );
+      await insertMovements(
+        ctx.db,
+        plan.movements.map((m) => ({
+          workspaceId,
+          productId: m.productId,
+          movementType: m.delta > 0 ? "adjustment_in" : "adjustment_out",
+          quantity: Math.abs(m.delta),
+          warehouseId: input.warehouseId,
+          referenceType: "inventory_import",
+          notes: `Import ${input.mode}: ${m.sku}`,
+          createdBy: ctx.user.id,
+        })),
+      );
+
+      const auditLogId = await logAudit(ctx.db, ctx.user, {
+        workspaceId,
+        action: BULK_IMPORT_ACTION,
+        entity: IMPORT_AUDIT_ENTITY,
+        entityId: input.warehouseId,
+        newValue: {
+          warehouseId: input.warehouseId,
+          mode: input.mode,
+          filename: input.filename,
+          idempotencyKey: input.idempotencyKey,
+          committed: plan.committed,
+          skipped: plan.skipped,
+          failed: plan.failed,
+          totalDelta: plan.totalDelta,
+          forceLocked: input.forceLocked,
+          lockedOverridden: plan.lockedOverridden,
+          staleBaseRows: plan.staleBaseRows,
+        },
+      });
 
       return {
-        committed,
-        skipped,
-        failed,
-        totalDelta,
-        errors,
-        auditLogId: auditEntry?.id,
+        committed: plan.committed,
+        skipped: plan.skipped,
+        failed: plan.failed,
+        totalDelta: plan.totalDelta,
+        errors: [...plan.errors],
+        auditLogId,
       };
     }),
 
   /**
-   * Initialize import — create brands + products + stock from scratch.
-   * Used for first-time inventory setup or periodic full reset.
+   * Initialize import — create missing brands and products, then set the
+   * warehouse stock to the file's totals. Used for first-time setup or a
+   * periodic full reset, so it overwrites locked stock by design.
    *
-   * Flow: Batch INSERT brands → Batch INSERT products → Batch UPSERT stock → Audit
+   * Same guarantees as `commit`: bulk writes inside the RLS transaction, stock
+   * read FOR UPDATE, idempotency key serialized by an advisory lock. Products
+   * that already had stock in the warehouse record only the difference as a
+   * movement, so the movement history keeps adding up to the ledger.
    *
-   * RBAC: owner, admin only
+   * RBAC: owner/admin only — a reset is not an ordinary stock update.
    */
-  initializeCommit: workspaceProcedure
+  initializeCommit: wsPermissionProcedure("inventory", "update")
     .input(initializeCommitSchema)
-    .mutation(async ({ ctx, input }) => {
-      // 1. Validate warehouse exists and is active
-      const [wh] = await ctx.db
-        .select({ id: Warehouse.id, isActive: Warehouse.isActive })
-        .from(Warehouse)
-        .where(
-          and(
-            eq(Warehouse.id, input.warehouseId),
-            eq(Warehouse.workspaceId, ctx.workspace.workspaceId),
-          ),
-        )
-        .limit(1);
+    .mutation(async ({ ctx, input }): Promise<InitializeResult> => {
+      assertStockOverrideRole(
+        ctx.workspace.role,
+        "Solo dueños y administradores pueden inicializar el inventario de un almacén",
+      );
 
-      if (!wh?.isActive) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "Almacén no está activo",
-        });
-      }
+      const workspaceId = ctx.workspace.workspaceId;
+      await assertActiveWarehouse(ctx.db, workspaceId, input.warehouseId);
+      await lockImport(
+        ctx.db,
+        workspaceId,
+        input.warehouseId,
+        INITIALIZE_IMPORT_ACTION,
+        input.idempotencyKey,
+      );
 
-      // 2. Idempotency check
-      const existingAudit = await ctx.db
-        .select({ id: AuditLog.id, newValue: AuditLog.newValue })
-        .from(AuditLog)
-        .where(
-          and(
-            eq(AuditLog.workspaceId, ctx.workspace.workspaceId),
-            eq(AuditLog.action, "inventory.initialize_import"),
-            eq(AuditLog.entity, "inventory_import"),
-          ),
-        )
-        .limit(100);
-
-      const previousResult = existingAudit.find((a) => {
-        const val = a.newValue as Record<string, unknown> | null;
-        return val?.idempotencyKey === input.idempotencyKey;
-      });
-
-      if (previousResult) {
-        const val = previousResult.newValue as Record<string, unknown> | null;
+      const previous = await findPreviousImport(
+        ctx.db,
+        workspaceId,
+        INITIALIZE_IMPORT_ACTION,
+        input.idempotencyKey,
+      );
+      if (previous) {
+        const val = asRecord(previous.newValue);
+        assertSameImport(val, input.warehouseId, "initialize");
         return {
-          brandsCreated: Number(val?.brandsCreated ?? 0),
-          productsCreated: Number(val?.productsCreated ?? 0),
-          stockEntries: Number(val?.stockEntries ?? 0),
-          skipped: Number(val?.skipped ?? 0),
-          failed: Number(val?.failed ?? 0),
-          totalUnits: Number(val?.totalUnits ?? 0),
-          errors: [] as {
-            rowNumber: number;
-            sku: string;
-            code: string;
-            message: string;
-          }[],
-          auditLogId: previousResult.id,
+          brandsCreated: Number(val.brandsCreated ?? 0),
+          productsCreated: Number(val.productsCreated ?? 0),
+          stockEntries: Number(val.stockEntries ?? 0),
+          skipped: Number(val.skipped ?? 0),
+          failed: Number(val.failed ?? 0),
+          totalUnits: Number(val.totalUnits ?? 0),
+          errors: [],
+          auditLogId: previous.id,
         };
       }
 
-      // 3. Extract unique brands and create them
-      const uniqueBrands = [...new Set(input.rows.map((r) => r.brand))];
+      const { kept, skipped } = dedupeInitializeRows(input.rows);
+      const errors: InitializeResult["errors"] = [];
 
-      const brandMap = new Map<string, string>(); // name → id
-      let brandsCreated = 0;
-
-      for (const brandName of uniqueBrands) {
-        const slug = slugify(brandName);
-        if (!slug) continue;
-
-        // Check if brand already exists in workspace (by slug)
-        const [existing] = await ctx.db
-          .select({ id: Brand.id, name: Brand.name })
-          .from(Brand)
-          .where(
-            and(
-              eq(Brand.slug, slug),
-              eq(Brand.workspaceId, ctx.workspace.workspaceId),
-            ),
-          )
-          .limit(1);
-
-        if (existing) {
-          brandMap.set(brandName, existing.id);
+      const brands = await ensureBrands(
+        ctx.db,
+        workspaceId,
+        kept.map((r) => r.brand),
+      );
+      const withBrand: BrandedRow[] = [];
+      for (const row of kept) {
+        const brandId = brands.idsBySlug.get(slugify(row.brand));
+        if (brandId) {
+          withBrand.push({ row, brandId });
         } else {
-          const [created] = await ctx.db
-            .insert(Brand)
-            .values({
-              workspaceId: ctx.workspace.workspaceId,
-              name: brandName,
-              slug,
-            })
-            .returning({ id: Brand.id });
-          if (created) {
-            brandMap.set(brandName, created.id);
-            brandsCreated++;
-          }
+          errors.push({
+            rowNumber: row.rowNumber,
+            sku: row.sku,
+            code: "BRAND_NOT_FOUND",
+            message: `Marca "${row.brand}" no pudo ser creada`,
+          });
         }
       }
 
-      // 4. Process rows in batches — create products + stock
-      const BATCH_SIZE = 100;
-      let productsCreated = 0;
-      let stockEntries = 0;
-      let skipped = 0;
-      let failed = 0;
+      const products = await ensureProducts(ctx.db, workspaceId, withBrand);
+      const productIds = [...products.idsBySku.values()];
+      const ledger = await readLockedLedger(
+        ctx.db,
+        workspaceId,
+        input.warehouseId,
+        productIds,
+      );
+
+      const finalQuantities = new Map<string, number>();
+      const movements: NewMovement[] = [];
       let totalUnits = 0;
-      const errors: {
-        rowNumber: number;
-        sku: string;
-        code: string;
-        message: string;
-      }[] = [];
-
-      // Deduplicate: keep last occurrence of each SKU
-      const skuLastRow = new Map<string, number>();
-      for (let i = 0; i < input.rows.length; i++) {
-        const row = input.rows[i];
-        if (row) skuLastRow.set(row.sku.toUpperCase(), i);
+      for (const { row } of withBrand) {
+        const productId = products.idsBySku.get(row.sku);
+        if (!productId) {
+          errors.push({
+            rowNumber: row.rowNumber,
+            sku: row.sku,
+            code: "PRODUCT_CREATE_FAILED",
+            message: `No se pudo crear el producto "${row.productName}"`,
+          });
+          continue;
+        }
+        finalQuantities.set(productId, row.totalUnits);
+        totalUnits += row.totalUnits;
+        const movement = planInitializeMovement(
+          ledger.get(productId)?.quantity,
+          row.totalUnits,
+        );
+        if (movement) {
+          movements.push({
+            workspaceId,
+            productId,
+            movementType: movement.movementType,
+            quantity: movement.quantity,
+            warehouseId: input.warehouseId,
+            referenceType: "inventory_initialize",
+            notes: `Initialize: ${row.sku} (${row.brand})`,
+            createdBy: ctx.user.id,
+          });
+        }
       }
 
-      for (let i = 0; i < input.rows.length; i += BATCH_SIZE) {
-        const batch = input.rows.slice(i, i + BATCH_SIZE);
+      await writeLedgerQuantities(
+        ctx.db,
+        workspaceId,
+        input.warehouseId,
+        finalQuantities,
+      );
+      await insertMovements(ctx.db, movements);
 
-        await ctx.db.transaction(async (tx) => {
-          for (const row of batch) {
-            try {
-              // Skip duplicate SKUs (keep last occurrence only)
-              const rowIndex = input.rows.indexOf(row);
-              const lastIndex = skuLastRow.get(row.sku.toUpperCase());
-              if (lastIndex !== undefined && rowIndex !== lastIndex) {
-                skipped++;
-                continue;
-              }
-
-              const brandId = brandMap.get(row.brand);
-              if (!brandId) {
-                errors.push({
-                  rowNumber: row.rowNumber,
-                  sku: row.sku,
-                  code: "BRAND_NOT_FOUND",
-                  message: `Marca "${row.brand}" no pudo ser creada`,
-                });
-                failed++;
-                continue;
-              }
-
-              // Check if product already exists by SKU in workspace
-              const [existingProduct] = await tx
-                .select({ id: Product.id })
-                .from(Product)
-                .where(
-                  and(
-                    eq(Product.sku, row.sku),
-                    eq(Product.workspaceId, ctx.workspace.workspaceId),
-                  ),
-                )
-                .limit(1);
-
-              let productId: string;
-
-              if (existingProduct) {
-                productId = existingProduct.id;
-              } else {
-                // Create product
-                const [created] = await tx
-                  .insert(Product)
-                  .values({
-                    workspaceId: ctx.workspace.workspaceId,
-                    sku: row.sku,
-                    name: row.productName,
-                    brandId,
-                    unitsPerBox: row.unidPerCaja,
-                    boxesPerBulk: row.cajasPerBulk,
-                    presentationQty: row.presentacion,
-                    status: "active",
-                  })
-                  .returning({ id: Product.id });
-
-                if (!created) {
-                  errors.push({
-                    rowNumber: row.rowNumber,
-                    sku: row.sku,
-                    code: "PRODUCT_CREATE_FAILED",
-                    message: `No se pudo crear el producto "${row.productName}"`,
-                  });
-                  failed++;
-                  continue;
-                }
-
-                productId = created.id;
-                productsCreated++;
-              }
-
-              // Upsert StockLedger
-              await tx
-                .insert(StockLedger)
-                .values({
-                  workspaceId: ctx.workspace.workspaceId,
-                  productId,
-                  warehouseId: input.warehouseId,
-                  quantity: row.totalUnits,
-                })
-                .onConflictDoUpdate({
-                  target: [
-                    StockLedger.workspaceId,
-                    StockLedger.productId,
-                    StockLedger.warehouseId,
-                  ],
-                  set: { quantity: row.totalUnits },
-                });
-
-              // Record StockMovement
-              await tx.insert(StockMovement).values({
-                workspaceId: ctx.workspace.workspaceId,
-                productId,
-                movementType: "initial_stock",
-                quantity: row.totalUnits,
-                warehouseId: input.warehouseId,
-                referenceType: "inventory_initialize",
-                notes: `Initialize: ${row.sku} (${row.brand})`,
-                createdBy: ctx.user.id,
-              });
-
-              totalUnits += row.totalUnits;
-              stockEntries++;
-            } catch {
-              errors.push({
-                rowNumber: row.rowNumber,
-                sku: row.sku,
-                code: "COMMIT_ERROR",
-                message: "Error al escribir en la base de datos",
-              });
-              failed++;
-            }
-          }
-        });
-      }
-
-      // 5. Audit log
-      const auditPayload = {
-        warehouseId: input.warehouseId,
-        mode: "initialize",
-        filename: input.filename,
-        idempotencyKey: input.idempotencyKey,
-        brandsCreated,
-        productsCreated,
-        stockEntries,
+      const summary = {
+        brandsCreated: brands.created,
+        productsCreated: products.created,
+        stockEntries: finalQuantities.size,
         skipped,
-        failed,
+        failed: errors.length,
         totalUnits,
       };
 
-      await logAudit(ctx.db, ctx.user, {
-        workspaceId: ctx.workspace.workspaceId,
-        action: "inventory.initialize_import",
-        entity: "inventory_import",
+      const auditLogId = await logAudit(ctx.db, ctx.user, {
+        workspaceId,
+        action: INITIALIZE_IMPORT_ACTION,
+        entity: IMPORT_AUDIT_ENTITY,
         entityId: input.warehouseId,
-        newValue: auditPayload,
+        newValue: {
+          warehouseId: input.warehouseId,
+          mode: "initialize",
+          filename: input.filename,
+          idempotencyKey: input.idempotencyKey,
+          ...summary,
+        },
       });
 
-      // 6. Get audit log ID
-      const [auditEntry] = await ctx.db
-        .select({ id: AuditLog.id })
-        .from(AuditLog)
-        .where(
-          and(
-            eq(AuditLog.workspaceId, ctx.workspace.workspaceId),
-            eq(AuditLog.action, "inventory.initialize_import"),
-            eq(AuditLog.entity, "inventory_import"),
-            eq(AuditLog.entityId, input.warehouseId),
-          ),
-        )
-        .orderBy(sql`${AuditLog.createdAt} DESC`)
-        .limit(1);
-
-      return {
-        brandsCreated,
-        productsCreated,
-        stockEntries,
-        skipped,
-        failed,
-        totalUnits,
-        errors,
-        auditLogId: auditEntry?.id,
-      };
+      return { ...summary, errors, auditLogId };
     }),
 });

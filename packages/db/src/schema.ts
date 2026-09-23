@@ -21,6 +21,7 @@ import {
   pgPolicy,
   pgRole,
   pgTable,
+  primaryKey,
   unique,
 } from "drizzle-orm/pg-core";
 
@@ -67,6 +68,7 @@ export const erpModuleEnum = pgEnum("erp_module", [
   "vendors",
   "payments",
   "cash_closure",
+  "receivables",
   "marketplace",
   "whatsapp",
   "users",
@@ -420,6 +422,14 @@ export interface UiPreferences {
   };
 }
 
+/**
+ * A user_profile row whose owner belongs to the transaction's workspace:
+ * readable while active or suspended, writable only while active. A pending
+ * invitation or a removed membership is no relationship and grants nothing.
+ */
+const profileReadableInCurrentWorkspace = sql`exists (select 1 from public.workspace_member m where m.user_id = user_profile.id and m.workspace_id = (select current_setting('app.workspace_id', true))::uuid and m.status in ('active', 'suspended'))`;
+const profileWritableInCurrentWorkspace = sql`exists (select 1 from public.workspace_member m where m.user_id = user_profile.id and m.workspace_id = (select current_setting('app.workspace_id', true))::uuid and m.status = 'active')`;
+
 export const UserProfile = pgTable(
   "user_profile",
   (t) => ({
@@ -450,29 +460,26 @@ export const UserProfile = pgTable(
     index("idx_user_profile_status").on(table.status),
     index("idx_user_profile_email").on(table.email),
 
-    // PLAN-2026-09-PROD-HARDENING F1 — preserve exactly what app_user does
-    // today inside workspaceProcedure: read (users.byId, inviteMember),
-    // create (users.create) and edit (users.update). No DELETE: no app_user
-    // path deletes profiles (anonymizeMyData runs as postgres). The login
-    // lookup uses service_role, which bypasses RLS.
+    // SECURITY-REMEDIATION F3 (migration 016) — a profile is one global row
+    // shared by every workspace of its owner, so app_user only reads (users.
+    // byId) profiles of active or suspended members of the workspace bound to
+    // the transaction and edits (users.update) those of active members. No
+    // INSERT: accounts are created by /api/auth/create-user with the service
+    // role. No DELETE: anonymizeMyData runs as postgres. Invitees are looked
+    // up through the SECURITY DEFINER function find_active_user_id_by_email;
+    // the login lookup uses service_role, which bypasses RLS.
     pgPolicy("user_profile_app_user_select", {
       as: "permissive",
       for: "select",
       to: appUserRole,
-      using: sql`true`,
-    }),
-    pgPolicy("user_profile_app_user_insert", {
-      as: "permissive",
-      for: "insert",
-      to: appUserRole,
-      withCheck: sql`true`,
+      using: profileReadableInCurrentWorkspace,
     }),
     pgPolicy("user_profile_app_user_update", {
       as: "permissive",
       for: "update",
       to: appUserRole,
-      using: sql`true`,
-      withCheck: sql`true`,
+      using: profileWritableInCurrentWorkspace,
+      withCheck: profileWritableInCurrentWorkspace,
     }),
   ],
 ).enableRLS();
@@ -488,8 +495,9 @@ export const Permission = pgTable(
   (table) => [
     unique("uq_permission_module_action").on(table.module, table.action),
 
-    // PLAN-2026-09-PROD-HARDENING F1 — read-only for app_user
-    // (wsPermissionProcedure joins permission inside the transaction).
+    // PLAN-2026-09-PROD-HARDENING F1 — read-only for app_user. Since
+    // SECURITY-REMEDIATION F2 the API enforces ROLE_PERMISSIONS from
+    // @cendaro/validators; this table is its mirror (migration 012).
     pgPolicy("permission_app_user_select", {
       as: "permissive",
       for: "select",
@@ -520,8 +528,9 @@ export const RolePermission = pgTable(
     unique("uq_role_permission").on(table.role, table.permissionId),
     index("idx_role_permission_role").on(table.role),
 
-    // PLAN-2026-09-PROD-HARDENING F1 — read-only for app_user
-    // (wsPermissionProcedure reads role_permission inside the transaction).
+    // PLAN-2026-09-PROD-HARDENING F1 — read-only for app_user. Mirror of
+    // ROLE_PERMISSIONS in @cendaro/validators (SECURITY-REMEDIATION F2,
+    // migration 012); the API does not query it at request time.
     pgPolicy("role_permission_app_user_select", {
       as: "permissive",
       for: "select",
@@ -564,6 +573,16 @@ export const AuditLog = pgTable(
     index("idx_audit_log_entity").on(table.entity, table.entityId),
     index("idx_audit_log_created").on(table.createdAt),
     index("idx_audit_log_action").on(table.action),
+
+    // Idempotency lookup of inventory imports (migration 017): partial, so it
+    // stays small while audit_log grows.
+    index("idx_audit_log_import_idempotency")
+      .on(
+        table.workspaceId,
+        table.action,
+        sql`((${table.newValue} ->> 'idempotencyKey'))`,
+      )
+      .where(sql`${table.entity} = 'inventory_import'`),
 
     // WORM (Write-Once, Read-Many) immutable audit trail (SOC 1 / SOC 2 Type II / ISO 27001):
     // Only SELECT and INSERT are permitted for app_user. UPDATE and DELETE are strictly denied by RLS.
@@ -612,15 +631,16 @@ export const Workspace = pgTable(
     index("idx_workspace_status").on(table.status),
     index("idx_workspace_plan").on(table.plan),
 
-    // PLAN-2026-09-PROD-HARDENING F1 — app_user reads workspaces in joins
-    // inside workspaceProcedure and may only update the workspace bound to
-    // the current transaction (workspace.update). anon/authenticated have no
-    // access at all (migration 004 revokes their grants).
+    // app_user may read and update only the workspace bound to the current
+    // transaction. Migration 004 first shipped SELECT as `true`; migration 022
+    // (PLAN-2026-09-SECURITY-REMEDIATION F9.2) scoped it, because every path
+    // that lists workspaces across tenants runs as `postgres`. anon and
+    // authenticated have no access at all (migration 004 revokes their grants).
     pgPolicy("workspace_app_user_select", {
       as: "permissive",
       for: "select",
       to: appUserRole,
-      using: sql`true`,
+      using: sql`id = (select current_setting('app.workspace_id', true))::uuid`,
     }),
     pgPolicy("workspace_app_user_update", {
       as: "permissive",
@@ -1812,6 +1832,16 @@ export const RepricingEvent = pgTable(
 // ║ PHASE 5 — Sales, Payments & Cash             ║
 // ╚══════════════════════════════════════════════╝
 
+/**
+ * Person behind a customer's identification: a natural person's personal RIF
+ * (V/E-########-#) maps to their cédula form (V-12345678), everything else is
+ * its own key. Kept byte-identical to migration 014 (guarded by
+ * customer-fiscal.test.ts) and mirrored by `fiscalPersonKey` in
+ * @cendaro/validators.
+ */
+export const CUSTOMER_PERSON_KEY_SQL =
+  "CASE WHEN identification ~ '^[VE]-[0-9]{8}-[0-9]$' AND substr(identification, 3, 8) <> '00000000' THEN substr(identification, 1, 2) || ltrim(substr(identification, 3, 8), '0') ELSE identification END";
+
 export const Customer = pgTable(
   "customer",
   (t) => ({
@@ -1824,6 +1854,10 @@ export const Customer = pgTable(
     name: t.varchar({ length: 256 }).notNull(),
     legalName: t.varchar({ length: 512 }),
     identification: t.varchar({ length: 32 }),
+    /** Generated (migration 014); never written by the app. */
+    personKey: t
+      .varchar({ length: 32 })
+      .generatedAlwaysAs(sql.raw(CUSTOMER_PERSON_KEY_SQL)),
     customerType: customerTypeEnum().notNull().default("retail"),
     phone: t.varchar({ length: 32 }),
     phone2: t.varchar({ length: 32 }),
@@ -1845,6 +1879,13 @@ export const Customer = pgTable(
     index("idx_customer_type").on(table.customerType),
     index("idx_customer_name").on(table.name),
     index("idx_customer_vendor").on(table.assignedVendorId),
+    // One customer per person per workspace (migration 014, replaces 013's
+    // uq_customer_workspace_identification): a cédula and the personal RIF
+    // built from it collide. NULL identifications stay allowed.
+    unique("uq_customer_workspace_person_key").on(
+      table.workspaceId,
+      table.personKey,
+    ),
 
     workspacePolicy("customer"),
   ],
@@ -2544,9 +2585,6 @@ export const MercadolibreAccount = pgTable(
       .default(sql`current_setting('app.workspace_id')::uuid`),
     nickname: t.varchar({ length: 128 }).notNull(),
     mlUserId: t.varchar({ length: 64 }),
-    accessToken: t.text(),
-    refreshToken: t.text(),
-    tokenExpiresAt: t.timestamp({ mode: "date", withTimezone: true }),
     isActive: t.boolean().notNull().default(true),
     createdAt: t
       .timestamp({ mode: "date", withTimezone: true })
@@ -3128,6 +3166,73 @@ export const notificationRoutingRuleRelations = relations(
     }),
   }),
 );
+
+// ╔══════════════════════════════════════════════╗
+// ║ RATE LIMITING (migration 019)               ║
+// ╚══════════════════════════════════════════════╝
+
+/**
+ * Sliding-window request counters shared by every server instance
+ * (PLAN-2026-09-SECURITY-REMEDIATION F6). One row per key per window, not per
+ * request. RLS is enabled with no policy on purpose: this is infrastructure,
+ * not workspace data, so only roles that bypass RLS (postgres, service_role)
+ * reach it — `app_user` cannot read another tenant's counters because it
+ * cannot read the table at all.
+ */
+export const RateLimitBucket = pgTable(
+  "rate_limit_bucket",
+  (t) => ({
+    key: t.text().notNull(),
+    windowStart: t.timestamp({ mode: "date", withTimezone: true }).notNull(),
+    count: t.integer().notNull().default(1),
+    expiresAt: t.timestamp({ mode: "date", withTimezone: true }).notNull(),
+  }),
+  (table) => [
+    primaryKey({ columns: [table.key, table.windowStart] }),
+    index("idx_rate_limit_bucket_expires").on(table.expiresAt),
+  ],
+).enableRLS();
+
+/** Hard blocks applied after repeated authentication failures (F6.3). */
+export const RateLimitLockout = pgTable(
+  "rate_limit_lockout",
+  (t) => ({
+    key: t.text().notNull().primaryKey(),
+    lockedUntil: t.timestamp({ mode: "date", withTimezone: true }).notNull(),
+    reason: t.text(),
+    createdAt: t
+      .timestamp({ mode: "date", withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  }),
+  (table) => [index("idx_rate_limit_lockout_until").on(table.lockedUntil)],
+).enableRLS();
+
+// ╔══════════════════════════════════════════════╗
+// ║ SESSION ACTIVITY (migration 020)            ║
+// ╚══════════════════════════════════════════════╝
+
+/**
+ * Server-verified last-activity timestamp per JWT `session_id`
+ * (PLAN-2026-09-SECURITY-REMEDIATION F7.1). RLS enabled, no policy: only
+ * postgres/service_role reach it, same as the rate-limit tables — it is
+ * checked before `SET LOCAL ROLE app_user`.
+ */
+export const UserSessionActivity = pgTable(
+  "user_session_activity",
+  (t) => ({
+    sessionId: t.uuid().notNull().primaryKey(),
+    userId: t.uuid().notNull(),
+    lastSeenAt: t
+      .timestamp({ mode: "date", withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  }),
+  (table) => [
+    index("idx_user_session_activity_user").on(table.userId),
+    index("idx_user_session_activity_last_seen").on(table.lastSeenAt),
+  ],
+).enableRLS();
 
 // ╔══════════════════════════════════════════════╗
 // ║ TYPE EXPORTS                                ║

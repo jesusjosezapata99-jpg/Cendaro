@@ -102,20 +102,18 @@ export function EditUserDialog({
     }),
   );
 
-  // Owner-protection logic for UI
-  const isTargetOwner = user.role === "owner";
+  // Mirrors the server rules in users.update: an owner's role is never
+  // editable here, only an owner can modify an admin, and only an owner can
+  // assign the owner or admin roles.
   const isCallerOwner = currentUserRole === "owner";
-
-  // Determine if role dropdown should be disabled
-  // - Target is owner AND caller is not owner → disabled
-  // - Target is owner AND caller is owner (peer protection) → disabled
-  const isRoleDisabled = isTargetOwner;
-
-  // Filter available roles
-  // - Only owner can see/assign "owner" role
+  const isRoleDisabled =
+    user.role === "owner" || (user.role === "admin" && !isCallerOwner);
   const availableRoles = isCallerOwner
     ? ALL_ROLES
-    : ALL_ROLES.filter((r) => r.value !== "owner");
+    : ALL_ROLES.filter((r) => r.value !== "owner" && r.value !== "admin");
+  // Personal data lives in one profile shared by every workspace of this
+  // person, so the server only accepts it for an active member.
+  const isSuspended = user.status === "suspended";
 
   return (
     <SheetModal
@@ -128,7 +126,8 @@ export function EditUserDialog({
           e.preventDefault();
           update.mutate({
             id: user.id,
-            fullName: fullName !== user.fullName ? fullName : undefined,
+            fullName:
+              !isSuspended && fullName !== user.fullName ? fullName : undefined,
             role:
               role !== user.role
                 ? (role as
@@ -141,9 +140,10 @@ export function EditUserDialog({
                 : undefined,
             status:
               status !== user.status
-                ? (status as "active" | "inactive" | "suspended")
+                ? (status as "active" | "suspended")
                 : undefined,
-            phone: phone !== (user.phone ?? "") ? phone : undefined,
+            phone:
+              !isSuspended && phone !== (user.phone ?? "") ? phone : undefined,
           });
         }}
         className="flex h-full flex-col"
@@ -164,8 +164,14 @@ export function EditUserDialog({
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
               required
-              className="border-border bg-background focus:border-primary focus:ring-primary/20 w-full border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
+              disabled={isSuspended}
+              className="border-border bg-background focus:border-primary focus:ring-primary/20 w-full border px-3 py-2 text-sm focus:ring-2 focus:outline-none disabled:opacity-60"
             />
+            {isSuspended && (
+              <p className="text-muted-foreground mt-1 text-[10px]">
+                Reactiva el acceso para editar sus datos personales
+              </p>
+            )}
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium">Rol</label>
@@ -197,16 +203,23 @@ export function EditUserDialog({
             )}
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium">Estado</label>
+            <label className="mb-1 block text-sm font-medium">
+              Acceso a este workspace
+            </label>
             <select
               value={status}
               onChange={(e) => setStatus(e.target.value)}
-              className="border-border bg-background w-full border px-3 py-2 text-sm"
+              disabled={user.role === "owner"}
+              className="border-border bg-background w-full border px-3 py-2 text-sm disabled:opacity-60"
             >
               <option value="active">Activo</option>
-              <option value="inactive">Inactivo</option>
               <option value="suspended">Suspendido</option>
             </select>
+            {user.role === "owner" && (
+              <p className="text-muted-foreground mt-1 text-[10px]">
+                No se puede suspender a un dueño
+              </p>
+            )}
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium">Teléfono</label>
@@ -214,7 +227,8 @@ export function EditUserDialog({
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               placeholder="+58 412-1234567"
-              className="border-border bg-background focus:border-primary focus:ring-primary/20 w-full border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
+              disabled={isSuspended}
+              className="border-border bg-background focus:border-primary focus:ring-primary/20 w-full border px-3 py-2 text-sm focus:ring-2 focus:outline-none disabled:opacity-60"
             />
           </div>
         </SheetBody>

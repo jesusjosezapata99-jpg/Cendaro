@@ -9,6 +9,7 @@ import type { StatusTone } from "@cendaro/ui/status-pill";
 import { Button } from "@cendaro/ui";
 import { Icons } from "@cendaro/ui/icons";
 import { StatusPill } from "@cendaro/ui/status-pill";
+import { can } from "@cendaro/validators";
 
 import { DataTable } from "~/components/data-table/data-table";
 import { EmptyState } from "~/components/empty-state";
@@ -16,6 +17,7 @@ import { SyncMlListingDialog } from "~/components/modals/sync-ml-listing-dialog"
 import { PageHeader } from "~/components/page-header";
 import { StatCard } from "~/components/stat-card";
 import { useBcvRate } from "~/hooks/use-bcv-rate";
+import { useCurrentUser } from "~/hooks/use-current-user";
 import { formatDualCurrency } from "~/lib/format-currency";
 import { useTRPC } from "~/trpc/client";
 
@@ -70,6 +72,10 @@ export default function MarketplacePage() {
   const [syncingListing, setSyncingListing] = useState<MlListingItem | null>(
     null,
   );
+  const { profile } = useCurrentUser();
+  // Importing an ML order creates a sales order: management only
+  // (marketplace.create). Marketing works listings, not orders.
+  const canImport = can(profile?.role, "marketplace", "create");
 
   const {
     data: listings,
@@ -363,6 +369,7 @@ export default function MarketplacePage() {
               </div>
             );
           }
+          if (!canImport) return null;
           return (
             <div className="text-right">
               <Button
@@ -380,7 +387,7 @@ export default function MarketplacePage() {
         },
       },
     ],
-    [bcv.rate, importOrder],
+    [bcv.rate, importOrder, canImport],
   );
 
   return (
@@ -756,7 +763,7 @@ export default function MarketplacePage() {
                         <span className="text-muted-foreground text-xs font-medium">
                           Envío: {o.shippingStatus ?? "Pendiente"}
                         </span>
-                        {!o.isImported && (
+                        {!o.isImported && canImport && (
                           <Button
                             variant="outline"
                             size="sm"

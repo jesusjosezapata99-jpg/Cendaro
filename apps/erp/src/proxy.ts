@@ -137,11 +137,18 @@ export async function proxy(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  // ── Idle Session Timeout ──────────────────────────────────────────────
+  // ── Idle Session Timeout (UX fast-path only) ───────────────────────────
   //
-  // Track last activity timestamp in a cookie. If the user has been
-  // inactive for more than 30 minutes, force reauthentication.
-  // This mitigates session hijacking from unattended devices.
+  // This cookie only gives a page navigation a quick client-visible redirect
+  // without waiting on a round trip. It is NOT the security control anymore
+  // (PLAN-2026-09-SECURITY-REMEDIATION F7.1): this proxy never runs for
+  // `/api/*` ("API/tRPC routes handle their own auth" below), so a caller
+  // that only ever hit /api/trpc directly never went through this cookie at
+  // all — the JWT stayed good for its full lifetime regardless of
+  // inactivity. The real, server-verified check is `touchSessionActivity` in
+  // `packages/api/src/trpc.ts`'s `protectedProcedure`, keyed by the JWT's
+  // `session_id` claim rather than a client-visible cookie, and it runs on
+  // every authenticated tRPC call — reads included.
   //
   const IDLE_TIMEOUT_MS = 30 * 60 * 1_000; // 30 minutes
   const ACTIVITY_COOKIE = "cendaro-last-activity";
