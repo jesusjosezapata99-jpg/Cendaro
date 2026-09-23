@@ -395,7 +395,9 @@ export const usersRouter = createTRPCRouter({
       recommendation: compliance.blocked
         ? "MFA/TOTP es obligatorio para tu rol y aún no está activo: las acciones que modifican datos están bloqueadas hasta que lo actives."
         : compliance.required && !compliance.enrolled
-          ? `MFA/TOTP es requerido para roles administrativos conforme a SOC 2 (CC6.1) e ISO 27001 (A.8.5). Actívalo antes del ${compliance.gracePeriodEndsAt.toISOString().slice(0, 10)}.`
+          ? compliance.gracePeriodEndsAt
+            ? `MFA/TOTP es requerido para roles administrativos conforme a SOC 2 (CC6.1) e ISO 27001 (A.8.5). Actívalo antes del ${compliance.gracePeriodEndsAt.toISOString().slice(0, 10)}.`
+            : "MFA/TOTP es recomendado para roles administrativos conforme a SOC 2 (CC6.1) e ISO 27001 (A.8.5)."
           : "Nivel de autenticación conforme",
     };
   }),

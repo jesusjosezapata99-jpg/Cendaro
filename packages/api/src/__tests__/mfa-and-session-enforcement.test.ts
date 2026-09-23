@@ -18,12 +18,19 @@ import { describe, expect, it, vi } from "vitest";
 import { logger } from "../logger";
 import { usersRouter } from "../modules/users";
 import { workspaceRouter } from "../modules/workspace";
-import { MFA_ENFORCEMENT_DATE } from "../services/mfa-enforcement";
 import {
   createCallerFactory,
   createTRPCRouter,
   MfaRequiredError,
 } from "../trpc";
+
+// The cutover is read from the environment when mfa-enforcement.ts loads, so
+// it must be set before any import (vi.hoisted runs first). Unset would mean
+// "not scheduled", which mfa-enforcement.test.ts already covers.
+const MFA_ENFORCEMENT_DATE = vi.hoisted(() => {
+  process.env.MFA_ENFORCEMENT_DATE = "2026-10-01";
+  return new Date("2026-10-01T00:00:00Z");
+});
 
 const WORKSPACE = "00000000-0000-4000-8000-0000000000e1";
 const TARGET = "00000000-0000-4000-8000-0000000000e2";

@@ -16,8 +16,8 @@ function daysRemaining(target: Date): number {
 /**
  * F7.2 grace-period banner. Reads the same `mfaComplianceFor` decision the
  * server enforces in `workspaceProcedure`, so this never disagrees with what
- * actually gets blocked. Renders nothing once MFA is enrolled or not required
- * for the current role.
+ * actually gets blocked. Renders nothing once MFA is enrolled, not required
+ * for the current role, or while no enforcement date is scheduled.
  */
 export function MfaBanner() {
   const trpc = useTRPC();
@@ -25,7 +25,7 @@ export function MfaBanner() {
   const [dismissed, setDismissed] = useState(false);
 
   if (!status || status.enrolled) return null;
-  if (!status.required) return null;
+  if (!status.required || !status.gracePeriodEndsAt) return null;
   if (!status.blocked && dismissed) return null;
 
   return (

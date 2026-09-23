@@ -13,6 +13,15 @@ export const env = createEnv({
     // least 32 characters. The length is checked there, not here: a short
     // value must disable the cron, not crash every page at startup.
     CRON_SECRET: z.string().optional(),
+    // Owner/admin MFA cutover (YYYY-MM-DD, UTC). Unset = not scheduled: no
+    // blocking and no banner. Read at runtime by
+    // packages/api/src/services/mfa-enforcement.ts; validated here too so a
+    // typo fails local builds and server startup (Vercel builds set CI, which
+    // skips validation) instead of the first tRPC call.
+    MFA_ENFORCEMENT_DATE: z.preprocess(
+      (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+      z.iso.date().optional(),
+    ),
     MERCADOLIBRE_APP_ID: z.string().optional(),
     MERCADOLIBRE_SECRET: z.string().optional(),
     VERCEL_URL: z

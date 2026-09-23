@@ -31,6 +31,10 @@ function hasValidSecret(header: string | null, secret: string): boolean {
 }
 
 export async function GET(request: Request) {
+  // Read the header before anything else: this request access is what makes
+  // the route dynamic, so the build-time prerender probe stops here instead
+  // of running the missing-secret branch (and logging it) with no secret.
+  const authorization = request.headers.get("authorization");
   const secret = env.CRON_SECRET;
   if (!secret || secret.length < MIN_SECRET_LENGTH) {
     logger.error(
@@ -41,7 +45,7 @@ export async function GET(request: Request) {
       { status: 503 },
     );
   }
-  if (!hasValidSecret(request.headers.get("authorization"), secret)) {
+  if (!hasValidSecret(authorization, secret)) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
