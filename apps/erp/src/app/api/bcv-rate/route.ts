@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { connection, NextResponse } from "next/server";
 
 import { getVesRates } from "@cendaro/api";
 
@@ -13,6 +13,10 @@ import { getVesRates } from "@cendaro/api";
  * refresh is `pricing.syncRates({ force: true })`, gated by rates.update.
  */
 export async function GET() {
+  // Dynamic per request. Without it the build's prerender probe runs this
+  // handler, aborts the upstream fetches when it finishes, and logs each
+  // abort as "exchange-rate upstream failed".
+  await connection();
   const rates = await getVesRates();
   if (!rates) {
     return NextResponse.json(

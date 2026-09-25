@@ -33,15 +33,41 @@ describe("Proxy Route Allowlist Security Invariants (C4)", () => {
   ];
 
   it("ensures PUBLIC_ROUTES_EXACT contains only intended static public routes", () => {
-    expect(PUBLIC_ROUTES_EXACT).toEqual(["/", "/opengraph-image"]);
+    expect(PUBLIC_ROUTES_EXACT).toEqual([
+      "/",
+      "/opengraph-image",
+      "/funciones",
+      "/sitemap.xml",
+      "/robots.txt",
+    ]);
   });
 
-  it("ensures PUBLIC_ROUTES_PREFIX contains only login, auth endpoints and the Sentry tunnel", () => {
+  it("ensures PUBLIC_ROUTES_PREFIX contains only login, auth endpoints, the Sentry tunnel and feature pages", () => {
     expect(PUBLIC_ROUTES_PREFIX).toEqual([
       "/login",
       "/api/auth",
       "/monitoring",
+      "/funciones/",
     ]);
+  });
+
+  it("makes the marketing feature pages public, and nothing that only looks like them", () => {
+    const isPublic = (path: string): boolean =>
+      PUBLIC_ROUTES_EXACT.includes(path) ||
+      PUBLIC_ROUTES_PREFIX.some((prefix) => path.startsWith(prefix));
+
+    for (const path of [
+      "/funciones",
+      "/funciones/inventario",
+      "/funciones/importaciones",
+      "/funciones/finanzas",
+      "/funciones/inventario/opengraph-image",
+    ]) {
+      expect(isPublic(path)).toBe(true);
+    }
+    for (const path of ["/funcionesx", "/funciones-admin", "/dashboard"]) {
+      expect(isPublic(path)).toBe(false);
+    }
   });
 
   it("regression guard: ensures /en is strictly NOT in any public allowlist", () => {

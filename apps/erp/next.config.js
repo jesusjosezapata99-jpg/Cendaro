@@ -85,6 +85,18 @@ const config = {
         ],
       },
       {
+        // Landing media is content-hashed per directory
+        // (scripts/landing-media, PLAN-2026-09-LANDING-REDESIGN T1.6): a new
+        // recording gets a new URL, so the CDN and browsers keep it forever.
+        source: "/media/:path*",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=31536000, immutable",
+          },
+        ],
+      },
+      {
         source: "/api/trpc/:path*",
         headers: [
           { key: "Cache-Control", value: "private, no-cache, must-revalidate" },

@@ -8,7 +8,7 @@ import {
 import { AppToaster } from "~/components/app-toaster";
 import { MotionProvider } from "~/components/motion-provider";
 import { ThemeProvider } from "~/components/theme-provider";
-import { env } from "~/env";
+import { siteUrl } from "~/lib/site-env";
 
 import "./globals.css";
 
@@ -47,10 +47,10 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  // Canonical URL for OG/Twitter images. VERCEL_URL is injected by Vercel at build time.
-  metadataBase: new URL(
-    env.VERCEL_URL ? `https://${env.VERCEL_URL}` : "http://localhost:3000",
-  ),
+  // Canonical origin for OG/Twitter images and canonical links: the public
+  // site URL (NEXT_PUBLIC_SITE_URL, else the production Vercel URL), never a
+  // per-deployment preview URL (PLAN-2026-09-LANDING-REDESIGN T1.3).
+  metadataBase: siteUrl,
   title: "Cendaro",
   description:
     "Sistema ERP Omnicanal para gestión de inventarios, ventas, precios y operaciones",
@@ -85,7 +85,7 @@ export default function RootLayout({
           content="black-translucent"
         />
         <meta name="apple-mobile-web-app-title" content="Cendaro" />
-        <link rel="apple-touch-icon" href="/cendaro-logo.png" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
       </head>
       <body
         className={`${hedvigSans.variable} ${hedvigSerif.variable} ${geistMono.variable} bg-background text-foreground font-sans antialiased`}
