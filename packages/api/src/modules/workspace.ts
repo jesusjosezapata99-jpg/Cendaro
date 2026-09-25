@@ -15,6 +15,7 @@ import {
   WorkspaceModule,
   WorkspaceQuota,
 } from "@cendaro/db/schema";
+import { STARTER_MODULES, STARTER_QUOTA } from "@cendaro/validators";
 
 import { revokeSessionsIfAccessLost } from "../services/auth-admin";
 import {
@@ -40,25 +41,8 @@ const LISTED_MEMBER_STATUSES: MemberRow["status"][] = ["active", "suspended"];
 // request (PLAN-2026-09-SECURITY-REMEDIATION F3.3, finding H3).
 // Core modules (dashboard, users, settings, audit — CORE_MODULES in
 // @cendaro/validators) are enabled for every plan regardless of these rows.
-
-const STARTER_MODULES = [
-  "dashboard",
-  "catalog",
-  "inventory",
-  "orders",
-  "pos",
-  "customers",
-  // POS checkout records the payment (payments.create)
-  "payments",
-] as const;
-
-const STARTER_QUOTA = {
-  maxUsers: 1,
-  maxWarehouses: 1,
-  maxProducts: 500,
-  maxCustomers: 50,
-  maxStorageMb: 500,
-} as const;
+// STARTER_MODULES / STARTER_QUOTA live in @cendaro/validators (plans.ts):
+// the public site publishes the same limits.
 
 /** The caller's own pending invitation to a workspace, locked for update. */
 async function findPendingInvitation(

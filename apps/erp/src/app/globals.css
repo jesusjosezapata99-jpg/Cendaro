@@ -8,16 +8,71 @@
 @source "../../../../packages/ui/src";
 
 /* ================================================================
-   Landing Page — Design Tokens & Animations
+   Motion tokens (DESIGN.md §5, PLAN-2026-09-LANDING-REDESIGN §4.4)
    ================================================================ */
 
 :root {
-  --radius-card: 0.75rem;
-  --duration-entrance: 600ms;
-  --duration-micro: 250ms;
+  --motion-micro: 150ms;
+  --motion-ui: 250ms;
+  --motion-enter: 600ms;
+  --motion-media: 450ms;
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
-  --duration-counter: 2000ms;
-  --delay-mockup-entrance: 350ms;
+}
+
+/* ── Public-site reveal (primitives/reveal.tsx + reveal-observer.tsx) ──
+   The hidden start state applies only once the marketing layout's inline
+   script has added `html.js-reveal`, so without JavaScript every section
+   renders visible. One shared IntersectionObserver sets `data-inview`.
+   If the observer never boots (`data-reveal-ready` missing), a failsafe
+   shows everything after 3 s. Only transform and opacity animate. */
+[data-reveal] {
+  transition:
+    opacity var(--motion-enter) var(--ease-out-expo),
+    transform var(--motion-enter) var(--ease-out-expo);
+  transition-delay: var(--reveal-delay, 0ms);
+}
+html.js-reveal [data-reveal="up"]:not([data-inview]) {
+  opacity: 0;
+  transform: translateY(16px);
+}
+html.js-reveal [data-reveal="fade"]:not([data-inview]) {
+  opacity: 0;
+}
+html.js-reveal [data-reveal="rise"]:not([data-inview]) {
+  opacity: 0;
+  transform: translateY(24px) scale(0.98);
+}
+@keyframes reveal-failsafe {
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+html.js-reveal:not([data-reveal-ready]) [data-reveal]:not([data-inview]) {
+  animation: reveal-failsafe 0s linear 3s forwards;
+}
+
+/* Hero headline: transform-only entrance so the LCP element is painted
+   (opacity 1) on the first frame — the old opacity-0 + blur entrance held
+   LCP back ~2.9 s until hydration (UI-REPORT-2026-09-LANDING-BASELINE). */
+@keyframes hero-line-in {
+  from {
+    transform: translateY(0.35em);
+  }
+  to {
+    transform: none;
+  }
+}
+@utility animate-hero-line {
+  animation: hero-line-in 700ms var(--ease-out-expo) both;
+  animation-delay: var(--line-delay, 0ms);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html.js-reveal [data-reveal]:not([data-inview]) {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 /* Skeleton shimmer (M-16): background-position sweep, 2.5s linear infinite */

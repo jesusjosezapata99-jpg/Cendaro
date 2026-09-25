@@ -28,6 +28,9 @@ export const env = createEnv({
       .string()
       .regex(/^[a-z0-9.-]+$/)
       .optional(),
+    // Vercel deployment target. Only "production" may be indexed by search
+    // engines (app/robots.ts); previews and local builds answer disallow.
+    VERCEL_ENV: z.enum(["production", "preview", "development"]).optional(),
     NODE_ENV: z
       .enum(["development", "test", "production"])
       .default("development"),
@@ -40,11 +43,36 @@ export const env = createEnv({
       (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
       z.string().url().optional(),
     ),
+    // Public marketing site (PLAN-2026-09-LANDING-REDESIGN F1). All three are
+    // inlined at build time, so a change needs a redeploy. Empty = unset.
+    // Canonical origin for metadata, sitemap and JSON-LD; unset falls back to
+    // the Vercel production URL (src/lib/site.ts).
+    NEXT_PUBLIC_SITE_URL: z.preprocess(
+      (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+      z.string().url().optional(),
+    ),
+    // "Solicitar acceso" by WhatsApp: international number, digits only
+    // (e.g. 584141234567). Unset hides the WhatsApp button.
+    NEXT_PUBLIC_CONTACT_WHATSAPP: z.preprocess(
+      (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+      z
+        .string()
+        .regex(/^\d{8,15}$/)
+        .optional(),
+    ),
+    // "Solicitar acceso" by email. Unset hides the email link.
+    NEXT_PUBLIC_CONTACT_EMAIL: z.preprocess(
+      (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+      z.string().email().optional(),
+    ),
   },
   experimental__runtimeEnv: {
     NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
     NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     NEXT_PUBLIC_SENTRY_DSN: process.env.NEXT_PUBLIC_SENTRY_DSN,
+    NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL,
+    NEXT_PUBLIC_CONTACT_WHATSAPP: process.env.NEXT_PUBLIC_CONTACT_WHATSAPP,
+    NEXT_PUBLIC_CONTACT_EMAIL: process.env.NEXT_PUBLIC_CONTACT_EMAIL,
   },
   skipValidation:
     !!process.env.CI || process.env.npm_lifecycle_event === "lint",

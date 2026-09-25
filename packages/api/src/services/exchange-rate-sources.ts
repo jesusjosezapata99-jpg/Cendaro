@@ -16,6 +16,10 @@ import https from "node:https";
 import { z } from "zod/v4";
 
 import { logger } from "../logger";
+import { BCV_TRUSTED_CA } from "./bcv-ca";
+
+/** bcv.org.ve omits its intermediate; see bcv-ca.ts. Built once: full TLS verification. */
+const BCV_AGENT = new https.Agent({ ca: [...BCV_TRUSTED_CA] });
 
 // ── Bounds and endpoints ─────────────────────────
 
@@ -323,6 +327,7 @@ function fetchBcvHtml(): Promise<string | null> {
     const req = https.get(
       BCV_URL,
       {
+        agent: BCV_AGENT,
         timeout: UPSTREAM_TIMEOUT_MS,
         headers: {
           "User-Agent":
