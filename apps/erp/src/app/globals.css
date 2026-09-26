@@ -68,6 +68,22 @@ html.js-reveal:not([data-reveal-ready]) [data-reveal]:not([data-inview]) {
   animation-delay: var(--line-delay, 0ms);
 }
 
+/* Rest of the hero (pill, lead, CTAs): CSS-only and visible on the first
+   frame. JS-gated reveals here made the lead paragraph — larger than the
+   <h1> on phones — the LCP element at ~3.6 s on slow 4G. */
+@keyframes hero-rise-in {
+  from {
+    transform: translateY(12px);
+  }
+  to {
+    transform: none;
+  }
+}
+@utility animate-hero-rise {
+  animation: hero-rise-in 800ms var(--ease-out-expo) both;
+  animation-delay: var(--line-delay, 0ms);
+}
+
 @media (prefers-reduced-motion: reduce) {
   html.js-reveal [data-reveal]:not([data-inview]) {
     opacity: 1;

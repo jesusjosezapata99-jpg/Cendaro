@@ -115,14 +115,14 @@ await transaction(db, async () => {
       throw new Error(`Could not clear (foreign keys): ${pending.join(", ")}`);
     }
   }
+  // workspace.created_by points at the profile and the profile points back at
+  // the workspace and organization: release the profile's links first, drop
+  // the workspace and organization, and only then the profile itself.
   if (profile) {
-    // Session bookkeeping of the demo user; tolerated if the shape differs.
-    await inSavepoint(
-      db,
-      "delete from user_session_activity where user_id = $1",
+    await db.query(
+      "update user_profile set default_workspace_id = null, organization_id = null where id = $1",
       [profile.id],
-    ).catch(() => undefined);
-    await db.query("delete from user_profile where id = $1", [profile.id]);
+    );
   }
   if (workspace) {
     await db.query("delete from workspace where id = $1", [workspace.id]);
@@ -131,6 +131,15 @@ await transaction(db, async () => {
          and not exists (select 1 from workspace w where w.organization_id = o.id)`,
       [workspace.organization_id],
     );
+  }
+  if (profile) {
+    // Session bookkeeping of the demo user; tolerated if the shape differs.
+    await inSavepoint(
+      db,
+      "delete from user_session_activity where user_id = $1",
+      [profile.id],
+    ).catch(() => undefined);
+    await db.query("delete from user_profile where id = $1", [profile.id]);
   }
 });
 

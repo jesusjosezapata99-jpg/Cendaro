@@ -6,6 +6,7 @@ import { Icons } from "@cendaro/ui/icons";
 import { StatusPill } from "@cendaro/ui/status-pill";
 
 import type { StepId } from "../content";
+import type { FeatureSlug } from "../features";
 import { MiniAppShell, MiniStat } from "./app-shell";
 
 /**
@@ -355,4 +356,110 @@ export const STEP_VIEWS: Readonly<Record<StepId, () => React.JSX.Element>> = {
   importacion: ContainerView,
   venta: PosView,
   cobranza: ReceivablesView,
+};
+
+// ── Feature page: stock by warehouse ──────────────────────────────────────
+function InventoryView() {
+  return (
+    <MiniAppShell
+      active="Inventory2"
+      title="Almacén Principal · Valencia"
+      meta={<span className="text-muted-foreground text-xs">3 almacenes</span>}
+    >
+      <div className="mb-3 grid grid-cols-3 gap-2">
+        <MiniStat label="Productos" value="612" />
+        <MiniStat label="Stock bajo" value="14" />
+        <MiniStat label="Agotados" value="3" />
+      </div>
+      <div className="border-border border">
+        <Row head cells={["Producto", "Stock", "Tránsito", "Estado"]} />
+        <Row
+          cells={[
+            "Bombillo LED 12 W",
+            "1.840",
+            "2.400",
+            pill("success", "En Stock"),
+          ]}
+        />
+        <Row
+          cells={[
+            "Juego de ollas x5",
+            "96",
+            "240",
+            pill("success", "En Stock"),
+          ]}
+        />
+        <Row
+          cells={[
+            "Escoba plástica con palo",
+            "4",
+            "0",
+            pill("warning", "Stock Bajo"),
+          ]}
+        />
+        <Row
+          cells={[
+            "Balanza de cocina 5 kg",
+            "0",
+            "180",
+            pill("destructive", "Agotado"),
+          ]}
+        />
+      </div>
+    </MiniAppShell>
+  );
+}
+
+// ── Feature page: exchange rates with a held rate ─────────────────────────
+function RatesView() {
+  return (
+    <MiniAppShell active="CurrencyExchange" title="Tasas" meta={<RateChip />}>
+      <div className="border-border bg-card mb-3 flex items-center justify-between gap-3 border p-3 text-xs">
+        <span className="min-w-0 truncate">
+          <span className="text-muted-foreground">Tasa retenida · </span>
+          BCV {num.format(BCV * 1.19)} (+19 %)
+        </span>
+        <span className="bg-foreground text-background shrink-0 px-2 py-1">
+          Revisar
+        </span>
+      </div>
+      <div className="border-border border">
+        <Row head cells={["Fuente", "Tasa", "Hora", "Estado"]} />
+        <Row
+          cells={[
+            "BCV oficial",
+            num.format(BCV),
+            "18:00",
+            pill("success", "Aplicada"),
+          ]}
+        />
+        <Row
+          cells={["Paralela", "1.024,10", "18:00", pill("success", "Aplicada")]}
+        />
+        <Row
+          cells={["USD/CNY", "7,12", "18:00", pill("success", "Aplicada")]}
+        />
+        <Row
+          cells={[
+            "BCV (nuevo dato)",
+            num.format(BCV * 1.19),
+            "18:00",
+            pill("warning", "Retenida"),
+          ]}
+        />
+      </div>
+      <p className="text-muted-foreground mt-3 font-mono text-xs tabular-nums">
+        {fmtUsd(12.5)} = {fmtBs(12.5)}
+      </p>
+    </MiniAppShell>
+  );
+}
+
+/** Main product view of each feature page (until recordings exist, F3). */
+export const FEATURE_VIEWS: Readonly<
+  Record<FeatureSlug, () => React.JSX.Element>
+> = {
+  inventario: InventoryView,
+  importaciones: ContainerView,
+  finanzas: RatesView,
 };

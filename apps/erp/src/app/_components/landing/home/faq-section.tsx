@@ -1,14 +1,27 @@
 import { Icons } from "@cendaro/ui/icons";
 
+import type { FaqItem } from "../content";
 import { FAQ } from "../content";
 import { Reveal } from "../primitives/reveal";
 import { SectionHeading } from "../primitives/section-heading";
 
+interface FaqSectionProps {
+  items?: readonly FaqItem[];
+  /** Mono index of the eyebrow ("07" on the home page). */
+  index?: string;
+  title?: string;
+}
+
 /**
  * FAQ with native <details>: answers are in the DOM (SEO), keyboard and
  * screen-reader behaviour comes from the browser, no JavaScript (plan T4.10).
+ * The home page uses the defaults; feature pages pass their own questions.
  */
-export function FaqSection() {
+export function FaqSection({
+  items = FAQ,
+  index = "07",
+  title = "Lo que suelen preguntarnos",
+}: FaqSectionProps) {
   return (
     <section
       id="preguntas"
@@ -19,11 +32,11 @@ export function FaqSection() {
         <SectionHeading
           align="start"
           id="preguntas-title"
-          eyebrow={{ index: "07", label: "Preguntas" }}
-          title="Lo que suelen preguntarnos"
+          eyebrow={{ index, label: "Preguntas" }}
+          title={title}
         />
         <Reveal variant="fade" className="border-border border-t">
-          {FAQ.map((item) => (
+          {items.map((item) => (
             <details
               key={item.q}
               className="group border-border border-b [&_summary::-webkit-details-marker]:hidden"
@@ -44,11 +57,13 @@ export function FaqSection() {
 }
 
 /** FAQPage structured data built from the same array (plan T7.2). */
-export function faqJsonLd(): Record<string, unknown> {
+export function faqJsonLd(
+  items: readonly FaqItem[] = FAQ,
+): Record<string, unknown> {
   return {
     "@context": "https://schema.org",
     "@type": "FAQPage",
-    mainEntity: FAQ.map((item) => ({
+    mainEntity: items.map((item) => ({
       "@type": "Question",
       name: item.q,
       acceptedAnswer: { "@type": "Answer", text: item.a },

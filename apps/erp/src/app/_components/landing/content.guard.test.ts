@@ -13,6 +13,13 @@ import { describe, expect, it } from "vitest";
 import { ERP_MODULES } from "@cendaro/validators";
 
 import { CLAIMS, MODULES } from "./content";
+import {
+  FEATURE_CLAIMS,
+  FEATURE_SLUGS,
+  featureHref,
+  FEATURES,
+} from "./features";
+import { MARKETING_ROUTES } from "./routes";
 
 const HERE = fileURLToPath(new URL(".", import.meta.url));
 const REPO_ROOT = resolve(HERE, "../../../../../..");
@@ -20,6 +27,10 @@ const APP_DIR = resolve(HERE, "../..");
 
 /** Directories whose source is public-site copy. */
 const PUBLIC_DIRS = [HERE, join(APP_DIR, "(marketing)")];
+/** Public files outside those directories (the home social preview). */
+const PUBLIC_FILES = [join(APP_DIR, "opengraph-image.tsx")];
+
+const ALL_CLAIMS = [...CLAIMS, ...FEATURE_CLAIMS];
 
 /**
  * Phrases that were false on the previous landing (report
@@ -32,7 +43,7 @@ const FORBIDDEN: readonly { pattern: RegExp; why: string }[] = [
   { pattern: /horario europeo/i, why: "no European support team" },
   { pattern: /14 días/i, why: "there is no free trial" },
   { pattern: /prueba (gratis|gratuita|pro)/i, why: "there is no free trial" },
-  { pattern: /empezar gratis/i, why: "public signup is disabled" },
+  { pattern: /empie(za|zar) gratis/i, why: "public signup is disabled" },
   { pattern: /\$\s?\d+\s?\/\s?mes/i, why: "there are no public prices" },
   { pattern: /Stripe/i, why: "no Stripe integration" },
   { pattern: /Google Sheets/i, why: "no Google Sheets integration" },
@@ -45,6 +56,10 @@ const FORBIDDEN: readonly { pattern: RegExp; why: string }[] = [
     why: "category suggestions are fuzzy matching; the AI reads packing lists",
   },
   { pattern: /[0-9]\s?de\s?5 estrellas/i, why: "no real ratings exist" },
+  {
+    pattern: /recálculo automático|alertas? de stock bajo/i,
+    why: "repricing events are never created and low stock is a filter, not an alert",
+  },
 ];
 
 function sourceFiles(dir: string): string[] {
@@ -57,7 +72,7 @@ function sourceFiles(dir: string): string[] {
 
 function forbiddenPhrases(): string[] {
   const hits: string[] = [];
-  for (const file of PUBLIC_DIRS.flatMap(sourceFiles)) {
+  for (const file of [...PUBLIC_DIRS.flatMap(sourceFiles), ...PUBLIC_FILES]) {
     const text = readFileSync(file, "utf8");
     for (const { pattern, why } of FORBIDDEN) {
       if (pattern.test(text)) {
@@ -72,7 +87,7 @@ function forbiddenPhrases(): string[] {
 
 describe("public-site claims", () => {
   it("every claim has evidence that exists", () => {
-    for (const claim of CLAIMS) {
+    for (const claim of ALL_CLAIMS) {
       if (claim.source.startsWith("user:")) {
         expect(claim.source, claim.text).toMatch(/^user:\d{4}-\d{2}-\d{2}$/);
         continue;
@@ -85,7 +100,7 @@ describe("public-site claims", () => {
   });
 
   it("no claim repeats a forbidden phrase", () => {
-    for (const claim of CLAIMS) {
+    for (const claim of ALL_CLAIMS) {
       for (const { pattern, why } of FORBIDDEN) {
         expect(pattern.test(claim.text), `"${claim.text}": ${why}`).toBe(false);
       }
@@ -99,5 +114,27 @@ describe("public-site claims", () => {
 
   it("the modules map covers every ERP module", () => {
     expect(Object.keys(MODULES).sort()).toEqual([...ERP_MODULES].sort());
+  });
+});
+
+describe("feature pages", () => {
+  it.each(FEATURE_SLUGS)("%s has search-sized metadata", (slug) => {
+    const page = FEATURES[slug];
+    expect(page.metaTitle.length).toBeLessThanOrEqual(60);
+    expect(page.metaDescription.length).toBeLessThanOrEqual(155);
+  });
+
+  it.each(FEATURE_SLUGS)("%s explains 3–5 steps", (slug) => {
+    const { steps } = FEATURES[slug];
+    expect(steps.length).toBeGreaterThanOrEqual(3);
+    expect(steps.length).toBeLessThanOrEqual(5);
+  });
+
+  it("every feature page is in the sitemap", () => {
+    const paths = MARKETING_ROUTES.map((route) => route.path);
+    expect(paths).toContain("/funciones");
+    for (const slug of FEATURE_SLUGS) {
+      expect(paths).toContain(featureHref(slug));
+    }
   });
 });

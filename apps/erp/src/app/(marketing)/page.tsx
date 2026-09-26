@@ -12,6 +12,7 @@ import { ModulesGrid } from "../_components/landing/home/modules-grid";
 import { PlansSection } from "../_components/landing/home/plans-section";
 import { ProofStrip } from "../_components/landing/home/proof-strip";
 import { SecuritySection } from "../_components/landing/home/security-section";
+import { JsonLd } from "../_components/landing/seo";
 
 const TITLE = "Cendaro — Vende, importa y cobra desde un solo sistema";
 const DESCRIPTION =
@@ -62,10 +63,7 @@ const JSON_LD = [
 export default function LandingPage() {
   return (
     <>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD) }}
-      />
+      <JsonLd data={JSON_LD} />
       <Hero />
       <ProofStrip />
       <HowItWorks />

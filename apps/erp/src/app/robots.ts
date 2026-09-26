@@ -1,6 +1,8 @@
 import type { MetadataRoute } from "next";
 
-import { isIndexable, siteUrl } from "~/lib/site-env";
+import { env } from "~/env";
+import { isIndexableDeployment } from "~/lib/site";
+import { siteUrl } from "~/lib/site-env";
 
 /**
  * Only the Vercel production deployment is indexable; previews and local
@@ -8,6 +10,7 @@ import { isIndexable, siteUrl } from "~/lib/site-env";
  * The authenticated app is excluded explicitly even though it redirects.
  */
 export default function robots(): MetadataRoute.Robots {
+  const isIndexable = isIndexableDeployment(env.VERCEL_ENV);
   if (!isIndexable) {
     return { rules: { userAgent: "*", disallow: "/" } };
   }

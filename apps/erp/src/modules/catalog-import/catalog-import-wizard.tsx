@@ -68,11 +68,11 @@ function StepIndicator({
         const isActive = current === s.key;
 
         const sharedClasses =
-          "flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-all";
+          "flex items-center gap-1.5 rounded-none px-3 py-1.5 text-xs font-medium transition-all";
         const colorClasses = isActive
-          ? "bg-primary text-white"
+          ? "bg-primary text-primary-foreground"
           : isDone
-            ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+            ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300"
             : "bg-muted text-muted-foreground";
 
         return (
