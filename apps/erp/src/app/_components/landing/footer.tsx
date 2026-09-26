@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 
 import { accessRequestLinks } from "~/lib/site-env";
+import { FEATURE_SLUGS, featureHref, FEATURES } from "./features";
 import { NAV_LINKS } from "./nav/nav-links";
 import { ThemeToggle } from "./nav/theme-toggle";
 
@@ -14,7 +15,7 @@ export function Footer() {
 
   return (
     <footer className="border-border overflow-hidden border-t">
-      <div className="mx-auto grid max-w-7xl gap-10 px-4 pt-16 sm:px-6 md:grid-cols-[minmax(0,1.4fr)_repeat(2,minmax(0,1fr))]">
+      <div className="mx-auto grid max-w-7xl gap-10 px-4 pt-16 sm:grid-cols-2 sm:px-6 md:grid-cols-[minmax(0,1.4fr)_repeat(3,minmax(0,1fr))]">
         <div>
           <Link
             href="/"
@@ -35,6 +36,32 @@ export function Footer() {
             Hecho en Venezuela.
           </p>
         </div>
+
+        <nav aria-labelledby="pie-funciones">
+          <h2 id="pie-funciones" className="text-sm font-medium">
+            Funciones
+          </h2>
+          <ul className="mt-4 flex flex-col gap-3 text-sm">
+            {FEATURE_SLUGS.map((slug) => (
+              <li key={slug}>
+                <Link
+                  href={featureHref(slug)}
+                  className="text-muted-foreground hover:text-foreground transition-colors duration-(--motion-micro)"
+                >
+                  {FEATURES[slug].name}
+                </Link>
+              </li>
+            ))}
+            <li>
+              <Link
+                href="/funciones"
+                className="text-muted-foreground hover:text-foreground transition-colors duration-(--motion-micro)"
+              >
+                Todos los módulos
+              </Link>
+            </li>
+          </ul>
+        </nav>
 
         <nav aria-labelledby="pie-producto">
           <h2 id="pie-producto" className="text-sm font-medium">
@@ -102,12 +129,12 @@ export function Footer() {
         </div>
       </div>
 
-      <p
+      {/* Decorative wordmark drawn as generated content: low-contrast by
+          design, so it stays out of the accessibility tree and contrast audits. */}
+      <div
         aria-hidden="true"
-        className="text-border pointer-events-none mb-[-0.22em] text-center font-serif text-[clamp(6rem,27vw,24rem)] leading-none tracking-[-0.04em] select-none"
-      >
-        Cendaro
-      </p>
+        className="text-border pointer-events-none mb-[-0.22em] text-center font-serif text-[clamp(6rem,27vw,24rem)] leading-none tracking-[-0.04em] select-none before:content-['Cendaro']"
+      />
     </footer>
   );
 }

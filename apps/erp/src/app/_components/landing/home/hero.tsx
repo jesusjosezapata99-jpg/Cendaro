@@ -3,18 +3,20 @@ import type { CSSProperties } from "react";
 import { Icons } from "@cendaro/ui/icons";
 
 import { siteUrl } from "~/lib/site-env";
-import { HERO } from "../content";
+import { HERO, HERO_VIDEO_LABEL } from "../content";
+import { MEDIA } from "../media";
 import { SampleDataNote } from "../mini/app-shell";
-import { DashboardView } from "../mini/views";
 import { CtaButtons } from "../primitives/cta-buttons";
 import { GrainBackdrop } from "../primitives/grain-backdrop";
+import { LandingVideo } from "../primitives/landing-video";
 import { ProductFrame } from "../primitives/product-frame";
 import { Reveal } from "../primitives/reveal";
 
 /**
  * Home hero (plan §6.1 #2–3). The `<h1>` is the LCP element: it is painted on
  * the first frame and only its lines slide (animate-hero-line, transform
- * only); everything below reveals after it.
+ * only). Pill, lead and CTAs are also visible on the first frame
+ * (animate-hero-rise); only the product frame waits for the observer.
  */
 export function Hero() {
   return (
@@ -23,7 +25,7 @@ export function Hero() {
       className="relative overflow-hidden pt-28 pb-16 md:pt-36 md:pb-24"
     >
       <div className="mx-auto flex max-w-7xl flex-col items-center px-4 text-center sm:px-6">
-        <Reveal variant="fade">
+        <div className="animate-hero-rise">
           <a
             href={HERO.pill.href}
             className="border-border hover:bg-muted inline-flex items-center gap-2 rounded-full border py-1 pr-3 pl-1 text-sm transition-colors duration-(--motion-micro)"
@@ -34,7 +36,7 @@ export function Hero() {
             {HERO.pill.text}
             <Icons.ArrowForward className="size-4" />
           </a>
-        </Reveal>
+        </div>
 
         <h1
           id="hero-title"
@@ -52,16 +54,22 @@ export function Hero() {
           ))}
         </h1>
 
-        <Reveal delay={120} className="mt-6 max-w-2xl">
+        <div
+          className="animate-hero-rise mt-6 max-w-2xl"
+          style={{ "--line-delay": "150ms" } as CSSProperties}
+        >
           <p className="text-muted-foreground text-lg leading-relaxed text-pretty md:text-xl">
             {HERO.lead}
           </p>
-        </Reveal>
+        </div>
 
-        <Reveal delay={200} className="mt-9 w-full sm:w-auto">
+        <div
+          className="animate-hero-rise mt-9 w-full sm:w-auto"
+          style={{ "--line-delay": "220ms" } as CSSProperties}
+        >
           <CtaButtons context="Inicio" />
           <p className="text-muted-foreground mt-4 text-sm">{HERO.note}</p>
-        </Reveal>
+        </div>
       </div>
 
       <Reveal
@@ -75,7 +83,11 @@ export function Hero() {
             path="/dashboard"
             className="border-b-0"
           >
-            <DashboardView className="min-h-72" />
+            <LandingVideo
+              priority
+              clip={MEDIA["hero-overview"]}
+              label={HERO_VIDEO_LABEL}
+            />
           </ProductFrame>
         </GrainBackdrop>
         <SampleDataNote className="mt-3 text-center" />

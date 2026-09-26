@@ -1,0 +1,15 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "layout-transition",
+        "value": "*",
+        "files": ["apps/erp/src/app/globals.css"],
+        "createdAt": "2026-09-25T15:02:31.141Z",
+        "reason": "user confirmed 2026-09-25: search palette 100ms height tween (M-19), bounded list, intentional"
+      }
+    ]
+  }
+}

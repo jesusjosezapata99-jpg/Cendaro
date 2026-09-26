@@ -127,8 +127,18 @@ function buildDataset(ownerId) {
   const prices = [];
   const ledger = [];
   const movements = [];
+  const allocations = [];
+  const mlSkus = new Set(ML_LISTINGS.map(([sku]) => sku));
   for (const [sku, name, cat, brand, sup, cost, store, wholesale, central, tienda] of PRODUCTS) {
     const id = randomUUID();
+    // Stock reserved per sales channel (what the inventory screen breaks down).
+    for (const [channel, quantity] of [
+      ["store", tienda],
+      ["mercadolibre", mlSkus.has(sku) ? Math.min(40, Math.round(central * 0.12)) : 0],
+      ["vendors", Math.round(central * 0.22)],
+    ]) {
+      if (quantity > 0) allocations.push({ id: randomUUID(), ...ws, product_id: id, channel, quantity });
+    }
     products.push({
       id, ...ws, sku, name, category_id: catId[cat], brand_id: brands[brand].id,
       supplier_id: supId[sup], cost_avg: cost, status: "active", base_uom: "unidad",
@@ -240,7 +250,9 @@ function buildDataset(ownerId) {
           : pick(["pending", "confirmed"]);
     const onCredit = wholesaleBuyer && customer.credit_days > 0 && random() < 0.6;
     const order = {
-      id: orderId, ...ws, customer_id: customer.id, channel, status, subtotal, discount: 0,
+      // Explicit number: production has no order_number_seq, so the trigger
+      // that would generate it fails (see sales.checkoutPos, orderNumber: "").
+      id: orderId, ...ws, order_number: `OC-${1001 + i}`, customer_id: customer.id, channel, status, subtotal, discount: 0,
       total: subtotal, total_paid: 0, created_by: ownerId, created_at: createdAt,
       updated_at: createdAt, stock_deducted: ["delivered", "invoiced", "dispatched"].includes(status),
     };
@@ -395,7 +407,7 @@ function buildDataset(ownerId) {
 
   return {
     workspaceId, organizationId, warehouses, categories, brands, suppliers, products,
-    prices, ledger, movements, customers, rates, orders, items, payments, receivables,
+    prices, ledger, movements, allocations, customers, rates, orders, items, payments, receivables,
     closures, containers: [received, inTransit], containerItems, quotes, quoteItems,
     deliveryNotes, deliveryItems, alerts, listings,
   };
@@ -445,6 +457,17 @@ if (existing) {
   process.exit(1);
 }
 
+// A previous failed run can leave the profile made by handle_new_user behind
+// (profiles do not cascade from auth.users). Remove only a profile that has
+// this demo username, no auth user and no memberships.
+await db.query(
+  `delete from user_profile up
+    where up.username = $1
+      and not exists (select 1 from auth.users u where u.id = up.id)
+      and not exists (select 1 from workspace_member wm where wm.user_id = up.id)`,
+  [DEMO.owner.username],
+);
+
 const password = randomBytes(18).toString("base64url");
 const authUser = await authAdmin("POST", "users", {
   email: DEMO.owner.email,
@@ -463,7 +486,16 @@ try {
     await insert(db, "workspace_quota", { workspace_id: data.workspaceId, max_users: 25, max_products: 100000, max_customers: 100000, max_warehouses: 50, max_storage_mb: 51200 });
     await insert(db, "workspace_module", ERP_MODULES.map((module) => ({ workspace_id: data.workspaceId, module, enabled_by: ownerId })));
     await insert(db, "workspace_profile", { workspace_id: data.workspaceId, display_name: DEMO.workspace.name, legal_name: DEMO.organization.legalName, tax_id: orgRif, address_line: DEMO.profile.address, city: DEMO.profile.city, state: DEMO.profile.state, country: DEMO.profile.country, phone: DEMO.profile.phone, support_email: DEMO.profile.supportEmail, base_currency: "USD" });
-    await insert(db, "user_profile", { id: ownerId, email: DEMO.owner.email, full_name: DEMO.owner.fullName, role: "owner", status: "active", organization_id: data.organizationId, username: DEMO.owner.username, default_workspace_id: data.workspaceId });
+    // Creating the auth user already made an "employee" profile through the
+    // handle_new_user trigger; promote it instead of inserting a second row.
+    const promoted = await db.query(
+      `update user_profile
+          set full_name = $2, role = 'owner', status = 'active',
+              organization_id = $3, username = $4, default_workspace_id = $5
+        where id = $1`,
+      [ownerId, DEMO.owner.fullName, data.organizationId, DEMO.owner.username, data.workspaceId],
+    );
+    if (promoted.rowCount !== 1) throw new Error("user_profile row from handle_new_user not found");
     await insert(db, "workspace_member", { workspace_id: data.workspaceId, user_id: ownerId, role: "owner", status: "active", joined_at: daysAgo(60) });
 
     await insert(db, "warehouse", columns(data.warehouses));
@@ -474,9 +506,10 @@ try {
     await insert(db, "product_price", data.prices);
     await insert(db, "stock_ledger", data.ledger);
     await insert(db, "stock_movement", data.movements);
+    await insert(db, "channel_allocation", data.allocations);
     await insert(db, "customer", data.customers);
     await insert(db, "exchange_rate", data.rates);
-    // order_number is generated by trg_order_number (OC-<seq>).
+    // order_number is set explicitly (OC-1001…); trg_order_number only fills empties.
     await insert(db, "sales_order", data.orders);
     await insert(db, "order_item", data.items);
     // Receivables before payments: trg_ar_payment applies each payment.
@@ -501,8 +534,9 @@ try {
     );
   });
 } catch (error) {
-  console.error("Seed failed; removing the auth user created for it.");
+  console.error("Seed failed; removing the auth user and its profile.");
   await authAdmin("DELETE", `users/${ownerId}`).catch((e) => console.error(String(e)));
+  await db.query("delete from user_profile where id = $1", [ownerId]).catch((e) => console.error(String(e)));
   await db.end();
   throw error;
 }

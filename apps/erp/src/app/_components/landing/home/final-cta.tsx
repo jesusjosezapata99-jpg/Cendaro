@@ -3,8 +3,15 @@ import { CtaButtons } from "../primitives/cta-buttons";
 import { GrainBackdrop } from "../primitives/grain-backdrop";
 import { Reveal } from "../primitives/reveal";
 
-/** Closing call to action on a token surface — not inverted (fixes U3). */
-export function FinalCta() {
+/**
+ * Closing call to action on a token surface — not inverted (fixes U3).
+ * `context` is sent in the prefilled request message (which page it came from).
+ */
+export function FinalCta({
+  context = "Cierre de la página",
+}: {
+  context?: string;
+}) {
   return (
     <section
       aria-labelledby="cta-final-title"
@@ -22,7 +29,7 @@ export function FinalCta() {
             {FINAL_CTA.lead}
           </p>
           <CtaButtons
-            context="Cierre de la página"
+            context={context}
             showEmailHint
             className="mt-9 w-full sm:w-auto"
           />

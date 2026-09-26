@@ -1,18 +1,25 @@
 "use client";
 
-import type { KeyboardEvent, ReactNode } from "react";
+import type { KeyboardEvent } from "react";
 import { useEffect, useRef, useState } from "react";
 
 import { cn } from "@cendaro/ui";
 import { Icons } from "@cendaro/ui/icons";
 
 import type { Step } from "../content";
+import type { MediaClip } from "../primitives/video-policy";
+import { LandingVideo } from "../primitives/landing-video";
 import { ProductFrame } from "../primitives/product-frame";
+
+interface StepClip {
+  clip: MediaClip;
+  label: string;
+}
 
 interface HowItWorksClientProps {
   steps: readonly Step[];
-  /** One server-rendered product view per step, same order as `steps`. */
-  views: readonly ReactNode[];
+  /** One product recording per step, same order as `steps`. */
+  clips: readonly StepClip[];
   /** Site host for the frame's address bar. */
   host: string;
 }
@@ -41,7 +48,7 @@ function Bullets({ items }: { items: readonly string[] }) {
  */
 export function HowItWorksClient({
   steps,
-  views,
+  clips,
   host,
 }: HowItWorksClientProps) {
   const [active, setActive] = useState(0);
@@ -92,11 +99,11 @@ export function HowItWorksClient({
         <ol className="relative">
           <span
             aria-hidden="true"
-            className="bg-border absolute top-0 bottom-0 left-[5px] w-px"
+            className="bg-border absolute top-0 bottom-0 left-1.25 w-px"
           />
           <span
             aria-hidden="true"
-            className="bg-foreground absolute top-0 left-[5px] h-full w-px origin-top transition-transform duration-(--motion-enter) ease-(--ease-out-expo)"
+            className="bg-foreground absolute top-0 left-1.25 h-full w-px origin-top transition-transform duration-(--motion-enter) ease-(--ease-out-expo)"
             style={{ transform: `scaleY(${progress})` }}
           />
           {steps.map((step, i) => (
@@ -111,7 +118,7 @@ export function HowItWorksClient({
                 <span
                   aria-hidden="true"
                   className={cn(
-                    "absolute top-2 left-0 size-[11px] border transition-colors duration-(--motion-ui)",
+                    "absolute top-2 left-0 size-2.75 border transition-colors duration-(--motion-ui)",
                     i <= active
                       ? "bg-foreground border-foreground"
                       : "bg-background border-border",
@@ -150,7 +157,7 @@ export function HowItWorksClient({
           <div className="sticky top-[calc(50vh-13rem)]">
             <ProductFrame host={host} path={steps[active]?.path ?? "/"}>
               <div className="grid">
-                {views.map((view, i) => (
+                {clips.map(({ clip, label }, i) => (
                   <div
                     key={steps[i]?.id ?? i}
                     inert={i !== active}
@@ -159,7 +166,11 @@ export function HowItWorksClient({
                       i === active ? "opacity-100" : "opacity-0",
                     )}
                   >
-                    {view}
+                    <LandingVideo
+                      clip={clip}
+                      label={label}
+                      active={i === active}
+                    />
                   </div>
                 ))}
               </div>
@@ -216,7 +227,13 @@ export function HowItWorksClient({
             <Bullets items={step.bullets} />
             <div className="mt-6 overflow-hidden">
               <ProductFrame host={host} path={step.path}>
-                {views[i]}
+                {clips[i] ? (
+                  <LandingVideo
+                    clip={clips[i].clip}
+                    label={clips[i].label}
+                    active={i === active}
+                  />
+                ) : null}
               </ProductFrame>
             </div>
           </div>

@@ -11,4 +11,8 @@ export interface MarketingRoute {
 
 export const MARKETING_ROUTES: readonly MarketingRoute[] = [
   { path: "/", priority: 1 },
+  { path: "/funciones", priority: 0.8 },
+  { path: "/funciones/inventario", priority: 0.7 },
+  { path: "/funciones/importaciones", priority: 0.7 },
+  { path: "/funciones/finanzas", priority: 0.7 },
 ];

@@ -48,6 +48,25 @@ export const HERO = {
   note: "Te respondemos por WhatsApp · Migración asistida desde tu Excel",
 } as const;
 
+/** Screen-reader descriptions of the recordings (mirror scripts/landing-media/storyboards.mjs). */
+export const HERO_VIDEO_LABEL =
+  "Grabación del panel de Cendaro con ventas, cuentas por cobrar y stock bajo, y la búsqueda global encontrando un pedido.";
+
+export const CLIP_LABELS = {
+  "flow-catalog-import":
+    "Asistente de importación: sube un Excel, reconoce las columnas, valida cada fila y sugiere categorías.",
+  "flow-container-ai":
+    "Contenedor en tránsito: se sube el packing list del proveedor y la IA lista productos, cantidades y costos emparejados con el catálogo.",
+  "flow-orders-sale":
+    "Pedidos: búsqueda por cliente, detalle con totales en dólares y bolívares y cambio de estado.",
+  "flow-receivables-close":
+    "Cuentas por cobrar con antigüedad y registro de un abono con su equivalente en bolívares.",
+  "flow-inventory-stock":
+    "Inventario por almacén y canal, con filtro de stock bajo y agotado.",
+  "flow-rates-bcv":
+    "Tasas de cambio: BCV, paralelo y USD/CNY, brecha cambiaria, calculadora multi-moneda e historial.",
+} as const;
+
 // ── Proof strip (numbers from code) ───────────────────────────────────────
 export const PROOF: readonly { value: string; label: string }[] = [
   { value: String(FACTS.modules), label: "módulos en un solo sistema" },
