@@ -39,7 +39,7 @@
     "prettier": "catalog:",
     "typescript": "catalog:",
     "vite": "^7.3.5",
-    "vitest": "^4.1.11"
+    "vitest": "^5.0.2"
   },
   "prettier": "@cendaro/prettier-config",
   "author": "Cendaro",
