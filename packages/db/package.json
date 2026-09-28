@@ -41,7 +41,7 @@
     "@cendaro/tsconfig": "workspace:*",
     "@types/node": "catalog:",
     "@types/pg": "catalog:",
-    "drizzle-kit": "^0.31.10",
+    "drizzle-kit": "^0.31.11",
     "eslint": "catalog:",
     "prettier": "catalog:",
     "typescript": "catalog:"
