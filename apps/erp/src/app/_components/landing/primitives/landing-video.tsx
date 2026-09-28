@@ -8,7 +8,6 @@ import { cn } from "@cendaro/ui";
 
 import type { MediaClip, MediaFormat } from "./video-policy";
 import {
-  AV1_TYPE,
   H264_TYPE,
   pickFormat,
   pickRendition,
@@ -104,7 +103,10 @@ export function LandingVideo({
         if (!entry) return;
         if (entry.isIntersecting) {
           setNear(true);
-          setFrameWidth(entry.boundingClientRect.width);
+          // clientWidth (layout box), not boundingClientRect (painted box):
+          // a CSS scale() entrance animation shrinks the latter mid-transition,
+          // which briefly picks a smaller rendition and re-fetches once it settles.
+          setFrameWidth((entry.target as HTMLElement).clientWidth);
         }
         setVisible(entry.intersectionRatio >= PLAY_RATIO);
       },
@@ -201,7 +203,7 @@ export function LandingVideo({
             playingKey === videoKey ? "opacity-100" : "opacity-0",
           )}
         >
-          <source src={rendition.av1} type={AV1_TYPE} />
+          <source src={rendition.av1} type={rendition.av1Type} />
           <source src={rendition.h264} type={H264_TYPE} />
         </video>
       ) : null}

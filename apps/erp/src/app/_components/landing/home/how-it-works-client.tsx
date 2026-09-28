@@ -197,6 +197,7 @@ export function HowItWorksClient({
               id={`paso-tab-${step.id}`}
               aria-selected={i === active}
               aria-controls={`paso-panel-${step.id}`}
+              aria-label={`Paso ${i + 1}: ${step.title}`}
               tabIndex={i === active ? 0 : -1}
               onClick={() => setActive(i)}
               onKeyDown={onTabKey}

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import type { KeyboardEvent } from "react";
+import { useRef, useState } from "react";
 
 import { cn } from "@cendaro/ui";
 import { AnimatedNumber } from "@cendaro/ui/animated-number";
@@ -38,6 +39,32 @@ export function DualCurrencyDemo({
   const [productIndex, setProductIndex] = useState(0);
   const [qty, setQty] = useState(12);
   const [jumped, setJumped] = useState(false);
+  const rateOptionRefs = useRef<(HTMLButtonElement | null)[]>([]);
+
+  const RATE_OPTIONS = [
+    { value: false, label: "Tasa del día" },
+    { value: true, label: `Salto de ${Math.round(JUMP * 100)} %` },
+  ] as const;
+
+  /** Standard radiogroup keyboard pattern: arrows move both selection and focus. */
+  const onRateOptionKeyDown = (
+    event: KeyboardEvent<HTMLButtonElement>,
+  ): void => {
+    const delta =
+      event.key === "ArrowRight" || event.key === "ArrowDown"
+        ? 1
+        : event.key === "ArrowLeft" || event.key === "ArrowUp"
+          ? -1
+          : 0;
+    if (delta === 0) return;
+    event.preventDefault();
+    const current = RATE_OPTIONS.findIndex((o) => o.value === jumped);
+    const next = (current + delta + RATE_OPTIONS.length) % RATE_OPTIONS.length;
+    const option = RATE_OPTIONS[next];
+    if (!option) return;
+    setJumped(option.value);
+    rateOptionRefs.current[next]?.focus();
+  };
 
   const product = products[productIndex] ?? products[0];
   const totalUsd = (product?.usd ?? 0) * qty;
@@ -127,16 +154,18 @@ export function DualCurrencyDemo({
             aria-labelledby="demo-escenario"
             className="border-border mt-3 grid grid-cols-2 border"
           >
-            {[
-              { value: false, label: "Tasa del día" },
-              { value: true, label: `Salto de ${Math.round(JUMP * 100)} %` },
-            ].map((option) => (
+            {RATE_OPTIONS.map((option, i) => (
               <button
                 key={option.label}
+                ref={(el) => {
+                  rateOptionRefs.current[i] = el;
+                }}
                 type="button"
                 role="radio"
                 aria-checked={jumped === option.value}
+                tabIndex={jumped === option.value ? 0 : -1}
                 onClick={() => setJumped(option.value)}
+                onKeyDown={onRateOptionKeyDown}
                 className={cn(
                   "min-h-11 px-3 text-sm transition-colors duration-(--motion-micro)",
                   jumped === option.value
