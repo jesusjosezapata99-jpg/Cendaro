@@ -6,6 +6,7 @@ import { pickFormat, pickRendition, shouldPlayVideo } from "./video-policy";
 const r = (width: number): VideoRendition => ({
   width,
   av1: `/m/${width}.webm`,
+  av1Type: 'video/webm; codecs="av01.0.08M.08"',
   h264: `/m/${width}.mp4`,
 });
 const RENDITIONS = [r(1440), r(720), r(960)];

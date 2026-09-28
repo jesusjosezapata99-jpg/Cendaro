@@ -12,6 +12,15 @@ export interface VideoRendition {
   width: number;
   /** AV1 in WebM — the primary source. */
   av1: string;
+  /**
+   * Full `<source type>` for `av1`, e.g. `video/webm; codecs="av01.0.12M.08"`
+   * — the level digits must match this rendition's actual bitstream level
+   * (encode.mjs reads it via ffprobe), since a wider frame can exceed a
+   * lower level's size limit. A decoder that only supports that level
+   * rejects a mismatched string with no fallback, so this is never a shared
+   * constant across widths.
+   */
+  av1Type: string;
   /** H.264 in MP4 (faststart) — fallback for browsers without AV1. */
   h264: string;
 }
@@ -38,8 +47,6 @@ export interface MediaClip {
   tall?: MediaFormat;
 }
 
-/** Codec string for `<source type>`: AV1 main profile, level 4.0, 8-bit. */
-export const AV1_TYPE = 'video/webm; codecs="av01.0.08M.08"';
 export const H264_TYPE = "video/mp4";
 
 /** Screens are capped at 2× so a 3× phone never pulls the 1440 rendition. */

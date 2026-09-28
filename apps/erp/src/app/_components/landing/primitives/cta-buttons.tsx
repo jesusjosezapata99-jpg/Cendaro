@@ -81,6 +81,7 @@ export function CtaButtons({
         {showLogin || !request ? (
           <Link
             href="/login"
+            aria-label={context ? `Iniciar sesión (${context})` : undefined}
             className={cn(request ? SECONDARY : PRIMARY, block && "w-full")}
           >
             Iniciar sesión
