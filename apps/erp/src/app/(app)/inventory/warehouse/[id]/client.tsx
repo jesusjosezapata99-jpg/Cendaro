@@ -24,15 +24,6 @@ import { StatCard } from "~/components/stat-card";
 import { getStatus } from "~/lib/status";
 import { useTRPC } from "~/trpc/client";
 
-const TYPE_CONFIG: Record<
-  string,
-  { label: string; tone: "default" | "warning" | "neutral" }
-> = {
-  physical: { label: "Físico", tone: "default" },
-  transit: { label: "En Tránsito", tone: "warning" },
-  virtual: { label: "Virtual", tone: "neutral" },
-};
-
 interface WarehouseStockItem {
   id: string;
   productId: string;
@@ -94,6 +85,25 @@ export default function WarehouseDetailClient() {
         toast.success("Stock actualizado correctamente");
         setEditingId(null);
         void qc.invalidateQueries({ queryKey: [["inventory"]] });
+      },
+      onError: (err) => {
+        toast.error(err.message);
+      },
+    }),
+  );
+
+  const toggleLock = useMutation(
+    trpc.inventory.toggleLock.mutationOptions({
+      onSuccess: (updated) => {
+        toast.success(
+          updated.isLocked
+            ? "Stock bloqueado para movimientos"
+            : "Stock desbloqueado",
+        );
+        void qc.invalidateQueries({ queryKey: [["inventory"]] });
+      },
+      onError: (err) => {
+        toast.error(err.message);
       },
     }),
   );
@@ -217,21 +227,39 @@ export default function WarehouseDetailClient() {
         accessorKey: "isLocked",
         header: "Bloqueado",
         meta: { align: "center", className: "w-24 text-center" },
-        cell: ({ row }) => (
-          <div className="flex items-center justify-center">
-            {row.original.isLocked ? (
-              <Icons.Lock
-                className="text-destructive size-4"
-                aria-label="Stock bloqueado"
-              />
-            ) : (
-              <Icons.LockOpen
-                className="text-muted-foreground/40 size-4"
-                aria-label="Stock desbloqueado"
-              />
-            )}
-          </div>
-        ),
+        cell: ({ row }) => {
+          const item = row.original;
+          return (
+            <div className="flex items-center justify-center">
+              <Button
+                variant="ghost"
+                size="icon"
+                disabled={toggleLock.isPending}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleLock.mutate({
+                    stockLedgerId: item.id,
+                    isLocked: !item.isLocked,
+                  });
+                }}
+                className="size-8"
+                aria-label={
+                  item.isLocked ? "Desbloquear stock" : "Bloquear stock"
+                }
+                title={item.isLocked ? "Desbloquear stock" : "Bloquear stock"}
+              >
+                {item.isLocked ? (
+                  <Icons.Lock className="text-destructive size-4" aria-hidden />
+                ) : (
+                  <Icons.LockOpen
+                    className="text-muted-foreground/40 hover:text-foreground size-4"
+                    aria-hidden
+                  />
+                )}
+              </Button>
+            </div>
+          );
+        },
       },
       {
         id: "actions",
@@ -244,12 +272,22 @@ export default function WarehouseDetailClient() {
             <Button
               variant="ghost"
               size="icon"
+              disabled={item.isLocked}
               onClick={(e) => {
                 e.stopPropagation();
                 startEdit(item.id, item.quantity);
               }}
-              className="text-muted-foreground hover:text-foreground size-8"
-              aria-label="Editar cantidad"
+              className="text-muted-foreground hover:text-foreground size-8 disabled:opacity-40"
+              aria-label={
+                item.isLocked
+                  ? "Desbloquea el stock para editar"
+                  : "Editar cantidad"
+              }
+              title={
+                item.isLocked
+                  ? "Desbloquea el stock para editar"
+                  : "Editar cantidad"
+              }
             >
               <Icons.Edit className="size-4" aria-hidden />
             </Button>
@@ -257,7 +295,7 @@ export default function WarehouseDetailClient() {
         },
       },
     ],
-    [editingId, editQty, updateQty.isPending, submitEdit],
+    [editingId, editQty, updateQty.isPending, submitEdit, toggleLock],
   );
 
   const activeFilters = useMemo<ActiveFilterItem[]>(() => {
@@ -304,10 +342,7 @@ export default function WarehouseDetailClient() {
     );
   }
 
-  const typeCfg = TYPE_CONFIG[warehouse.type] ?? {
-    label: warehouse.type,
-    tone: "neutral" as const,
-  };
+  const typeCfg = getStatus("warehouseType", warehouse.type);
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-1 space-y-6 py-4 duration-200 lg:py-8">

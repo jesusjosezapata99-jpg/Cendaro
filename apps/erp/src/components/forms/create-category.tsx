@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
   SheetBody,
@@ -22,6 +22,11 @@ export function CreateCategoryDialog({
   const qc = useQueryClient();
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
+  const [parentId, setParentId] = useState("");
+
+  const { data: categories } = useQuery(
+    trpc.catalog.listCategories.queryOptions(),
+  );
 
   const create = useMutation(
     trpc.catalog.createCategory.mutationOptions({
@@ -29,6 +34,7 @@ export function CreateCategoryDialog({
         void qc.invalidateQueries({ queryKey: [["catalog"]] });
         setName("");
         setSlug("");
+        setParentId("");
         onClose();
       },
     }),
@@ -49,12 +55,18 @@ export function CreateCategoryDialog({
       open={open}
       onClose={onClose}
       title="Nueva Categoría"
-      description="Registra una nueva categoría para organizar productos en el catálogo."
+      description="Registra una nueva categoría o subcategoría para organizar productos en el catálogo."
     >
       <form
         onSubmit={(e) => {
           e.preventDefault();
-          create.mutate({ name, slug });
+          const parentCat = categories?.find((c) => c.id === parentId);
+          create.mutate({
+            name,
+            slug,
+            parentId: parentId || undefined,
+            depth: parentCat ? parentCat.depth + 1 : 0,
+          });
         }}
         className="flex h-full flex-col"
       >
@@ -75,6 +87,24 @@ export function CreateCategoryDialog({
               onChange={(e) => setSlug(e.target.value)}
               className="border-border bg-background focus:border-primary focus:ring-primary/20 w-full border px-3 py-2 font-mono text-sm focus:ring-2 focus:outline-none"
             />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium">
+              Categoría Padre (Opcional)
+            </label>
+            <select
+              value={parentId}
+              onChange={(e) => setParentId(e.target.value)}
+              className="border-border bg-background focus:border-primary focus:ring-primary/20 w-full border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
+            >
+              <option value="">— Raíz (Principal) —</option>
+              {(categories ?? []).map((cat) => (
+                <option key={cat.id} value={cat.id}>
+                  {"— ".repeat(cat.depth)}
+                  {cat.name}
+                </option>
+              ))}
+            </select>
           </div>
         </SheetBody>
 

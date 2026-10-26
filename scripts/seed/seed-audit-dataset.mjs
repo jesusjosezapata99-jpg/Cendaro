@@ -28,7 +28,7 @@ try {
 }
 
 const req = createRequire(path.resolve("./packages/db/package.json"));
-const postgres = req("postgres");
+const { Pool } = req("pg");
 
 const WORKSPACE_ID = "a0000000-0000-0000-0000-000000000001"; // OmniCore Default
 const WAREHOUSE_MAIN = "944b7fc1-8a95-4d08-ba13-5c239666da5b"; // Almacén Principal
@@ -73,11 +73,50 @@ if (!connectionString) {
   process.exit(1);
 }
 
-const sql = postgres(connectionString, {
+const pool = new Pool({
+  connectionString,
   max: 5,
-  idle_timeout: 30,
-  connect_timeout: 30,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 30000,
 });
+
+function createSqlTag(poolInstance) {
+  function sqlTag(strings, ...values) {
+    if (!Array.isArray(strings) || !("raw" in strings)) {
+      // Helper call: sql(batch, ...cols)
+      const [rows, ...cols] = [strings, ...values];
+      return { __batch: true, rows, cols };
+    }
+    const params = [];
+    let text = "";
+    for (let i = 0; i < strings.length; i++) {
+      text += strings[i];
+      if (i < values.length) {
+        const val = values[i];
+        if (val && typeof val === "object" && val.__batch) {
+          const { rows, cols } = val;
+          const colList = cols.map((c) => `"${c}"`).join(", ");
+          const tuples = rows.map((row) => {
+            const placeholders = cols.map((c) => {
+              params.push(row[c] ?? null);
+              return `$${params.length}`;
+            });
+            return `(${placeholders.join(", ")})`;
+          });
+          text += `(${colList}) VALUES ${tuples.join(", ")}`;
+        } else {
+          params.push(val);
+          text += `$${params.length}`;
+        }
+      }
+    }
+    return poolInstance.query(text, params);
+  }
+  sqlTag.end = () => poolInstance.end();
+  return sqlTag;
+}
+
+const sql = createSqlTag(pool);
 
 async function run() {
   const manifest = {
@@ -130,7 +169,7 @@ async function run() {
       supplierIds.push(id);
       await sql`
         INSERT INTO supplier (id, workspace_id, name, rif, country, status)
-        VALUES (${id}, ${WORKSPACE_ID}, ${`SEED- Proveedor ${i}`}, ${`SEED-J-${1000000 + i}`}, 'CN', 'active')
+        VALUES (${id}, ${WORKSPACE_ID}, ${`SEED- Proveedor ${i}`}, ${`J-${String(91000000 + i)}-${i % 10}`}, 'CN', 'active')
         ON CONFLICT (id) DO NOTHING
       `;
     }
@@ -149,7 +188,7 @@ async function run() {
         workspace_id: WORKSPACE_ID,
         name: `SEED- Cliente Comercial ${i}`,
         legal_name: `SEED- Razón Social ${i} C.A.`,
-        identification: `SEED-J-${2000000 + i}`,
+        identification: `J-${String(92000000 + i)}-${i % 10}`,
         customer_type: customerTypes[i % 3],
         phone: `+58 412 ${String(i).padStart(7, "0")}`,
         email: `seed.cliente.${i}@cendaro-test.local`,

@@ -101,7 +101,7 @@ export function CustomerDetailSheet({
             <div className="space-y-5">
               {/* Profile Card */}
               <div className="border-border bg-card flex items-start gap-4 border p-4">
-                <div className="bg-primary/10 text-primary border-border flex size-12 shrink-0 items-center justify-center border text-base font-black">
+                <div className="bg-primary/10 text-primary border-border flex size-12 shrink-0 items-center justify-center border text-base font-medium">
                   {initials}
                 </div>
                 <div className="min-w-0 flex-1">

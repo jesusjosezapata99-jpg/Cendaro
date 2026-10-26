@@ -4,7 +4,8 @@ import { useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 
 import { Button } from "@cendaro/ui";
 import { Icons } from "@cendaro/ui/icons";
@@ -31,12 +32,28 @@ export default function ArDetailClient() {
   const params = useParams();
   const id = params.id as string;
   const trpc = useTRPC();
+  const qc = useQueryClient();
   const bcv = useBcvRate();
 
   const [showPayment, setShowPayment] = useState(false);
 
   const { data: entry, isLoading } = useQuery(
     trpc.vendor.arById.queryOptions({ id }),
+  );
+
+  const markInstallmentPaid = useMutation(
+    trpc.receivables.markPaid.mutationOptions({
+      onSuccess: () => {
+        void qc.invalidateQueries({ queryKey: [["vendor"]] });
+        void qc.invalidateQueries({ queryKey: [["receivables"]] });
+        void qc.invalidateQueries({ queryKey: [["payments"]] });
+        void qc.invalidateQueries({ queryKey: [["sales"]] });
+        toast.success("Cuota liquidada y abono contable registrado");
+      },
+      onError: (err) => {
+        toast.error(err.message);
+      },
+    }),
   );
 
   const daysToDue = useMemo(() => {
@@ -306,6 +323,99 @@ export default function ArDetailClient() {
           </p>
         </div>
       )}
+
+      {/* Installments & Allocations Grid */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div className="border-border bg-card border p-5">
+          <h2 className="text-muted-foreground mb-3 text-xs font-medium tracking-wider uppercase">
+            Plan de Cuotas ({entry.installments.length})
+          </h2>
+          {entry.installments.length === 0 ? (
+            <p className="text-muted-foreground text-xs">
+              Cuenta a pago único (sin cuotas fraccionadas).
+            </p>
+          ) : (
+            <div className="divide-border divide-y text-xs">
+              {entry.installments.map((inst) => {
+                const instStatus = getStatus("accountsReceivable", inst.status);
+                return (
+                  <div
+                    key={inst.id}
+                    className="flex items-center justify-between py-2.5"
+                  >
+                    <div>
+                      <span className="text-foreground font-mono font-medium">
+                        Cuota #{inst.installmentNumber}
+                      </span>
+                      <span className="text-muted-foreground ml-2 font-mono tabular-nums">
+                        Vence:{" "}
+                        {new Date(inst.dueDate).toLocaleDateString("es-VE")}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-foreground font-mono font-medium tabular-nums">
+                        ${Number(inst.amount).toFixed(2)}
+                      </span>
+                      <StatusPill tone={instStatus.tone}>
+                        {instStatus.label}
+                      </StatusPill>
+                      {inst.status !== "paid" && (
+                        <Can module="receivables" action="approve">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={markInstallmentPaid.isPending}
+                            onClick={() =>
+                              markInstallmentPaid.mutate({
+                                installmentId: inst.id,
+                              })
+                            }
+                            className="h-7 px-2 text-[11px]"
+                          >
+                            Liquidar
+                          </Button>
+                        </Can>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        <div className="border-border bg-card border p-5">
+          <h2 className="text-muted-foreground mb-3 text-xs font-medium tracking-wider uppercase">
+            Abonos Imputados ({entry.allocations.length})
+          </h2>
+          {entry.allocations.length === 0 ? (
+            <p className="text-muted-foreground text-xs">
+              No se han registrado abonos imputados a esta cuenta.
+            </p>
+          ) : (
+            <div className="divide-border divide-y text-xs">
+              {entry.allocations.map((alloc) => (
+                <div
+                  key={alloc.id}
+                  className="flex items-center justify-between py-2.5"
+                >
+                  <div>
+                    <span className="text-foreground font-mono font-medium">
+                      Pago #{alloc.paymentId.slice(0, 8)}
+                    </span>
+                    <span className="text-muted-foreground ml-2 font-mono tabular-nums">
+                      {new Date(alloc.createdAt).toLocaleDateString("es-VE")}
+                    </span>
+                  </div>
+                  <span className="font-mono font-medium text-emerald-500 tabular-nums">
+                    +${Number(alloc.amount).toFixed(2)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* Modal for recording payment */}
       <RecordArPaymentDialog

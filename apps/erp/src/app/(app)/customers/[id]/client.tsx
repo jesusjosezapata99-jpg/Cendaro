@@ -4,7 +4,8 @@ import { useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { toast } from "sonner";
 
 import type { StatusTone } from "@cendaro/ui/status-pill";
 import { Button } from "@cendaro/ui";
@@ -43,9 +44,28 @@ export default function CustomerDetailPage() {
   const trpc = useTRPC();
   const bcv = useBcvRate();
   const [editOpen, setEditOpen] = useState(false);
+  const [newAddressLabel, setNewAddressLabel] = useState("Sucursal");
+  const [newAddressLine, setNewAddressLine] = useState("");
+  const [newAddressCity, setNewAddressCity] = useState("");
 
-  const { data: customer, isLoading } = useQuery(
-    trpc.sales.customerById.queryOptions({ id }),
+  const {
+    data: customer,
+    isLoading,
+    refetch,
+  } = useQuery(trpc.sales.customerById.queryOptions({ id }));
+
+  const addAddressMutation = useMutation(
+    trpc.sales.addCustomerAddress.mutationOptions({
+      onSuccess: () => {
+        toast.success("Dirección de despacho agregada");
+        setNewAddressLine("");
+        setNewAddressCity("");
+        void refetch();
+      },
+      onError: (err) => {
+        toast.error(err.message || "Error al agregar dirección");
+      },
+    }),
   );
 
   const typeCfg = useMemo((): { label: string; tone: StatusTone } => {
@@ -301,6 +321,96 @@ export default function CustomerDetailPage() {
             </div>
           ))}
         </div>
+      </section>
+
+      {/* Customer Shipping Addresses Section */}
+      <section className="border-border bg-card border p-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-muted-foreground text-xs font-medium tracking-widest uppercase">
+              Direcciones de Despacho & Sucursales ({customer.addresses.length})
+            </h2>
+            <p className="text-muted-foreground mt-0.5 text-xs">
+              Puntos de entrega secundarios registrados para notas de entrega y
+              rutas de despacho
+            </p>
+          </div>
+        </div>
+
+        <Can module="customers" action="update">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!newAddressLine.trim()) return;
+              addAddressMutation.mutate({
+                customerId: customer.id,
+                label: newAddressLabel.trim() || "Sucursal",
+                addressLine: newAddressLine.trim(),
+                city: newAddressCity.trim() || undefined,
+              });
+            }}
+            className="mt-4 grid gap-2 sm:grid-cols-4"
+          >
+            <input
+              type="text"
+              placeholder="Etiqueta (ej. Almacén Norte)"
+              value={newAddressLabel}
+              onChange={(e) => setNewAddressLabel(e.target.value)}
+              className="border-border bg-background text-foreground h-9 border px-3 text-xs outline-none"
+            />
+            <input
+              type="text"
+              placeholder="Dirección detallada de entrega..."
+              value={newAddressLine}
+              onChange={(e) => setNewAddressLine(e.target.value)}
+              className="border-border bg-background text-foreground h-9 border px-3 text-xs outline-none sm:col-span-2"
+            />
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                placeholder="Ciudad"
+                value={newAddressCity}
+                onChange={(e) => setNewAddressCity(e.target.value)}
+                className="border-border bg-background text-foreground h-9 w-full border px-3 text-xs outline-none"
+              />
+              <Button
+                type="submit"
+                size="sm"
+                disabled={
+                  addAddressMutation.isPending || !newAddressLine.trim()
+                }
+                className="h-9 shrink-0 text-xs"
+              >
+                Agregar
+              </Button>
+            </div>
+          </form>
+        </Can>
+
+        {customer.addresses.length > 0 && (
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            {customer.addresses.map((addr) => (
+              <div
+                key={addr.id}
+                className="border-border bg-background border p-3.5"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-foreground text-xs font-medium uppercase">
+                    {addr.label}
+                  </span>
+                  {addr.city && (
+                    <span className="text-muted-foreground font-mono text-[11px]">
+                      {addr.city}
+                    </span>
+                  )}
+                </div>
+                <p className="text-muted-foreground mt-1 text-xs">
+                  {addr.addressLine}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
       </section>
     </div>
   );

@@ -24,8 +24,13 @@ export function createSupabaseServerClient(
           options: Record<string, unknown>;
         }[],
       ) {
-        for (const { name, value, options } of cookiesToSet) {
-          cookieStore.set(name, value, options);
+        try {
+          for (const { name, value, options } of cookiesToSet) {
+            cookieStore.set(name, value, options);
+          }
+        } catch {
+          // Server Components cannot mutate cookies during render;
+          // the middleware/proxy refreshes session cookies on each request.
         }
       },
     },

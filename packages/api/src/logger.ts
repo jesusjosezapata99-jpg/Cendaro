@@ -117,6 +117,9 @@ const PII_PATTERNS: [RegExp, string][] = [
   [/(sb_[A-Za-z0-9_-]{20,})/g, "[SUPABASE_KEY_REDACTED]"],
 ];
 
+const SENSITIVE_KEY_PATTERN =
+  /^(password|token|secret|accesstoken|refreshtoken|apikey|api_key|authorization|cookie|creditcard|cvv)$/i;
+
 // ──────────────────────────────────────────────
 // Helpers
 // ──────────────────────────────────────────────
@@ -126,12 +129,35 @@ function shouldLog(level: LogLevel): boolean {
   return LEVEL_PRIORITY[level] >= LEVEL_PRIORITY[LOG_LEVEL];
 }
 
-function redactPII(input: string): string {
+export function redactPII(input: string): string {
   let result = input;
   for (const [pattern, replacement] of PII_PATTERNS) {
     result = result.replace(pattern, replacement);
   }
   return result;
+}
+
+/**
+ * Recursively redacts PII patterns in strings and sensitive keys in nested
+ * objects/arrays (up to depth 6) so structured logs never leak secrets or PII.
+ */
+export function redactDeep(value: unknown, depth = 0): unknown {
+  if (depth > 6 || value === null || value === undefined) return value;
+  if (typeof value === "string") return redactPII(value);
+  if (typeof value !== "object") return value;
+  if (value instanceof Date) return value.toISOString();
+  if (Array.isArray(value)) {
+    return value.map((item) => redactDeep(item, depth + 1));
+  }
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+    if (SENSITIVE_KEY_PATTERN.test(k)) {
+      out[k] = "[REDACTED]";
+    } else {
+      out[k] = redactDeep(v, depth + 1);
+    }
+  }
+  return out;
 }
 
 function serializeError(err: unknown): LogEntry["error"] | undefined {
@@ -182,7 +208,9 @@ function formatJSON(entry: LogEntry): string {
   if (entry.context) {
     for (const [key, value] of Object.entries(entry.context)) {
       if (value !== undefined && value !== null) {
-        output[key] = typeof value === "string" ? redactPII(value) : value;
+        output[key] = SENSITIVE_KEY_PATTERN.test(key)
+          ? "[REDACTED]"
+          : redactDeep(value);
       }
     }
   }
@@ -231,12 +259,15 @@ function formatPretty(entry: LogEntry): string {
     ]);
     for (const [key, value] of Object.entries(ctx)) {
       if (!handledKeys.has(key) && value !== undefined) {
+        const safeVal = SENSITIVE_KEY_PATTERN.test(key)
+          ? "[REDACTED]"
+          : redactDeep(value);
         const strVal =
-          typeof value === "string"
-            ? value
-            : typeof value === "number" || typeof value === "boolean"
-              ? String(value)
-              : JSON.stringify(value);
+          typeof safeVal === "string"
+            ? safeVal
+            : typeof safeVal === "number" || typeof safeVal === "boolean"
+              ? String(safeVal)
+              : JSON.stringify(safeVal);
         parts.push(`${key}=${strVal}`);
       }
     }

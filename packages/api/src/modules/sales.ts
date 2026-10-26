@@ -22,10 +22,15 @@ import { z } from "zod/v4";
 
 import type { getDb } from "@cendaro/db/client";
 import {
-  CashClosure,
+  AccountReceivable,
   ChannelAllocation,
   Customer,
+  CustomerAddress,
   customerTypeEnum,
+  DeliveryNote,
+  DeliveryNoteItem,
+  InternalInvoice,
+  InternalInvoiceItem,
   OrderItem,
   orderStatusEnum,
   Payment,
@@ -33,7 +38,9 @@ import {
   Product,
   salesChannelEnum,
   SalesOrder,
+  StockLedger,
   StockMovement,
+  Warehouse,
 } from "@cendaro/db/schema";
 import {
   can,
@@ -52,6 +59,17 @@ import {
 } from "../trpc";
 import { logAudit } from "./audit";
 import { isUniqueViolation } from "./db-errors";
+import {
+  addPaymentInputSchema,
+  createClosureInputSchema,
+  executeAddPayment,
+  executeComputeDailyClosureTotals,
+  executeCreateClosure,
+  executeListClosures,
+  executeListPayments,
+  executeReviewClosure,
+  executeValidatePayment,
+} from "./payments";
 import { escapeLike } from "./search";
 import { assertVendorCustomer, vendorScopeId } from "./vendor-scope";
 
@@ -177,15 +195,37 @@ async function applyStockLifecycle(
     REVERT_STATUSES.includes(status) && Boolean(order.stockDeducted);
   if (!isClosing && !isReverting) return { isClosing, isReverting };
 
-  const items = await ctx.db
-    .select()
-    .from(OrderItem)
-    .where(
-      and(
-        eq(OrderItem.orderId, order.id),
-        eq(OrderItem.workspaceId, ctx.workspace.workspaceId),
+  const [items, warehouseRows] = await Promise.all([
+    ctx.db
+      .select()
+      .from(OrderItem)
+      .where(
+        and(
+          eq(OrderItem.orderId, order.id),
+          eq(OrderItem.workspaceId, ctx.workspace.workspaceId),
+        ),
       ),
-    );
+    ctx.db
+      .select({ id: Warehouse.id })
+      .from(Warehouse)
+      .where(
+        and(
+          eq(Warehouse.workspaceId, ctx.workspace.workspaceId),
+          eq(Warehouse.isActive, true),
+        ),
+      )
+      .orderBy(
+        sql`CASE WHEN ${Warehouse.type} = 'showroom' THEN 0 WHEN ${Warehouse.type} = 'warehouse' THEN 1 ELSE 2 END`,
+        asc(Warehouse.createdAt),
+      )
+      .limit(1),
+  ]);
+
+  const primaryWarehouseId = warehouseRows[0]?.id;
+  const effectiveChannel =
+    order.channel === "whatsapp" || order.channel === "instagram"
+      ? "store"
+      : order.channel;
 
   for (const item of items) {
     const sign = isClosing ? -1 : 1;
@@ -199,17 +239,34 @@ async function applyStockLifecycle(
         and(
           eq(ChannelAllocation.workspaceId, ctx.workspace.workspaceId),
           eq(ChannelAllocation.productId, item.productId),
-          eq(ChannelAllocation.channel, order.channel),
+          eq(ChannelAllocation.channel, effectiveChannel),
         ),
       );
+
+    if (primaryWarehouseId) {
+      await ctx.db
+        .update(StockLedger)
+        .set({
+          quantity: sql`GREATEST(${StockLedger.quantity} + ${sign * item.quantity}, 0)`,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(StockLedger.workspaceId, ctx.workspace.workspaceId),
+            eq(StockLedger.productId, item.productId),
+            eq(StockLedger.warehouseId, primaryWarehouseId),
+          ),
+        );
+    }
 
     await ctx.db.insert(StockMovement).values({
       workspaceId: ctx.workspace.workspaceId,
       productId: item.productId,
+      warehouseId: primaryWarehouseId,
       movementType: isClosing ? "sale" : "return",
       quantity: sign * item.quantity,
-      fromChannel: isClosing ? order.channel : undefined,
-      toChannel: isReverting ? order.channel : undefined,
+      fromChannel: isClosing ? effectiveChannel : undefined,
+      toChannel: isReverting ? effectiveChannel : undefined,
       createdBy: ctx.user.id,
       referenceId: order.id,
       referenceType: "sales_order",
@@ -452,7 +509,81 @@ export const salesRouter = createTRPCRouter({
           ),
         )
         .limit(1);
-      return customer ?? null;
+      if (!customer) return null;
+
+      const addresses = await ctx.db
+        .select()
+        .from(CustomerAddress)
+        .where(
+          and(
+            eq(CustomerAddress.customerId, customer.id),
+            eq(CustomerAddress.workspaceId, ctx.workspace.workspaceId),
+          ),
+        )
+        .orderBy(
+          desc(CustomerAddress.isDefault),
+          desc(CustomerAddress.createdAt),
+        );
+
+      return { ...customer, addresses };
+    }),
+
+  addCustomerAddress: wsPermissionProcedure("customers", "update")
+    .input(
+      z.object({
+        customerId: z.string().uuid(),
+        label: z.string().min(1).max(64).default("Sucursal"),
+        addressLine: z.string().min(3).max(512),
+        city: z.string().max(128).optional(),
+        state: z.string().max(128).optional(),
+        isDefault: z.boolean().default(false),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const [customer] = await ctx.db
+        .select({ id: Customer.id })
+        .from(Customer)
+        .where(
+          and(
+            eq(Customer.id, input.customerId),
+            eq(Customer.workspaceId, ctx.workspace.workspaceId),
+          ),
+        )
+        .limit(1);
+
+      if (!customer) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Cliente no encontrado en este workspace",
+        });
+      }
+
+      const [addr] = await ctx.db
+        .insert(CustomerAddress)
+        .values({
+          workspaceId: ctx.workspace.workspaceId,
+          customerId: input.customerId,
+          label: input.label,
+          addressLine: input.addressLine,
+          city: input.city,
+          state: input.state,
+          isDefault: input.isDefault,
+        })
+        .returning();
+
+      await logAudit(ctx.db, ctx.user, {
+        workspaceId: ctx.workspace.workspaceId,
+        action: "customer.address_add",
+        entity: "customer_address",
+        entityId: addr?.id,
+        newValue: {
+          customerId: input.customerId,
+          label: input.label,
+          city: input.city,
+        },
+      });
+
+      return addr;
     }),
 
   /**
@@ -773,7 +904,7 @@ export const salesRouter = createTRPCRouter({
 
       if (!order) return null;
 
-      const [items, payments] = await Promise.all([
+      const [items, payments, customerRows] = await Promise.all([
         ctx.db
           .select({
             id: OrderItem.id,
@@ -804,9 +935,35 @@ export const salesRouter = createTRPCRouter({
               eq(Payment.workspaceId, ctx.workspace.workspaceId),
             ),
           ),
+        order.customerId
+          ? ctx.db
+              .select({
+                id: Customer.id,
+                name: Customer.name,
+                legalName: Customer.legalName,
+                identification: Customer.identification,
+                phone: Customer.phone,
+                email: Customer.email,
+                address: Customer.address,
+                customerType: Customer.customerType,
+              })
+              .from(Customer)
+              .where(
+                and(
+                  eq(Customer.id, order.customerId),
+                  eq(Customer.workspaceId, ctx.workspace.workspaceId),
+                ),
+              )
+              .limit(1)
+          : Promise.resolve([]),
       ]);
 
-      return { ...order, items, payments };
+      return {
+        ...order,
+        customer: customerRows[0] ?? null,
+        items,
+        payments,
+      };
     }),
 
   createOrder: wsPermissionProcedure("orders", "create")
@@ -828,6 +985,63 @@ export const salesRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       await assertVendorCustomer(ctx, input.customerId);
 
+      if (input.items.some((i) => i.discount > i.unitPrice)) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "El descuento de un artículo no puede superar su precio",
+        });
+      }
+
+      const productIds = [...new Set(input.items.map((i) => i.productId))];
+      if (productIds.length > 0) {
+        const found = await ctx.db
+          .select({ id: Product.id, status: Product.status })
+          .from(Product)
+          .where(
+            and(
+              eq(Product.workspaceId, ctx.workspace.workspaceId),
+              inArray(Product.id, productIds),
+            ),
+          );
+        if (found.length !== productIds.length) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message:
+              "Uno o más productos no pertenecen al catálogo de este negocio",
+          });
+        }
+        if (
+          found.some((p) => p.status === "draft" || p.status === "discontinued")
+        ) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message:
+              "No se pueden vender productos en estado borrador o descontinuado",
+          });
+        }
+
+        const lockedRows = await ctx.db
+          .select({
+            productId: StockLedger.productId,
+            isLocked: StockLedger.isLocked,
+          })
+          .from(StockLedger)
+          .where(
+            and(
+              eq(StockLedger.workspaceId, ctx.workspace.workspaceId),
+              inArray(StockLedger.productId, productIds),
+              eq(StockLedger.isLocked, true),
+            ),
+          );
+        if (lockedRows.some((r) => r.isLocked === true)) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message:
+              "Uno o más productos están bloqueados por conteo físico de inventario",
+          });
+        }
+      }
+
       const subtotal = input.items.reduce(
         (sum, i) => sum + i.unitPrice * i.quantity,
         0,
@@ -838,13 +1052,52 @@ export const salesRouter = createTRPCRouter({
       );
       const total = subtotal - totalDiscount;
 
-      const orderNumber = `ORD-${Date.now().toString(36).toUpperCase()}`;
+      let customerRow:
+        | {
+            id: string;
+            creditLimit: number | null;
+            creditDays: number | null;
+            balance: number | null;
+          }
+        | undefined;
+      if (input.customerId && total > 0) {
+        [customerRow] = await ctx.db
+          .select({
+            id: Customer.id,
+            creditLimit: Customer.creditLimit,
+            creditDays: Customer.creditDays,
+            balance: Customer.balance,
+          })
+          .from(Customer)
+          .where(
+            and(
+              eq(Customer.id, input.customerId),
+              eq(Customer.workspaceId, ctx.workspace.workspaceId),
+            ),
+          )
+          .limit(1);
+
+        if (
+          customerRow &&
+          typeof customerRow.creditLimit === "number" &&
+          customerRow.creditLimit > 0 &&
+          (customerRow.balance ?? 0) + total >
+            customerRow.creditLimit + MONEY_EPSILON
+        ) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message:
+              "El monto del pedido excede el límite de crédito disponible del cliente",
+          });
+        }
+      }
 
       const [order] = await ctx.db
         .insert(SalesOrder)
         .values({
           workspaceId: ctx.workspace.workspaceId,
-          orderNumber,
+          // Trigger trg_order_number assigns the next sequential number
+          orderNumber: "",
           customerId: input.customerId,
           channel: input.channel,
           subtotal,
@@ -854,6 +1107,11 @@ export const salesRouter = createTRPCRouter({
           createdBy: ctx.user.id,
         })
         .returning();
+
+      const effectiveOrderNumber =
+        order?.orderNumber && order.orderNumber.length > 0
+          ? order.orderNumber
+          : `ORD-${Date.now().toString(36).toUpperCase()}`;
 
       if (order && input.items.length > 0) {
         await ctx.db.insert(OrderItem).values(
@@ -869,14 +1127,40 @@ export const salesRouter = createTRPCRouter({
         );
       }
 
+      if (order && input.customerId && total > 0) {
+        const creditDays =
+          typeof customerRow?.creditDays === "number" &&
+          customerRow.creditDays > 0
+            ? customerRow.creditDays
+            : 30;
+        const dueDate = new Date(Date.now() + creditDays * 86_400_000);
+        await ctx.db.insert(AccountReceivable).values({
+          workspaceId: ctx.workspace.workspaceId,
+          customerId: input.customerId,
+          orderId: order.id,
+          totalAmount: total,
+          paidAmount: 0,
+          balance: total,
+          status: "pending",
+          dueDate,
+          notes: `Generado por pedido ${effectiveOrderNumber}`,
+          createdBy: ctx.user.id,
+        });
+      }
+
       await logAudit(ctx.db, ctx.user, {
+        workspaceId: ctx.workspace.workspaceId,
         action: "order.create",
         entity: "sales_order",
         entityId: order?.id,
-        newValue: { orderNumber, channel: input.channel, total },
+        newValue: {
+          orderNumber: effectiveOrderNumber,
+          channel: input.channel,
+          total,
+        },
       });
 
-      return order;
+      return order ? { ...order, orderNumber: effectiveOrderNumber } : order;
     }),
 
   updateOrderStatus: wsPermissionProcedure("orders", "update")
@@ -928,6 +1212,7 @@ export const salesRouter = createTRPCRouter({
       );
 
       await logAudit(ctx.db, ctx.user, {
+        workspaceId: ctx.workspace.workspaceId,
         action: `order.status_${input.status}`,
         entity: "sales_order",
         entityId: input.id,
@@ -1113,7 +1398,7 @@ export const salesRouter = createTRPCRouter({
       };
     }),
 
-  // ─── Payments (PRD §19) ──────────────────────
+  // ─── Payments (PRD §19 — Delegated to payments.ts F6.1) ──────────────
 
   listPayments: wsReadPermissionProcedure("payments", "read")
     .input(
@@ -1122,45 +1407,126 @@ export const salesRouter = createTRPCRouter({
         onlyPending: z.boolean().optional(),
       }),
     )
-    .query(async ({ ctx, input }) => {
-      const conditions = [eq(Payment.workspaceId, ctx.workspace.workspaceId)];
-      if (input.onlyPending) {
-        conditions.push(eq(Payment.isValidated, false));
-      }
-
-      return ctx.db
-        .select({
-          id: Payment.id,
-          orderId: Payment.orderId,
-          method: Payment.method,
-          amount: Payment.amount,
-          reference: Payment.reference,
-          isValidated: Payment.isValidated,
-          payerName: Payment.payerName,
-          bankName: Payment.bankName,
-          createdAt: Payment.createdAt,
-        })
-        .from(Payment)
-        .where(and(...conditions))
-        .orderBy(desc(Payment.createdAt))
-        .limit(input.limit);
-    }),
+    .query(({ ctx, input }) =>
+      executeListPayments(ctx.db, ctx.workspace.workspaceId, input),
+    ),
 
   addPayment: wsPermissionProcedure("payments", "create")
+    .input(addPaymentInputSchema)
+    .mutation(({ ctx, input }) =>
+      executeAddPayment(ctx.db, ctx.user, ctx.workspace.workspaceId, input),
+    ),
+
+  validatePayment: wsPermissionProcedure("payments", "approve")
+    .input(z.object({ id: z.string().uuid() }))
+    .mutation(({ ctx, input }) =>
+      executeValidatePayment(
+        ctx.db,
+        ctx.user,
+        ctx.workspace.workspaceId,
+        ctx.workspace.role,
+        input.id,
+      ),
+    ),
+
+  // ─── Cash Closure (PRD §19.6 — Delegated to payments.ts F6.2) ────────
+
+  listClosures: wsReadPermissionProcedure("cash_closure", "read").query(
+    ({ ctx }) => executeListClosures(ctx.db, ctx.workspace.workspaceId),
+  ),
+
+  dailyClosurePreview: wsReadPermissionProcedure("cash_closure", "read")
+    .input(z.object({ closureDate: z.string().min(1) }))
+    .query(({ ctx, input }) =>
+      executeComputeDailyClosureTotals(
+        ctx.db,
+        ctx.workspace.workspaceId,
+        input.closureDate,
+      ),
+    ),
+
+  createClosure: wsPermissionProcedure("cash_closure", "create")
+    .input(createClosureInputSchema)
+    .mutation(({ ctx, input }) =>
+      executeCreateClosure(ctx.db, ctx.user, ctx.workspace.workspaceId, input),
+    ),
+
+  reviewClosure: wsPermissionProcedure("cash_closure", "approve")
+    .input(z.object({ id: z.string().uuid() }))
+    .mutation(({ ctx, input }) =>
+      executeReviewClosure(
+        ctx.db,
+        ctx.user,
+        ctx.workspace.workspaceId,
+        ctx.workspace.role,
+        input.id,
+      ),
+    ),
+
+  // ─── Delivery Notes & Internal Invoices (F5.5) ──────────────────────
+
+  listDeliveryNotes: wsReadPermissionProcedure("orders", "read")
+    .input(
+      z.object({
+        limit: z.number().int().min(1).max(100).default(50),
+        orderId: z.string().uuid().optional(),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      const conditions = [
+        eq(DeliveryNote.workspaceId, ctx.workspace.workspaceId),
+      ];
+      if (input.orderId) {
+        conditions.push(eq(DeliveryNote.orderId, input.orderId));
+      }
+
+      const notes = await ctx.db
+        .select()
+        .from(DeliveryNote)
+        .where(and(...conditions))
+        .orderBy(desc(DeliveryNote.createdAt))
+        .limit(input.limit);
+
+      if (notes.length === 0) return [];
+
+      const noteIds = notes.map((n) => n.id);
+      const items = await ctx.db
+        .select({
+          id: DeliveryNoteItem.id,
+          deliveryNoteId: DeliveryNoteItem.deliveryNoteId,
+          productId: DeliveryNoteItem.productId,
+          productName: Product.name,
+          sku: Product.sku,
+          quantityDispatched: DeliveryNoteItem.quantityDispatched,
+          quantityDelivered: DeliveryNoteItem.quantityDelivered,
+          notes: DeliveryNoteItem.notes,
+        })
+        .from(DeliveryNoteItem)
+        .leftJoin(Product, eq(DeliveryNoteItem.productId, Product.id))
+        .where(
+          and(
+            eq(DeliveryNoteItem.workspaceId, ctx.workspace.workspaceId),
+            inArray(DeliveryNoteItem.deliveryNoteId, noteIds),
+          ),
+        );
+
+      return notes.map((note) => ({
+        ...note,
+        items: items.filter((i) => i.deliveryNoteId === note.id),
+      }));
+    }),
+
+  createDeliveryNote: wsPermissionProcedure("orders", "create")
     .input(
       z.object({
         orderId: z.string().uuid(),
-        method: z.enum(paymentMethodEnum.enumValues),
-        amount: z.number().positive(),
-        reference: z.string().max(128).optional(),
-        bankName: z.string().max(128).optional(),
-        payerName: z.string().max(256).optional(),
-        payerIdDoc: z.string().max(32).optional(),
-        notes: z.string().optional(),
+        deliveryAddress: z.string().max(500).optional(),
+        recipientName: z.string().max(256).optional(),
+        recipientIdDoc: z.string().max(32).optional(),
+        notes: z.string().max(500).optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      // Verify order belongs to current workspace
       const [order] = await ctx.db
         .select()
         .from(SalesOrder)
@@ -1175,182 +1541,247 @@ export const salesRouter = createTRPCRouter({
       if (!order) {
         throw new TRPCError({
           code: "NOT_FOUND",
-          message: "Order not found in this workspace",
+          message: "Pedido no encontrado",
         });
       }
 
-      const [payment] = await ctx.db
-        .insert(Payment)
+      const orderItems = await ctx.db
+        .select()
+        .from(OrderItem)
+        .where(
+          and(
+            eq(OrderItem.orderId, order.id),
+            eq(OrderItem.workspaceId, ctx.workspace.workspaceId),
+          ),
+        );
+
+      let recipientName = input.recipientName;
+      let recipientIdDoc = input.recipientIdDoc;
+      let deliveryAddress = input.deliveryAddress;
+
+      if (
+        order.customerId &&
+        (!recipientName || !recipientIdDoc || !deliveryAddress)
+      ) {
+        const [customer] = await ctx.db
+          .select({
+            name: Customer.name,
+            identification: Customer.identification,
+            address: Customer.address,
+          })
+          .from(Customer)
+          .where(
+            and(
+              eq(Customer.id, order.customerId),
+              eq(Customer.workspaceId, ctx.workspace.workspaceId),
+            ),
+          )
+          .limit(1);
+        if (customer) {
+          recipientName = recipientName ?? customer.name;
+          recipientIdDoc =
+            recipientIdDoc ?? customer.identification ?? undefined;
+          deliveryAddress = deliveryAddress ?? customer.address ?? undefined;
+        }
+      }
+
+      const [note] = await ctx.db
+        .insert(DeliveryNote)
         .values({
-          ...input,
           workspaceId: ctx.workspace.workspaceId,
+          // Trigger trg_delivery_note_number assigns sequential number
+          noteNumber: "",
+          orderId: order.id,
+          status: "issued",
+          deliveryAddress,
+          recipientName,
+          recipientIdDoc,
+          dispatchedAt: new Date(),
+          notes: input.notes,
+          createdBy: ctx.user.id,
         })
         .returning();
 
-      // Update totalPaid on order
-      await ctx.db
-        .update(SalesOrder)
-        .set({
-          totalPaid: sql`COALESCE(${SalesOrder.totalPaid}, 0) + ${input.amount}`,
+      const effectiveNoteNumber =
+        note?.noteNumber && note.noteNumber.length > 0
+          ? note.noteNumber
+          : `NE-${Date.now().toString(36).toUpperCase()}`;
+
+      if (note && orderItems.length > 0) {
+        await ctx.db.insert(DeliveryNoteItem).values(
+          orderItems.map((item) => ({
+            workspaceId: ctx.workspace.workspaceId,
+            deliveryNoteId: note.id,
+            productId: item.productId,
+            quantityDispatched: item.quantity,
+            quantityDelivered: item.quantity,
+          })),
+        );
+      }
+
+      await logAudit(ctx.db, ctx.user, {
+        workspaceId: ctx.workspace.workspaceId,
+        action: "delivery_note.create",
+        entity: "delivery_note",
+        entityId: note?.id,
+        newValue: {
+          noteNumber: effectiveNoteNumber,
+          orderId: order.id,
+          itemsCount: orderItems.length,
+        },
+      });
+
+      return note ? { ...note, noteNumber: effectiveNoteNumber } : note;
+    }),
+
+  listInternalInvoices: wsReadPermissionProcedure("orders", "read")
+    .input(
+      z.object({
+        limit: z.number().int().min(1).max(100).default(50),
+        orderId: z.string().uuid().optional(),
+      }),
+    )
+    .query(async ({ ctx, input }) => {
+      const conditions = [
+        eq(InternalInvoice.workspaceId, ctx.workspace.workspaceId),
+      ];
+      if (input.orderId) {
+        conditions.push(eq(InternalInvoice.orderId, input.orderId));
+      }
+
+      const invoices = await ctx.db
+        .select()
+        .from(InternalInvoice)
+        .where(and(...conditions))
+        .orderBy(desc(InternalInvoice.createdAt))
+        .limit(input.limit);
+
+      if (invoices.length === 0) return [];
+
+      const invoiceIds = invoices.map((inv) => inv.id);
+      const items = await ctx.db
+        .select({
+          id: InternalInvoiceItem.id,
+          invoiceId: InternalInvoiceItem.invoiceId,
+          productId: InternalInvoiceItem.productId,
+          productName: Product.name,
+          sku: Product.sku,
+          quantity: InternalInvoiceItem.quantity,
+          unitPrice: InternalInvoiceItem.unitPrice,
+          discount: InternalInvoiceItem.discount,
+          lineTotal: InternalInvoiceItem.lineTotal,
         })
+        .from(InternalInvoiceItem)
+        .leftJoin(Product, eq(InternalInvoiceItem.productId, Product.id))
+        .where(
+          and(
+            eq(InternalInvoiceItem.workspaceId, ctx.workspace.workspaceId),
+            inArray(InternalInvoiceItem.invoiceId, invoiceIds),
+          ),
+        );
+
+      return invoices.map((inv) => ({
+        ...inv,
+        items: items.filter((i) => i.invoiceId === inv.id),
+      }));
+    }),
+
+  createInternalInvoice: wsPermissionProcedure("orders", "create")
+    .input(
+      z.object({
+        orderId: z.string().uuid(),
+        tax: z.number().nonnegative().default(0),
+        notes: z.string().max(500).optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const [order] = await ctx.db
+        .select()
+        .from(SalesOrder)
         .where(
           and(
             eq(SalesOrder.id, input.orderId),
             eq(SalesOrder.workspaceId, ctx.workspace.workspaceId),
           ),
-        );
-
-      await logAudit(ctx.db, ctx.user, {
-        action: "payment.create",
-        entity: "payment",
-        entityId: payment?.id,
-        newValue: { method: input.method, amount: input.amount },
-      });
-
-      return payment;
-    }),
-
-  validatePayment: wsPermissionProcedure("payments", "approve")
-    .input(z.object({ id: z.string().uuid() }))
-    .mutation(async ({ ctx, input }) => {
-      if (!["owner", "admin", "supervisor"].includes(ctx.workspace.role)) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "Insufficient permissions to validate payments",
-        });
-      }
-
-      const [updated] = await ctx.db
-        .update(Payment)
-        .set({ isValidated: true, validatedBy: ctx.user.id })
-        .where(
-          and(
-            eq(Payment.id, input.id),
-            eq(Payment.workspaceId, ctx.workspace.workspaceId),
-          ),
         )
-        .returning();
+        .limit(1);
 
-      if (!updated) {
+      if (!order) {
         throw new TRPCError({
           code: "NOT_FOUND",
-          message: "Payment not found in this workspace",
+          message: "Pedido no encontrado",
         });
       }
 
-      await logAudit(ctx.db, ctx.user, {
-        action: "payment.validate",
-        entity: "payment",
-        entityId: input.id,
-      });
+      if (order.customerId) {
+        await assertInvoiceReadyBuyer(ctx, order.customerId);
+      }
 
-      return updated;
-    }),
+      const orderItems = await ctx.db
+        .select()
+        .from(OrderItem)
+        .where(
+          and(
+            eq(OrderItem.orderId, order.id),
+            eq(OrderItem.workspaceId, ctx.workspace.workspaceId),
+          ),
+        );
 
-  // ─── Cash Closure (PRD §19.6) ────────────────
+      const total = Number(order.total) + input.tax;
 
-  listClosures: wsReadPermissionProcedure("cash_closure", "read").query(
-    async ({ ctx }) => {
-      return ctx.db
-        .select({
-          id: CashClosure.id,
-          closureDate: CashClosure.closureDate,
-          totalSales: CashClosure.totalSales,
-          totalCash: CashClosure.totalCash,
-          totalDigital: CashClosure.totalDigital,
-          expectedTotal: CashClosure.expectedTotal,
-          actualTotal: CashClosure.actualTotal,
-          discrepancy: CashClosure.discrepancy,
-          status: CashClosure.status,
-        })
-        .from(CashClosure)
-        .where(eq(CashClosure.workspaceId, ctx.workspace.workspaceId))
-        .orderBy(desc(CashClosure.closureDate))
-        .limit(100);
-    },
-  ),
-
-  createClosure: wsPermissionProcedure("cash_closure", "create")
-    .input(
-      z.object({
-        closureDate: z.string().datetime(),
-        totalSales: z.number().nonnegative(),
-        totalCash: z.number().nonnegative(),
-        totalDigital: z.number().nonnegative(),
-        expectedTotal: z.number().nonnegative(),
-        actualTotal: z.number().nonnegative(),
-        notes: z.string().optional(),
-      }),
-    )
-    .mutation(async ({ ctx, input }) => {
-      const discrepancy = input.actualTotal - input.expectedTotal;
-      const [closure] = await ctx.db
-        .insert(CashClosure)
+      const [invoice] = await ctx.db
+        .insert(InternalInvoice)
         .values({
           workspaceId: ctx.workspace.workspaceId,
-          closureDate: new Date(input.closureDate),
-          totalSales: input.totalSales,
-          totalCash: input.totalCash,
-          totalDigital: input.totalDigital,
-          expectedTotal: input.expectedTotal,
-          actualTotal: input.actualTotal,
-          discrepancy,
+          // Trigger trg_invoice_number assigns sequential number
+          invoiceNumber: "",
+          orderId: order.id,
+          customerId: order.customerId,
+          status: "issued",
+          subtotal: order.subtotal,
+          discount: order.discount ?? 0,
+          tax: input.tax,
+          total,
+          issuedAt: new Date(),
           notes: input.notes,
-          closedBy: ctx.user.id,
+          createdBy: ctx.user.id,
         })
         .returning();
 
+      const effectiveInvoiceNumber =
+        invoice?.invoiceNumber && invoice.invoiceNumber.length > 0
+          ? invoice.invoiceNumber
+          : `FAC-${Date.now().toString(36).toUpperCase()}`;
+
+      if (invoice && orderItems.length > 0) {
+        await ctx.db.insert(InternalInvoiceItem).values(
+          orderItems.map((item) => ({
+            workspaceId: ctx.workspace.workspaceId,
+            invoiceId: invoice.id,
+            productId: item.productId,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            discount: item.discount ?? 0,
+            lineTotal: item.lineTotal,
+          })),
+        );
+      }
+
       await logAudit(ctx.db, ctx.user, {
-        action: "cash.close",
-        entity: "cash_closure",
-        entityId: closure?.id,
+        workspaceId: ctx.workspace.workspaceId,
+        action: "internal_invoice.create",
+        entity: "internal_invoice",
+        entityId: invoice?.id,
         newValue: {
-          expectedTotal: input.expectedTotal,
-          actualTotal: input.actualTotal,
-          discrepancy,
+          invoiceNumber: effectiveInvoiceNumber,
+          orderId: order.id,
+          total,
+          itemsCount: orderItems.length,
         },
       });
 
-      return closure;
-    }),
-
-  reviewClosure: wsPermissionProcedure("cash_closure", "approve")
-    .input(z.object({ id: z.string().uuid() }))
-    .mutation(async ({ ctx, input }) => {
-      if (!["owner", "admin", "supervisor"].includes(ctx.workspace.role)) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "Insufficient permissions to review cash closures",
-        });
-      }
-
-      const [updated] = await ctx.db
-        .update(CashClosure)
-        .set({
-          status: "reviewed",
-          reviewedBy: ctx.user.id,
-        })
-        .where(
-          and(
-            eq(CashClosure.id, input.id),
-            eq(CashClosure.workspaceId, ctx.workspace.workspaceId),
-          ),
-        )
-        .returning();
-
-      if (!updated) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Cash closure not found in this workspace",
-        });
-      }
-
-      await logAudit(ctx.db, ctx.user, {
-        action: "cash.review",
-        entity: "cash_closure",
-        entityId: input.id,
-      });
-
-      return updated;
+      return invoice
+        ? { ...invoice, invoiceNumber: effectiveInvoiceNumber }
+        : invoice;
     }),
 });

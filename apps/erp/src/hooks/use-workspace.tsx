@@ -15,6 +15,7 @@ import {
   useMemo,
   useState,
 } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 
 const STORAGE_KEY = "cendaro:workspace-id";
 const COOKIE_NAME = "cendaro-workspace-id";
@@ -74,6 +75,7 @@ export function WorkspaceProvider({
   const safeInitialId = isValidUuid(initialWorkspaceId)
     ? initialWorkspaceId
     : null;
+  const queryClient = useQueryClient();
   const [workspaceId, setWorkspaceId] = useState<string | null>(safeInitialId);
 
   // Sync to localStorage + cookie when workspace changes, or resolve client-side fallback
@@ -90,11 +92,21 @@ export function WorkspaceProvider({
     }
   }, [workspaceId]);
 
-  const switchWorkspace = useCallback((id: string) => {
-    if (isValidUuid(id)) {
-      setWorkspaceId(id);
-    }
-  }, []);
+  const switchWorkspace = useCallback(
+    (id: string) => {
+      if (isValidUuid(id)) {
+        localStorage.setItem(STORAGE_KEY, id);
+        setWorkspaceCookie(id);
+        setWorkspaceId((prev) => {
+          if (prev && prev !== id) {
+            queryClient.clear();
+          }
+          return id;
+        });
+      }
+    },
+    [queryClient],
+  );
 
   const value = useMemo<WorkspaceContext>(
     () => ({

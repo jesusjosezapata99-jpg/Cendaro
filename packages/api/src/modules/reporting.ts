@@ -5,27 +5,30 @@
  * @see docs/architecture/module_api_blueprint_v1.md — Reporting & Exports
  */
 import { TRPCError } from "@trpc/server";
-import { and, eq, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import {
   AccountReceivable,
+  OrderItem,
   Payment,
+  Product,
   SalesOrder,
   StockLedger,
+  Warehouse,
 } from "@cendaro/db/schema";
 
 import { createTRPCRouter, wsReadPermissionProcedure } from "../trpc";
 
+const dateRangeInput = z.object({
+  from: z.string().min(1),
+  to: z.string().min(1),
+});
+
 export const reportingRouter = createTRPCRouter({
   // ─── Sales summary by date range ──────────────
   salesSummary: wsReadPermissionProcedure("dashboard", "export")
-    .input(
-      z.object({
-        from: z.string().datetime(),
-        to: z.string().datetime(),
-      }),
-    )
+    .input(dateRangeInput)
     .query(async ({ ctx, input }) => {
       const [result] = await ctx.db
         .select({
@@ -37,6 +40,7 @@ export const reportingRouter = createTRPCRouter({
         .where(
           and(
             eq(SalesOrder.workspaceId, ctx.workspace.workspaceId),
+            sql`${SalesOrder.status} NOT IN ('cancelled')`,
             sql`${SalesOrder.createdAt} >= ${new Date(input.from)} AND ${SalesOrder.createdAt} <= ${new Date(input.to)}`,
           ),
         );
@@ -46,12 +50,7 @@ export const reportingRouter = createTRPCRouter({
 
   // ─── Sales by channel ─────────────────────────
   salesByChannel: wsReadPermissionProcedure("dashboard", "export")
-    .input(
-      z.object({
-        from: z.string().datetime(),
-        to: z.string().datetime(),
-      }),
-    )
+    .input(dateRangeInput)
     .query(async ({ ctx, input }) => {
       return ctx.db
         .select({
@@ -63,6 +62,7 @@ export const reportingRouter = createTRPCRouter({
         .where(
           and(
             eq(SalesOrder.workspaceId, ctx.workspace.workspaceId),
+            sql`${SalesOrder.status} NOT IN ('cancelled')`,
             sql`${SalesOrder.createdAt} >= ${new Date(input.from)} AND ${SalesOrder.createdAt} <= ${new Date(input.to)}`,
           ),
         )
@@ -71,12 +71,7 @@ export const reportingRouter = createTRPCRouter({
 
   // ─── Payment method breakdown ─────────────────
   paymentMethods: wsReadPermissionProcedure("dashboard", "export")
-    .input(
-      z.object({
-        from: z.string().datetime(),
-        to: z.string().datetime(),
-      }),
-    )
+    .input(dateRangeInput)
     .query(async ({ ctx, input }) => {
       return ctx.db
         .select({
@@ -100,12 +95,28 @@ export const reportingRouter = createTRPCRouter({
       return ctx.db
         .select({
           warehouseId: StockLedger.warehouseId,
+          warehouseName: Warehouse.name,
           totalProducts: sql<number>`count(distinct ${StockLedger.productId})`,
           totalUnits: sql<number>`coalesce(sum(${StockLedger.quantity}), 0)`,
+          totalCostValueUsd: sql<number>`coalesce(sum(${StockLedger.quantity} * CAST(coalesce(${Product.costAvg}, '0') AS double precision)), 0)`,
         })
         .from(StockLedger)
+        .leftJoin(
+          Warehouse,
+          and(
+            eq(StockLedger.warehouseId, Warehouse.id),
+            eq(Warehouse.workspaceId, ctx.workspace.workspaceId),
+          ),
+        )
+        .leftJoin(
+          Product,
+          and(
+            eq(StockLedger.productId, Product.id),
+            eq(Product.workspaceId, ctx.workspace.workspaceId),
+          ),
+        )
         .where(eq(StockLedger.workspaceId, ctx.workspace.workspaceId))
-        .groupBy(StockLedger.warehouseId);
+        .groupBy(StockLedger.warehouseId, Warehouse.name);
     },
   ),
 
@@ -113,33 +124,53 @@ export const reportingRouter = createTRPCRouter({
   topProducts: wsReadPermissionProcedure("dashboard", "export")
     .input(
       z.object({
-        from: z.string().datetime(),
-        to: z.string().datetime(),
+        from: z.string().min(1),
+        to: z.string().min(1),
         limit: z.number().int().min(1).max(50).default(10),
       }),
     )
     .query(async ({ ctx, input }) => {
-      // Uses raw SQL for join performance
-      const { rows } = await ctx.db.execute(
-        sql`
-          SELECT oi.product_id,
-                 p.name AS product_name,
-                 p.sku,
-                 SUM(oi.quantity) AS total_qty,
-                 SUM(oi.line_total) AS total_revenue
-          FROM order_item oi
-          JOIN sales_order so ON oi.order_id = so.id AND so.workspace_id = ${ctx.workspace.workspaceId}
-          JOIN product p ON oi.product_id = p.id AND p.workspace_id = ${ctx.workspace.workspaceId}
-          WHERE oi.workspace_id = ${ctx.workspace.workspaceId}
-            AND so.created_at >= ${new Date(input.from)}
-            AND so.created_at <= ${new Date(input.to)}
-            AND so.status NOT IN ('cancelled')
-          GROUP BY oi.product_id, p.name, p.sku
-          ORDER BY total_qty DESC
-          LIMIT ${input.limit}
-        `,
-      );
-      return rows;
+      const rows = await ctx.db
+        .select({
+          productId: OrderItem.productId,
+          productName: Product.name,
+          sku: Product.sku,
+          totalQty: sql<number>`coalesce(sum(${OrderItem.quantity}), 0)`,
+          totalRevenue: sql<number>`coalesce(sum(${OrderItem.lineTotal}), 0)`,
+        })
+        .from(OrderItem)
+        .innerJoin(
+          SalesOrder,
+          and(
+            eq(OrderItem.orderId, SalesOrder.id),
+            eq(SalesOrder.workspaceId, ctx.workspace.workspaceId),
+          ),
+        )
+        .innerJoin(
+          Product,
+          and(
+            eq(OrderItem.productId, Product.id),
+            eq(Product.workspaceId, ctx.workspace.workspaceId),
+          ),
+        )
+        .where(
+          and(
+            eq(OrderItem.workspaceId, ctx.workspace.workspaceId),
+            sql`${SalesOrder.createdAt} >= ${new Date(input.from)} AND ${SalesOrder.createdAt} <= ${new Date(input.to)}`,
+            sql`${SalesOrder.status} NOT IN ('cancelled')`,
+          ),
+        )
+        .groupBy(OrderItem.productId, Product.name, Product.sku)
+        .orderBy(desc(sql`coalesce(sum(${OrderItem.quantity}), 0)`))
+        .limit(input.limit);
+
+      return rows.map((r) => ({
+        ...r,
+        product_id: r.productId,
+        product_name: r.productName,
+        total_qty: Number(r.totalQty),
+        total_revenue: Number(r.totalRevenue),
+      }));
     }),
 
   // ─── Automated Ledger Reconciliation (SOC 1 ICFR) ───

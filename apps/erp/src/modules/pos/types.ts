@@ -14,6 +14,8 @@ export interface ProductItem {
   categoryId: string | null;
   status: string;
   imageUrl: string | null;
+  basePriceUsd?: number | null;
+  posPriceUsd?: number | null;
 }
 
 export interface CategoryItem {

@@ -105,6 +105,16 @@ export default function AuditPage() {
   const [entityFilter, setEntityFilter] = useState("");
   const [search, setSearch] = useState("");
   const [selectedEntry, setSelectedEntry] = useState<AuditEntry | null>(null);
+  const [showChainVerification, setShowChainVerification] = useState(false);
+
+  const {
+    data: chainVerification,
+    isFetching: isVerifyingChain,
+    refetch: refetchChainVerification,
+  } = useQuery({
+    ...trpc.audit.verifyChainIntegrity.queryOptions({ limit: 500 }),
+    enabled: showChainVerification,
+  });
 
   const {
     data: entries,
@@ -253,7 +263,21 @@ export default function AuditPage() {
         title="Log de Auditoría & Gobernanza"
         description="Trazabilidad forense inmutable de todas las mutaciones y eventos operacionales del ERP"
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowChainVerification(true);
+                void refetchChainVerification();
+              }}
+              disabled={isVerifyingChain}
+              className="border-border h-9 text-xs font-medium"
+            >
+              <Icons.Verified className="mr-1.5 size-3.5" />
+              {isVerifyingChain
+                ? "Verificando Cadena..."
+                : "Verificar Cadena Criptográfica"}
+            </Button>
             <Button
               variant="outline"
               id="btn-inspect-model"
@@ -274,6 +298,55 @@ export default function AuditPage() {
           </div>
         }
       />
+
+      {showChainVerification && chainVerification ? (
+        <div
+          className={`flex flex-col gap-3 border p-4 sm:flex-row sm:items-center sm:justify-between ${
+            chainVerification.valid
+              ? "border-status-success-fg/30 bg-status-success-bg text-status-success-fg"
+              : "border-destructive/30 bg-destructive/10 text-destructive"
+          }`}
+        >
+          <div className="flex items-start gap-3">
+            <Icon
+              name={chainVerification.valid ? "Verified" : "Error"}
+              className="mt-0.5 size-5 shrink-0"
+            />
+            <div className="text-xs">
+              <p className="font-medium">
+                {chainVerification.valid
+                  ? `Cadena WORM Verificada (${chainVerification.totalChecked} eslabones íntegros)`
+                  : `Adulteración Detectada en Eslabón ${chainVerification.brokenAtId ?? "desconocido"} (${chainVerification.brokenReason ?? "error"})`}
+              </p>
+              <p className="mt-0.5 font-mono text-[11px] opacity-90">
+                Manifest SHA-256: {chainVerification.manifestHash}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const blob = new Blob(
+                  [JSON.stringify(chainVerification, null, 2)],
+                  { type: "application/json" },
+                );
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `cendaro-audit-manifest-${new Date().toISOString().slice(0, 10)}.json`;
+                a.click();
+                URL.revokeObjectURL(url);
+              }}
+              className="h-8 text-xs"
+            >
+              <Icons.Download className="mr-1 size-3.5" />
+              Exportar Manifiesto
+            </Button>
+          </div>
+        </div>
+      ) : null}
 
       {/* 4 StatCards */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">

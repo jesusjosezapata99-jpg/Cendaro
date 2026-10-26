@@ -5,7 +5,7 @@
  * PRD §9: multichannel stock, blocking, transfers, cycle counts.
  */
 import { TRPCError } from "@trpc/server";
-import { and, desc, eq, sql, sum } from "drizzle-orm";
+import { and, desc, eq, inArray, sql, sum } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import {
@@ -106,6 +106,7 @@ export const inventoryRouter = createTRPCRouter({
         })
         .returning();
       await logAudit(ctx.db, ctx.user, {
+        workspaceId: ctx.workspace.workspaceId,
         action: "warehouse.create",
         entity: "warehouse",
         entityId: wh?.id,
@@ -119,8 +120,8 @@ export const inventoryRouter = createTRPCRouter({
   stockOverview: wsReadPermissionProcedure("inventory", "read")
     .input(stockOverviewInputSchema)
     .query(async ({ ctx, input }) => {
-      // Single SQL query with LEFT JOIN + GROUP BY — pushes all aggregation
-      // to the database instead of loading all rows into JS memory.
+      // Single SQL query with independent pre-aggregated subqueries (sl_agg and ca_agg)
+      // to eliminate Cartesian multiplication across warehouses × channels.
       const searchPattern = input.search
         ? `%${input.search.toLowerCase().replace(/\\/g, "\\\\").replace(/%/g, "\\%").replace(/_/g, "\\_")}%`
         : null;
@@ -149,9 +150,9 @@ export const inventoryRouter = createTRPCRouter({
           case "sku:desc":
             return sql`p.sku DESC`;
           case "totalStock:asc":
-            return sql`COALESCE(SUM(sl.quantity), 0) ASC, p.name ASC`;
+            return sql`COALESCE(sl_agg.total_stock, 0) ASC, p.name ASC`;
           case "totalStock:desc":
-            return sql`COALESCE(SUM(sl.quantity), 0) DESC, p.name ASC`;
+            return sql`COALESCE(sl_agg.total_stock, 0) DESC, p.name ASC`;
           default:
             return sql`p.name ASC`;
         }
@@ -173,26 +174,40 @@ export const inventoryRouter = createTRPCRouter({
           p.sku,
           p.name,
           p.status,
-          COALESCE(SUM(sl.quantity), 0)::text AS total_stock,
-          COALESCE(BOOL_OR(sl.is_locked), false) AS locked,
-          COALESCE(SUM(CASE WHEN ca.channel = 'store' THEN ca.quantity ELSE 0 END), 0)::text AS store_stock,
-          COALESCE(SUM(CASE WHEN ca.channel = 'mercadolibre' THEN ca.quantity ELSE 0 END), 0)::text AS ml_stock,
-          COALESCE(SUM(CASE WHEN ca.channel = 'vendors' THEN ca.quantity ELSE 0 END), 0)::text AS vendor_stock
+          COALESCE(sl_agg.total_stock, 0)::text AS total_stock,
+          COALESCE(sl_agg.locked, false) AS locked,
+          COALESCE(ca_agg.store_stock, 0)::text AS store_stock,
+          COALESCE(ca_agg.ml_stock, 0)::text AS ml_stock,
+          COALESCE(ca_agg.vendor_stock, 0)::text AS vendor_stock
         FROM product p
-        LEFT JOIN stock_ledger sl ON sl.product_id = p.id AND sl.workspace_id = ${ctx.workspace.workspaceId}
-        LEFT JOIN channel_allocation ca ON ca.product_id = p.id AND ca.workspace_id = ${ctx.workspace.workspaceId}
+        LEFT JOIN (
+          SELECT
+            product_id,
+            SUM(quantity) AS total_stock,
+            BOOL_OR(is_locked) AS locked
+          FROM stock_ledger
+          WHERE workspace_id = ${ctx.workspace.workspaceId}
+          GROUP BY product_id
+        ) sl_agg ON sl_agg.product_id = p.id
+        LEFT JOIN (
+          SELECT
+            product_id,
+            SUM(CASE WHEN channel = 'store' THEN quantity ELSE 0 END) AS store_stock,
+            SUM(CASE WHEN channel = 'mercadolibre' THEN quantity ELSE 0 END) AS ml_stock,
+            SUM(CASE WHEN channel = 'vendors' THEN quantity ELSE 0 END) AS vendor_stock
+          FROM channel_allocation
+          WHERE workspace_id = ${ctx.workspace.workspaceId}
+          GROUP BY product_id
+        ) ca_agg ON ca_agg.product_id = p.id
         WHERE
           p.workspace_id = ${ctx.workspace.workspaceId}
           AND (${searchPattern}::text IS NULL OR (LOWER(p.name) LIKE ${searchPattern} OR LOWER(p.sku) LIKE ${searchPattern}))
-          AND (${input.onlyLocked ?? false} = false OR EXISTS (
-            SELECT 1 FROM stock_ledger sl2 WHERE sl2.product_id = p.id AND sl2.is_locked = true AND sl2.workspace_id = ${ctx.workspace.workspaceId}
+          AND (${input.onlyLocked ?? false} = false OR COALESCE(sl_agg.locked, false) = true)
+          AND (${!hasStatusFilter} = true OR (
+            (${selectedStatuses.has("in_stock")} = true AND COALESCE(sl_agg.total_stock, 0) > 5)
+            OR (${selectedStatuses.has("low_stock")} = true AND COALESCE(sl_agg.total_stock, 0) > 0 AND COALESCE(sl_agg.total_stock, 0) <= 5)
+            OR (${selectedStatuses.has("out_of_stock")} = true AND COALESCE(sl_agg.total_stock, 0) <= 0)
           ))
-        GROUP BY p.id, p.sku, p.name, p.status
-        HAVING (${!hasStatusFilter} = true OR (
-          (${selectedStatuses.has("in_stock")} = true AND COALESCE(SUM(sl.quantity), 0) > 5)
-          OR (${selectedStatuses.has("low_stock")} = true AND COALESCE(SUM(sl.quantity), 0) > 0 AND COALESCE(SUM(sl.quantity), 0) <= 5)
-          OR (${selectedStatuses.has("out_of_stock")} = true AND COALESCE(SUM(sl.quantity), 0) <= 0)
-        ))
         ORDER BY ${orderBySql}
         LIMIT ${limitVal}
         OFFSET ${offsetVal}
@@ -269,6 +284,13 @@ export const inventoryRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      if (input.fromChannel === input.toChannel) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "El canal de origen y destino deben ser diferentes",
+        });
+      }
+
       // Verify product belongs to current workspace
       const [product] = await ctx.db
         .select({ id: Product.id })
@@ -284,7 +306,52 @@ export const inventoryRouter = createTRPCRouter({
       if (!product) {
         throw new TRPCError({
           code: "NOT_FOUND",
-          message: "Product not found in this workspace",
+          message: "Producto no encontrado en este espacio de trabajo",
+        });
+      }
+
+      // Reject transfer if product has locked stock in any warehouse
+      const [lockedRow] = await ctx.db
+        .select({ id: StockLedger.id })
+        .from(StockLedger)
+        .where(
+          and(
+            eq(StockLedger.workspaceId, ctx.workspace.workspaceId),
+            eq(StockLedger.productId, input.productId),
+            eq(StockLedger.isLocked, true),
+          ),
+        )
+        .limit(1);
+
+      if (lockedRow) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message:
+            "El producto tiene stock bloqueado en inventario y no puede transferirse",
+        });
+      }
+
+      // Lock and verify available stock in source channel
+      const [sourceAlloc] = await ctx.db
+        .select({
+          id: ChannelAllocation.id,
+          quantity: ChannelAllocation.quantity,
+        })
+        .from(ChannelAllocation)
+        .where(
+          and(
+            eq(ChannelAllocation.workspaceId, ctx.workspace.workspaceId),
+            eq(ChannelAllocation.productId, input.productId),
+            eq(ChannelAllocation.channel, input.fromChannel),
+          ),
+        )
+        .limit(1)
+        .for("update");
+
+      if (!sourceAlloc || sourceAlloc.quantity < input.quantity) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Stock insuficiente en canal ${input.fromChannel}: disponible ${sourceAlloc?.quantity ?? 0}, solicitado ${input.quantity}`,
         });
       }
 
@@ -332,6 +399,7 @@ export const inventoryRouter = createTRPCRouter({
       });
 
       await logAudit(ctx.db, ctx.user, {
+        workspaceId: ctx.workspace.workspaceId,
         action: "stock.transfer",
         entity: "stock_movement",
         entityId: input.productId,
@@ -370,6 +438,7 @@ export const inventoryRouter = createTRPCRouter({
       }
 
       await logAudit(ctx.db, ctx.user, {
+        workspaceId: ctx.workspace.workspaceId,
         action: input.isLocked ? "stock.lock" : "stock.unlock",
         entity: "stock_ledger",
         entityId: input.stockLedgerId,
@@ -555,9 +624,15 @@ export const inventoryRouter = createTRPCRouter({
         });
       }
 
-      // Get current value for audit
+      // Lock and read current stock_ledger row
       const [current] = await ctx.db
-        .select({ quantity: StockLedger.quantity })
+        .select({
+          id: StockLedger.id,
+          productId: StockLedger.productId,
+          warehouseId: StockLedger.warehouseId,
+          quantity: StockLedger.quantity,
+          isLocked: StockLedger.isLocked,
+        })
         .from(StockLedger)
         .where(
           and(
@@ -565,7 +640,8 @@ export const inventoryRouter = createTRPCRouter({
             eq(StockLedger.workspaceId, ctx.workspace.workspaceId),
           ),
         )
-        .limit(1);
+        .limit(1)
+        .for("update");
 
       if (!current) {
         throw new TRPCError({
@@ -574,9 +650,17 @@ export const inventoryRouter = createTRPCRouter({
         });
       }
 
+      if (current.isLocked) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message:
+            "El stock de este producto está bloqueado. Desbloquéalo antes de ajustar la cantidad.",
+        });
+      }
+
       const [updated] = await ctx.db
         .update(StockLedger)
-        .set({ quantity: input.newQuantity })
+        .set({ quantity: input.newQuantity, updatedAt: new Date() })
         .where(
           and(
             eq(StockLedger.id, input.stockLedgerId),
@@ -585,7 +669,23 @@ export const inventoryRouter = createTRPCRouter({
         )
         .returning();
 
+      const delta = input.newQuantity - current.quantity;
+      if (delta !== 0) {
+        await ctx.db.insert(StockMovement).values({
+          workspaceId: ctx.workspace.workspaceId,
+          productId: current.productId,
+          warehouseId: current.warehouseId,
+          movementType: delta > 0 ? "adjustment_in" : "adjustment_out",
+          quantity: Math.abs(delta),
+          referenceType: "manual_adjustment",
+          referenceId: current.id,
+          notes: `Ajuste manual de ${current.quantity} a ${input.newQuantity}`,
+          createdBy: ctx.user.id,
+        });
+      }
+
       await logAudit(ctx.db, ctx.user, {
+        workspaceId: ctx.workspace.workspaceId,
         action: "stock.manual_adjustment",
         entity: "stock_ledger",
         entityId: input.stockLedgerId,
@@ -656,6 +756,7 @@ export const inventoryRouter = createTRPCRouter({
         .returning();
 
       await logAudit(ctx.db, ctx.user, {
+        workspaceId: ctx.workspace.workspaceId,
         action: "count.create",
         entity: "inventory_count",
         entityId: c?.id,
@@ -674,6 +775,102 @@ export const inventoryRouter = createTRPCRouter({
         });
       }
 
+      const [countRecord] = await ctx.db
+        .select()
+        .from(InventoryCount)
+        .where(
+          and(
+            eq(InventoryCount.id, input.id),
+            eq(InventoryCount.workspaceId, ctx.workspace.workspaceId),
+          ),
+        )
+        .limit(1)
+        .for("update");
+
+      if (!countRecord) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Inventory count not found in this workspace",
+        });
+      }
+
+      if (countRecord.status === "approved") {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "Este conteo físico ya fue aprobado",
+        });
+      }
+
+      // Apply all counted items to stock_ledger and record stock_movement
+      const items = await ctx.db
+        .select()
+        .from(InventoryCountItem)
+        .where(
+          and(
+            eq(InventoryCountItem.countId, input.id),
+            eq(InventoryCountItem.workspaceId, ctx.workspace.workspaceId),
+          ),
+        );
+
+      let adjustmentsApplied = 0;
+      for (const item of items) {
+        if (item.countedQty === null) continue;
+        const delta = item.countedQty - item.systemQty;
+
+        await ctx.db
+          .insert(StockLedger)
+          .values({
+            workspaceId: ctx.workspace.workspaceId,
+            productId: item.productId,
+            warehouseId: countRecord.warehouseId,
+            quantity: item.countedQty,
+            isLocked: false,
+            updatedAt: new Date(),
+          })
+          .onConflictDoUpdate({
+            target: [
+              StockLedger.workspaceId,
+              StockLedger.productId,
+              StockLedger.warehouseId,
+            ],
+            set: {
+              quantity: item.countedQty,
+              isLocked: false,
+              updatedAt: new Date(),
+            },
+          });
+
+        if (delta !== 0) {
+          adjustmentsApplied++;
+          await ctx.db.insert(StockMovement).values({
+            workspaceId: ctx.workspace.workspaceId,
+            productId: item.productId,
+            warehouseId: countRecord.warehouseId,
+            movementType: delta > 0 ? "adjustment_in" : "adjustment_out",
+            quantity: Math.abs(delta),
+            referenceType: "inventory_count",
+            referenceId: input.id,
+            notes: `Ajuste por aprobación de conteo físico (sistema: ${item.systemQty}, contado: ${item.countedQty})`,
+            createdBy: ctx.user.id,
+          });
+        }
+      }
+
+      // Mark any discrepancies for this count as resolved
+      await ctx.db
+        .update(InventoryDiscrepancy)
+        .set({
+          resolvedBy: ctx.user.id,
+          resolvedAt: new Date(),
+          resolution: "approved",
+        })
+        .where(
+          and(
+            eq(InventoryDiscrepancy.countId, input.id),
+            eq(InventoryDiscrepancy.workspaceId, ctx.workspace.workspaceId),
+          ),
+        );
+
       const [updated] = await ctx.db
         .update(InventoryCount)
         .set({
@@ -689,17 +886,12 @@ export const inventoryRouter = createTRPCRouter({
         )
         .returning();
 
-      if (!updated) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Inventory count not found in this workspace",
-        });
-      }
-
       await logAudit(ctx.db, ctx.user, {
+        workspaceId: ctx.workspace.workspaceId,
         action: "count.approve",
         entity: "inventory_count",
         entityId: input.id,
+        newValue: { adjustmentsApplied },
       });
 
       return updated;
@@ -859,7 +1051,11 @@ export const inventoryRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       // Verify count belongs to workspace
       const [countRecord] = await ctx.db
-        .select({ id: InventoryCount.id })
+        .select({
+          id: InventoryCount.id,
+          warehouseId: InventoryCount.warehouseId,
+          status: InventoryCount.status,
+        })
         .from(InventoryCount)
         .where(
           and(
@@ -873,6 +1069,16 @@ export const inventoryRouter = createTRPCRouter({
         throw new TRPCError({
           code: "NOT_FOUND",
           message: "Count not found in this workspace",
+        });
+      }
+
+      if (
+        countRecord.status === "completed" ||
+        countRecord.status === "approved"
+      ) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Este conteo físico ya fue finalizado",
         });
       }
 
@@ -894,7 +1100,7 @@ export const inventoryRouter = createTRPCRouter({
           item.difference !== 0,
       );
 
-      // Create discrepancy records
+      // Create discrepancy records and lock affected stock in warehouse (PRD §9.7)
       if (discrepancies.length > 0) {
         await ctx.db.insert(InventoryDiscrepancy).values(
           discrepancies.map((item) => ({
@@ -906,6 +1112,20 @@ export const inventoryRouter = createTRPCRouter({
             difference: item.difference ?? 0,
           })),
         );
+
+        const discrepancyProductIds = [
+          ...new Set(discrepancies.map((d) => d.productId)),
+        ];
+        await ctx.db
+          .update(StockLedger)
+          .set({ isLocked: true, updatedAt: new Date() })
+          .where(
+            and(
+              eq(StockLedger.workspaceId, ctx.workspace.workspaceId),
+              eq(StockLedger.warehouseId, countRecord.warehouseId),
+              inArray(StockLedger.productId, discrepancyProductIds),
+            ),
+          );
       }
 
       // Mark count as completed
@@ -924,6 +1144,7 @@ export const inventoryRouter = createTRPCRouter({
         .returning();
 
       await logAudit(ctx.db, ctx.user, {
+        workspaceId: ctx.workspace.workspaceId,
         action: "count.finalize",
         entity: "inventory_count",
         entityId: input.countId,

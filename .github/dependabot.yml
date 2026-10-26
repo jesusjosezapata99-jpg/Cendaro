@@ -3,8 +3,8 @@
 
 version: 2
 updates:
-  # Root monorepo dependencies
-  - package-ecosystem: "npm"
+  # Root monorepo dependencies (pnpm workspace)
+  - package-ecosystem: "pnpm"
     directory: "/"
     schedule:
       interval: "weekly"

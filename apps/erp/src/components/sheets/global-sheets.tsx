@@ -182,16 +182,15 @@ function RecordArPaymentWrapper({
   onClose: () => void;
 }) {
   const trpc = useTRPC();
-  const { data: receivables } = useQuery(
-    trpc.receivables.list.queryOptions({ limit: 100 }),
+  const { data: receivable } = useQuery(
+    trpc.receivables.byId.queryOptions({ id: arId }),
   );
-  const receivable = receivables?.find((r) => r.id === arId) ?? null;
 
   return (
     <RecordArPaymentDialog
       open={open}
       onClose={onClose}
-      receivable={receivable}
+      receivable={receivable ?? null}
     />
   );
 }

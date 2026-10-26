@@ -65,6 +65,15 @@ jobs:
       - name: Lint
         run: pnpm lint
 
+      - name: Workspace consistency (Sherif)
+        run: pnpm lint:ws
+
+      - name: Design-system & RBAC guards
+        run: |
+          node scripts/checks/design-guard.mjs --phase F9
+          node scripts/checks/role-matrix-audit.mjs
+          node scripts/checks/audit-batches-e.mjs
+
       - name: Format
         run: pnpm format
 

@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useMemo, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Icons } from "@cendaro/ui/icons";
 
@@ -21,13 +21,19 @@ interface Props {
   onClose: () => void;
 }
 
+function getCaracasDateToday(): string {
+  return new Date().toLocaleDateString("en-CA", {
+    timeZone: "America/Caracas",
+  });
+}
+
 export function CreateClosureDialog({ open, onClose }: Props) {
   const trpc = useTRPC();
   const qc = useQueryClient();
   const bcv = useBcvRate();
 
   const [form, setForm] = useState({
-    closureDate: new Date().toISOString().split("T")[0] ?? "",
+    closureDate: getCaracasDateToday(),
     totalSales: "",
     totalCash: "",
     totalDigital: "",
@@ -36,6 +42,25 @@ export function CreateClosureDialog({ open, onClose }: Props) {
     notes: "",
   });
 
+  const { data: preview } = useQuery({
+    ...trpc.sales.dailyClosurePreview.queryOptions({
+      closureDate: form.closureDate,
+    }),
+    enabled: open && Boolean(form.closureDate),
+  });
+
+  useEffect(() => {
+    if (open && preview) {
+      setForm((f) => ({
+        ...f,
+        totalSales: preview.totalSales.toFixed(2),
+        totalCash: preview.totalCash.toFixed(2),
+        totalDigital: preview.totalDigital.toFixed(2),
+        expectedTotal: preview.expectedTotal.toFixed(2),
+      }));
+    }
+  }, [open, preview]);
+
   const create = useMutation(
     trpc.sales.createClosure.mutationOptions({
       onSuccess: () => {
@@ -43,7 +68,7 @@ export function CreateClosureDialog({ open, onClose }: Props) {
         void qc.invalidateQueries({ queryKey: [["payments"]] });
         void qc.invalidateQueries({ queryKey: [["dashboard"]] });
         setForm({
-          closureDate: new Date().toISOString().split("T")[0] ?? "",
+          closureDate: getCaracasDateToday(),
           totalSales: "",
           totalCash: "",
           totalDigital: "",
@@ -64,7 +89,9 @@ export function CreateClosureDialog({ open, onClose }: Props) {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     create.mutate({
-      closureDate: new Date(`${form.closureDate}T12:00:00.000Z`).toISOString(),
+      closureDate: new Date(
+        `${form.closureDate}T12:00:00.000-04:00`,
+      ).toISOString(),
       totalSales: parseFloat(form.totalSales) || 0,
       totalCash: parseFloat(form.totalCash) || 0,
       totalDigital: parseFloat(form.totalDigital) || 0,

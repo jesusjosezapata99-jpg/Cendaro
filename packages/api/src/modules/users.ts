@@ -22,7 +22,7 @@
  *    workspace (PLAN-2026-09-SECURITY-REMEDIATION F3.1)
  */
 import { TRPCError } from "@trpc/server";
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import {
@@ -101,7 +101,7 @@ export const usersRouter = createTRPCRouter({
   }),
 
   /** Get user by ID (admin, owner, supervisor) */
-  byId: wsPermissionProcedure("users", "read")
+  byId: wsReadPermissionProcedure("users", "read")
     .input(z.object({ id: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       if (!["owner", "admin", "supervisor"].includes(ctx.workspace.role)) {
@@ -485,59 +485,88 @@ export const usersRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx }) => {
-      // Check if user is the sole owner of any active workspace
-      const ownedWorkspaces = await ctx.db
+      const memberships = await ctx.db
         .select({
           workspaceId: WorkspaceMember.workspaceId,
           role: WorkspaceMember.role,
+          status: WorkspaceMember.status,
         })
         .from(WorkspaceMember)
         .where(
           and(
             eq(WorkspaceMember.userId, ctx.user.id),
-            eq(WorkspaceMember.role, "owner"),
-            eq(WorkspaceMember.status, "active"),
+            inArray(WorkspaceMember.status, ["active", "suspended"]),
           ),
         );
 
-      if (ownedWorkspaces.length > 0) {
-        throw new TRPCError({
-          code: "PRECONDITION_FAILED",
-          message:
-            "No puedes anonimizar tu cuenta mientras seas el único propietario de un workspace activo. Transfiere la propiedad primero.",
-        });
+      // Verify that no active workspace is left without an active owner
+      for (const m of memberships) {
+        if (m.role === "owner" && m.status === "active") {
+          const otherOwners = await ctx.db
+            .select({ id: WorkspaceMember.id })
+            .from(WorkspaceMember)
+            .where(
+              and(
+                eq(WorkspaceMember.workspaceId, m.workspaceId),
+                eq(WorkspaceMember.role, "owner"),
+                eq(WorkspaceMember.status, "active"),
+                ne(WorkspaceMember.userId, ctx.user.id),
+              ),
+            )
+            .limit(1);
+
+          if (otherOwners.length === 0) {
+            throw new TRPCError({
+              code: "PRECONDITION_FAILED",
+              message:
+                "No puedes anonimizar tu cuenta mientras seas el único propietario de un workspace activo. Transfiere la propiedad primero.",
+            });
+          }
+        }
       }
 
       const anonymizedEmail = `anonymized-${ctx.user.id.slice(0, 8)}@cendaro.internal`;
       const anonymizedUsername = `anon_${ctx.user.id.slice(0, 8)}`;
 
-      // Anonymize PII in user_profile
-      await ctx.db
-        .update(UserProfile)
-        .set({
-          fullName: "Usuario Anonimizado",
-          email: anonymizedEmail,
-          username: anonymizedUsername,
-          phone: null,
-          avatarUrl: null,
-          status: "inactive",
-        })
-        .where(eq(UserProfile.id, ctx.user.id));
+      await ctx.db.transaction(async (tx) => {
+        const txDb = tx as unknown as typeof ctx.db;
 
-      // Remove from all workspace memberships
-      await ctx.db
-        .update(WorkspaceMember)
-        .set({ status: "removed" })
-        .where(eq(WorkspaceMember.userId, ctx.user.id));
+        // Anonymize PII in user_profile
+        await txDb
+          .update(UserProfile)
+          .set({
+            fullName: "Usuario Anonimizado",
+            email: anonymizedEmail,
+            username: anonymizedUsername,
+            phone: null,
+            avatarUrl: null,
+            status: "inactive",
+          })
+          .where(eq(UserProfile.id, ctx.user.id));
 
-      await logAudit(ctx.db, ctx.user, {
-        action: "user.data_anonymization_dsr",
-        entity: "user_profile",
-        entityId: ctx.user.id,
-        metadata: {
-          standard: "ISO/IEC 27018 / GDPR Right to Erasure",
-        },
+        // Remove from all workspace memberships
+        await txDb
+          .update(WorkspaceMember)
+          .set({ status: "removed" })
+          .where(eq(WorkspaceMember.userId, ctx.user.id));
+
+        const distinctWorkspaceIds = [
+          ...new Set(memberships.map((m) => m.workspaceId)),
+        ];
+        for (const wsId of distinctWorkspaceIds) {
+          await logAudit(txDb, ctx.user, {
+            workspaceId: wsId,
+            action: "user.data_anonymization_dsr",
+            entity: "user_profile",
+            entityId: ctx.user.id,
+            metadata: {
+              standard: "ISO/IEC 27018 / GDPR Right to Erasure",
+            },
+          });
+        }
       });
+
+      await revokeSessionsIfAccessLost(ctx.db, ctx.user.id, { log: ctx.log });
 
       return {
         success: true,

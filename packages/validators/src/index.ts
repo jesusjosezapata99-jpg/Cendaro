@@ -6,22 +6,60 @@
  */
 import { z } from "zod/v4";
 
+import { normalizeFiscalId } from "./fiscal";
+
 // ──────────────────────────────────────────────
 // Common primitives
 // ──────────────────────────────────────────────
 
-/** Venezuelan RIF format: J-12345678-9 or similar */
+/** Venezuelan RIF canonical format: J-12345678-9 */
 export const rifSchema = z
   .string()
   .regex(
-    /^[JVGEP]-\d{8}-\d$/,
+    /^[JVGEPC]-\d{8}-\d$/,
     "RIF debe tener formato válido (ej: J-12345678-9)",
   );
 
-/** Venezuelan Cédula: V-12345678 */
+/** Venezuelan Cédula canonical format: V-12345678 */
 export const cedulaSchema = z
   .string()
   .regex(/^[VE]-\d{6,8}$/, "Cédula debe tener formato válido (ej: V-1234567)");
+
+/** Venezuelan SENIAT RIF schema with modulo-11 check-digit verification and normalization */
+export const seniatRifSchema = z
+  .string()
+  .trim()
+  .superRefine((val, ctx) => {
+    const res = normalizeFiscalId("rif", val);
+    if (!res.ok) {
+      ctx.addIssue({
+        code: "custom",
+        message: res.message,
+      });
+    }
+  })
+  .transform((val) => {
+    const res = normalizeFiscalId("rif", val);
+    return res.ok ? res.value : val;
+  });
+
+/** Venezuelan Cédula schema with normalization */
+export const venezolanaCedulaSchema = z
+  .string()
+  .trim()
+  .superRefine((val, ctx) => {
+    const res = normalizeFiscalId("cedula", val);
+    if (!res.ok) {
+      ctx.addIssue({
+        code: "custom",
+        message: res.message,
+      });
+    }
+  })
+  .transform((val) => {
+    const res = normalizeFiscalId("cedula", val);
+    return res.ok ? res.value : val;
+  });
 
 /** Positive monetary amount */
 export const moneySchema = z
@@ -129,6 +167,7 @@ export type NavRoleRuleKey = keyof typeof NAV_ROLE_RULES;
 
 export * from "./authz";
 export * from "./fiscal";
+export * from "./money";
 export * from "./rates";
 export * from "./plans";
 
@@ -161,8 +200,12 @@ export const createOrderSchema = z.object({
 
 /** Create quote form schema */
 export const createQuoteSchema = z.object({
-  customerId: z.string().uuid(),
+  customerId: z.string().uuid().optional(),
+  validUntil: z.string().datetime().optional(),
   expiresAt: z.string().datetime().optional(),
+  channel: z
+    .enum(["store", "mercadolibre", "vendors", "whatsapp", "instagram"])
+    .optional(),
   items: z
     .array(
       z.object({

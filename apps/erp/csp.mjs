@@ -23,14 +23,15 @@
 export function buildContentSecurityPolicy(isDev) {
   return [
     "default-src 'self'",
-    `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
+    `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""} https://challenges.cloudflare.com`,
     "style-src 'self' 'unsafe-inline'",
     "font-src 'self'",
     "img-src 'self' data: blob: https://*.supabase.co",
     "media-src 'self'",
+    "frame-src 'self' https://challenges.cloudflare.com",
     "object-src 'none'",
     "frame-ancestors 'none'",
-    `connect-src 'self'${isDev ? " ws: wss:" : ""} https://*.supabase.co https://api.groq.com https://ve.dolarapi.com https://api.frankfurter.dev https://v6.exchangerate-api.com https://*.sentry.io`,
+    `connect-src 'self'${isDev ? " ws: wss:" : ""} https://*.supabase.co https://api.groq.com https://ve.dolarapi.com https://api.frankfurter.dev https://v6.exchangerate-api.com https://*.sentry.io https://challenges.cloudflare.com`,
     "base-uri 'self'",
     "form-action 'self'",
     ...(isDev ? [] : ["upgrade-insecure-requests"]),

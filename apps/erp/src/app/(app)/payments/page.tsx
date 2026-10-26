@@ -31,7 +31,7 @@ async function PaymentsPrefetch() {
 
   try {
     await queryClient.prefetchQuery(
-      trpc.sales.listPayments.queryOptions({ limit: 50 }),
+      trpc.sales.listPayments.queryOptions({ limit: 100 }),
     );
   } catch {
     // Prefetch failure is non-critical — client will fetch on hydration

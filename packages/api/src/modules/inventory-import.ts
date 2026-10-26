@@ -21,7 +21,11 @@ import {
 
 import type { createTRPCContext, UserRole } from "../trpc";
 import type { LedgerSnapshot } from "./inventory-import-plan";
-import { createTRPCRouter, wsPermissionProcedure } from "../trpc";
+import {
+  createTRPCRouter,
+  wsPermissionProcedure,
+  wsReadPermissionProcedure,
+} from "../trpc";
 import { logAudit } from "./audit";
 import {
   dedupeInitializeRows,
@@ -493,7 +497,7 @@ export const inventoryImportRouter = createTRPCRouter({
    *
    * RBAC: owner, admin, supervisor (PRD §4)
    */
-  getWarehouseProducts: wsPermissionProcedure("inventory", "update")
+  getWarehouseProducts: wsReadPermissionProcedure("inventory", "update")
     .input(z.object({ warehouseId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       const { rows } = await ctx.db.execute<{
@@ -518,7 +522,8 @@ export const inventoryImportRouter = createTRPCRouter({
         LEFT JOIN brand b ON b.id = p.brand_id
         LEFT JOIN stock_ledger sl
           ON sl.product_id = p.id AND sl.warehouse_id = ${input.warehouseId}
-        WHERE p.status != 'discontinued'
+        WHERE p.workspace_id = ${ctx.workspace.workspaceId}
+          AND p.status != 'discontinued'
         ORDER BY b.name NULLS LAST, p.sku
       `);
 

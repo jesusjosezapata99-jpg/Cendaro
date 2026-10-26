@@ -29,6 +29,7 @@ import {
   wsReadPermissionProcedure,
 } from "../trpc";
 import { logAudit } from "./audit";
+import { invalidateCatalogCache } from "./catalog";
 
 // ── Zod Schemas (PRD §10) ────────────────────────
 
@@ -1040,6 +1041,15 @@ export const catalogImportRouter = createTRPCRouter({
         });
       }
 
+      // Load session rows once outside the mapping loop
+      const sessionRows = await ctx.db
+        .select({
+          id: ImportSessionRow.id,
+          rawData: ImportSessionRow.rawData,
+        })
+        .from(ImportSessionRow)
+        .where(eq(ImportSessionRow.importSessionId, session.id));
+
       // Apply each mapping
       for (const mapping of input.mappings) {
         if (mapping.matchType === "skipped") {
@@ -1079,16 +1089,9 @@ export const catalogImportRouter = createTRPCRouter({
 
         if (!categoryId) continue;
 
-        // Update all session rows with this raw category
-        const rows = await ctx.db
-          .select({
-            id: ImportSessionRow.id,
-            rawData: ImportSessionRow.rawData,
-          })
-          .from(ImportSessionRow)
-          .where(eq(ImportSessionRow.importSessionId, session.id));
-
-        for (const row of rows) {
+        // Batch update all session rows matching this raw category
+        const matchingIds: string[] = [];
+        for (const row of sessionRows) {
           const rawData = row.rawData as RawRowData;
           const categoryRaw = rawData.categoryRaw
             ? String(rawData.categoryRaw).trim()
@@ -1097,14 +1100,18 @@ export const catalogImportRouter = createTRPCRouter({
           if (
             categoryRaw?.toLowerCase() === mapping.rawCategory.toLowerCase()
           ) {
-            await ctx.db
-              .update(ImportSessionRow)
-              .set({
-                resolvedCategoryId: categoryId,
-                errors: null,
-              })
-              .where(eq(ImportSessionRow.id, row.id));
+            matchingIds.push(row.id);
           }
+        }
+
+        if (matchingIds.length > 0) {
+          await ctx.db
+            .update(ImportSessionRow)
+            .set({
+              resolvedCategoryId: categoryId,
+              errors: null,
+            })
+            .where(inArray(ImportSessionRow.id, matchingIds));
         }
 
         // Save alias for future auto-resolution (PRD FR-23, FR-40)
@@ -1122,6 +1129,8 @@ export const catalogImportRouter = createTRPCRouter({
           // Alias already exists — ignore
         }
       }
+
+      invalidateCatalogCache(ctx.workspace.workspaceId);
 
       // Move to dry_run status
       await ctx.db
@@ -1395,6 +1404,8 @@ export const catalogImportRouter = createTRPCRouter({
         })
         .where(eq(ImportSession.id, session.id));
 
+      invalidateCatalogCache(ctx.workspace.workspaceId);
+
       // Audit log
       await logAudit(ctx.db, ctx.user, {
         workspaceId: ctx.workspace.workspaceId,
@@ -1455,16 +1466,13 @@ export const catalogImportRouter = createTRPCRouter({
         });
       }
 
-      // Lazy expiration check (PRD NFR-7)
+      // Lazy expiration check (PRD NFR-7) — read-only computation; do not issue
+      // UPDATE inside a wsReadPermissionProcedure transaction (avoids 25006).
       if (
         session.status !== "committed" &&
         session.status !== "failed" &&
         new Date() > session.expiresAt
       ) {
-        await ctx.db
-          .update(ImportSession)
-          .set({ status: "expired" })
-          .where(eq(ImportSession.id, session.id));
         return { ...session, status: "expired" as const };
       }
 

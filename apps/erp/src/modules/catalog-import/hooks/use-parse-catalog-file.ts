@@ -30,6 +30,10 @@ export interface CatalogParseResult {
   unmapped: string[];
   /** Parsed data rows */
   parsedRows: ParsedCatalogRow[];
+  /** Raw string cells per row so user column remapping can re-extract fields */
+  rawDataRows?: string[][];
+  /** Header row index (0-based) for accurate row numbers on re-parse */
+  headerIndex?: number;
   /** Sheet name that was parsed */
   sheetName: string;
   /** Original filename */
@@ -221,6 +225,8 @@ export function useParseCatalogFile(): UseParseCatalogFileReturn {
           headerMap,
           unmapped,
           parsedRows,
+          rawDataRows: dataRows,
+          headerIndex,
           sheetName,
           filename: file.name,
         };

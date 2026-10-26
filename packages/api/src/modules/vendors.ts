@@ -4,8 +4,10 @@ import { z } from "zod/v4";
 
 import {
   AccountReceivable,
+  ArInstallment,
   arStatusEnum,
   Customer,
+  PaymentAllocation,
   SalesOrder,
   VendorCommission,
 } from "@cendaro/db/schema";
@@ -16,11 +18,15 @@ import {
   wsReadPermissionProcedure,
 } from "../trpc";
 import { logAudit } from "./audit";
+import {
+  executeRecordArPayment,
+  recordArPaymentInputSchema,
+} from "./receivables";
 
 export const vendorRouter = createTRPCRouter({
   // ─── Vendor Commissions (PRD §16) ────────────
 
-  myCommissions: wsPermissionProcedure("vendors", "read")
+  myCommissions: wsReadPermissionProcedure("vendors", "read")
     .input(
       z.object({
         limit: z.number().int().min(1).max(100).default(25),
@@ -50,7 +56,7 @@ export const vendorRouter = createTRPCRouter({
         .limit(input.limit);
     }),
 
-  myOrders: wsPermissionProcedure("vendors", "read")
+  myOrders: wsReadPermissionProcedure("vendors", "read")
     .input(
       z.object({
         limit: z.number().int().min(1).max(100).default(25),
@@ -101,7 +107,7 @@ export const vendorRouter = createTRPCRouter({
     },
   ),
 
-  allCommissions: wsPermissionProcedure("vendors", "approve")
+  allCommissions: wsReadPermissionProcedure("vendors", "approve")
     .input(
       z.object({
         vendorId: z.string().uuid().optional(),
@@ -182,7 +188,7 @@ export const vendorRouter = createTRPCRouter({
 
   // ─── Accounts Receivable / CxC (PRD §17.3) ──
 
-  listAR: wsPermissionProcedure("receivables", "read")
+  listAR: wsReadPermissionProcedure("receivables", "read")
     .input(
       z.object({
         customerId: z.string().uuid().optional(),
@@ -212,6 +218,7 @@ export const vendorRouter = createTRPCRouter({
           status: AccountReceivable.status,
           dueDate: AccountReceivable.dueDate,
           createdAt: AccountReceivable.createdAt,
+          lastPaidAt: sql<Date | null>`(SELECT MAX(pa.created_at) FROM payment_allocation pa WHERE pa.receivable_id = ${AccountReceivable.id} AND pa.workspace_id = ${AccountReceivable.workspaceId})`,
         })
         .from(AccountReceivable)
         .where(and(...conditions))
@@ -219,7 +226,7 @@ export const vendorRouter = createTRPCRouter({
         .limit(input.limit);
     }),
 
-  arById: wsPermissionProcedure("receivables", "read")
+  arById: wsReadPermissionProcedure("receivables", "read")
     .input(z.object({ id: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       const [row] = await ctx.db
@@ -252,7 +259,30 @@ export const vendorRouter = createTRPCRouter({
           ),
         )
         .limit(1);
-      return row ?? null;
+      if (!row) return null;
+
+      const [installments, allocations] = await Promise.all([
+        ctx.db
+          .select()
+          .from(ArInstallment)
+          .where(
+            and(
+              eq(ArInstallment.receivableId, input.id),
+              eq(ArInstallment.workspaceId, ctx.workspace.workspaceId),
+            ),
+          ),
+        ctx.db
+          .select()
+          .from(PaymentAllocation)
+          .where(
+            and(
+              eq(PaymentAllocation.receivableId, input.id),
+              eq(PaymentAllocation.workspaceId, ctx.workspace.workspaceId),
+            ),
+          ),
+      ]);
+
+      return { ...row, installments, allocations };
     }),
 
   overdueAR: wsReadPermissionProcedure("receivables", "read").query(
@@ -325,6 +355,18 @@ export const vendorRouter = createTRPCRouter({
         })
         .returning();
 
+      await ctx.db
+        .update(Customer)
+        .set({
+          balance: sql`COALESCE(${Customer.balance}, 0) + ${input.totalAmount}`,
+        })
+        .where(
+          and(
+            eq(Customer.id, input.customerId),
+            eq(Customer.workspaceId, ctx.workspace.workspaceId),
+          ),
+        );
+
       await logAudit(ctx.db, ctx.user, {
         workspaceId: ctx.workspace.workspaceId,
         action: "ar.create",
@@ -337,66 +379,13 @@ export const vendorRouter = createTRPCRouter({
     }),
 
   recordPayment: wsPermissionProcedure("receivables", "update")
-    .input(
-      z.object({
-        id: z.string().uuid(),
-        amount: z.number().positive(),
-        notes: z.string().optional(),
-      }),
-    )
-    .mutation(async ({ ctx, input }) => {
-      const [updated] = await ctx.db
-        .update(AccountReceivable)
-        .set({
-          paidAmount: sql`${AccountReceivable.paidAmount} + ${input.amount}`,
-          balance: sql`${AccountReceivable.balance} - ${input.amount}`,
-        })
-        .where(
-          and(
-            eq(AccountReceivable.id, input.id),
-            eq(AccountReceivable.workspaceId, ctx.workspace.workspaceId),
-          ),
-        )
-        .returning();
-
-      if (!updated) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Cuenta por cobrar no encontrada",
-        });
-      }
-
-      // Auto-update status based on balance
-      if (updated.balance <= 0) {
-        await ctx.db
-          .update(AccountReceivable)
-          .set({ status: "paid", balance: 0 })
-          .where(
-            and(
-              eq(AccountReceivable.id, input.id),
-              eq(AccountReceivable.workspaceId, ctx.workspace.workspaceId),
-            ),
-          );
-      } else if (updated.paidAmount > 0) {
-        await ctx.db
-          .update(AccountReceivable)
-          .set({ status: "partial" })
-          .where(
-            and(
-              eq(AccountReceivable.id, input.id),
-              eq(AccountReceivable.workspaceId, ctx.workspace.workspaceId),
-            ),
-          );
-      }
-
-      await logAudit(ctx.db, ctx.user, {
-        workspaceId: ctx.workspace.workspaceId,
-        action: "ar.payment",
-        entity: "account_receivable",
-        entityId: input.id,
-        newValue: { amount: input.amount },
-      });
-
-      return updated;
-    }),
+    .input(recordArPaymentInputSchema)
+    .mutation(({ ctx, input }) =>
+      executeRecordArPayment(
+        ctx.db,
+        ctx.user,
+        ctx.workspace.workspaceId,
+        input,
+      ),
+    ),
 });

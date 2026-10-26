@@ -359,7 +359,7 @@ export function DryRunSummary({
         <div className="bg-background/80 fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm">
           <div className="border-border bg-card mx-4 w-full max-w-md border p-6">
             <div className="flex items-start gap-3">
-              <Icons.Warning className="bg-warning/10 text-warning size-6 p-1" />
+              <Icons.Warning className="bg-status-warning-bg text-status-warning-fg size-6 p-1" />
               <div>
                 <h3 className="text-foreground text-lg font-medium">
                   {isInitialize

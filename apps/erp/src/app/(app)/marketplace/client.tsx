@@ -96,6 +96,49 @@ export default function MarketplacePage() {
     }),
   );
 
+  const { data: mlAccounts, refetch: refetchMlAccounts } = useQuery(
+    trpc.integrations.listMlAccounts.queryOptions(),
+  );
+  const { data: dlqFailures, refetch: refetchDlq } = useQuery(
+    trpc.integrations.listIntegrationFailures.queryOptions({
+      resolved: false,
+      limit: 20,
+    }),
+  );
+
+  const [mlNickname, setMlNickname] = useState("");
+  const [mlUserId, setMlUserId] = useState("");
+  const [mlAccessToken, setMlAccessToken] = useState("");
+
+  const connectMlAccountMutation = useMutation(
+    trpc.integrations.connectMlAccount.mutationOptions({
+      onSuccess: () => {
+        toast.success(
+          "Cuenta Mercado Libre vinculada con token cifrado en bóveda AES-256-GCM",
+        );
+        setMlNickname("");
+        setMlUserId("");
+        setMlAccessToken("");
+        void refetchMlAccounts();
+      },
+      onError: (err) => {
+        toast.error(err.message || "Error al conectar cuenta Mercado Libre");
+      },
+    }),
+  );
+
+  const retryDlqMutation = useMutation(
+    trpc.integrations.retryIntegrationFailure.mutationOptions({
+      onSuccess: () => {
+        toast.success("Evento DLQ reprocesado exitosamente");
+        void refetchDlq();
+      },
+      onError: (err) => {
+        toast.error(err.message || "Error al reprocesar evento DLQ");
+      },
+    }),
+  );
+
   const importOrder = useMutation(
     trpc.integrations.importMlOrder.mutationOptions({
       onSuccess: () => {
@@ -181,8 +224,10 @@ export default function MarketplacePage() {
   }, [logItems, search]);
 
   const handleSyncAll = () => {
+    void refetchListings();
+    void refetchOrders();
     void qc.invalidateQueries({ queryKey: [["integrations"]] });
-    toast.success("Sincronización de catálogo solicitada");
+    toast.success("Publicaciones y órdenes sincronizadas con Mercado Libre");
   };
 
   const listingColumns = useMemo<ColumnDef<MlListingItem>[]>(
@@ -478,7 +523,7 @@ export default function MarketplacePage() {
             <Icons.Package2 className="size-3.5" />
             Publicaciones
             <span
-              className={`py-0.2 ml-1 px-1.5 font-mono text-[10px] tabular-nums ${
+              className={`ml-1 px-1.5 py-0.5 font-mono text-[10px] tabular-nums ${
                 tab === "listings"
                   ? "bg-primary-foreground/20 text-primary-foreground"
                   : "bg-muted text-muted-foreground"
@@ -499,7 +544,7 @@ export default function MarketplacePage() {
             <Icons.ShoppingCart className="size-3.5" />
             Órdenes ML
             <span
-              className={`py-0.2 ml-1 px-1.5 font-mono text-[10px] tabular-nums ${
+              className={`ml-1 px-1.5 py-0.5 font-mono text-[10px] tabular-nums ${
                 tab === "orders"
                   ? "bg-primary-foreground/20 text-primary-foreground"
                   : "bg-muted text-muted-foreground"
@@ -520,7 +565,7 @@ export default function MarketplacePage() {
             <Icons.ListAlt className="size-3.5" />
             Logs & Eventos
             <span
-              className={`py-0.2 ml-1 px-1.5 font-mono text-[10px] tabular-nums ${
+              className={`ml-1 px-1.5 py-0.5 font-mono text-[10px] tabular-nums ${
                 tab === "logs"
                   ? "bg-primary-foreground/20 text-primary-foreground"
                   : "bg-muted text-muted-foreground"
@@ -877,6 +922,128 @@ export default function MarketplacePage() {
           )}
         </div>
       )}
+
+      {/* ML Vault Accounts & Dead-Letter Queue (F11.3) */}
+      <section className="border-border bg-card space-y-4 border p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-foreground text-sm font-medium">
+              Bóveda OAuth Mercado Libre (AES-256-GCM) & Cola DLQ (
+              {(mlAccounts ?? []).length} cuentas / {(dlqFailures ?? []).length}{" "}
+              DLQ)
+            </h2>
+            <p className="text-muted-foreground text-xs">
+              Almacenamiento cifrado de tokens y reprocesamiento con backoff de
+              webhooks fallidos.
+            </p>
+          </div>
+        </div>
+
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            connectMlAccountMutation.mutate({
+              nickname: mlNickname,
+              mlUserId,
+              accessToken: mlAccessToken || undefined,
+            });
+          }}
+          className="grid gap-2 sm:grid-cols-4"
+        >
+          <input
+            id="ml-nickname"
+            name="mlNickname"
+            type="text"
+            required
+            value={mlNickname}
+            onChange={(e) => setMlNickname(e.target.value)}
+            placeholder="Nickname ML (Ej. CENDARO_OFICIAL)"
+            className="border-border bg-background text-foreground w-full border px-2.5 py-1.5 text-xs"
+          />
+          <input
+            id="ml-user-id"
+            name="mlUserId"
+            type="text"
+            required
+            value={mlUserId}
+            onChange={(e) => setMlUserId(e.target.value)}
+            placeholder="Seller ID (Ej. 192837465)"
+            className="border-border bg-background text-foreground w-full border px-2.5 py-1.5 font-mono text-xs"
+          />
+          <input
+            id="ml-access-token"
+            name="mlAccessToken"
+            type="password"
+            value={mlAccessToken}
+            onChange={(e) => setMlAccessToken(e.target.value)}
+            placeholder="OAuth Token (cifrado AES-256-GCM)"
+            className="border-border bg-background text-foreground w-full border px-2.5 py-1.5 font-mono text-xs"
+          />
+          <Button
+            type="submit"
+            size="sm"
+            disabled={connectMlAccountMutation.isPending}
+            className="h-8 text-xs"
+          >
+            <Icons.Lock className="mr-1.5 size-3.5" />
+            Vincular en Bóveda
+          </Button>
+        </form>
+
+        {(mlAccounts ?? []).length > 0 ? (
+          <div className="flex flex-wrap gap-2">
+            {(mlAccounts ?? []).map((acc) => (
+              <div
+                key={acc.id}
+                className="border-border bg-background flex items-center gap-2 border px-3 py-1.5 text-xs"
+              >
+                <span className="text-foreground font-mono font-medium">
+                  {acc.nickname}
+                </span>
+                <span className="text-muted-foreground font-mono text-[11px]">
+                  #{acc.mlUserId}
+                </span>
+                <StatusPill tone={acc.isActive ? "success" : "neutral"}>
+                  {acc.isActive ? "AES-256 Activo" : "Inactivo"}
+                </StatusPill>
+              </div>
+            ))}
+          </div>
+        ) : null}
+
+        {(dlqFailures ?? []).length > 0 ? (
+          <div className="divide-border border-border divide-y border text-xs">
+            {(dlqFailures ?? []).map((fail) => (
+              <div
+                key={fail.id}
+                className="flex flex-wrap items-center justify-between gap-2 p-2.5"
+              >
+                <div>
+                  <span className="text-destructive font-mono font-medium">
+                    [{fail.errorCode ?? "DLQ"}]
+                  </span>{" "}
+                  <span className="text-foreground">{fail.errorMessage}</span>
+                  <span className="text-muted-foreground ml-2 font-mono text-[11px]">
+                    Reintentos: {fail.retryCount}/{fail.maxRetries}
+                  </span>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={retryDlqMutation.isPending}
+                  onClick={() =>
+                    retryDlqMutation.mutate({ id: fail.id, markResolved: true })
+                  }
+                  className="h-7 text-[11px]"
+                >
+                  <Icons.Refresh className="mr-1 size-3.5" />
+                  Reprocesar DLQ
+                </Button>
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </section>
 
       {/* Sync Listing Dialog */}
       <SyncMlListingDialog

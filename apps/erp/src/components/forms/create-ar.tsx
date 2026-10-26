@@ -67,6 +67,7 @@ export function CreateArDialog({
     trpc.vendor.createAR.mutationOptions({
       onSuccess: () => {
         void qc.invalidateQueries({ queryKey: [["vendor"]] });
+        void qc.invalidateQueries({ queryKey: [["receivables"]] });
         void qc.invalidateQueries({ queryKey: [["sales"]] });
         void qc.invalidateQueries({ queryKey: [["dashboard"]] });
         onClose();

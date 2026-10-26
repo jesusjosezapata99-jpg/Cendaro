@@ -32,7 +32,7 @@ async function WhatsappPrefetch() {
   try {
     await Promise.all([
       queryClient.prefetchQuery(
-        trpc.sales.listOrders.queryOptions({ limit: 100 }),
+        trpc.sales.listOrders.queryOptions({ channel: "whatsapp", limit: 100 }),
       ),
       queryClient.prefetchQuery(
         trpc.sales.listCustomers.queryOptions({ limit: 100 }),

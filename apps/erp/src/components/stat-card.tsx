@@ -22,9 +22,9 @@ interface StatCardProps {
 const toneIconStyles: Record<StatTone, string> = {
   default: "bg-muted text-muted-foreground",
   primary: "bg-primary/10 text-primary",
-  success: "bg-success/10 text-success-soft",
-  warning: "bg-warning/15 text-warning-soft",
-  destructive: "bg-destructive/10 text-destructive-soft",
+  success: "bg-status-success-bg text-status-success-fg",
+  warning: "bg-status-warning-bg text-status-warning-fg",
+  destructive: "bg-destructive/10 text-destructive",
 };
 
 /**

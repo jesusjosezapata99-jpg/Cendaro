@@ -54,6 +54,7 @@ interface ReceivableItem {
   dueDate: Date | string;
   status: "pending" | "partial" | "paid" | "overdue" | "written_off";
   createdAt: Date | string;
+  lastPaidAt?: Date | string | null;
 }
 
 export default function AccountsReceivableClient() {
@@ -149,11 +150,15 @@ export default function AccountsReceivableClient() {
   const avgDaysToCollect = useMemo(() => {
     const paid = items.filter((ar) => ar.status === "paid");
     if (!paid.length) return 0;
+    const now = Date.now();
     const totalDays = paid.reduce((sum, ar) => {
       const created = new Date(ar.createdAt).getTime();
-      const due = new Date(ar.dueDate).getTime();
+      const settledAt = ar.lastPaidAt
+        ? new Date(ar.lastPaidAt).getTime()
+        : Math.min(now, new Date(ar.dueDate).getTime());
       return (
-        sum + Math.max(0, Math.floor((due - created) / (1000 * 60 * 60 * 24)))
+        sum +
+        Math.max(0, Math.floor((settledAt - created) / (1000 * 60 * 60 * 24)))
       );
     }, 0);
     return Math.round(totalDays / paid.length);

@@ -9,10 +9,13 @@ import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import {
+  erpModuleEnum,
+  PricingRule,
   UserProfile,
   Workspace,
   WorkspaceMember,
   WorkspaceModule,
+  WorkspaceProfile,
   WorkspaceQuota,
 } from "@cendaro/db/schema";
 import { STARTER_MODULES, STARTER_QUOTA } from "@cendaro/validators";
@@ -143,10 +146,30 @@ export const workspaceRouter = createTRPCRouter({
       .where(eq(WorkspaceQuota.workspaceId, ws.workspaceId))
       .limit(1);
 
+    const [wsProfile] = await ctx.db
+      .select()
+      .from(WorkspaceProfile)
+      .where(eq(WorkspaceProfile.workspaceId, ws.workspaceId))
+      .limit(1);
+
+    const [pricingPolicy] = await ctx.db
+      .select()
+      .from(PricingRule)
+      .where(
+        and(
+          eq(PricingRule.workspaceId, ws.workspaceId),
+          eq(PricingRule.ruleType, "bcv_policy"),
+        ),
+      )
+      .orderBy(desc(PricingRule.createdAt))
+      .limit(1);
+
     return {
       ...workspace,
       modules: modules.map((m) => m.module),
       quota,
+      profile: wsProfile ?? null,
+      pricingPolicy: pricingPolicy ?? null,
     };
   }),
 
@@ -292,13 +315,20 @@ export const workspaceRouter = createTRPCRouter({
     }),
 
   /**
-   * Update workspace settings (name only — no logoUrl in schema).
+   * Update workspace settings and legal/fiscal profile (F8.1).
    * Requires workspace context.
    */
   update: wsPermissionProcedure("settings", "update")
     .input(
       z.object({
         name: z.string().min(2).max(128).optional(),
+        legalName: z.string().max(512).optional(),
+        taxId: z.string().max(64).optional(),
+        addressLine: z.string().max(512).optional(),
+        city: z.string().max(128).optional(),
+        state: z.string().max(128).optional(),
+        phone: z.string().max(32).optional(),
+        supportEmail: z.string().email().max(256).optional(),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -312,31 +342,215 @@ export const workspaceRouter = createTRPCRouter({
         });
       }
 
-      if (!input.name) {
+      if (
+        !input.name &&
+        input.legalName === undefined &&
+        input.taxId === undefined &&
+        input.addressLine === undefined &&
+        input.city === undefined &&
+        input.state === undefined &&
+        input.phone === undefined &&
+        input.supportEmail === undefined
+      ) {
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: "No hay datos para actualizar",
         });
       }
 
-      const [updated] = await ctx.db
-        .update(Workspace)
-        .set({
-          name: input.name,
-          slug: generateSlug(input.name),
-        })
-        .where(eq(Workspace.id, ws.workspaceId))
-        .returning();
+      let updated: typeof Workspace.$inferSelect | undefined;
+      if (input.name) {
+        const [wsRow] = await ctx.db
+          .update(Workspace)
+          .set({
+            name: input.name,
+            slug: generateSlug(input.name),
+          })
+          .where(eq(Workspace.id, ws.workspaceId))
+          .returning();
+        updated = wsRow;
+      }
+
+      if (
+        input.name ||
+        input.legalName !== undefined ||
+        input.taxId !== undefined ||
+        input.addressLine !== undefined ||
+        input.city !== undefined ||
+        input.state !== undefined ||
+        input.phone !== undefined ||
+        input.supportEmail !== undefined
+      ) {
+        await ctx.db
+          .insert(WorkspaceProfile)
+          .values({
+            workspaceId: ws.workspaceId,
+            displayName: input.name,
+            legalName: input.legalName,
+            taxId: input.taxId,
+            addressLine: input.addressLine,
+            city: input.city,
+            state: input.state,
+            phone: input.phone,
+            supportEmail: input.supportEmail,
+          })
+          .onConflictDoUpdate({
+            target: [WorkspaceProfile.workspaceId],
+            set: {
+              ...(input.name ? { displayName: input.name } : {}),
+              ...(input.legalName !== undefined
+                ? { legalName: input.legalName }
+                : {}),
+              ...(input.taxId !== undefined ? { taxId: input.taxId } : {}),
+              ...(input.addressLine !== undefined
+                ? { addressLine: input.addressLine }
+                : {}),
+              ...(input.city !== undefined ? { city: input.city } : {}),
+              ...(input.state !== undefined ? { state: input.state } : {}),
+              ...(input.phone !== undefined ? { phone: input.phone } : {}),
+              ...(input.supportEmail !== undefined
+                ? { supportEmail: input.supportEmail }
+                : {}),
+              updatedAt: new Date(),
+            },
+          });
+      }
 
       await logAudit(ctx.db, ctx.user, {
         workspaceId: ws.workspaceId,
         action: "workspace.update",
         entity: "workspace",
         entityId: ws.workspaceId,
-        newValue: { name: input.name },
+        newValue: {
+          name: input.name,
+          legalName: input.legalName,
+          taxId: input.taxId,
+        },
       });
 
       return updated;
+    }),
+
+  /**
+   * Persist workspace pricing & BCV policy (F8.1).
+   */
+  savePricingPolicy: wsPermissionProcedure("settings", "update")
+    .input(
+      z.object({
+        pricingThreshold: z.number().min(0.5).max(100),
+        adminWindow: z.number().int().min(1).max(168),
+        safetyMargin: z.number().min(0).max(50),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const ws = ctx.workspace;
+
+      const [existing] = await ctx.db
+        .select({ id: PricingRule.id })
+        .from(PricingRule)
+        .where(
+          and(
+            eq(PricingRule.workspaceId, ws.workspaceId),
+            eq(PricingRule.ruleType, "bcv_policy"),
+          ),
+        )
+        .limit(1);
+
+      const conditions = {
+        pricingThreshold: input.pricingThreshold,
+        adminWindow: input.adminWindow,
+      };
+      const adjustments = {
+        safetyMargin: input.safetyMargin,
+      };
+
+      let saved;
+      if (existing) {
+        const [row] = await ctx.db
+          .update(PricingRule)
+          .set({
+            conditions,
+            adjustments,
+            isActive: true,
+          })
+          .where(
+            and(
+              eq(PricingRule.id, existing.id),
+              eq(PricingRule.workspaceId, ws.workspaceId),
+            ),
+          )
+          .returning();
+        saved = row;
+      } else {
+        const [row] = await ctx.db
+          .insert(PricingRule)
+          .values({
+            workspaceId: ws.workspaceId,
+            name: "Política General BCV",
+            ruleType: "bcv_policy",
+            conditions,
+            adjustments,
+            isActive: true,
+            createdBy: ctx.user.id,
+          })
+          .returning();
+        saved = row;
+      }
+
+      await logAudit(ctx.db, ctx.user, {
+        workspaceId: ws.workspaceId,
+        action: "workspace.pricing_policy_update",
+        entity: "pricing_rule",
+        entityId: saved?.id,
+        newValue: input,
+      });
+
+      return saved;
+    }),
+
+  /**
+   * Enable or disable an optional workspace module (F8.1).
+   */
+  toggleModule: wsPermissionProcedure("settings", "update")
+    .input(
+      z.object({
+        module: z.enum(erpModuleEnum.enumValues),
+        enabled: z.boolean(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const ws = ctx.workspace;
+
+      if (input.enabled) {
+        await ctx.db
+          .insert(WorkspaceModule)
+          .values({
+            workspaceId: ws.workspaceId,
+            module: input.module,
+            enabledBy: ctx.user.id,
+          })
+          .onConflictDoNothing({
+            target: [WorkspaceModule.workspaceId, WorkspaceModule.module],
+          });
+      } else {
+        await ctx.db
+          .delete(WorkspaceModule)
+          .where(
+            and(
+              eq(WorkspaceModule.workspaceId, ws.workspaceId),
+              eq(WorkspaceModule.module, input.module),
+            ),
+          );
+      }
+
+      await logAudit(ctx.db, ctx.user, {
+        workspaceId: ws.workspaceId,
+        action: "workspace.module_toggle",
+        entity: "workspace_module",
+        newValue: input,
+      });
+
+      return { ok: true as const };
     }),
 
   /**

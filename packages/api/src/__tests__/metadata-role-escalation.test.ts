@@ -15,7 +15,11 @@ import { describe, expect, it } from "vitest";
 
 import type { WorkspaceActor } from "../trpc";
 import { logger } from "../logger";
-import { buildAuditIntegrityMetadata, logAudit } from "../modules/audit";
+import {
+  buildAuditIntegrityMetadata,
+  logAudit,
+  verifyAuditRecordIntegrity,
+} from "../modules/audit";
 import * as trpc from "../trpc";
 import {
   createCallerFactory,
@@ -299,5 +303,48 @@ describe("C1 behavior: audit actor cannot be spoofed", () => {
       _integrityHash: expectedHash,
       _hashAlgorithm: "sha256",
     });
+    expect(
+      verifyAuditRecordIntegrity({
+        workspaceId: entry.workspaceId,
+        actorId,
+        action: entry.action,
+        entity: entry.entity,
+        entityId: entry.entityId,
+        oldValue: entry.oldValue,
+        newValue: entry.newValue,
+        metadata: inserted[0]?.metadata as Record<string, unknown>,
+      }),
+    ).toBe(true);
+  });
+
+  it("resolves workspaceId from WorkspaceActor when omitted on entry so integrity hash matches", async () => {
+    const { db, inserted } = captureInsert();
+    const actor: WorkspaceActor = {
+      id: "a0000000-0000-0000-0000-00000000c1c9",
+      email: "owner@example.com",
+      workspaceId: "b0000000-0000-0000-0000-000000000099",
+      workspaceRole: "owner",
+      displayName: "Owner Real",
+    };
+
+    await logAudit(db as never, actor, {
+      action: "container.create",
+      entity: "container",
+      entityId: "c0000000-0000-0000-0000-000000000099",
+    });
+
+    expect(inserted[0]?.workspaceId).toBe(
+      "b0000000-0000-0000-0000-000000000099",
+    );
+    expect(
+      verifyAuditRecordIntegrity({
+        workspaceId: inserted[0]?.workspaceId as string,
+        actorId: actor.id,
+        action: "container.create",
+        entity: "container",
+        entityId: "c0000000-0000-0000-0000-000000000099",
+        metadata: inserted[0]?.metadata as Record<string, unknown>,
+      }),
+    ).toBe(true);
   });
 });

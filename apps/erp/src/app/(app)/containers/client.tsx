@@ -42,7 +42,16 @@ export default function ContainersPage() {
   const trpc = useTRPC();
   const bcv = useBcvRate();
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [semanticQuery, setSemanticQuery] = useState("");
   const [, setContainerParams] = useContainerParams();
+
+  const { data: searchResults, isFetching: isSearching } = useQuery({
+    ...trpc.container.search.queryOptions({
+      query: semanticQuery.trim(),
+      limit: 20,
+    }),
+    enabled: semanticQuery.trim().length >= 2,
+  });
 
   const {
     data: containers,
@@ -230,6 +239,109 @@ export default function ContainersPage() {
           tone="success"
           sub={`Equivalente oficial: ${dualFob.bs}`}
         />
+      </div>
+
+      {/* Hybrid / Semantic Container & Packing List Search (F11.4) */}
+      <div className="border-border bg-card space-y-3 border p-4">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2">
+            <Icons.Search className="text-primary size-4" />
+            <span className="text-foreground text-xs font-medium">
+              Buscador Híbrido de Contenedores, Packing Lists (IA) y Documentos
+              BL/DVA
+            </span>
+          </div>
+          {semanticQuery.trim().length >= 2 && searchResults ? (
+            <span className="text-muted-foreground font-mono text-[11px] tabular-nums">
+              {searchResults.summary.containersFound} contenedores ·{" "}
+              {searchResults.summary.itemsFound} ítems ·{" "}
+              {searchResults.summary.documentsFound} documentos · FOB Total: $
+              {searchResults.summary.totalFobUsd.toFixed(2)}
+            </span>
+          ) : null}
+        </div>
+        <div className="flex gap-2">
+          <input
+            id="container-semantic-search"
+            name="containerSemanticSearch"
+            type="search"
+            value={semanticQuery}
+            onChange={(e) => setSemanticQuery(e.target.value)}
+            placeholder="Buscar por código de contenedor, SKU, nombre traducido/original en packing list, categoría o BL..."
+            className="border-border bg-background text-foreground w-full border px-3 py-2 text-xs outline-none"
+          />
+          {semanticQuery ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setSemanticQuery("")}
+              className="h-9 text-xs"
+            >
+              Limpiar
+            </Button>
+          ) : null}
+        </div>
+
+        {semanticQuery.trim().length >= 2 && searchResults ? (
+          <div className="border-border bg-background space-y-2 border p-3 text-xs">
+            {isSearching ? (
+              <p className="text-muted-foreground">
+                Buscando en manifiestos...
+              </p>
+            ) : searchResults.matchedItems.length === 0 &&
+              searchResults.matchedDocuments.length === 0 &&
+              searchResults.matchedContainers.length === 0 ? (
+              <p className="text-muted-foreground">
+                Sin coincidencias para &ldquo;{semanticQuery}&rdquo;.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {searchResults.matchedItems.slice(0, 8).map((entry) => (
+                  <div
+                    key={entry.item.id}
+                    className="border-border flex flex-wrap items-center justify-between gap-2 border-b pb-1.5 last:border-b-0"
+                  >
+                    <div>
+                      <span className="text-primary font-mono font-medium">
+                        [{entry.containerNumber}]
+                      </span>{" "}
+                      <span className="text-foreground font-medium">
+                        {entry.item.translatedName ??
+                          entry.item.originalName ??
+                          entry.item.skuHint ??
+                          "Ítem"}
+                      </span>
+                      {entry.item.categoryHint ? (
+                        <span className="text-muted-foreground ml-2 text-[11px]">
+                          ({entry.item.categoryHint})
+                        </span>
+                      ) : null}
+                    </div>
+                    <span className="text-muted-foreground font-mono text-[11px] tabular-nums">
+                      Cant. Esperada: {entry.item.quantityExpected} · Recibida:{" "}
+                      {entry.item.quantityReceived ?? 0}
+                    </span>
+                  </div>
+                ))}
+                {searchResults.matchedDocuments.slice(0, 5).map((entry) => (
+                  <div
+                    key={entry.document.id}
+                    className="flex items-center justify-between text-[11px]"
+                  >
+                    <span>
+                      <span className="text-primary font-mono">
+                        [{entry.containerNumber}]
+                      </span>{" "}
+                      Documento: {entry.document.documentType} (
+                      {entry.document.fileName ?? "Archivo adjunto"})
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : null}
       </div>
 
       {/* Filter Tabs (Horizontal Scrollable) */}
