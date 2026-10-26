@@ -93,6 +93,36 @@ const CASH_CLOSURE_STATUS: Record<string, StatusEntry> = {
   open: { label: "Abierta", tone: "warning" },
   closed: { label: "Cerrada", tone: "default" },
   reviewed: { label: "Revisada", tone: "success" },
+  discrepancy: { label: "Con Discrepancia", tone: "destructive" },
+};
+
+const INVENTORY_COUNT_STATUS: Record<string, StatusEntry> = {
+  pending: { label: "Programado", tone: "warning" },
+  in_progress: { label: "En Conteo", tone: "info" },
+  completed: { label: "Por Aprobar", tone: "default" },
+  approved: { label: "Aprobado", tone: "success" },
+  rejected: { label: "Rechazado", tone: "destructive" },
+};
+
+const WAREHOUSE_TYPE: Record<string, StatusEntry> = {
+  physical: { label: "Físico", tone: "default" },
+  transit: { label: "En Tránsito", tone: "warning" },
+  virtual: { label: "Virtual", tone: "neutral" },
+};
+
+const APPROVAL_STATUS: Record<string, StatusEntry> = {
+  pending: { label: "Pendiente", tone: "warning" },
+  approved: { label: "Aprobada", tone: "success" },
+  rejected: { label: "Rechazada", tone: "destructive" },
+  expired: { label: "Expirada", tone: "neutral" },
+};
+
+const CREDIT_NOTE_STATUS: Record<string, StatusEntry> = {
+  draft: { label: "Borrador", tone: "neutral" },
+  pending_approval: { label: "Por Aprobar", tone: "warning" },
+  approved: { label: "Aprobada", tone: "info" },
+  applied: { label: "Aplicada", tone: "success" },
+  cancelled: { label: "Anulada", tone: "destructive" },
 };
 
 const DOMAINS = {
@@ -105,6 +135,10 @@ const DOMAINS = {
   user: USER_STATUS,
   container: CONTAINER_STATUS,
   cashClosure: CASH_CLOSURE_STATUS,
+  inventoryCount: INVENTORY_COUNT_STATUS,
+  warehouseType: WAREHOUSE_TYPE,
+  approval: APPROVAL_STATUS,
+  creditNote: CREDIT_NOTE_STATUS,
 } as const;
 
 export type StatusDomain = keyof typeof DOMAINS;

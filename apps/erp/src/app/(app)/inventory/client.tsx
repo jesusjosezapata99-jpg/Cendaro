@@ -4,7 +4,13 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { lazy, Suspense, useCallback, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
+import { toast } from "sonner";
 
 import type { IconName } from "@cendaro/ui/icons";
 import { Button } from "@cendaro/ui";
@@ -13,7 +19,14 @@ import { StatusPill } from "@cendaro/ui/status-pill";
 
 import type { ActiveFilterItem, FilterSection } from "~/components/data-table";
 import { DataTable, DataTableFilterBar } from "~/components/data-table";
+import { Field, Input, Select } from "~/components/dialog";
 import { PageHeader } from "~/components/page-header";
+import {
+  SheetBody,
+  SheetFooter,
+  SheetFormActions,
+  SheetModal,
+} from "~/components/sheet-modal";
 import { StatCard } from "~/components/stat-card";
 import { useInventoryFilterParams } from "~/hooks/params/use-inventory-filter-params";
 import { getStatus } from "~/lib/status";
@@ -92,10 +105,65 @@ function getStockStatus(item: StockItem): ValidStockStatus {
 export default function InventoryClient() {
   const router = useRouter();
   const trpc = useTRPC();
+  const qc = useQueryClient();
   const [filters, setFilters] = useInventoryFilterParams();
 
   const [showTransfer, setShowTransfer] = useState(false);
   const [showCycle, setShowCycle] = useState(false);
+  const [showWarehouseModal, setShowWarehouseModal] = useState(false);
+  const [whForm, setWhForm] = useState<{
+    name: string;
+    type:
+      | "warehouse"
+      | "showroom"
+      | "external"
+      | "transit"
+      | "reserved"
+      | "defective";
+    location: string;
+  }>({
+    name: "",
+    type: "warehouse",
+    location: "",
+  });
+
+  const createWarehouse = useMutation(
+    trpc.inventory.createWarehouse.mutationOptions({
+      onSuccess: () => {
+        toast.success("Almacén creado exitosamente");
+        setShowWarehouseModal(false);
+        setWhForm({ name: "", type: "warehouse", location: "" });
+        void qc.invalidateQueries({ queryKey: [["inventory"]] });
+      },
+      onError: (err) => {
+        toast.error(err.message);
+      },
+    }),
+  );
+
+  const finalizeCount = useMutation(
+    trpc.inventory.finalizeCount.mutationOptions({
+      onSuccess: () => {
+        toast.success("Conteo físico finalizado");
+        void qc.invalidateQueries({ queryKey: [["inventory"]] });
+      },
+      onError: (err) => {
+        toast.error(err.message);
+      },
+    }),
+  );
+
+  const approveCount = useMutation(
+    trpc.inventory.approveCount.mutationOptions({
+      onSuccess: () => {
+        toast.success("Conteo físico aprobado y ajustes aplicados");
+        void qc.invalidateQueries({ queryKey: [["inventory"]] });
+      },
+      onError: (err) => {
+        toast.error(err.message);
+      },
+    }),
+  );
 
   const clearFilters = useCallback(() => {
     void setFilters({
@@ -179,6 +247,7 @@ export default function InventoryClient() {
   const { data: warehouses } = useQuery(
     trpc.inventory.listWarehouses.queryOptions(),
   );
+  const { data: counts } = useQuery(trpc.inventory.listCounts.queryOptions());
 
   const channelStock = useMemo(
     () =>
@@ -359,7 +428,15 @@ export default function InventoryClient() {
         title="Inventario"
         description="Control multicanal de existencias"
         actions={
-          <div className="flex w-full gap-2 sm:w-auto">
+          <div className="flex w-full flex-wrap gap-2 sm:w-auto">
+            <Button
+              variant="outline"
+              onClick={() => setShowWarehouseModal(true)}
+              className="min-h-11 flex-1 sm:flex-initial"
+            >
+              <Icons.Warehouse className="size-4.5" />
+              Nuevo Almacén
+            </Button>
             <Button
               variant="outline"
               onClick={() => setShowTransfer(true)}
@@ -378,6 +455,72 @@ export default function InventoryClient() {
           </div>
         }
       />
+
+      <SheetModal
+        open={showWarehouseModal}
+        onClose={() => setShowWarehouseModal(false)}
+        title="Nuevo Almacén"
+        description="Registra un almacén físico, en tránsito o virtual."
+      >
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            createWarehouse.mutate({
+              name: whForm.name,
+              type: whForm.type,
+              location: whForm.location || undefined,
+            });
+          }}
+          className="flex h-full flex-col"
+        >
+          <SheetBody>
+            <Field label="Nombre del Almacén" required>
+              <Input
+                value={whForm.name}
+                onChange={(e) =>
+                  setWhForm((prev) => ({ ...prev, name: e.target.value }))
+                }
+                placeholder="Ej. Almacén Principal Boleíta"
+                required
+              />
+            </Field>
+            <Field label="Tipo" required>
+              <Select
+                value={whForm.type}
+                onChange={(e) =>
+                  setWhForm((prev) => ({
+                    ...prev,
+                    type: e.target.value as typeof prev.type,
+                  }))
+                }
+              >
+                <option value="warehouse">Almacén</option>
+                <option value="showroom">Showroom</option>
+                <option value="external">Externo</option>
+                <option value="transit">En Tránsito</option>
+                <option value="reserved">Reservado</option>
+                <option value="defective">Defectuoso</option>
+              </Select>
+            </Field>
+            <Field label="Ubicación">
+              <Input
+                value={whForm.location}
+                onChange={(e) =>
+                  setWhForm((prev) => ({ ...prev, location: e.target.value }))
+                }
+                placeholder="Ej. Caracas, Miranda"
+              />
+            </Field>
+          </SheetBody>
+          <SheetFooter>
+            <SheetFormActions
+              onCancel={() => setShowWarehouseModal(false)}
+              submitting={createWarehouse.isPending}
+              submitLabel="Crear Almacén"
+            />
+          </SheetFooter>
+        </form>
+      </SheetModal>
 
       <Suspense>
         <TransferStockDialog
@@ -470,6 +613,67 @@ export default function InventoryClient() {
               </div>
             </Link>
           ))}
+        </div>
+      )}
+
+      {/* Cycle Counts Section */}
+      {counts && counts.length > 0 && (
+        <div className="border-border bg-background space-y-3 border p-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-foreground text-sm font-medium tracking-wider uppercase">
+              Conteos Físicos Recientes
+            </h2>
+            <span className="text-muted-foreground font-mono text-xs tabular-nums">
+              {counts.length} registros
+            </span>
+          </div>
+          <div className="divide-border divide-y">
+            {counts.slice(0, 5).map((c) => {
+              const whName =
+                warehouses?.find((w) => w.id === c.warehouseId)?.name ??
+                "Almacén";
+              const countStatus = getStatus("inventoryCount", c.status);
+              return (
+                <div
+                  key={c.id}
+                  className="flex flex-wrap items-center justify-between gap-3 py-2.5"
+                >
+                  <div className="flex items-center gap-3">
+                    <StatusPill tone={countStatus.tone}>
+                      {countStatus.label}
+                    </StatusPill>
+                    <span className="text-foreground text-sm font-medium">
+                      {whName}
+                    </span>
+                    <span className="text-muted-foreground font-mono text-xs tabular-nums">
+                      {new Date(c.createdAt).toLocaleDateString("es-VE")}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {(c.status === "draft" || c.status === "in_progress") && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={finalizeCount.isPending}
+                        onClick={() => finalizeCount.mutate({ countId: c.id })}
+                      >
+                        Finalizar Conteo
+                      </Button>
+                    )}
+                    {c.status === "completed" && (
+                      <Button
+                        size="sm"
+                        disabled={approveCount.isPending}
+                        onClick={() => approveCount.mutate({ id: c.id })}
+                      >
+                        Aprobar Ajustes
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 

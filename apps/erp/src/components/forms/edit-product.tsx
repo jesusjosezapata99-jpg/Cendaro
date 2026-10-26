@@ -109,7 +109,6 @@ export function EditProductDialog({
               <option value="active">Activo</option>
               <option value="draft">Borrador</option>
               <option value="discontinued">Descontinuado</option>
-              <option value="inactive">Inactivo</option>
             </Select>
           </Field>
 

@@ -25,7 +25,7 @@ export function MfaBanner() {
   const [dismissed, setDismissed] = useState(false);
 
   if (!status || status.enrolled) return null;
-  if (!status.required || !status.gracePeriodEndsAt) return null;
+  if (!status.required) return null;
   if (!status.blocked && dismissed) return null;
 
   return (
@@ -41,7 +41,9 @@ export function MfaBanner() {
         <span>
           {status.blocked
             ? "Las acciones que modifican datos están bloqueadas: activa la autenticación de dos factores para continuar."
-            : `Tu rol requiere autenticación de dos factores. Actívala en los próximos ${daysRemaining(status.gracePeriodEndsAt)} día(s).`}
+            : status.gracePeriodEndsAt
+              ? `Tu rol requiere autenticación de dos factores. Actívala en los próximos ${daysRemaining(status.gracePeriodEndsAt)} día(s).`
+              : "Tu rol administrativo requiere autenticación de dos factores (TOTP / 2FA) conforme a las políticas de seguridad."}
         </span>
       </div>
       <div className="flex shrink-0 items-center gap-3">

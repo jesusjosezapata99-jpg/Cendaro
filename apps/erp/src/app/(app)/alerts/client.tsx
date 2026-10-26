@@ -12,8 +12,21 @@ import { StatusPill } from "@cendaro/ui/status-pill";
 
 import { EmptyState } from "~/components/empty-state";
 import { PageHeader } from "~/components/page-header";
+import { Can } from "~/components/role-guard";
 import { StatCard } from "~/components/stat-card";
+import { getStatus } from "~/lib/status";
 import { useTRPC } from "~/trpc/client";
+
+const APPROVAL_TYPE_LABELS: Record<string, string> = {
+  price_change: "Cambio de Precio / Tasa",
+  container_close: "Cierre de Contenedor",
+  cash_closure: "Cierre de Caja",
+  product_unblock: "Desbloqueo de Producto",
+  inventory_adjustment: "Ajuste de Inventario",
+  credit_sale: "Venta a Crédito",
+  channel_stock_move: "Movimiento de Stock entre Canales",
+  edit_post_issue_document: "Edición de Documento Emitido",
+};
 
 const TYPE_CONFIG: Record<
   string,
@@ -63,7 +76,7 @@ const TYPE_CONFIG: Record<
 
 const SEVERITY_BORDER: Record<string, string> = {
   high: "border-l-destructive",
-  medium: "border-l-warning",
+  medium: "border-l-status-warning-fg",
   low: "border-l-primary",
   info: "border-l-muted-foreground",
 };
@@ -72,12 +85,65 @@ export default function AlertsPage() {
   const trpc = useTRPC();
   const qc = useQueryClient();
   const [filter, setFilter] = useState<string>("active");
+  const [approvalView, setApprovalView] = useState<"pending" | "history">(
+    "pending",
+  );
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState<string>("");
 
   const {
     data: alerts,
     isLoading,
     refetch,
   } = useQuery(trpc.dashboard.listAlerts.queryOptions({ limit: 100 }));
+
+  const {
+    data: pendingApprovals,
+    isLoading: isPendingApprovalsLoading,
+    refetch: refetchPendingApprovals,
+  } = useQuery(
+    trpc.approvals.listPending.queryOptions({ limit: 50, offset: 0 }),
+  );
+
+  const {
+    data: allApprovals,
+    isLoading: isAllApprovalsLoading,
+    refetch: refetchAllApprovals,
+  } = useQuery(trpc.approvals.list.queryOptions({ limit: 50, offset: 0 }));
+
+  const approveMutation = useMutation(
+    trpc.approvals.approve.mutationOptions({
+      onSuccess: () => {
+        toast.success("Solicitud aprobada y aplicada");
+        void refetchPendingApprovals();
+        void refetchAllApprovals();
+        void refetch();
+        void qc.invalidateQueries({ queryKey: [["approvals"]] });
+        void qc.invalidateQueries({ queryKey: [["dashboard"]] });
+      },
+      onError: (err) => {
+        toast.error(err.message || "Error al aprobar la solicitud");
+      },
+    }),
+  );
+
+  const rejectMutation = useMutation(
+    trpc.approvals.reject.mutationOptions({
+      onSuccess: () => {
+        toast.success("Solicitud rechazada");
+        setRejectingId(null);
+        setRejectReason("");
+        void refetchPendingApprovals();
+        void refetchAllApprovals();
+        void refetch();
+        void qc.invalidateQueries({ queryKey: [["approvals"]] });
+        void qc.invalidateQueries({ queryKey: [["dashboard"]] });
+      },
+      onError: (err) => {
+        toast.error(err.message || "Error al rechazar la solicitud");
+      },
+    }),
+  );
 
   const dismiss = useMutation(
     trpc.dashboard.dismissAlert.mutationOptions({
@@ -227,6 +293,22 @@ export default function AlertsPage() {
           </span>
         </button>
 
+        <button
+          type="button"
+          onClick={() => setFilter("approvals")}
+          className={`h-8 shrink-0 border px-3 text-xs font-medium transition-colors ${
+            filter === "approvals"
+              ? "border-primary bg-primary text-primary-foreground"
+              : "border-border text-muted-foreground hover:bg-muted/40 hover:text-foreground"
+          }`}
+        >
+          <Icons.Verified className="mr-1.5 inline size-3.5" />
+          Aprobaciones
+          <span className="ml-1.5 font-mono text-[10px] tabular-nums">
+            {(pendingApprovals ?? []).length}
+          </span>
+        </button>
+
         {Object.keys(TYPE_CONFIG).map((key) => {
           const cfg = TYPE_CONFIG[key];
           if (!cfg) return null;
@@ -257,8 +339,198 @@ export default function AlertsPage() {
         })}
       </div>
 
-      {/* Alerts List */}
-      {isLoading ? (
+      {/* Alerts or Approvals List */}
+      {filter === "approvals" ? (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setApprovalView("pending")}
+                className={`h-8 border px-3 text-xs font-medium transition-colors ${
+                  approvalView === "pending"
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-border text-muted-foreground hover:bg-muted/40 hover:text-foreground"
+                }`}
+              >
+                Pendientes ({(pendingApprovals ?? []).length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setApprovalView("history")}
+                className={`h-8 border px-3 text-xs font-medium transition-colors ${
+                  approvalView === "history"
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-border text-muted-foreground hover:bg-muted/40 hover:text-foreground"
+                }`}
+              >
+                Historial Completo ({(allApprovals ?? []).length})
+              </button>
+            </div>
+          </div>
+
+          {approvalView === "pending" && isPendingApprovalsLoading ? (
+            <div className="border-border bg-card border p-8 text-center">
+              <p className="text-muted-foreground text-xs">
+                Cargando solicitudes pendientes...
+              </p>
+            </div>
+          ) : approvalView === "history" && isAllApprovalsLoading ? (
+            <div className="border-border bg-card border p-8 text-center">
+              <p className="text-muted-foreground text-xs">
+                Cargando historial de aprobaciones...
+              </p>
+            </div>
+          ) : (
+            (() => {
+              const list =
+                approvalView === "pending"
+                  ? (pendingApprovals ?? [])
+                  : (allApprovals ?? []);
+
+              if (list.length === 0) {
+                return (
+                  <div className="border-border bg-card border p-12">
+                    <EmptyState
+                      icon="Verified"
+                      title={
+                        approvalView === "pending"
+                          ? "Sin aprobaciones pendientes"
+                          : "Sin historial de aprobaciones"
+                      }
+                      description={
+                        approvalView === "pending"
+                          ? "No hay solicitudes de precios, cierres o ajustes esperando resolución."
+                          : "Aún no se han registrado solicitudes de aprobación en este workspace."
+                      }
+                    />
+                  </div>
+                );
+              }
+
+              return (
+                <div className="space-y-3">
+                  {list.map((req) => {
+                    const statusObj = getStatus("approval", req.status);
+                    const typeLabel =
+                      APPROVAL_TYPE_LABELS[req.approvalType] ??
+                      req.approvalType;
+
+                    return (
+                      <div
+                        key={req.id}
+                        className="border-border bg-card border p-4"
+                      >
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                          <div className="space-y-1.5">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="text-foreground text-sm font-medium">
+                                {typeLabel}
+                              </span>
+                              <StatusPill tone={statusObj.tone}>
+                                {statusObj.label}
+                              </StatusPill>
+                              <span className="border-border bg-muted text-muted-foreground border px-1.5 py-0.5 font-mono text-[10px] uppercase">
+                                {req.entityType}
+                              </span>
+                            </div>
+                            {req.reason && (
+                              <p className="text-muted-foreground text-xs">
+                                {req.reason}
+                              </p>
+                            )}
+                            <p className="text-muted-foreground font-mono text-[11px] tabular-nums">
+                              Solicitado:{" "}
+                              {new Date(req.requestedAt).toLocaleString(
+                                "es-VE",
+                              )}
+                            </p>
+                          </div>
+
+                          {req.status === "pending" && (
+                            <Can module="dashboard" action="approve">
+                              <div className="flex flex-col items-end gap-2">
+                                {rejectingId === req.id ? (
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <input
+                                      type="text"
+                                      placeholder="Motivo del rechazo..."
+                                      value={rejectReason}
+                                      onChange={(e) =>
+                                        setRejectReason(e.target.value)
+                                      }
+                                      className="border-border bg-background text-foreground h-8 border px-2.5 text-xs outline-none"
+                                    />
+                                    <Button
+                                      size="sm"
+                                      variant="destructive"
+                                      disabled={
+                                        rejectMutation.isPending ||
+                                        !rejectReason.trim()
+                                      }
+                                      onClick={() =>
+                                        rejectMutation.mutate({
+                                          id: req.id,
+                                          reason: rejectReason.trim(),
+                                        })
+                                      }
+                                      className="h-8 text-xs"
+                                    >
+                                      Confirmar Rechazo
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => {
+                                        setRejectingId(null);
+                                        setRejectReason("");
+                                      }}
+                                      className="h-8 text-xs"
+                                    >
+                                      Cancelar
+                                    </Button>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center gap-2">
+                                    <Button
+                                      size="sm"
+                                      disabled={approveMutation.isPending}
+                                      onClick={() =>
+                                        approveMutation.mutate({ id: req.id })
+                                      }
+                                      className="h-8 gap-1 text-xs"
+                                    >
+                                      <Icons.Check className="size-3.5" />
+                                      Aprobar
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      disabled={rejectMutation.isPending}
+                                      onClick={() => {
+                                        setRejectingId(req.id);
+                                        setRejectReason("");
+                                      }}
+                                      className="border-border text-destructive h-8 gap-1 text-xs"
+                                    >
+                                      <Icons.Close className="size-3.5" />
+                                      Rechazar
+                                    </Button>
+                                  </div>
+                                )}
+                              </div>
+                            </Can>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()
+          )}
+        </div>
+      ) : isLoading ? (
         <div className="space-y-3">
           {Array.from({ length: 4 }).map((_, i) => (
             <div

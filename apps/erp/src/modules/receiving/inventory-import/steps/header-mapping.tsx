@@ -102,6 +102,8 @@ export function HeaderMapping({
                     bultos: "Bultos",
                     cajasPerBulk: "Cajas/Bulto",
                     presentacion: "Presentación",
+                    marca: "Marca",
+                    producto: "Producto",
                   };
                   return labels[f] ?? f;
                 })
@@ -113,7 +115,7 @@ export function HeaderMapping({
 
       {/* Unmapped columns info */}
       {unmapped.length > 0 && (
-        <div className="border-warning/30 bg-warning/10 text-warning flex items-start gap-2 border px-4 py-3 text-sm">
+        <div className="border-status-warning-fg/30 bg-status-warning-bg text-status-warning-fg flex items-start gap-2 border px-4 py-3 text-sm">
           <Icons.Info className="mt-0.5 size-4.5" />
           <div>
             <p className="font-medium">
@@ -144,8 +146,9 @@ export function HeaderMapping({
           <tbody>
             {headers.map((header, i) => {
               const mappedField = reverseMap.get(i) ?? "";
-              const isRequired =
-                mappedField === "sku" || mappedField === "quantity";
+              const isRequired = requiredFields.includes(
+                mappedField as ImportField,
+              );
 
               return (
                 <tr

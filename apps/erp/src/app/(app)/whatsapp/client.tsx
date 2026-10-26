@@ -46,7 +46,9 @@ export default function WhatsAppPage() {
     isLoading: ordersLoading,
     isError,
     refetch,
-  } = useQuery(trpc.sales.listOrders.queryOptions({ limit: 100 }));
+  } = useQuery(
+    trpc.sales.listOrders.queryOptions({ channel: "whatsapp", limit: 100 }),
+  );
   const { data: customers, isLoading: customersLoading } = useQuery(
     trpc.sales.listCustomers.queryOptions({ limit: 100 }),
   );
@@ -367,7 +369,7 @@ export default function WhatsAppPage() {
             >
               {tab.label}
               <span
-                className={`py-0.2 ml-1.5 px-1.5 font-mono text-[10px] tabular-nums ${
+                className={`ml-1.5 px-1.5 py-0.5 font-mono text-[10px] tabular-nums ${
                   activeFilter === tab.key
                     ? "bg-primary-foreground/20 text-primary-foreground"
                     : "bg-muted text-muted-foreground"

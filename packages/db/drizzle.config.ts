@@ -2,7 +2,7 @@ import { defineConfig } from "drizzle-kit";
 
 export default defineConfig({
   schema: "./src/schema.ts",
-  out: "./drizzle",
+  out: "./migrations",
   dialect: "postgresql",
   dbCredentials: {
     // eslint-disable-next-line no-restricted-properties

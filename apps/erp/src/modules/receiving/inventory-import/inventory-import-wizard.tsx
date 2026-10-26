@@ -481,14 +481,14 @@ export function InventoryImportWizard({
 
       {/* Restored session banner */}
       {wasRestored && state.step > 1 && state.step < 7 && (
-        <div className="border-warning/30 bg-warning/10 text-warning flex items-center justify-between gap-2 border px-4 py-3 text-sm">
+        <div className="border-status-warning-fg/30 bg-status-warning-bg text-status-warning-fg flex items-center justify-between gap-2 border px-4 py-3 text-sm">
           <div className="flex items-center gap-2">
             <Icons.Restore className="size-4.5" />
             Sesión restaurada — los datos de tu archivo ya están cargados.
           </div>
           <button
             onClick={() => setWasRestored(false)}
-            className="text-warning hover:text-foreground transition-colors"
+            className="text-status-warning-fg hover:text-foreground transition-colors"
           >
             <Icons.Close className="size-4.5" />
           </button>
@@ -606,6 +606,7 @@ export function InventoryImportWizard({
               warehouseId={warehouseId}
               warehouseName={warehouseName}
               filename={state.file?.name ?? "import.xlsx"}
+              mode={state.mode}
               onNewImport={handleReset}
             />
           ) : state.commitResult ? (
@@ -614,6 +615,7 @@ export function InventoryImportWizard({
               warehouseId={warehouseId}
               warehouseName={warehouseName}
               filename={state.file?.name ?? "import.xlsx"}
+              mode={state.mode}
               onNewImport={handleReset}
             />
           ) : null)}

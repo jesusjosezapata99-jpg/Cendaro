@@ -406,7 +406,7 @@ export function PosCheckoutDialog({
                   Total Venta:
                 </span>
                 <div className="text-right">
-                  <div className="text-foreground font-mono text-2xl font-black tabular-nums">
+                  <div className="text-foreground font-mono text-2xl font-medium tabular-nums">
                     {totalDual.usd}
                   </div>
                   <div className="text-primary font-mono text-xs font-medium tabular-nums">
@@ -461,7 +461,7 @@ export function PosCheckoutDialog({
               </div>
             </div>
             <div className="text-right font-mono tabular-nums">
-              <span className="block text-lg font-black">
+              <span className="block text-lg font-medium">
                 {isCovered ? totalPaidUsd.toFixed(2) : remainingDual.usd}
               </span>
               <span className="block text-xs font-medium opacity-80">
@@ -726,7 +726,7 @@ export function PosCheckoutDialog({
                   </div>
                 </div>
                 <div className="text-right">
-                  <div className="font-mono text-xl font-black text-emerald-600 tabular-nums dark:text-emerald-400">
+                  <div className="font-mono text-xl font-medium text-emerald-600 tabular-nums dark:text-emerald-400">
                     {changeDual.usd}
                   </div>
                   <div className="font-mono text-xs font-medium text-emerald-600/80 tabular-nums dark:text-emerald-400/80">

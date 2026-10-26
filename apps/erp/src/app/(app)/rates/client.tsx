@@ -2,7 +2,7 @@
 
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import type { IconName } from "@cendaro/ui/icons";
@@ -12,9 +12,16 @@ import { Icon, Icons } from "@cendaro/ui/icons";
 import { StatusPill } from "@cendaro/ui/status-pill";
 
 import { DataTable } from "~/components/data-table/data-table";
+import { Field, Input, Select } from "~/components/dialog";
 import { EmptyState } from "~/components/empty-state";
 import { PageHeader } from "~/components/page-header";
 import { Can } from "~/components/role-guard";
+import {
+  SheetBody,
+  SheetFooter,
+  SheetFormActions,
+  SheetModal,
+} from "~/components/sheet-modal";
 import { useVesRates } from "~/hooks/use-bcv-rate";
 import { useCnyRate } from "~/hooks/use-cny-rate";
 import { useSyncRates } from "~/hooks/use-sync-rates";
@@ -65,6 +72,7 @@ interface RateHistoryItem {
 
 export default function RatesClient() {
   const trpc = useTRPC();
+  const qc = useQueryClient();
 
   const { data: latestRates, isLoading: ratesLoading } = useQuery(
     trpc.pricing.latestRates.queryOptions(),
@@ -77,6 +85,34 @@ export default function RatesClient() {
   } = useQuery(trpc.pricing.rateHistory.queryOptions({ limit: 100 }));
 
   const [rateFilter, setRateFilter] = useState<string>("all");
+  const [showManualModal, setShowManualModal] = useState(false);
+  const [manualForm, setManualForm] = useState<{
+    rateType: "bcv" | "parallel" | "rmb_usd" | "rmb_bs";
+    rate: string;
+    source: string;
+  }>({
+    rateType: "bcv",
+    rate: "",
+    source: "Manual (Contingencia)",
+  });
+
+  const setManualRate = useMutation(
+    trpc.pricing.setManualRate.mutationOptions({
+      onSuccess: () => {
+        toast.success("Tasa manual registrada");
+        setShowManualModal(false);
+        setManualForm({
+          rateType: "bcv",
+          rate: "",
+          source: "Manual (Contingencia)",
+        });
+        void qc.invalidateQueries({ queryKey: [["pricing"]] });
+      },
+      onError: (err) => {
+        toast.error(err.message);
+      },
+    }),
+  );
   const [convertAmount, setConvertAmount] = useState("100");
   const [convertFrom, setConvertFrom] = useState<"usd" | "bs" | "rmb">("usd");
   const [convertTo, setConvertTo] = useState<"usd" | "bs" | "rmb">("bs");
@@ -286,17 +322,97 @@ export default function RatesClient() {
         description="Panel centralizado de divisas, sincronización automática y brecha cambiaria"
         actions={
           <Can module="rates" action="update">
-            <Button
-              onClick={handleManualRefresh}
-              className="min-h-11 flex-1 sm:flex-initial"
-              disabled={rateSync.isSyncing}
-            >
-              <Icons.Sync className="size-4.5" />
-              {rateSync.isSyncing ? "Sincronizando..." : "Actualizar Tasas"}
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setShowManualModal(true)}
+                className="min-h-11 flex-1 sm:flex-initial"
+              >
+                <Icons.Edit className="size-4.5" />
+                Tasa Manual
+              </Button>
+              <Button
+                onClick={handleManualRefresh}
+                className="min-h-11 flex-1 sm:flex-initial"
+                disabled={rateSync.isSyncing}
+              >
+                <Icons.Sync className="size-4.5" />
+                {rateSync.isSyncing ? "Sincronizando..." : "Actualizar Tasas"}
+              </Button>
+            </div>
           </Can>
         }
       />
+
+      <SheetModal
+        open={showManualModal}
+        onClose={() => setShowManualModal(false)}
+        title="Registrar Tasa Manual"
+        description="Registra una cotización de contingencia auditada en el historial cambiario."
+      >
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            const parsed = Number.parseFloat(manualForm.rate);
+            if (!Number.isFinite(parsed) || parsed <= 0) return;
+            setManualRate.mutate({
+              rateType: manualForm.rateType,
+              rate: parsed,
+              source: manualForm.source || "Manual",
+            });
+          }}
+          className="flex h-full flex-col"
+        >
+          <SheetBody>
+            <Field label="Tipo de Tasa" required>
+              <Select
+                value={manualForm.rateType}
+                onChange={(e) =>
+                  setManualForm((prev) => ({
+                    ...prev,
+                    rateType: e.target.value as typeof prev.rateType,
+                  }))
+                }
+              >
+                <option value="bcv">Tasa Oficial (BCV) — Bs/USD</option>
+                <option value="parallel">Paralelo (USDT) — Bs/USDT</option>
+                <option value="rmb_usd">RMB → USD — RMB/USD</option>
+                <option value="rmb_bs">RMB → Bs — Bs/RMB</option>
+              </Select>
+            </Field>
+            <Field label="Valor de Cotización" required>
+              <Input
+                type="number"
+                step="0.0001"
+                min="0.0001"
+                value={manualForm.rate}
+                onChange={(e) =>
+                  setManualForm((prev) => ({ ...prev, rate: e.target.value }))
+                }
+                placeholder="0.00"
+                className="font-mono tabular-nums"
+                required
+              />
+            </Field>
+            <Field label="Fuente / Referencia">
+              <Input
+                value={manualForm.source}
+                onChange={(e) =>
+                  setManualForm((prev) => ({ ...prev, source: e.target.value }))
+                }
+                placeholder="Manual (Contingencia)"
+              />
+            </Field>
+          </SheetBody>
+          <SheetFooter>
+            <SheetFormActions
+              onCancel={() => setShowManualModal(false)}
+              submitting={setManualRate.isPending}
+              submitLabel="Guardar Tasa"
+            />
+          </SheetFooter>
+        </form>
+      </SheetModal>
 
       <HeldRatesPanel />
 

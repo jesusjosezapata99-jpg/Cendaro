@@ -12,3 +12,19 @@ coverage/
 pnpm-lock.yaml
 supabase/.temp/
 .system_generated/
+
+# Agent tooling and local notes, not product code (they skew god nodes and query results)
+.agents/
+.claude/
+.codex/
+.gemini/
+.husky/
+.impeccable/
+.agentshield/
+.opencode/
+.pnpm-store/
+plans/
+graphify-out/
+AGENTS.md
+CLAUDE.md
+GEMINI.md

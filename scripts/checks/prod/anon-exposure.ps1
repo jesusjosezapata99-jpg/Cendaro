@@ -3,9 +3,18 @@ param(
     "user_profile", "workspace", "organization", "permission", "role_permission",
     "product", "customer"
   ),
-  # SECURITY DEFINER functions that are STABLE and take no arguments, so a GET
-  # through PostgREST is a pure read with no side effects.
-  [string[]] $Rpcs = @("is_elevated", "get_user_role", "is_admin_or_owner")
+  # SECURITY DEFINER functions (both legacy dropped RPCs and live production RPCs)
+  # to verify none are callable with the public anon key via PostgREST.
+  [string[]] $Rpcs = @(
+    "is_elevated",
+    "get_user_role",
+    "is_admin_or_owner",
+    "find_active_user_id_by_email",
+    "user_membership_count",
+    "is_workspace_member",
+    "rate_limit_gc",
+    "next_document_number"
+  )
 )
 
 # Probes what the PUBLIC anon key (shipped to every browser) can reach through

@@ -18,7 +18,10 @@ export {
   mfaComplianceFor,
 } from "./services/mfa-enforcement";
 export type { MfaCompliance } from "./services/mfa-enforcement";
-export { buildAuditIntegrityMetadata } from "./modules/audit";
+export {
+  buildAuditIntegrityMetadata,
+  verifyAuditRecordIntegrity,
+} from "./modules/audit";
 
 // Exchange rates (internal plan F4.1): server-side
 // upstream fetch for the public rate routes and the scheduled sync.

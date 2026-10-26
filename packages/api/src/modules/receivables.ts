@@ -8,10 +8,15 @@ import { TRPCError } from "@trpc/server";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod/v4";
 
+import type { getDb } from "@cendaro/db/client";
 import {
   AccountReceivable,
   ArInstallment,
+  Customer,
+  Payment,
   PaymentAllocation,
+  paymentMethodEnum,
+  SalesOrder,
 } from "@cendaro/db/schema";
 
 import {
@@ -20,6 +25,131 @@ import {
   wsReadPermissionProcedure,
 } from "../trpc";
 import { logAudit } from "./audit";
+
+type DbClient = ReturnType<typeof getDb>;
+
+export const recordArPaymentInputSchema = z.object({
+  id: z.string().uuid(),
+  amount: z.number().positive(),
+  method: z.enum(paymentMethodEnum.enumValues).default("transfer").optional(),
+  reference: z.string().max(128).optional(),
+  notes: z.string().optional(),
+});
+
+export async function executeRecordArPayment(
+  db: DbClient,
+  user: { id: string; email?: string | null },
+  workspaceId: string,
+  input: z.infer<typeof recordArPaymentInputSchema>,
+) {
+  const [updated] = await db
+    .update(AccountReceivable)
+    .set({
+      paidAmount: sql`${AccountReceivable.paidAmount} + ${input.amount}`,
+      balance: sql`GREATEST(0, ${AccountReceivable.balance} - ${input.amount})`,
+    })
+    .where(
+      and(
+        eq(AccountReceivable.id, input.id),
+        eq(AccountReceivable.workspaceId, workspaceId),
+      ),
+    )
+    .returning();
+
+  if (!updated) {
+    throw new TRPCError({
+      code: "NOT_FOUND",
+      message: "Cuenta por cobrar no encontrada",
+    });
+  }
+
+  // Auto-update status based on balance
+  if (Number(updated.balance) <= 0) {
+    await db
+      .update(AccountReceivable)
+      .set({ status: "paid", balance: 0 })
+      .where(
+        and(
+          eq(AccountReceivable.id, input.id),
+          eq(AccountReceivable.workspaceId, workspaceId),
+        ),
+      );
+    updated.status = "paid";
+    updated.balance = 0;
+  } else if (Number(updated.paidAmount) > 0) {
+    await db
+      .update(AccountReceivable)
+      .set({ status: "partial" })
+      .where(
+        and(
+          eq(AccountReceivable.id, input.id),
+          eq(AccountReceivable.workspaceId, workspaceId),
+        ),
+      );
+    updated.status = "partial";
+  }
+
+  if (updated.customerId) {
+    await db
+      .update(Customer)
+      .set({
+        balance: sql`GREATEST(0, COALESCE(${Customer.balance}, 0) - ${input.amount})`,
+      })
+      .where(
+        and(
+          eq(Customer.id, updated.customerId),
+          eq(Customer.workspaceId, workspaceId),
+        ),
+      );
+  }
+
+  if (updated.orderId) {
+    const [payment] = await db
+      .insert(Payment)
+      .values({
+        workspaceId,
+        orderId: updated.orderId,
+        method: input.method ?? "transfer",
+        amount: input.amount,
+        reference: input.reference,
+        notes: input.notes ?? "Abono a Cuenta por Cobrar",
+        isValidated: true,
+        validatedBy: user.id,
+      })
+      .returning();
+
+    if (payment?.id) {
+      await db.insert(PaymentAllocation).values({
+        workspaceId,
+        paymentId: payment.id,
+        receivableId: updated.id,
+        amount: input.amount,
+      });
+    }
+
+    await db
+      .update(SalesOrder)
+      .set({
+        totalPaid: sql`COALESCE(${SalesOrder.totalPaid}, 0) + ${input.amount}`,
+      })
+      .where(
+        and(
+          eq(SalesOrder.id, updated.orderId),
+          eq(SalesOrder.workspaceId, workspaceId),
+        ),
+      );
+  }
+
+  await logAudit(db, user, {
+    workspaceId,
+    action: "ar.payment",
+    entity: "account_receivable",
+    entityId: input.id,
+    newValue: { amount: input.amount, orderId: updated.orderId },
+  });
+
+  return updated;
+}
 
 export const receivablesRouter = createTRPCRouter({
   // ─── List all AR accounts ─────────────────────
@@ -139,6 +269,7 @@ export const receivablesRouter = createTRPCRouter({
         .returning();
 
       await logAudit(ctx.db, ctx.user, {
+        workspaceId: ctx.workspace.workspaceId,
         action: "receivable.installments.create",
         entity: "ar_installment",
         entityId: input.receivableId,
@@ -147,6 +278,18 @@ export const receivablesRouter = createTRPCRouter({
 
       return created;
     }),
+
+  // ─── Record payment against AR ────────────────
+  recordPayment: wsPermissionProcedure("receivables", "update")
+    .input(recordArPaymentInputSchema)
+    .mutation(({ ctx, input }) =>
+      executeRecordArPayment(
+        ctx.db,
+        ctx.user,
+        ctx.workspace.workspaceId,
+        input,
+      ),
+    ),
 
   // ─── Mark installment as paid ─────────────────
   markPaid: wsPermissionProcedure("receivables", "approve")
@@ -168,6 +311,7 @@ export const receivablesRouter = createTRPCRouter({
         .set({
           status: "paid",
           paidAt: new Date(),
+          paidAmount: sql`${ArInstallment.amount}`,
         })
         .where(
           and(
@@ -184,7 +328,21 @@ export const receivablesRouter = createTRPCRouter({
         });
       }
 
+      if (updated.receivableId && Number(updated.amount) > 0) {
+        await executeRecordArPayment(
+          ctx.db,
+          ctx.user,
+          ctx.workspace.workspaceId,
+          {
+            id: updated.receivableId,
+            amount: Number(updated.amount),
+            notes: `Cuota #${updated.installmentNumber} liquidada`,
+          },
+        );
+      }
+
       await logAudit(ctx.db, ctx.user, {
+        workspaceId: ctx.workspace.workspaceId,
         action: "receivable.installment.paid",
         entity: "ar_installment",
         entityId: input.installmentId,

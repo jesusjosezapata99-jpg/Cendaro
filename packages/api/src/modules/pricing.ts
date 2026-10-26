@@ -5,15 +5,18 @@
  * PRD §12: admin-only rates panel, 5% auto-repricing trigger, 24h approval window.
  */
 import { TRPCError } from "@trpc/server";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import {
   ExchangeRate,
   PriceHistory,
+  Product,
+  ProductPrice,
   rateTypeEnum,
   RepricingEvent,
 } from "@cendaro/db/schema";
+import { roundMoney } from "@cendaro/validators";
 
 import type { UpstreamRate, VesRates } from "../services/exchange-rate-sources";
 import type { HeldRate, RateSyncResult } from "./rate-sync";
@@ -53,7 +56,8 @@ export const pricingRouter = createTRPCRouter({
       })
       .from(ExchangeRate)
       .where(eq(ExchangeRate.workspaceId, ctx.workspace.workspaceId))
-      .orderBy(ExchangeRate.rateType, desc(ExchangeRate.createdAt));
+      .orderBy(ExchangeRate.rateType, desc(ExchangeRate.createdAt))
+      .limit(40);
 
     // Deduplicate: keep only the latest per rateType
     const seen = new Set<string>();
@@ -65,6 +69,50 @@ export const pricingRouter = createTRPCRouter({
 
     return latest;
   }),
+
+  /** Manually register a fallback exchange rate (owner/admin only) */
+  setManualRate: wsPermissionProcedure("rates", "update")
+    .input(
+      z.object({
+        rateType: z.enum(rateTypeEnum.enumValues),
+        rate: z.number().positive(),
+        source: z.string().min(1).max(64).default("Manual"),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      if (!["owner", "admin"].includes(ctx.workspace.role)) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message:
+            "Solo propietarios y administradores pueden registrar tasas manuales",
+        });
+      }
+
+      const [inserted] = await ctx.db
+        .insert(ExchangeRate)
+        .values({
+          workspaceId: ctx.workspace.workspaceId,
+          rateType: input.rateType,
+          rate: roundMoney(input.rate, 4),
+          source: input.source,
+          updatedBy: ctx.user.id,
+        })
+        .returning();
+
+      await logAudit(ctx.db, ctx.user, {
+        workspaceId: ctx.workspace.workspaceId,
+        action: "rate.manual_set",
+        entity: "exchange_rate",
+        entityId: inserted?.id,
+        newValue: {
+          rateType: input.rateType,
+          rate: input.rate,
+          source: input.source,
+        },
+      });
+
+      return inserted;
+    }),
 
   /** Get rate history */
   rateHistory: wsReadPermissionProcedure("rates", "read")
@@ -197,7 +245,7 @@ export const pricingRouter = createTRPCRouter({
       if (input.productId) {
         conditions.push(eq(PriceHistory.productId, input.productId));
       }
-      return ctx.db
+      const rows = await ctx.db
         .select({
           id: PriceHistory.id,
           productId: PriceHistory.productId,
@@ -212,6 +260,40 @@ export const pricingRouter = createTRPCRouter({
         .where(and(...conditions))
         .orderBy(desc(PriceHistory.createdAt))
         .limit(input.limit);
+
+      const productIds = Array.from(
+        new Set(rows.map((r) => r.productId).filter(Boolean)),
+      );
+      const productMap = new Map<string, { sku: string; name: string }>();
+      if (productIds.length > 0) {
+        const products = await ctx.db
+          .select({
+            id: Product.id,
+            sku: Product.sku,
+            name: Product.name,
+          })
+          .from(Product)
+          .where(
+            and(
+              eq(Product.workspaceId, ctx.workspace.workspaceId),
+              inArray(Product.id, productIds),
+            ),
+          );
+        for (const p of products) {
+          if (p.id && p.sku) {
+            productMap.set(p.id, { sku: p.sku, name: p.name });
+          }
+        }
+      }
+
+      return rows.map((r) => {
+        const prod = productMap.get(r.productId);
+        return {
+          ...r,
+          productSku: prod?.sku ?? null,
+          productName: prod?.name ?? null,
+        };
+      });
     }),
 
   // ─── Repricing Events ────────────────────────
@@ -254,12 +336,77 @@ export const pricingRouter = createTRPCRouter({
         });
       }
 
+      const [existingEvent] = await ctx.db
+        .select()
+        .from(RepricingEvent)
+        .where(
+          and(
+            eq(RepricingEvent.id, input.id),
+            eq(RepricingEvent.workspaceId, ctx.workspace.workspaceId),
+          ),
+        )
+        .limit(1)
+        .for("update");
+
+      if (!existingEvent) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Evento de repricing no encontrado en este workspace",
+        });
+      }
+
+      if (existingEvent.isApproved) {
+        return existingEvent;
+      }
+
+      let affectedCount = existingEvent.productsAffected;
+      const newRate =
+        typeof existingEvent.newRate === "number" && existingEvent.newRate > 0
+          ? existingEvent.newRate
+          : null;
+
+      if (newRate !== null) {
+        const prices = await ctx.db
+          .select()
+          .from(ProductPrice)
+          .where(eq(ProductPrice.workspaceId, ctx.workspace.workspaceId));
+
+        const validPrices = prices.filter(
+          (p) => p.productId && typeof p.amountUsd === "number",
+        );
+
+        for (const p of validPrices) {
+          const newAmountBs = roundMoney(p.amountUsd * newRate, 2);
+          await ctx.db
+            .update(ProductPrice)
+            .set({
+              amountBs: newAmountBs,
+              rateUsed: newRate,
+              updatedAt: new Date(),
+            })
+            .where(eq(ProductPrice.id, p.id));
+
+          await ctx.db.insert(PriceHistory).values({
+            workspaceId: ctx.workspace.workspaceId,
+            productId: p.productId,
+            priceType: p.priceType,
+            oldAmountUsd: p.amountUsd,
+            newAmountUsd: p.amountUsd,
+            rateUsed: newRate,
+            trigger: "auto",
+            userId: ctx.user.id,
+          });
+        }
+        affectedCount = new Set(validPrices.map((p) => p.productId)).size;
+      }
+
       const [updated] = await ctx.db
         .update(RepricingEvent)
         .set({
           isApproved: true,
           approvedBy: ctx.user.id,
           approvedAt: new Date(),
+          productsAffected: affectedCount,
         })
         .where(
           and(
@@ -277,9 +424,14 @@ export const pricingRouter = createTRPCRouter({
       }
 
       await logAudit(ctx.db, ctx.user, {
+        workspaceId: ctx.workspace.workspaceId,
         action: "repricing.approve",
         entity: "repricing_event",
         entityId: input.id,
+        newValue: {
+          productsAffected: affectedCount,
+          newRate,
+        },
       });
 
       return updated;

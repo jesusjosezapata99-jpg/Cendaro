@@ -14,7 +14,7 @@ import type {
   ValidatedCatalogRow,
 } from "../lib/catalog-validators";
 import type { CatalogParseResult } from "./use-parse-catalog-file";
-import { validateAllRows } from "../lib/catalog-validators";
+import { parseRow, validateAllRows } from "../lib/catalog-validators";
 
 // ── Types ────────────────────────────────────────
 
@@ -267,9 +267,25 @@ export function useCatalogImport() {
   }, []);
 
   const onValidate = useCallback(
-    (parsedRows: ParsedCatalogRow[], _headerMap: Record<string, number>) => {
-      // Re-parse rows with the latest header map if it was changed
-      const result = validateAllRows(parsedRows);
+    (
+      parsedRows: ParsedCatalogRow[],
+      headerMap: Record<string, number>,
+      rawDataRows?: string[][],
+      headerIndex = 0,
+    ) => {
+      // Re-parse rows with the latest header map when rawDataRows are available
+      let rowsToValidate = parsedRows;
+      if (rawDataRows && rawDataRows.length > 0) {
+        const reparsed: ParsedCatalogRow[] = [];
+        for (let i = 0; i < rawDataRows.length; i++) {
+          const row = rawDataRows[i];
+          if (!row) continue;
+          const parsed = parseRow(row, headerMap, headerIndex + i + 2);
+          if (parsed) reparsed.push(parsed);
+        }
+        rowsToValidate = reparsed;
+      }
+      const result = validateAllRows(rowsToValidate);
       dispatch({
         type: "VALIDATION_COMPLETE",
         payload: {

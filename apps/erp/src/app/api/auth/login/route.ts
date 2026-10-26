@@ -47,6 +47,7 @@ import {
   rateLimitComposite,
   recordFailure,
 } from "~/lib/rate-limit";
+import { verifyTurnstileToken } from "~/lib/turnstile";
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -109,6 +110,7 @@ const loginSchema = z.object({
     .max(64, "Demasiado largo")
     .trim(),
   password: z.string().min(6, "Campo requerido").max(256, "Demasiado largo"),
+  captchaToken: z.string().max(2048).optional(),
 });
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -198,8 +200,21 @@ export async function POST(request: Request) {
     return authFailureResponse();
   }
 
-  const { username, password } = parsed.data;
+  const { username, password, captchaToken } = parsed.data;
   const normalizedUsername = username.toLowerCase();
+
+  // ── Step 4b: Cloudflare Turnstile CAPTCHA verification (F9.1) ───────────
+  const captchaResult = await verifyTurnstileToken(
+    captchaToken,
+    ip,
+    env.TURNSTILE_SECRET_KEY,
+  );
+  if (!captchaResult.success) {
+    return NextResponse.json(
+      { error: "Verificación de seguridad fallida. Intente de nuevo." },
+      { status: 403, headers: AUTH_SECURITY_HEADERS },
+    );
+  }
 
   // ── Step 5: Hard lockout check for this username from this IP ───────────
   // Keyed by the pair: a username-only lock would let anyone lock a real

@@ -20,7 +20,7 @@ try {
 }
 
 const req = createRequire(path.resolve("./packages/db/package.json"));
-const postgres = req("postgres");
+const { Pool } = req("pg");
 
 const MANIFEST_PATH = path.resolve("plans/reports/assets/seed-manifest.json");
 const isDryRun = process.argv.includes("--dry-run");
@@ -52,22 +52,24 @@ if (!connectionString) {
   process.exit(1);
 }
 
-const sql = postgres(connectionString, {
+const pool = new Pool({
+  connectionString,
   max: 5,
-  idle_timeout: 30,
-  connect_timeout: 30,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 30000,
 });
 
 async function deleteInBatches(table, idList, batchSize = 500) {
   if (!idList || idList.length === 0) return 0;
+  const safeTable = `"${String(table).replaceAll('"', '""')}"`;
   let deletedTotal = 0;
   for (let i = 0; i < idList.length; i += batchSize) {
     const batch = idList.slice(i, i + batchSize);
-    const result = await sql`
-      DELETE FROM ${sql(table)}
-      WHERE id IN ${sql(batch)}
-    `;
-    deletedTotal += result.count;
+    const result = await pool.query(
+      `DELETE FROM ${safeTable} WHERE id = ANY($1::uuid[])`,
+      [batch],
+    );
+    deletedTotal += result.rowCount ?? 0;
     process.stdout.write(`  Deleting from ${table}: ${Math.min(i + batchSize, idList.length)}/${idList.length}\r`);
   }
   console.log(`\n  ✓ Deleted ${deletedTotal} rows from ${table}.`);
@@ -110,7 +112,7 @@ async function run() {
 
     console.log("\n🎉 Unseed completed successfully! Database restored.");
   } finally {
-    await sql.end({ timeout: 5 });
+    await pool.end();
   }
 }
 

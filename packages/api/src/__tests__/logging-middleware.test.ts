@@ -12,7 +12,7 @@
 import { TRPCError } from "@trpc/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { logger } from "../logger";
+import { logger, redactDeep } from "../logger";
 import {
   createCallerFactory,
   createTRPCRouter,
@@ -100,5 +100,28 @@ describe("loggingMiddleware (C2 regression)", () => {
 
     expect(warnSpy).not.toHaveBeenCalled();
     expect(errorSpy).not.toHaveBeenCalled();
+  });
+
+  it("redactDeep recursively redacts nested PII and sensitive keys", () => {
+    const raw = {
+      user: {
+        email: "secret.user@cendaro.com",
+        password: "super-secret-password",
+        nested: {
+          accessToken: "tok_123456",
+          notes: ["Contact support@cendaro.com", "ok"],
+        },
+      },
+    };
+    expect(redactDeep(raw)).toEqual({
+      user: {
+        email: "[EMAIL_REDACTED]",
+        password: "[REDACTED]",
+        nested: {
+          accessToken: "[REDACTED]",
+          notes: ["Contact [EMAIL_REDACTED]", "ok"],
+        },
+      },
+    });
   });
 });

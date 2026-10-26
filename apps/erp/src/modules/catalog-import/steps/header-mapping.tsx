@@ -120,7 +120,7 @@ export function HeaderMapping({
 
       {/* Unmapped columns info */}
       {unmapped.length > 0 && (
-        <div className="border-warning/30 bg-warning/10 text-warning flex items-start gap-2 border px-4 py-3 text-xs">
+        <div className="border-status-warning-fg/30 bg-status-warning-bg text-status-warning-fg flex items-start gap-2 border px-4 py-3 text-xs">
           <Icons.Info className="mt-0.5 size-4" />
           <div>
             <p className="font-medium">

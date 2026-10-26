@@ -102,7 +102,7 @@ export default function PricingClient() {
         description="Repricing masivo, auditoría de precios y aprobaciones ejecutivas"
         actions={
           pendingApproval > 0 ? (
-            <div className="border-warning/30 bg-warning/10 text-warning flex items-center gap-2 border px-3 py-1.5 text-xs font-medium">
+            <div className="border-status-warning-fg/30 bg-status-warning-bg text-status-warning-fg flex items-center gap-2 border px-3 py-1.5 text-xs font-medium">
               <Icons.HourglassTop className="size-3.5" />
               <span className="font-mono tabular-nums">{pendingApproval}</span>
               <span>repricing pendiente{pendingApproval > 1 ? "s" : ""}</span>
@@ -308,6 +308,11 @@ export default function PricingClient() {
                     <th
                       className={`text-muted-foreground ${cellPx} font-medium tracking-wider uppercase`}
                     >
+                      Producto / SKU
+                    </th>
+                    <th
+                      className={`text-muted-foreground ${cellPx} font-medium tracking-wider uppercase`}
+                    >
                       Tipo de Precio
                     </th>
                     <th
@@ -350,6 +355,18 @@ export default function PricingClient() {
                           {new Date(entry.createdAt).toLocaleString("es-VE")}
                         </td>
                         <td className={cellPx}>
+                          <div className="flex flex-col">
+                            <span className="text-foreground font-mono text-xs font-medium tabular-nums">
+                              {entry.productSku ?? entry.productId.slice(0, 8)}
+                            </span>
+                            {entry.productName && (
+                              <span className="text-muted-foreground max-w-48 truncate text-[11px]">
+                                {entry.productName}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className={cellPx}>
                           <span className="text-foreground font-medium">
                             {PRICE_TYPE_LABELS[entry.priceType] ??
                               entry.priceType}
@@ -381,7 +398,7 @@ export default function PricingClient() {
 
                   {historyList.length === 0 && (
                     <tr className="hover:bg-transparent">
-                      <td colSpan={6} className="px-4 py-8">
+                      <td colSpan={7} className="px-4 py-8">
                         <EmptyState
                           icon="PriceChange"
                           title="Sin registros de auditoría"

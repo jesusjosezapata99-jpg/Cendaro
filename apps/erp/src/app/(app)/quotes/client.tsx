@@ -40,6 +40,8 @@ interface QuoteListItem {
   id: string;
   quoteNumber: string;
   customerId: string | null;
+  customerName?: string | null;
+  customerIdentification?: string | null;
   status: string;
   channel: string;
   total: string | number;
@@ -111,6 +113,23 @@ export default function QuotesClient() {
           >
             {row.original.quoteNumber}
           </Link>
+        ),
+      },
+      {
+        id: "customer",
+        header: "Cliente",
+        meta: { className: "min-w-44" },
+        cell: ({ row }) => (
+          <div className="flex flex-col">
+            <span className="text-foreground truncate text-xs font-medium">
+              {row.original.customerName ?? "Consumidor Final"}
+            </span>
+            {row.original.customerIdentification && (
+              <span className="text-muted-foreground font-mono text-[10px] tabular-nums">
+                {row.original.customerIdentification}
+              </span>
+            )}
+          </div>
         ),
       },
       {

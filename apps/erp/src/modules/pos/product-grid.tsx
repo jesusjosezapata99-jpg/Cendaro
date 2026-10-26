@@ -139,11 +139,12 @@ export function ProductGrid({
         ) : (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4">
             {products.map((p) => {
-              const stock = stockMap.get(p.id) ?? 15;
-              const priceUsd = 12.5; // Retail standard price
+              const stock = stockMap.get(p.id) ?? 0;
+              const priceUsd = p.posPriceUsd ?? p.basePriceUsd ?? 0;
               const dual = formatDualCurrency(priceUsd, bcvRate);
               const isLow = stock > 0 && stock <= 5;
               const isOut = stock <= 0;
+              const isUnpriced = priceUsd <= 0;
               const inCartQty =
                 cart.find((line) => line.id === p.id)?.quantity ?? 0;
 
@@ -151,8 +152,9 @@ export function ProductGrid({
                 <button
                   key={p.id}
                   type="button"
+                  disabled={isOut || isUnpriced}
                   onClick={() => onAddToCart(p, priceUsd)}
-                  className={`group relative flex aspect-square flex-col justify-between border p-3 text-left transition-all active:scale-[0.98] ${
+                  className={`group relative flex aspect-square flex-col justify-between border p-3 text-left transition-all active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 ${
                     inCartQty > 0
                       ? "border-foreground bg-[--nav-active] shadow-xs"
                       : "bg-card hover:bg-secondary/40 border-[--line] hover:border-[--line-hover] hover:shadow-xs"
@@ -190,11 +192,11 @@ export function ProductGrid({
 
                   <div className="border-border/40 mt-2 border-t pt-2">
                     <div className="flex flex-col gap-0.5 sm:flex-row sm:items-baseline sm:justify-between">
-                      <span className="text-foreground font-mono text-sm font-black tabular-nums">
-                        {dual.usd}
+                      <span className="text-foreground font-mono text-sm font-medium tabular-nums">
+                        {isUnpriced ? "Sin precio" : dual.usd}
                       </span>
                       <span className="text-primary font-mono text-[10px] font-medium tabular-nums">
-                        {dual.bs}
+                        {isUnpriced ? "—" : dual.bs}
                       </span>
                     </div>
                   </div>

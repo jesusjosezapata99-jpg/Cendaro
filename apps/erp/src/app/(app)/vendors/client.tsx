@@ -9,20 +9,24 @@ import { toast } from "sonner";
 import { Button } from "@cendaro/ui";
 import { Icons } from "@cendaro/ui/icons";
 import { StatusPill } from "@cendaro/ui/status-pill";
+import { can } from "@cendaro/validators";
 
 import { DataTable } from "~/components/data-table/data-table";
 import { PageHeader } from "~/components/page-header";
 import { StatCard } from "~/components/stat-card";
 import { useBcvRate } from "~/hooks/use-bcv-rate";
+import { useCurrentUser } from "~/hooks/use-current-user";
 import { formatDualCurrency } from "~/lib/format-currency";
+import { getStatus } from "~/lib/status";
 import { useTRPC } from "~/trpc/client";
 
-type FilterMode = "all" | "pending" | "paid";
+type FilterMode = "all" | "pending" | "paid" | "my_orders";
 
 const FILTER_TABS = [
   { key: "all", label: "Todas" },
   { key: "pending", label: "Por Liquidar" },
   { key: "paid", label: "Liquidadas" },
+  { key: "my_orders", label: "Mis Pedidos" },
 ] as const;
 
 interface CommissionItem {
@@ -41,20 +45,51 @@ export default function VendorsPage() {
   const trpc = useTRPC();
   const qc = useQueryClient();
   const bcv = useBcvRate();
+  const { profile } = useCurrentUser();
+  const canApproveVendors = can(profile?.role, "vendors", "approve");
+  const canReadUsers = can(profile?.role, "users", "read");
   const [activeFilter, setActiveFilter] = useState<FilterMode>("all");
 
-  const commissionsOptions = trpc.vendor.allCommissions.queryOptions({
+  const allCommissionsOptions = trpc.vendor.allCommissions.queryOptions({
+    limit: 100,
+  });
+  const myCommissionsOptions = trpc.vendor.myCommissions.queryOptions({
     limit: 100,
   });
 
-  const {
-    data: commissions,
-    isLoading,
-    isError,
-    refetch,
-  } = useQuery(commissionsOptions);
+  const allCommissionsQuery = useQuery({
+    ...allCommissionsOptions,
+    enabled: canApproveVendors,
+  });
+  const myCommissionsQuery = useQuery({
+    ...myCommissionsOptions,
+    enabled: !canApproveVendors,
+  });
 
-  const { data: users } = useQuery(trpc.users.list.queryOptions());
+  const commissions = canApproveVendors
+    ? allCommissionsQuery.data
+    : myCommissionsQuery.data;
+  const isLoading = canApproveVendors
+    ? allCommissionsQuery.isLoading
+    : myCommissionsQuery.isLoading;
+  const isError = canApproveVendors
+    ? allCommissionsQuery.isError
+    : myCommissionsQuery.isError;
+  const refetch = canApproveVendors
+    ? allCommissionsQuery.refetch
+    : myCommissionsQuery.refetch;
+  const commissionsOptions = canApproveVendors
+    ? allCommissionsOptions
+    : myCommissionsOptions;
+
+  const { data: myOrders = [], isLoading: loadingMyOrders } = useQuery(
+    trpc.vendor.myOrders.queryOptions({ limit: 50 }),
+  );
+
+  const { data: users } = useQuery({
+    ...trpc.users.list.queryOptions(),
+    enabled: canReadUsers,
+  });
 
   const userMap = useMemo(() => {
     const map = new Map<string, string>();
@@ -337,7 +372,9 @@ export default function VendorsPage() {
               ? items.length
               : tab.key === "pending"
                 ? items.filter((c) => !c.isPaid).length
-                : items.filter((c) => c.isPaid).length;
+                : tab.key === "paid"
+                  ? items.filter((c) => c.isPaid).length
+                  : myOrders.length;
 
           return (
             <button
@@ -365,23 +402,92 @@ export default function VendorsPage() {
         })}
       </div>
 
-      {/* Main Data Table with 45px rows */}
-      <DataTable
-        columns={columns}
-        data={filteredItems}
-        isLoading={isLoading}
-        isError={isError}
-        onRetry={() => void refetch()}
-        onResetFilters={
-          activeFilter !== "all" ? () => setActiveFilter("all") : undefined
-        }
-        emptyTitle="No hay comisiones registradas"
-        emptyDescription={
-          activeFilter === "all"
-            ? "Aún no se han generado comisiones de venta en el sistema."
-            : `No se encontraron comisiones en estado "${activeFilter === "pending" ? "Por Liquidar" : "Liquidadas"}".`
-        }
-      />
+      {activeFilter === "my_orders" ? (
+        <div className="border-border bg-card overflow-x-auto border">
+          <table className="w-full text-left text-xs">
+            <thead className="border-border bg-muted/40 text-muted-foreground border-b font-mono text-[10px] uppercase">
+              <tr>
+                <th className="px-4 py-2.5">Orden #</th>
+                <th className="px-4 py-2.5">Canal</th>
+                <th className="px-4 py-2.5">Estado</th>
+                <th className="px-4 py-2.5 text-right">Total</th>
+                <th className="px-4 py-2.5 text-right">Pagado</th>
+                <th className="px-4 py-2.5">Fecha</th>
+              </tr>
+            </thead>
+            <tbody className="divide-border divide-y">
+              {loadingMyOrders ? (
+                <tr>
+                  <td
+                    colSpan={6}
+                    className="text-muted-foreground px-4 py-8 text-center"
+                  >
+                    Cargando pedidos…
+                  </td>
+                </tr>
+              ) : myOrders.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={6}
+                    className="text-muted-foreground px-4 py-8 text-center"
+                  >
+                    No tienes pedidos registrados.
+                  </td>
+                </tr>
+              ) : (
+                myOrders.map((ord) => {
+                  const st = getStatus("order", ord.status);
+                  return (
+                    <tr key={ord.id} className="hover:bg-muted/20">
+                      <td className="px-4 py-3 font-mono font-medium">
+                        <Link
+                          href={`/orders/${ord.id}`}
+                          className="text-primary hover:underline"
+                        >
+                          {ord.orderNumber}
+                        </Link>
+                      </td>
+                      <td className="text-muted-foreground px-4 py-3 font-mono uppercase">
+                        {ord.channel}
+                      </td>
+                      <td className="px-4 py-3">
+                        <StatusPill tone={st.tone}>{st.label}</StatusPill>
+                      </td>
+                      <td className="text-foreground px-4 py-3 text-right font-mono font-medium tabular-nums">
+                        ${Number(ord.total).toFixed(2)}
+                      </td>
+                      <td className="text-muted-foreground px-4 py-3 text-right font-mono tabular-nums">
+                        ${Number(ord.totalPaid ?? 0).toFixed(2)}
+                      </td>
+                      <td className="text-muted-foreground px-4 py-3 font-mono tabular-nums">
+                        {new Date(ord.createdAt).toLocaleDateString("es-VE")}
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        /* Main Data Table with 45px rows */
+        <DataTable
+          columns={columns}
+          data={filteredItems}
+          isLoading={isLoading}
+          isError={isError}
+          onRetry={() => void refetch()}
+          onResetFilters={
+            activeFilter !== "all" ? () => setActiveFilter("all") : undefined
+          }
+          emptyTitle="No hay comisiones registradas"
+          emptyDescription={
+            activeFilter === "all"
+              ? "Aún no se han generado comisiones de venta en el sistema."
+              : `No se encontraron comisiones en estado "${activeFilter === "pending" ? "Por Liquidar" : "Liquidadas"}".`
+          }
+        />
+      )}
     </div>
   );
 }

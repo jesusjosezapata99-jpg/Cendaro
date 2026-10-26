@@ -33,7 +33,7 @@ async function AuditPrefetch() {
 
   try {
     await queryClient.prefetchQuery(
-      trpc.audit.list.queryOptions({ limit: 50 }),
+      trpc.audit.list.queryOptions({ limit: 100, entity: undefined }),
     );
   } catch {
     // Prefetch failure is non-critical — client will fetch on hydration

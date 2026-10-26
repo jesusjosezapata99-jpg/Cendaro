@@ -11,11 +11,14 @@ import {
   Brand,
   Category,
   ChannelAllocation,
+  PriceHistory,
   priceTypeEnum,
   Product,
   ProductAttribute,
   ProductPrice,
   productStatusEnum,
+  ProductSupplier,
+  ProductUomEquivalence,
   StockLedger,
   Supplier,
 } from "@cendaro/db/schema";
@@ -35,6 +38,7 @@ interface CacheEntry<T> {
 
 const catalogMemoryCache = new Map<string, CacheEntry<unknown>>();
 const CACHE_TTL = 3600_000; // 1-hour cache
+const CATALOG_CACHE_MAX = 500;
 
 function getCacheKey(workspaceId: string, entity: string): string {
   return `${workspaceId}:${entity}`;
@@ -54,13 +58,23 @@ async function getCachedData<T>(
   }
 
   const data = await fetchFn();
+  if (catalogMemoryCache.size >= CATALOG_CACHE_MAX) {
+    const oldest = catalogMemoryCache.keys().next().value;
+    if (oldest) catalogMemoryCache.delete(oldest);
+  }
   catalogMemoryCache.set(key, { data, expiry: now + CACHE_TTL });
   return data;
 }
 
-function invalidateCacheKey(workspaceId: string, entity: string) {
+export function invalidateCacheKey(workspaceId: string, entity: string): void {
   const key = getCacheKey(workspaceId, entity);
   catalogMemoryCache.delete(key);
+}
+
+export function invalidateCatalogCache(workspaceId: string): void {
+  for (const entity of ["brands", "categories", "suppliers"]) {
+    invalidateCacheKey(workspaceId, entity);
+  }
 }
 
 export const listProductsInputSchema = z.object({
@@ -185,8 +199,56 @@ export const catalogRouter = createTRPCRouter({
         ctx.db.select({ total: count() }).from(Product).where(where),
       ]);
 
+      const productIds = rows.map((r) => r.id).filter(Boolean);
+      const priceMap = new Map<
+        string,
+        { basePriceUsd: number | null; posPriceUsd: number | null }
+      >();
+
+      if (productIds.length > 0) {
+        const prices = await ctx.db
+          .select({
+            productId: ProductPrice.productId,
+            priceType: ProductPrice.priceType,
+            amountUsd: ProductPrice.amountUsd,
+          })
+          .from(ProductPrice)
+          .where(
+            and(
+              eq(ProductPrice.workspaceId, ctx.workspace.workspaceId),
+              inArray(ProductPrice.productId, productIds),
+            ),
+          );
+
+        for (const p of prices) {
+          if (!p.productId || typeof p.amountUsd !== "number") continue;
+          const entry = priceMap.get(p.productId) ?? {
+            basePriceUsd: null,
+            posPriceUsd: null,
+          };
+          if (p.priceType === "wholesale") {
+            entry.basePriceUsd = p.amountUsd;
+          } else if (p.priceType === "store") {
+            entry.posPriceUsd = p.amountUsd;
+            entry.basePriceUsd ??= p.amountUsd;
+          } else {
+            entry.basePriceUsd ??= p.amountUsd;
+          }
+          priceMap.set(p.productId, entry);
+        }
+      }
+
+      const items = rows.map((r) => {
+        const prices = priceMap.get(r.id);
+        return {
+          ...r,
+          basePriceUsd: prices?.basePriceUsd ?? null,
+          posPriceUsd: prices?.posPriceUsd ?? null,
+        };
+      });
+
       return {
-        items: rows,
+        items,
         total: totalResult[0]?.total ?? 0,
       };
     }),
@@ -208,25 +270,39 @@ export const catalogRouter = createTRPCRouter({
 
       if (!product) return null;
 
-      const [attributes, prices, stockLedger, channelAllocations] =
-        await Promise.all([
-          ctx.db
-            .select()
-            .from(ProductAttribute)
-            .where(eq(ProductAttribute.productId, input.id)),
-          ctx.db
-            .select()
-            .from(ProductPrice)
-            .where(eq(ProductPrice.productId, input.id)),
-          ctx.db
-            .select()
-            .from(StockLedger)
-            .where(eq(StockLedger.productId, input.id)),
-          ctx.db
-            .select()
-            .from(ChannelAllocation)
-            .where(eq(ChannelAllocation.productId, input.id)),
-        ]);
+      const [
+        attributes,
+        prices,
+        stockLedger,
+        channelAllocations,
+        uomEquivalences,
+        productSuppliers,
+      ] = await Promise.all([
+        ctx.db
+          .select()
+          .from(ProductAttribute)
+          .where(eq(ProductAttribute.productId, input.id)),
+        ctx.db
+          .select()
+          .from(ProductPrice)
+          .where(eq(ProductPrice.productId, input.id)),
+        ctx.db
+          .select()
+          .from(StockLedger)
+          .where(eq(StockLedger.productId, input.id)),
+        ctx.db
+          .select()
+          .from(ChannelAllocation)
+          .where(eq(ChannelAllocation.productId, input.id)),
+        ctx.db
+          .select()
+          .from(ProductUomEquivalence)
+          .where(eq(ProductUomEquivalence.productId, input.id)),
+        ctx.db
+          .select()
+          .from(ProductSupplier)
+          .where(eq(ProductSupplier.productId, input.id)),
+      ]);
 
       return {
         ...product,
@@ -234,6 +310,8 @@ export const catalogRouter = createTRPCRouter({
         prices,
         stockLedger,
         channelAllocations,
+        uomEquivalences,
+        productSuppliers,
       };
     }),
 
@@ -262,9 +340,13 @@ export const catalogRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const [product] = await ctx.db.insert(Product).values(input).returning();
+      const [product] = await ctx.db
+        .insert(Product)
+        .values({ ...input, workspaceId: ctx.workspace.workspaceId })
+        .returning();
 
       await logAudit(ctx.db, ctx.user, {
+        workspaceId: ctx.workspace.workspaceId,
         action: "product.create",
         entity: "product",
         entityId: product?.id,
@@ -302,10 +384,16 @@ export const catalogRouter = createTRPCRouter({
       const [updated] = await ctx.db
         .update(Product)
         .set(updates)
-        .where(eq(Product.id, id))
+        .where(
+          and(
+            eq(Product.id, id),
+            eq(Product.workspaceId, ctx.workspace.workspaceId),
+          ),
+        )
         .returning();
 
       await logAudit(ctx.db, ctx.user, {
+        workspaceId: ctx.workspace.workspaceId,
         action: "product.update",
         entity: "product",
         entityId: id,
@@ -346,8 +434,12 @@ export const catalogRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      const [brand] = await ctx.db.insert(Brand).values(input).returning();
+      const [brand] = await ctx.db
+        .insert(Brand)
+        .values({ ...input, workspaceId: ctx.workspace.workspaceId })
+        .returning();
       await logAudit(ctx.db, ctx.user, {
+        workspaceId: ctx.workspace.workspaceId,
         action: "brand.create",
         entity: "brand",
         entityId: brand?.id,
@@ -395,10 +487,12 @@ export const catalogRouter = createTRPCRouter({
         .insert(Category)
         .values({
           ...input,
+          workspaceId: ctx.workspace.workspaceId,
           attributesTemplate: input.attributesTemplate ?? null,
         })
         .returning();
       await logAudit(ctx.db, ctx.user, {
+        workspaceId: ctx.workspace.workspaceId,
         action: "category.create",
         entity: "category",
         entityId: category?.id,
@@ -445,9 +539,10 @@ export const catalogRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       const [supplier] = await ctx.db
         .insert(Supplier)
-        .values(input)
+        .values({ ...input, workspaceId: ctx.workspace.workspaceId })
         .returning();
       await logAudit(ctx.db, ctx.user, {
+        workspaceId: ctx.workspace.workspaceId,
         action: "supplier.create",
         entity: "supplier",
         entityId: supplier?.id,
@@ -470,9 +565,26 @@ export const catalogRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      const [existing] = await ctx.db
+        .select({
+          amountUsd: ProductPrice.amountUsd,
+        })
+        .from(ProductPrice)
+        .where(
+          and(
+            eq(ProductPrice.workspaceId, ctx.workspace.workspaceId),
+            eq(ProductPrice.productId, input.productId),
+            eq(ProductPrice.priceType, input.priceType),
+          ),
+        )
+        .limit(1);
+
+      const oldAmountUsd =
+        typeof existing?.amountUsd === "number" ? existing.amountUsd : null;
+
       const [price] = await ctx.db
         .insert(ProductPrice)
-        .values(input)
+        .values({ ...input, workspaceId: ctx.workspace.workspaceId })
         .onConflictDoUpdate({
           target: [ProductPrice.productId, ProductPrice.priceType],
           set: {
@@ -484,14 +596,129 @@ export const catalogRouter = createTRPCRouter({
         })
         .returning();
 
+      await ctx.db.insert(PriceHistory).values({
+        workspaceId: ctx.workspace.workspaceId,
+        productId: input.productId,
+        priceType: input.priceType,
+        oldAmountUsd,
+        newAmountUsd: input.amountUsd,
+        rateUsed: input.rateUsed,
+        trigger: "manual",
+        userId: ctx.user.id,
+      });
+
       await logAudit(ctx.db, ctx.user, {
+        workspaceId: ctx.workspace.workspaceId,
         action: "price.set",
         entity: "product_price",
         entityId: input.productId,
+        oldValue:
+          oldAmountUsd !== null ? { amountUsd: oldAmountUsd } : undefined,
         newValue: { priceType: input.priceType, amountUsd: input.amountUsd },
       });
 
       return price;
+    }),
+
+  // ─── UoM Equivalences & Product Suppliers ────
+
+  setUomEquivalences: wsPermissionProcedure("catalog", "update")
+    .input(
+      z.object({
+        productId: z.string().uuid(),
+        equivalences: z.array(
+          z.object({
+            baseUom: z.enum(["unit", "box", "bulk", "pack"]).default("unit"),
+            altUom: z.enum(["unit", "box", "bulk", "pack"]),
+            conversionFactor: z.number().positive(),
+          }),
+        ),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      await ctx.db
+        .delete(ProductUomEquivalence)
+        .where(
+          and(
+            eq(ProductUomEquivalence.workspaceId, ctx.workspace.workspaceId),
+            eq(ProductUomEquivalence.productId, input.productId),
+          ),
+        );
+
+      if (input.equivalences.length > 0) {
+        await ctx.db.insert(ProductUomEquivalence).values(
+          input.equivalences.map((eqv) => ({
+            workspaceId: ctx.workspace.workspaceId,
+            productId: input.productId,
+            baseUom: eqv.baseUom,
+            altUom: eqv.altUom,
+            conversionFactor: eqv.conversionFactor,
+          })),
+        );
+      }
+
+      await logAudit(ctx.db, ctx.user, {
+        workspaceId: ctx.workspace.workspaceId,
+        action: "product.uom_equivalences_update",
+        entity: "product_uom_equivalence",
+        entityId: input.productId,
+        newValue: { count: input.equivalences.length },
+      });
+
+      return { success: true };
+    }),
+
+  linkProductSupplier: wsPermissionProcedure("catalog", "update")
+    .input(
+      z.object({
+        productId: z.string().uuid(),
+        supplierId: z.string().uuid(),
+        supplierSku: z.string().max(128).optional(),
+        cost: z.number().nonnegative().optional(),
+        leadTimeDays: z.number().int().nonnegative().optional(),
+        isPrimary: z.boolean().default(false),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const [row] = await ctx.db
+        .insert(ProductSupplier)
+        .values({
+          workspaceId: ctx.workspace.workspaceId,
+          productId: input.productId,
+          supplierId: input.supplierId,
+          supplierSku: input.supplierSku,
+          cost: input.cost,
+          leadTimeDays: input.leadTimeDays,
+          isPrimary: input.isPrimary,
+        })
+        .onConflictDoUpdate({
+          target: [
+            ProductSupplier.workspaceId,
+            ProductSupplier.productId,
+            ProductSupplier.supplierId,
+          ],
+          set: {
+            supplierSku: input.supplierSku,
+            cost: input.cost,
+            leadTimeDays: input.leadTimeDays,
+            isPrimary: input.isPrimary,
+          },
+        })
+        .returning();
+
+      await logAudit(ctx.db, ctx.user, {
+        workspaceId: ctx.workspace.workspaceId,
+        action: "product.supplier_link",
+        entity: "product_supplier",
+        entityId: row?.id ?? input.productId,
+        newValue: {
+          productId: input.productId,
+          supplierId: input.supplierId,
+          isPrimary: input.isPrimary,
+        },
+      });
+
+      return row;
     }),
 
   // ─── Product Attributes ──────────────────────
@@ -512,11 +739,17 @@ export const catalogRouter = createTRPCRouter({
       // Delete existing and insert new
       await ctx.db
         .delete(ProductAttribute)
-        .where(eq(ProductAttribute.productId, input.productId));
+        .where(
+          and(
+            eq(ProductAttribute.productId, input.productId),
+            eq(ProductAttribute.workspaceId, ctx.workspace.workspaceId),
+          ),
+        );
 
       if (input.attributes.length > 0) {
         await ctx.db.insert(ProductAttribute).values(
           input.attributes.map((attr) => ({
+            workspaceId: ctx.workspace.workspaceId,
             productId: input.productId,
             key: attr.key,
             value: attr.value,
@@ -525,6 +758,7 @@ export const catalogRouter = createTRPCRouter({
       }
 
       await logAudit(ctx.db, ctx.user, {
+        workspaceId: ctx.workspace.workspaceId,
         action: "product.attributes_update",
         entity: "product_attribute",
         entityId: input.productId,

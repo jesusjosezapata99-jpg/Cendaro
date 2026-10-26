@@ -6,5 +6,15 @@
   "regions": ["cdg1"],
   "outputDirectory": ".next",
   "ignoreCommand": "npx turbo-ignore",
-  "crons": [{ "path": "/api/cron/sync-rates", "schedule": "0 22 * * *" }]
+  "crons": [{ "path": "/api/cron/sync-rates", "schedule": "0 22 * * *" }],
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "X-Frame-Options", "value": "DENY" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" }
+      ]
+    }
+  ]
 }

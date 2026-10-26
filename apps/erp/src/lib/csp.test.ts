@@ -55,6 +55,12 @@ describe("Content-Security-Policy (F9.1, M3)", () => {
     expect(directive(prod, "default-src")).toBe("'self'");
     expect(directive(prod, "object-src")).toBe("'none'");
     expect(directive(prod, "frame-ancestors")).toBe("'none'");
+    expect(directive(prod, "frame-src")).toContain(
+      "https://challenges.cloudflare.com",
+    );
+    expect(directive(prod, "script-src")).toContain(
+      "https://challenges.cloudflare.com",
+    );
     expect(directive(prod, "base-uri")).toBe("'self'");
     expect(directive(prod, "form-action")).toBe("'self'");
     expect(prod).toContain("upgrade-insecure-requests");

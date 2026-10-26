@@ -106,7 +106,9 @@ export default function CashClosureClient() {
               aria-hidden
             />
             <span className="text-foreground font-mono text-xs font-medium tabular-nums">
-              {new Date(row.original.closureDate).toLocaleDateString("es-VE")}
+              {new Date(row.original.closureDate).toLocaleDateString("es-VE", {
+                timeZone: "America/Caracas",
+              })}
             </span>
           </div>
         ),
@@ -353,6 +355,7 @@ export default function CashClosureClient() {
                     <span className="text-foreground font-mono text-sm font-medium tabular-nums">
                       {new Date(closure.closureDate).toLocaleDateString(
                         "es-VE",
+                        { timeZone: "America/Caracas" },
                       )}
                     </span>
                   </div>

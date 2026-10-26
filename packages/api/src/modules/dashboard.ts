@@ -4,7 +4,16 @@
  * Executive KPIs, system alerts.
  * PRD §22: dashboard widgets, PRD §23: system alerts.
  */
-import { and, count, desc, eq, inArray, lt, sql, sum } from "drizzle-orm";
+import {
+  and,
+  count,
+  desc,
+  eq,
+  inArray,
+  notInArray,
+  sql,
+  sum,
+} from "drizzle-orm";
 import { z } from "zod/v4";
 
 import type { UserRole } from "@cendaro/validators";
@@ -31,6 +40,27 @@ import { logAudit } from "./audit";
 // ── Short-lived dashboard cache (30s TTL) ──────────
 const dashboardCache = new Map<string, { data: unknown; expiry: number }>();
 const DASHBOARD_CACHE_TTL = 30_000; // 30 seconds
+const DASHBOARD_CACHE_MAX = 500;
+
+function setDashboardCache(key: string, data: unknown): void {
+  if (dashboardCache.size >= DASHBOARD_CACHE_MAX) {
+    const oldest = dashboardCache.keys().next().value;
+    if (oldest) dashboardCache.delete(oldest);
+  }
+  dashboardCache.set(key, {
+    data,
+    expiry: Date.now() + DASHBOARD_CACHE_TTL,
+  });
+}
+
+export function invalidateDashboardCache(workspaceId: string): void {
+  dashboardCache.delete(workspaceId);
+  for (const key of dashboardCache.keys()) {
+    if (key.startsWith(`overview:${workspaceId}:`)) {
+      dashboardCache.delete(key);
+    }
+  }
+}
 
 type Context = Awaited<ReturnType<typeof createTRPCContext>> & {
   workspace: { workspaceId: string };
@@ -154,67 +184,49 @@ async function computeGrossProfit(ctx: Context, range: PeriodRange) {
 async function computeReceivables(ctx: Context) {
   const now = new Date();
 
-  const [row] = await ctx.db
-    .select({
-      count: count(AccountReceivable.id),
-      total: sum(AccountReceivable.balance),
-    })
-    .from(AccountReceivable)
-    .where(
-      and(
-        eq(AccountReceivable.workspaceId, ctx.workspace.workspaceId),
-        inArray(AccountReceivable.status, ["pending", "partial"]),
-      ),
-    );
-
-  const [overdueRow] = await ctx.db
-    .select({ count: count(AccountReceivable.id) })
-    .from(AccountReceivable)
-    .where(
-      and(
-        eq(AccountReceivable.workspaceId, ctx.workspace.workspaceId),
-        inArray(AccountReceivable.status, ["pending", "partial"]),
-        lt(AccountReceivable.dueDate, now),
-      ),
-    );
+  const {
+    rows: [row],
+  } = await ctx.db.execute<{
+    count: number;
+    total: string;
+    overdue_count: number;
+  }>(sql`
+    SELECT COUNT(*)::int AS count,
+           COALESCE(SUM(balance), 0)::text AS total,
+           COUNT(*) FILTER (WHERE due_date < ${now.toISOString()})::int AS overdue_count
+    FROM account_receivable
+    WHERE workspace_id = ${ctx.workspace.workspaceId}
+      AND status::text IN ('pending', 'partial')
+  `);
 
   return {
-    count: row?.count ?? 0,
+    count: Number(row?.count ?? 0),
     total: Number(row?.total ?? 0),
-    overdueCount: overdueRow?.count ?? 0,
+    overdueCount: Number(row?.overdue_count ?? 0),
   };
 }
 
 async function computeLowStock(ctx: Context) {
-  const { rows: topRows } = await ctx.db.execute<{
+  const { rows } = await ctx.db.execute<{
     name: string;
     qty: string;
+    total: number;
   }>(sql`
-    SELECT p.name, SUM(sl.quantity)::text AS qty
+    SELECT p.name,
+           SUM(sl.quantity)::text AS qty,
+           COUNT(*) OVER ()::int AS total
     FROM stock_ledger sl
     JOIN product p ON p.id = sl.product_id
     WHERE sl.workspace_id = ${ctx.workspace.workspaceId}
     GROUP BY sl.product_id, p.name
     HAVING SUM(sl.quantity) > 0 AND SUM(sl.quantity) <= ${LOW_STOCK_THRESHOLD}
-    ORDER BY qty ASC
+    ORDER BY SUM(sl.quantity) ASC
     LIMIT 5
   `);
 
-  const {
-    rows: [countRow],
-  } = await ctx.db.execute<{ total: string }>(sql`
-    SELECT COUNT(*)::text AS total FROM (
-      SELECT sl.product_id
-      FROM stock_ledger sl
-      WHERE sl.workspace_id = ${ctx.workspace.workspaceId}
-      GROUP BY sl.product_id
-      HAVING SUM(sl.quantity) > 0 AND SUM(sl.quantity) <= ${LOW_STOCK_THRESHOLD}
-    ) low_stock_products
-  `);
-
   return {
-    count: Number(countRow?.total ?? 0),
-    top: topRows.map((r) => ({ name: r.name, qty: Number(r.qty), min: null })),
+    count: Number(rows[0]?.total ?? 0),
+    top: rows.map((r) => ({ name: r.name, qty: Number(r.qty), min: null })),
   };
 }
 
@@ -361,94 +373,54 @@ async function computeOverview(
 export type DashboardOverview = Awaited<ReturnType<typeof computeOverview>>;
 
 async function computeSalesSummary(ctx: Context) {
-  const safeQuery = async <T>(
-    label: string,
-    fn: () => Promise<T[]>,
-    fallback: T,
-  ): Promise<T> => {
-    for (let attempt = 0; attempt < 2; attempt++) {
-      try {
-        const [row] = await fn();
-        return row ?? fallback;
-      } catch (err) {
-        if (attempt === 0) {
-          ctx.log.warn(
-            `Dashboard sub-query failed (retrying in 1s): ${label}`,
-            { module: "dashboard", attempt },
-            err,
-          );
-          await new Promise((r) => setTimeout(r, 1000));
-        } else {
-          ctx.log.error(
-            `Dashboard sub-query failed after retry: ${label}`,
-            { module: "dashboard", attempt },
-            err,
-          );
-          return fallback;
-        }
-      }
-    }
-    return fallback;
-  };
-
-  const [orderStats, paymentStats, arStats] = await Promise.all([
-    safeQuery(
-      "orders",
-      () =>
-        ctx.db
-          .select({
-            totalOrders: count(SalesOrder.id),
-            totalRevenue: sum(SalesOrder.total),
-            totalPaid: sum(SalesOrder.totalPaid),
-          })
-          .from(SalesOrder)
-          .where(eq(SalesOrder.workspaceId, ctx.workspace.workspaceId)),
-      { totalOrders: 0, totalRevenue: null, totalPaid: null },
-    ),
-    safeQuery(
-      "payments",
-      () =>
-        ctx.db
-          .select({
-            totalPayments: count(Payment.id),
-            totalCollected: sum(Payment.amount),
-          })
-          .from(Payment)
-          .where(eq(Payment.workspaceId, ctx.workspace.workspaceId)),
-      { totalPayments: 0, totalCollected: null },
-    ),
-    safeQuery(
-      "accounts_receivable",
-      () =>
-        ctx.db
-          .select({
-            totalAR: count(AccountReceivable.id),
-            totalDebt: sum(AccountReceivable.balance),
-          })
-          .from(AccountReceivable)
-          .where(
-            and(
-              eq(AccountReceivable.workspaceId, ctx.workspace.workspaceId),
-              eq(AccountReceivable.status, "pending"),
-            ),
-          ),
-      { totalAR: 0, totalDebt: null },
-    ),
+  const [[orderStats], [paymentStats], [arStats]] = await Promise.all([
+    ctx.db
+      .select({
+        totalOrders: count(SalesOrder.id),
+        totalRevenue: sum(SalesOrder.total),
+        totalPaid: sum(SalesOrder.totalPaid),
+      })
+      .from(SalesOrder)
+      .where(
+        and(
+          eq(SalesOrder.workspaceId, ctx.workspace.workspaceId),
+          notInArray(SalesOrder.status, [...EXCLUDED_ORDER_STATUSES]),
+        ),
+      ),
+    ctx.db
+      .select({
+        totalPayments: count(Payment.id),
+        totalCollected: sum(Payment.amount),
+      })
+      .from(Payment)
+      .where(eq(Payment.workspaceId, ctx.workspace.workspaceId)),
+    ctx.db
+      .select({
+        totalAR: count(AccountReceivable.id),
+        totalDebt: sum(AccountReceivable.balance),
+      })
+      .from(AccountReceivable)
+      .where(
+        and(
+          eq(AccountReceivable.workspaceId, ctx.workspace.workspaceId),
+          inArray(AccountReceivable.status, ["pending", "partial"]),
+        ),
+      ),
   ]);
 
   return {
     orders: {
-      total: orderStats.totalOrders,
-      revenue: Number(orderStats.totalRevenue ?? 0),
-      paid: Number(orderStats.totalPaid ?? 0),
+      total: orderStats?.totalOrders ?? 0,
+      revenue: Number(orderStats?.totalRevenue ?? 0),
+      paid: Number(orderStats?.totalPaid ?? 0),
     },
     payments: {
-      total: paymentStats.totalPayments,
-      collected: Number(paymentStats.totalCollected ?? 0),
+      total: paymentStats?.totalPayments ?? 0,
+      collected: Number(paymentStats?.totalCollected ?? 0),
     },
     accountsReceivable: {
-      total: arStats.totalAR,
-      debt: Number(arStats.totalDebt ?? 0),
+      total: arStats?.totalAR ?? 0,
+      debt: Number(arStats?.totalDebt ?? 0),
     },
   };
 }
@@ -467,10 +439,7 @@ export const dashboardRouter = createTRPCRouter({
       }
 
       const result = await computeOverview(ctx, input.period, role);
-      dashboardCache.set(cacheKey, {
-        data: result,
-        expiry: Date.now() + DASHBOARD_CACHE_TTL,
-      });
+      setDashboardCache(cacheKey, result);
       return result;
     }),
 
@@ -485,10 +454,7 @@ export const dashboardRouter = createTRPCRouter({
       }
 
       const result = await computeSalesSummary(ctx);
-      dashboardCache.set(cacheKey, {
-        data: result,
-        expiry: Date.now() + DASHBOARD_CACHE_TTL,
-      });
+      setDashboardCache(cacheKey, result);
       return result;
     },
   ),
@@ -593,10 +559,13 @@ export const dashboardRouter = createTRPCRouter({
         .returning();
 
       await logAudit(ctx.db, ctx.user, {
+        workspaceId: ctx.workspace.workspaceId,
         action: "alert.dismiss",
         entity: "system_alert",
         entityId: input.id,
       });
+
+      invalidateDashboardCache(ctx.workspace.workspaceId);
 
       return updated;
     }),
@@ -620,10 +589,13 @@ export const dashboardRouter = createTRPCRouter({
         );
 
       await logAudit(ctx.db, ctx.user, {
+        workspaceId: ctx.workspace.workspaceId,
         action: "alert.dismiss_all",
         entity: "system_alert",
         newValue: { alertType: input.alertType },
       });
+
+      invalidateDashboardCache(ctx.workspace.workspaceId);
 
       return result;
     }),

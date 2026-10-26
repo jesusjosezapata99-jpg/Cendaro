@@ -32,6 +32,7 @@ const EXPECTED_AUTHZ: Record<string, string> = {
   "users.anonymizeMyData": "self",
   "audit.list": "audit.read",
   "audit.byId": "audit.read",
+  "audit.verifyChainIntegrity": "audit.read",
   "approvals.listPending": "dashboard.read",
   "approvals.list": "dashboard.read",
   "approvals.byId": "dashboard.read",
@@ -50,6 +51,8 @@ const EXPECTED_AUTHZ: Record<string, string> = {
   "catalog.createSupplier": "catalog.create",
   "catalog.setPrice": "pricing.update",
   "catalog.setAttributes": "catalog.update",
+  "catalog.setUomEquivalences": "catalog.update",
+  "catalog.linkProductSupplier": "catalog.update",
   "catalogImport.create": "catalog.create",
   "catalogImport.validate": "catalog.create",
   "catalogImport.resolveCategories": "catalog.create",
@@ -79,6 +82,8 @@ const EXPECTED_AUTHZ: Record<string, string> = {
   "inventoryImport.initializeCommit": "inventory.update",
   "container.list": "containers.read",
   "container.byId": "containers.read",
+  "container.addDocument": "containers.update",
+  "container.receiveItems": "containers.update",
   "container.create": "containers.create",
   "container.updateStatus": "containers.update",
   "container.addItems": "containers.update",
@@ -88,7 +93,21 @@ const EXPECTED_AUTHZ: Record<string, string> = {
   "container.confirmWithMatching": "containers.update",
   "container.saveCorrection": "containers.update",
   "container.getPackingListItems": "containers.read",
+  "container.search": "containers.read",
+  "creditNotes.list": "orders.read",
+  "creditNotes.byId": "orders.read",
+  "creditNotes.create": "orders.create",
+  "creditNotes.approve": "orders.approve",
+  "fiscal.listDocuments": "orders.read",
+  "fiscal.emitDocument": "orders.create",
+  "fiscal.recordRetention": "payments.create",
+  "fiscal.salesBookReport": "orders.read",
+  "fiscal.listLegalEntities": "settings.read",
+  "fiscal.saveLegalEntity": "settings.update",
+  "fiscal.listBranches": "settings.read",
+  "fiscal.saveBranch": "settings.update",
   "pricing.latestRates": "member",
+  "pricing.setManualRate": "rates.update",
   "pricing.rateHistory": "rates.read",
   "pricing.syncRates": "rates.update",
   "pricing.heldRates": "rates.read",
@@ -103,6 +122,7 @@ const EXPECTED_AUTHZ: Record<string, string> = {
   "quotes.convertToOrder": "orders.create",
   "sales.listCustomers": "customers.read",
   "sales.customerById": "customers.read",
+  "sales.addCustomerAddress": "customers.update",
   "sales.createCustomer": "customers.create",
   "sales.updateCustomer": "customers.update",
   "sales.customerStats": "customers.read",
@@ -115,17 +135,24 @@ const EXPECTED_AUTHZ: Record<string, string> = {
   "sales.addPayment": "payments.create",
   "sales.validatePayment": "payments.approve",
   "sales.listClosures": "cash_closure.read",
+  "sales.dailyClosurePreview": "cash_closure.read",
   "sales.createClosure": "cash_closure.create",
   "sales.reviewClosure": "cash_closure.approve",
+  "sales.listDeliveryNotes": "orders.read",
+  "sales.createDeliveryNote": "orders.create",
+  "sales.listInternalInvoices": "orders.read",
+  "sales.createInternalInvoice": "orders.create",
   "payments.list": "payments.read",
   "payments.add": "payments.create",
   "payments.validate": "payments.approve",
   "payments.listClosures": "cash_closure.read",
+  "payments.dailyClosurePreview": "cash_closure.read",
   "payments.createClosure": "cash_closure.create",
   "payments.reviewClosure": "cash_closure.approve",
   "receivables.list": "receivables.read",
   "receivables.byId": "receivables.read",
   "receivables.createInstallments": "receivables.create",
+  "receivables.recordPayment": "receivables.update",
   "receivables.markPaid": "receivables.approve",
   "receivables.summary": "receivables.read",
   "reporting.salesSummary": "dashboard.export",
@@ -151,6 +178,12 @@ const EXPECTED_AUTHZ: Record<string, string> = {
   "integrations.listLogs": "marketplace.read",
   "integrations.unresolvedAlerts": "marketplace.read",
   "integrations.resolveLog": "marketplace.update",
+  "integrations.listMlAccounts": "marketplace.read",
+  "integrations.connectMlAccount": "marketplace.create",
+  "integrations.listOrderEvents": "marketplace.read",
+  "integrations.ingestOrderWebhook": "marketplace.create",
+  "integrations.listIntegrationFailures": "marketplace.read",
+  "integrations.retryIntegrationFailure": "marketplace.update",
   "dashboard.overview": "dashboard.read",
   "dashboard.salesSummary": "dashboard.export",
   "dashboard.latestClosures": "cash_closure.read",
@@ -167,6 +200,8 @@ const EXPECTED_AUTHZ: Record<string, string> = {
   "workspace.acceptInvite": "self",
   "workspace.declineInvite": "self",
   "workspace.update": "settings.update",
+  "workspace.savePricingPolicy": "settings.update",
+  "workspace.toggleModule": "settings.update",
   "workspace.members": "users.read",
   "workspace.inviteMember": "users.create",
   "workspace.removeMember": "users.delete",
@@ -176,6 +211,7 @@ interface AuthzMeta {
   kind: string;
   module?: string;
   action?: string;
+  readOnly?: boolean;
 }
 
 function declaredAuthz(): Record<string, string> {
@@ -212,6 +248,27 @@ describe("appRouter authorization coverage", () => {
       .filter(([, authz]) => authz === "public")
       .map(([path]) => path);
     expect(publicPaths).toEqual(["health.ping"]);
+  });
+
+  it("every workspace .query() procedure uses a read-only procedure builder", () => {
+    const writeBuilderQueries: string[] = [];
+    for (const [path, procedure] of Object.entries(appRouter._def.procedures)) {
+      const def = (
+        procedure as unknown as {
+          _def: { type?: string; meta?: { authz?: AuthzMeta } };
+        }
+      )._def;
+      const authz = def.meta?.authz;
+      if (
+        def.type === "query" &&
+        authz &&
+        (authz.kind === "permission" || authz.kind === "member") &&
+        authz.readOnly !== true
+      ) {
+        writeBuilderQueries.push(path);
+      }
+    }
+    expect(writeBuilderQueries).toEqual([]);
   });
 });
 

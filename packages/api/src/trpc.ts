@@ -108,6 +108,7 @@ export interface AuthenticatedUser {
 
 /** AuthenticatedUser enriched with DB-verified workspace facts. */
 export interface WorkspaceActor extends AuthenticatedUser {
+  workspaceId?: string;
   workspaceRole: UserRole;
   displayName: string | null;
 }
@@ -198,8 +199,13 @@ export const createTRPCContext = (opts: {
  *   public     — no authentication (health checks)
  */
 export type ProcedureAuthz =
-  | { kind: "permission"; module: ErpModule; action: PermissionAction }
-  | { kind: "member" }
+  | {
+      kind: "permission";
+      module: ErpModule;
+      action: PermissionAction;
+      readOnly?: boolean;
+    }
+  | { kind: "member"; readOnly?: boolean }
   | { kind: "self" }
   | { kind: "public" };
 
@@ -487,6 +493,7 @@ function toWorkspaceActor(
 ): WorkspaceActor {
   return {
     ...user,
+    workspaceId: resolved.workspaceId,
     workspaceRole: resolved.memberRole,
     displayName: resolved.displayName,
   };
@@ -810,7 +817,7 @@ export function wsReadPermissionProcedure(
   action: PermissionAction,
 ) {
   return workspaceReadProcedure
-    .meta({ authz: { kind: "permission", module, action } })
+    .meta({ authz: { kind: "permission", module, action, readOnly: true } })
     .use(async ({ ctx, next }) => {
       assertPermission(ctx.workspace.role, module, action);
       await assertModuleEnabled(ctx, module);
@@ -823,7 +830,7 @@ export function wsReadPermissionProcedure(
  * or plan (e.g. exchange rates shown on every page, the current workspace).
  */
 export const memberReadProcedure = workspaceReadProcedure.meta({
-  authz: { kind: "member" },
+  authz: { kind: "member", readOnly: true },
 });
 
 /** Authenticated caller acting only on their own data (no workspace). */

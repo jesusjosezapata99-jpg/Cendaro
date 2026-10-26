@@ -6,18 +6,43 @@
  * for all 26 authenticated routes according to NAV_ROLE_RULES and parent/child permission gates.
  */
 
-import { NAV_ITEMS } from "../../apps/erp/src/lib/navigation.ts";
-import { NAV_ROLE_RULES, USER_ROLES } from "../../packages/validators/src/index.ts";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+
+const validatorsSrc = readFileSync(
+  path.resolve(import.meta.dirname, "../../packages/validators/src/index.ts"),
+  "utf8",
+);
+
+const rolesMatch = validatorsSrc.match(
+  /export const USER_ROLES = \[([\s\S]*?)\] as const;/,
+);
+const USER_ROLES = rolesMatch
+  ? [...rolesMatch[1].matchAll(/"([^"]+)"/g)].map((m) => m[1])
+  : ["owner", "admin", "supervisor", "employee", "vendor", "marketing"];
+
+const navRulesMatch = validatorsSrc.match(
+  /export const NAV_ROLE_RULES = \{([\s\S]*?)\} as const/,
+);
+const NAV_ROLE_RULES = {};
+if (navRulesMatch) {
+  for (const line of navRulesMatch[1].split("\n")) {
+    const m = line.match(/^\s*(\w+):\s*\[([^\]]+)\]/);
+    if (m) {
+      NAV_ROLE_RULES[m[1]] = [...m[2].matchAll(/"([^"]+)"/g)].map((x) => x[1]);
+    }
+  }
+}
 
 const ROUTES = [
   { path: "/dashboard", rule: null, name: "Resumen / Dashboard" },
   { path: "/pos", rule: "pos", name: "Punto de Venta" },
-  { path: "/orders", rule: null, name: "Pedidos" },
-  { path: "/quotes", rule: null, name: "Cotizaciones" },
+  { path: "/orders", rule: "orders", name: "Pedidos" },
+  { path: "/quotes", rule: "orders", name: "Cotizaciones" },
   { path: "/delivery-notes", rule: "deliveryNotes", name: "Notas de Entrega" },
   { path: "/invoices", rule: "invoices", name: "Facturas" },
   { path: "/vendors", rule: "vendors", name: "Vendedores" },
-  { path: "/customers", rule: null, name: "Clientes" },
+  { path: "/customers", rule: "customers", name: "Clientes" },
   { path: "/catalog", rule: null, name: "Catálogo Productos" },
   { path: "/catalog/categories", rule: null, name: "Categorías" },
   { path: "/catalog/brands", rule: null, name: "Marcas" },
@@ -36,6 +61,7 @@ const ROUTES = [
   { path: "/users", rule: "users", name: "Gestión de Usuarios" },
   { path: "/audit", rule: "audit", name: "Auditoría de Sistema" },
   { path: "/alerts", rule: "alerts", name: "Alertas" },
+  { path: "/reports", rule: "accountsReceivable", name: "Reportes y Conciliación" },
 ];
 
 console.log("==================================================");

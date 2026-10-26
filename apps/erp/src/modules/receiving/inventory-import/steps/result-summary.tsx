@@ -6,7 +6,7 @@
  * Final result display with success/partial/failed states.
  * PRD: FEATURE_PRD_INVENTORY_IMPORT.md §15, §20 (ImportCompleted/ImportPartial)
  */
-import type { ImportResult } from "@cendaro/api";
+import type { ImportMode, ImportResult } from "@cendaro/api";
 import type { IconName } from "@cendaro/ui/icons";
 import { Icon, Icons } from "@cendaro/ui/icons";
 
@@ -17,14 +17,22 @@ interface ResultSummaryProps {
   warehouseId: string;
   warehouseName: string;
   filename: string;
+  mode?: ImportMode | null;
   onNewImport: () => void;
 }
+
+const MODE_LABELS: Record<ImportMode, string> = {
+  replace: "Reemplazar Stock",
+  adjust: "Ajustar Stock",
+  initialize: "Inicialización Completa",
+};
 
 export function ResultSummary({
   result,
   warehouseId,
   warehouseName,
   filename,
+  mode,
   onNewImport,
 }: ResultSummaryProps) {
   const isFullSuccess = result.failed === 0 && result.skipped === 0;
@@ -52,9 +60,9 @@ export function ResultSummary({
       <div
         className={`flex items-start gap-3 border p-6 ${
           isFullSuccess
-            ? "border-success/30 bg-success/10"
+            ? "border-status-success-fg/30 bg-status-success-bg"
             : isPartial
-              ? "border-warning/30 bg-warning/10"
+              ? "border-status-warning-fg/30 bg-status-warning-bg"
               : "border-destructive/30 bg-destructive/10"
         }`}
       >
@@ -62,9 +70,9 @@ export function ResultSummary({
           name={isFullSuccess ? "CheckCircle" : isPartial ? "Warning" : "Error"}
           className={`size-7.5 ${
             isFullSuccess
-              ? "text-success"
+              ? "text-status-success-fg"
               : isPartial
-                ? "text-warning"
+                ? "text-status-warning-fg"
                 : "text-destructive"
           }`}
         />
@@ -72,9 +80,9 @@ export function ResultSummary({
           <h2
             className={`text-xl font-medium ${
               isFullSuccess
-                ? "text-success"
+                ? "text-status-success-fg"
                 : isPartial
-                  ? "text-warning"
+                  ? "text-status-warning-fg"
                   : "text-destructive"
             }`}
           >
@@ -87,9 +95,9 @@ export function ResultSummary({
           <p
             className={`mt-1 text-sm ${
               isFullSuccess
-                ? "text-success/90"
+                ? "text-status-success-fg/90"
                 : isPartial
-                  ? "text-warning/90"
+                  ? "text-status-warning-fg/90"
                   : "text-destructive/90"
             }`}
           >
@@ -160,6 +168,14 @@ export function ResultSummary({
           <span className="text-muted-foreground">Almacén</span>
           <span className="text-foreground font-medium">{warehouseName}</span>
         </div>
+        {mode && (
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Modo</span>
+            <span className="text-foreground font-medium">
+              {MODE_LABELS[mode]}
+            </span>
+          </div>
+        )}
         {result.auditLogId && (
           <div className="flex justify-between">
             <span className="text-muted-foreground">ID Auditoría</span>

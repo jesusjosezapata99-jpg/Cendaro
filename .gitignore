@@ -18,7 +18,9 @@ docs/compliance/
 # ── 3. Configuraciones Locales de Agentes (Claude & Codex) ───────────────────
 .claude/settings.local.json
 .claude/mcp.json
-.claude/skills/
+.claude/skills/*
+!.claude/skills/supabase-write/
+!.claude/skills/troubleshooting/
 .claude/agent-memory-local/
 .codex/config.toml
 .codex/history/
@@ -39,6 +41,7 @@ dist/
 .next/
 .turbo/
 .cache/
+scripts/landing-media/.cache/
 out/
 design-system/
 *.tsbuildinfo

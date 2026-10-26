@@ -105,7 +105,7 @@ export function PosReceiptDialog({
         >
           {/* Slip Header */}
           <div className="space-y-1 text-center">
-            <h3 className="text-foreground text-sm font-black tracking-wider uppercase">
+            <h3 className="text-foreground text-sm font-medium tracking-wider uppercase">
               Cendaro ERP — Mostrador
             </h3>
             <p className="text-muted-foreground font-mono text-xs">
@@ -214,7 +214,7 @@ export function PosReceiptDialog({
                 TOTAL A PAGAR:
               </span>
               <div className="text-right">
-                <span className="text-foreground font-mono text-base font-black tabular-nums">
+                <span className="text-foreground font-mono text-base font-medium tabular-nums">
                   {dualTotal.usd}
                 </span>
                 <div className="text-primary font-mono text-xs font-medium tabular-nums">

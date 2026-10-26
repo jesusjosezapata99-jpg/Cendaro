@@ -24,6 +24,12 @@ export const env = createEnv({
     ),
     MERCADOLIBRE_APP_ID: z.string().optional(),
     MERCADOLIBRE_SECRET: z.string().optional(),
+    // Cloudflare Turnstile CAPTCHA server secret (F9.1). Optional in local/CI;
+    // when set, /api/auth/login enforces siteverify before calling Supabase Auth.
+    TURNSTILE_SECRET_KEY: z.preprocess(
+      (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+      z.string().min(1).optional(),
+    ),
     VERCEL_URL: z
       .string()
       .regex(/^[a-z0-9.-]+$/)
@@ -65,6 +71,11 @@ export const env = createEnv({
       (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
       z.string().email().optional(),
     ),
+    // Cloudflare Turnstile CAPTCHA site key (F9.1). Empty/missing → widget hidden.
+    NEXT_PUBLIC_TURNSTILE_SITE_KEY: z.preprocess(
+      (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+      z.string().min(1).optional(),
+    ),
   },
   experimental__runtimeEnv: {
     NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -73,6 +84,7 @@ export const env = createEnv({
     NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL,
     NEXT_PUBLIC_CONTACT_WHATSAPP: process.env.NEXT_PUBLIC_CONTACT_WHATSAPP,
     NEXT_PUBLIC_CONTACT_EMAIL: process.env.NEXT_PUBLIC_CONTACT_EMAIL,
+    NEXT_PUBLIC_TURNSTILE_SITE_KEY: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY,
   },
   skipValidation:
     !!process.env.CI || process.env.npm_lifecycle_event === "lint",

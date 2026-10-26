@@ -101,6 +101,7 @@ export default function ContainerDetailPage() {
   const [dragActive, setDragActive] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [zoomImage, setZoomImage] = useState<string | null>(null);
+  const [selectedWarehouseId, setSelectedWarehouseId] = useState<string>("");
 
   // ── Data Fetching ────────────────────────────────────
   const {
@@ -108,6 +109,26 @@ export default function ContainerDetailPage() {
     isLoading,
     refetch,
   } = useQuery(trpc.container.byId.queryOptions({ id }));
+
+  const { data: warehouses } = useQuery(
+    trpc.inventory.listWarehouses.queryOptions(),
+  );
+
+  const receiveItemsMutation = useMutation(
+    trpc.container.receiveItems.mutationOptions({
+      onSuccess: (res) => {
+        toast.success(
+          `Recepción completada: ${res.totalUnitsReceived} unidades ingresadas a inventario`,
+        );
+        void refetch();
+        void qc.invalidateQueries({ queryKey: [["container"]] });
+        void qc.invalidateQueries({ queryKey: [["inventory"]] });
+      },
+      onError: (err) => {
+        toast.error(`Error al recibir mercancía: ${err.message}`);
+      },
+    }),
+  );
 
   const confirmMutation = useMutation(
     trpc.container.confirmWithMatching.mutationOptions({
@@ -994,7 +1015,7 @@ export default function ContainerDetailPage() {
               onClick={() => setZoomImage(null)}
             >
               <div
-                className="bg-card border-border relative max-h-[85vh] max-w-[90vw] overflow-hidden border shadow-md"
+                className="bg-card border-border relative max-h-[85vh] max-w-[90vw] overflow-hidden border"
                 onClick={(e) => e.stopPropagation()}
               >
                 <button
@@ -1018,6 +1039,131 @@ export default function ContainerDetailPage() {
           )}
         </div>
       </section>
+
+      {/* Saved Container Items & Reception Section */}
+      {container.items.length > 0 && (
+        <section className="border-border bg-card overflow-hidden border">
+          <div className="border-border bg-muted/30 flex flex-col gap-3 border-b p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-foreground text-sm font-medium tracking-widest uppercase">
+                Ítems Registrados en el Contenedor ({container.items.length})
+              </h2>
+              <p className="text-muted-foreground text-xs">
+                Mercancía vinculada a la importación lista para recepción en
+                almacén y actualización de costo promedio
+              </p>
+            </div>
+            {container.status !== "closed" && (
+              <Can module="containers" action="update">
+                <div className="flex flex-wrap items-center gap-2">
+                  <select
+                    value={selectedWarehouseId || (warehouses?.[0]?.id ?? "")}
+                    onChange={(e) => setSelectedWarehouseId(e.target.value)}
+                    aria-label="Seleccionar almacén de recepción"
+                    className="border-border bg-background text-foreground h-9 border px-3 text-xs font-medium outline-none"
+                  >
+                    {(warehouses ?? []).map((w) => (
+                      <option key={w.id} value={w.id}>
+                        {w.name}
+                      </option>
+                    ))}
+                  </select>
+                  <Button
+                    size="sm"
+                    disabled={
+                      receiveItemsMutation.isPending ||
+                      !(selectedWarehouseId || warehouses?.[0]?.id)
+                    }
+                    onClick={() => {
+                      const targetWarehouseId =
+                        selectedWarehouseId || warehouses?.[0]?.id;
+                      if (!targetWarehouseId) {
+                        toast.error(
+                          "Seleccione un almacén de destino para recibir la mercancía",
+                        );
+                        return;
+                      }
+                      const receivableItems = container.items
+                        .filter(
+                          (item): item is typeof item & { productId: string } =>
+                            Boolean(item.productId),
+                        )
+                        .map((item) => ({
+                          containerItemId: item.id,
+                          productId: item.productId,
+                          quantityReceived:
+                            item.quantityReceived && item.quantityReceived > 0
+                              ? item.quantityReceived
+                              : item.quantityExpected,
+                          unitCost: item.unitCost
+                            ? Number(item.unitCost)
+                            : undefined,
+                        }));
+
+                      if (receivableItems.length === 0) {
+                        toast.error(
+                          "No hay ítems vinculados a productos del catálogo para ingresar a inventario",
+                        );
+                        return;
+                      }
+
+                      receiveItemsMutation.mutate({
+                        containerId: id,
+                        warehouseId: targetWarehouseId,
+                        items: receivableItems,
+                      });
+                    }}
+                    className="gap-1.5 text-xs"
+                  >
+                    <Icons.MoveToInbox className="size-3.5" />
+                    {receiveItemsMutation.isPending
+                      ? "Recibiendo..."
+                      : "Recibir en Almacén"}
+                  </Button>
+                </div>
+              </Can>
+            )}
+          </div>
+          <div className="max-h-96 overflow-y-auto">
+            <Table>
+              <TableHeader className="bg-muted/80 sticky top-0 z-10">
+                <TableRow className="border-border">
+                  <TableHead>Producto (Original)</TableHead>
+                  <TableHead>Traducción Comercial</TableHead>
+                  <TableHead className="text-right">Cant. Esperada</TableHead>
+                  <TableHead className="text-right">Cant. Recibida</TableHead>
+                  <TableHead className="text-right">
+                    Costo Unit. (USD)
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {container.items.map((item) => (
+                  <TableRow key={item.id} className="border-border">
+                    <TableCell className="text-muted-foreground max-w-52 truncate text-xs">
+                      {item.originalName ?? "—"}
+                    </TableCell>
+                    <TableCell className="text-foreground max-w-52 truncate text-xs font-medium">
+                      {item.translatedName ?? item.originalName ?? "—"}
+                    </TableCell>
+                    <TableCell className="text-foreground text-right font-mono text-xs tabular-nums">
+                      {item.quantityExpected}
+                    </TableCell>
+                    <TableCell className="text-foreground text-right font-mono text-xs font-medium tabular-nums">
+                      {item.quantityReceived ?? 0}
+                    </TableCell>
+                    <TableCell className="text-foreground text-right font-mono text-xs tabular-nums">
+                      {item.unitCost
+                        ? `$${Number(item.unitCost).toFixed(2)}`
+                        : "—"}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </section>
+      )}
 
       {/* Container Details Section */}
       <section className="border-border bg-card border p-6">

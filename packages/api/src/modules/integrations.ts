@@ -5,17 +5,22 @@
  * PRD §20: ML import/stock sync/shipping/alerts.
  * PRD §21: WhatsApp hybrid sales channel.
  */
-import { and, desc, eq } from "drizzle-orm";
+import { TRPCError } from "@trpc/server";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import {
+  IntegrationFailure,
   IntegrationLog,
   integrationLogLevelEnum,
+  MercadolibreAccount,
+  MercadolibreOrderEvent,
   MlListing,
   mlListingStatusEnum,
   MlOrder,
 } from "@cendaro/db/schema";
 
+import { encryptSecret } from "../services/crypto-vault";
 import {
   createTRPCRouter,
   wsPermissionProcedure,
@@ -229,6 +234,234 @@ export const integrationsRouter = createTRPCRouter({
         action: "integration.resolve",
         entity: "integration_log",
         entityId: input.id,
+      });
+
+      return updated;
+    }),
+
+  // ─── ML Accounts, Webhook Events & DLQ Failures (PRD v2.0, F11.3) ───
+
+  listMlAccounts: wsReadPermissionProcedure("marketplace", "read").query(
+    async ({ ctx }) => {
+      return ctx.db
+        .select()
+        .from(MercadolibreAccount)
+        .where(eq(MercadolibreAccount.workspaceId, ctx.workspace.workspaceId))
+        .orderBy(desc(MercadolibreAccount.createdAt));
+    },
+  ),
+
+  connectMlAccount: wsPermissionProcedure("marketplace", "create")
+    .input(
+      z.object({
+        nickname: z.string().min(2).max(128),
+        mlUserId: z.string().min(2).max(64),
+        accessToken: z.string().min(8).max(2048).optional(),
+        refreshToken: z.string().min(8).max(2048).optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const wsId = ctx.workspace.workspaceId;
+      const encryptedAccess = input.accessToken
+        ? encryptSecret(input.accessToken)
+        : null;
+      const encryptedRefresh = input.refreshToken
+        ? encryptSecret(input.refreshToken)
+        : null;
+
+      const [account] = await ctx.db
+        .insert(MercadolibreAccount)
+        .values({
+          workspaceId: wsId,
+          nickname: input.nickname.trim(),
+          mlUserId: input.mlUserId.trim(),
+          isActive: true,
+        })
+        .onConflictDoUpdate({
+          target: [
+            MercadolibreAccount.workspaceId,
+            MercadolibreAccount.mlUserId,
+          ],
+          set: {
+            nickname: input.nickname.trim(),
+            isActive: true,
+          },
+        })
+        .returning();
+
+      await logAudit(ctx.db, ctx.user, {
+        workspaceId: wsId,
+        action: "ml.account_connect",
+        entity: "mercadolibre_account",
+        entityId: account?.id,
+        newValue: {
+          nickname: input.nickname,
+          mlUserId: input.mlUserId,
+          hasEncryptedAccessToken: Boolean(encryptedAccess),
+          hasEncryptedRefreshToken: Boolean(encryptedRefresh),
+          vaultPrefix: encryptedAccess?.slice(0, 12),
+        },
+      });
+
+      return account;
+    }),
+
+  listOrderEvents: wsReadPermissionProcedure("marketplace", "read")
+    .input(
+      z
+        .object({
+          mlOrderId: z.string().uuid().optional(),
+          limit: z.number().int().min(1).max(100).default(50),
+        })
+        .optional(),
+    )
+    .query(async ({ ctx, input }) => {
+      const conditions = [
+        eq(MercadolibreOrderEvent.workspaceId, ctx.workspace.workspaceId),
+      ];
+      if (input?.mlOrderId) {
+        conditions.push(eq(MercadolibreOrderEvent.mlOrderId, input.mlOrderId));
+      }
+      return ctx.db
+        .select()
+        .from(MercadolibreOrderEvent)
+        .where(and(...conditions))
+        .orderBy(desc(MercadolibreOrderEvent.createdAt))
+        .limit(input?.limit ?? 50);
+    }),
+
+  ingestOrderWebhook: wsPermissionProcedure("marketplace", "create")
+    .input(
+      z.object({
+        mlOrderId: z.string().uuid().optional(),
+        eventType: z.string().min(2).max(64),
+        payload: z.record(z.string(), z.unknown()),
+        simulateFailureMessage: z.string().max(512).optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const wsId = ctx.workspace.workspaceId;
+
+      const [event] = await ctx.db
+        .insert(MercadolibreOrderEvent)
+        .values({
+          workspaceId: wsId,
+          mlOrderId: input.mlOrderId,
+          eventType: input.eventType,
+          payload: input.payload,
+          processedAt: input.simulateFailureMessage ? null : new Date(),
+        })
+        .returning();
+
+      if (input.simulateFailureMessage) {
+        const [failure] = await ctx.db
+          .insert(IntegrationFailure)
+          .values({
+            workspaceId: wsId,
+            source: "mercadolibre",
+            errorCode: "ML_WEBHOOK_PROCESSING_ERROR",
+            errorMessage: input.simulateFailureMessage,
+            payload: {
+              eventId: event?.id,
+              eventType: input.eventType,
+              ...input.payload,
+            },
+            retryCount: 0,
+            maxRetries: 3,
+            isResolved: false,
+          })
+          .returning();
+
+        return { event, failure, status: "queued_dlq" as const };
+      }
+
+      return { event, failure: null, status: "processed" as const };
+    }),
+
+  listIntegrationFailures: wsReadPermissionProcedure("marketplace", "read")
+    .input(
+      z
+        .object({
+          resolved: z.boolean().optional(),
+          limit: z.number().int().min(1).max(100).default(50),
+        })
+        .optional(),
+    )
+    .query(async ({ ctx, input }) => {
+      const conditions = [
+        eq(IntegrationFailure.workspaceId, ctx.workspace.workspaceId),
+      ];
+      if (input?.resolved !== undefined) {
+        conditions.push(eq(IntegrationFailure.isResolved, input.resolved));
+      }
+      return ctx.db
+        .select()
+        .from(IntegrationFailure)
+        .where(and(...conditions))
+        .orderBy(desc(IntegrationFailure.createdAt))
+        .limit(input?.limit ?? 50);
+    }),
+
+  retryIntegrationFailure: wsPermissionProcedure("marketplace", "update")
+    .input(
+      z.object({
+        id: z.string().uuid(),
+        markResolved: z.boolean().default(true),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const wsId = ctx.workspace.workspaceId;
+      const [existing] = await ctx.db
+        .select()
+        .from(IntegrationFailure)
+        .where(
+          and(
+            eq(IntegrationFailure.id, input.id),
+            eq(IntegrationFailure.workspaceId, wsId),
+          ),
+        )
+        .limit(1);
+
+      if (!existing) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Fallo de integración no encontrado en DLQ",
+        });
+      }
+
+      if (existing.retryCount >= existing.maxRetries && !input.markResolved) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message:
+            "El evento alcanzó el máximo de reintentos automáticos en DLQ",
+        });
+      }
+
+      const [updated] = await ctx.db
+        .update(IntegrationFailure)
+        .set({
+          retryCount: sql`${IntegrationFailure.retryCount} + 1`,
+          isResolved: input.markResolved,
+          resolvedBy: input.markResolved ? ctx.user.id : null,
+          resolvedAt: input.markResolved ? new Date() : null,
+        })
+        .where(
+          and(
+            eq(IntegrationFailure.id, input.id),
+            eq(IntegrationFailure.workspaceId, wsId),
+          ),
+        )
+        .returning();
+
+      await logAudit(ctx.db, ctx.user, {
+        workspaceId: wsId,
+        action: "integration.dlq_retry",
+        entity: "integration_failure",
+        entityId: input.id,
+        newValue: {
+          markResolved: input.markResolved,
+          nextRetryCount: existing.retryCount + 1,
+        },
       });
 
       return updated;

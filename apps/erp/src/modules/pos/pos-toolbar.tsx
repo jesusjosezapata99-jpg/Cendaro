@@ -16,6 +16,7 @@ interface PosToolbarProps {
   cartLength: number;
   totalCartUnits: number;
   onClearCart: () => void;
+  isRegisterClosedToday?: boolean;
 }
 
 export function PosToolbar({
@@ -26,6 +27,7 @@ export function PosToolbar({
   cartLength,
   totalCartUnits,
   onClearCart,
+  isRegisterClosedToday = false,
 }: PosToolbarProps) {
   return (
     <div className="space-y-3">
@@ -37,7 +39,9 @@ export function PosToolbar({
           <div className="flex flex-wrap items-center gap-2">
             {/* Text-only per §5.3 — StatusPill truncates its children, so an
                 inline icon overlaps the label instead of sitting beside it. */}
-            <StatusPill tone="success">Caja Abierta</StatusPill>
+            <StatusPill tone={isRegisterClosedToday ? "warning" : "success"}>
+              {isRegisterClosedToday ? "Caja Cerrada Hoy" : "Caja Abierta"}
+            </StatusPill>
 
             {/* BCV Official Rate Badge with Live Sync Button */}
             <div className="border-border bg-secondary/80 flex min-h-11 items-center gap-2 border px-3 py-1.5 text-xs font-medium shadow-xs">

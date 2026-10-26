@@ -55,6 +55,7 @@ export function RegisterPaymentDialog({
   const [bankName, setBankName] = useState("");
   const [payerName, setPayerName] = useState("");
   const [payerIdDoc, setPayerIdDoc] = useState("");
+  const [evidenceUrl, setEvidenceUrl] = useState("");
   const [notes, setNotes] = useState("");
 
   // Reset form when dialog opens
@@ -67,6 +68,7 @@ export function RegisterPaymentDialog({
       setBankName("");
       setPayerName("");
       setPayerIdDoc("");
+      setEvidenceUrl("");
       setNotes("");
     }
   }, [open, defaultOrderId]);
@@ -122,6 +124,7 @@ export function RegisterPaymentDialog({
       bankName: bankName.trim() || undefined,
       payerName: payerName.trim() || undefined,
       payerIdDoc: payerIdDoc.trim() || undefined,
+      evidenceUrl: evidenceUrl.trim() || undefined,
       notes: notes.trim() || undefined,
     });
   };
@@ -281,6 +284,16 @@ export function RegisterPaymentDialog({
               />
             </Field>
           </div>
+
+          <Field label="URL Comprobante / Bauche (Opcional)">
+            <Input
+              type="url"
+              placeholder="https://..."
+              value={evidenceUrl}
+              onChange={(e) => setEvidenceUrl(e.target.value)}
+              className="font-mono text-xs"
+            />
+          </Field>
 
           <Field label="Notas / Observaciones">
             <textarea

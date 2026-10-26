@@ -176,6 +176,12 @@ export const NAV_ITEMS: NavParent[] = [
         roles: NAV_ROLE_RULES.rates,
         kind: "link",
       },
+      {
+        label: "Reportes",
+        href: "/reports",
+        roles: NAV_ROLE_RULES.accountsReceivable,
+        kind: "link",
+      },
     ],
   },
   {

@@ -283,6 +283,18 @@ export const approvalStatusEnum = pgEnum("approval_status", [
   "expired", // expirado
 ]);
 
+export const taxClassificationEnum = pgEnum("tax_classification", [
+  "standard_16", // IVA alícuota general 16%
+  "reduced_8", // IVA alícuota reducida 8%
+  "exempt_0", // Exento 0%
+]);
+
+export const fiscalDocumentTypeEnum = pgEnum("fiscal_document_type", [
+  "factura", // Factura fiscal SENIAT
+  "nota_credito", // Nota de crédito fiscal
+  "nota_debito", // Nota de débito fiscal
+]);
+
 // --- Multi-tenancy enums ---
 
 export const workspaceStatusEnum = pgEnum("workspace_status", [
@@ -328,6 +340,14 @@ export const documentStatusEnum = pgEnum("document_status", [
   "draft", // borrador
   "issued", // emitido
   "cancelled", // anulado
+]);
+
+export const creditNoteStatusEnum = pgEnum("credit_note_status", [
+  "draft",
+  "pending_approval",
+  "approved",
+  "applied",
+  "cancelled",
 ]);
 
 export const installmentStatusEnum = pgEnum("installment_status", [
@@ -561,6 +581,8 @@ export const AuditLog = pgTable(
     correlationId: t.uuid(),
     ipAddress: t.varchar({ length: 45 }),
     userAgent: t.text(),
+    prevHash: t.text(),
+    chainHash: t.text(),
     createdAt: t
       .timestamp({ mode: "date", withTimezone: true })
       .defaultNow()
@@ -569,6 +591,10 @@ export const AuditLog = pgTable(
   (table) => [
     // FK covering indexes (migration 007)
     index("idx_audit_log_workspace_id").on(table.workspaceId),
+    index("idx_audit_log_workspace_created").on(
+      table.workspaceId,
+      table.createdAt,
+    ),
     index("idx_audit_log_actor").on(table.actorId),
     index("idx_audit_log_entity").on(table.entity, table.entityId),
     index("idx_audit_log_created").on(table.createdAt),
@@ -2351,6 +2377,241 @@ export const InternalInvoiceItem = pgTable(
   ],
 ).enableRLS();
 
+export const CreditNote = pgTable(
+  "credit_note",
+  (t) => ({
+    id: t.uuid().notNull().primaryKey().defaultRandom(),
+    workspaceId: t
+      .uuid()
+      .notNull()
+      .references(() => Workspace.id)
+      .default(sql`current_setting('app.workspace_id')::uuid`),
+    creditNoteNumber: t.varchar({ length: 32 }).notNull(),
+    orderId: t
+      .uuid()
+      .notNull()
+      .references(() => SalesOrder.id),
+    internalInvoiceId: t.uuid().references(() => InternalInvoice.id),
+    customerId: t.uuid().references(() => Customer.id),
+    status: creditNoteStatusEnum().notNull().default("pending_approval"),
+    reason: t.text().notNull(),
+    returnToStock: t.boolean().notNull().default(true),
+    warehouseId: t.uuid().references(() => Warehouse.id),
+    subtotalUsd: t.doublePrecision().notNull().default(0),
+    taxUsd: t.doublePrecision().notNull().default(0),
+    totalUsd: t.doublePrecision().notNull().default(0),
+    exchangeRateBcv: t.doublePrecision().notNull().default(1),
+    totalVes: t.doublePrecision().notNull().default(0),
+    refundMethod: paymentMethodEnum(),
+    externalRefundReference: t.varchar({ length: 128 }),
+    requestedBy: t.uuid().references(() => UserProfile.id),
+    approvedBy: t.uuid().references(() => UserProfile.id),
+    approvedAt: t.timestamp({ mode: "date", withTimezone: true }),
+    createdAt: t
+      .timestamp({ mode: "date", withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: t.timestamp({ mode: "date", withTimezone: true }),
+  }),
+  (table) => [
+    unique("uq_credit_note_number").on(
+      table.workspaceId,
+      table.creditNoteNumber,
+    ),
+    index("idx_credit_note_workspace_id").on(table.workspaceId),
+    index("idx_credit_note_order_id").on(table.orderId),
+    index("idx_credit_note_internal_invoice_id").on(table.internalInvoiceId),
+    index("idx_credit_note_customer_id").on(table.customerId),
+    index("idx_credit_note_warehouse_id").on(table.warehouseId),
+    index("idx_credit_note_requested_by").on(table.requestedBy),
+    index("idx_credit_note_approved_by").on(table.approvedBy),
+    index("idx_credit_note_status").on(table.status),
+
+    workspacePolicy("credit_note"),
+  ],
+).enableRLS();
+
+export const CreditNoteItem = pgTable(
+  "credit_note_item",
+  (t) => ({
+    id: t.uuid().notNull().primaryKey().defaultRandom(),
+    workspaceId: t
+      .uuid()
+      .notNull()
+      .references(() => Workspace.id)
+      .default(sql`current_setting('app.workspace_id')::uuid`),
+    creditNoteId: t
+      .uuid()
+      .notNull()
+      .references(() => CreditNote.id, { onDelete: "cascade" }),
+    productId: t
+      .uuid()
+      .notNull()
+      .references(() => Product.id),
+    quantity: t.integer().notNull(),
+    unitPriceUsd: t.doublePrecision().notNull(),
+    subtotalUsd: t.doublePrecision().notNull(),
+  }),
+  (table) => [
+    index("idx_credit_note_item_workspace_id").on(table.workspaceId),
+    index("idx_credit_note_item_credit_note_id").on(table.creditNoteId),
+    index("idx_credit_note_item_product_id").on(table.productId),
+
+    workspacePolicy("credit_note_item"),
+  ],
+).enableRLS();
+
+export const LegalEntity = pgTable(
+  "legal_entity",
+  (t) => ({
+    id: t.uuid().notNull().primaryKey().defaultRandom(),
+    workspaceId: t
+      .uuid()
+      .notNull()
+      .references(() => Workspace.id, { onDelete: "cascade" })
+      .default(sql`current_setting('app.workspace_id')::uuid`),
+    rif: t.varchar({ length: 32 }).notNull(),
+    legalName: t.varchar({ length: 256 }).notNull(),
+    tradeName: t.varchar({ length: 256 }),
+    fiscalAddress: t.text().notNull(),
+    taxpayerType: t.varchar({ length: 64 }).notNull().default("ordinario"),
+    isSpecialTaxpayer: t.boolean().notNull().default(false),
+    retentionRatePct: t.integer().notNull().default(75),
+    isDefault: t.boolean().notNull().default(false),
+    isActive: t.boolean().notNull().default(true),
+    createdAt: t
+      .timestamp({ mode: "date", withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: t
+      .timestamp({ mode: "date", withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  }),
+  (table) => [
+    unique("uq_legal_entity_rif").on(table.workspaceId, table.rif),
+    index("idx_legal_entity_workspace_id").on(table.workspaceId),
+
+    workspacePolicy("legal_entity"),
+  ],
+).enableRLS();
+
+export const Branch = pgTable(
+  "branch",
+  (t) => ({
+    id: t.uuid().notNull().primaryKey().defaultRandom(),
+    workspaceId: t
+      .uuid()
+      .notNull()
+      .references(() => Workspace.id, { onDelete: "cascade" })
+      .default(sql`current_setting('app.workspace_id')::uuid`),
+    legalEntityId: t
+      .uuid()
+      .notNull()
+      .references(() => LegalEntity.id, { onDelete: "cascade" }),
+    code: t.varchar({ length: 32 }).notNull(),
+    name: t.varchar({ length: 256 }).notNull(),
+    address: t.text(),
+    city: t.varchar({ length: 128 }),
+    state: t.varchar({ length: 128 }),
+    phone: t.varchar({ length: 64 }),
+    invoiceSeriesPrefix: t.varchar({ length: 16 }).notNull().default("A"),
+    controlNumberPrefix: t.varchar({ length: 16 }).notNull().default("00-"),
+    defaultWarehouseId: t.uuid().references(() => Warehouse.id),
+    isMain: t.boolean().notNull().default(false),
+    isActive: t.boolean().notNull().default(true),
+    createdAt: t
+      .timestamp({ mode: "date", withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: t
+      .timestamp({ mode: "date", withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  }),
+  (table) => [
+    unique("uq_branch_code").on(table.workspaceId, table.code),
+    index("idx_branch_workspace_id").on(table.workspaceId),
+    index("idx_branch_legal_entity_id").on(table.legalEntityId),
+    index("idx_branch_default_warehouse_id").on(table.defaultWarehouseId),
+
+    workspacePolicy("branch"),
+  ],
+).enableRLS();
+
+export const FiscalDocument = pgTable(
+  "fiscal_document",
+  (t) => ({
+    id: t.uuid().notNull().primaryKey().defaultRandom(),
+    workspaceId: t
+      .uuid()
+      .notNull()
+      .references(() => Workspace.id)
+      .default(sql`current_setting('app.workspace_id')::uuid`),
+    legalEntityId: t.uuid().references(() => LegalEntity.id),
+    branchId: t.uuid().references(() => Branch.id),
+    orderId: t.uuid().references(() => SalesOrder.id),
+    internalInvoiceId: t.uuid().references(() => InternalInvoice.id),
+    creditNoteId: t.uuid().references(() => CreditNote.id),
+    customerId: t.uuid().references(() => Customer.id),
+    documentType: fiscalDocumentTypeEnum().notNull().default("factura"),
+    fiscalInvoiceNumber: t.varchar({ length: 64 }).notNull(),
+    controlNumber: t.varchar({ length: 64 }).notNull(),
+    affectedInvoiceNumber: t.varchar({ length: 64 }),
+    buyerRif: t.varchar({ length: 32 }).notNull(),
+    buyerLegalName: t.varchar({ length: 256 }).notNull(),
+    buyerAddress: t.text(),
+    exchangeRateBcv: t.doublePrecision().notNull().default(1),
+    exemptAmountUsd: t.doublePrecision().notNull().default(0),
+    taxableBase16Usd: t.doublePrecision().notNull().default(0),
+    iva16Usd: t.doublePrecision().notNull().default(0),
+    taxableBase8Usd: t.doublePrecision().notNull().default(0),
+    iva8Usd: t.doublePrecision().notNull().default(0),
+    igtfBaseUsd: t.doublePrecision().notNull().default(0),
+    igtf3Usd: t.doublePrecision().notNull().default(0),
+    totalUsd: t.doublePrecision().notNull().default(0),
+    totalVes: t.doublePrecision().notNull().default(0),
+    ivaRetentionPct: t.integer().notNull().default(0),
+    ivaRetentionVoucher: t.varchar({ length: 64 }),
+    ivaRetentionUsd: t.doublePrecision().notNull().default(0),
+    ivaRetentionVes: t.doublePrecision().notNull().default(0),
+    islrRetentionPct: t.doublePrecision().notNull().default(0),
+    islrRetentionVoucher: t.varchar({ length: 64 }),
+    islrRetentionUsd: t.doublePrecision().notNull().default(0),
+    issuedBy: t.uuid().references(() => UserProfile.id),
+    issuedAt: t
+      .timestamp({ mode: "date", withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    createdAt: t
+      .timestamp({ mode: "date", withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  }),
+  (table) => [
+    unique("uq_fiscal_document_control_number").on(
+      table.workspaceId,
+      table.controlNumber,
+    ),
+    index("idx_fiscal_document_workspace_id").on(table.workspaceId),
+    index("idx_fiscal_document_legal_entity_id").on(table.legalEntityId),
+    index("idx_fiscal_document_branch_id").on(table.branchId),
+    index("idx_fiscal_document_order_id").on(table.orderId),
+    index("idx_fiscal_document_internal_invoice_id").on(
+      table.internalInvoiceId,
+    ),
+    index("idx_fiscal_document_credit_note_id").on(table.creditNoteId),
+    index("idx_fiscal_document_customer_id").on(table.customerId),
+    index("idx_fiscal_document_issued_by").on(table.issuedBy),
+    index("idx_fiscal_document_issued_at").on(
+      table.workspaceId,
+      table.issuedAt,
+    ),
+
+    workspacePolicy("fiscal_document"),
+  ],
+).enableRLS();
+
 // ╔══════════════════════════════════════════════╗
 // ║ PHASE 6 — Vendor Portal & AR                 ║
 // ╚══════════════════════════════════════════════╝
@@ -2781,17 +3042,39 @@ export const Signature = pgTable(
 // ║ RELATIONS                                    ║
 // ╚══════════════════════════════════════════════╝
 
-export const userProfileRelations = relations(UserProfile, ({ one }) => ({
+export const organizationRelations = relations(Organization, ({ many }) => ({
+  users: many(UserProfile),
+  workspaces: many(Workspace),
+}));
+
+export const userProfileRelations = relations(UserProfile, ({ one, many }) => ({
   organization: one(Organization, {
     fields: [UserProfile.organizationId],
     references: [Organization.id],
   }),
+  memberships: many(WorkspaceMember),
+  sessionActivities: many(UserSessionActivity),
+}));
+
+export const permissionRelations = relations(Permission, ({ many }) => ({
+  rolePermissions: many(RolePermission),
 }));
 
 export const rolePermissionRelations = relations(RolePermission, ({ one }) => ({
   permission: one(Permission, {
     fields: [RolePermission.permissionId],
     references: [Permission.id],
+  }),
+}));
+
+export const auditLogRelations = relations(AuditLog, ({ one }) => ({
+  workspace: one(Workspace, {
+    fields: [AuditLog.workspaceId],
+    references: [Workspace.id],
+  }),
+  actor: one(UserProfile, {
+    fields: [AuditLog.actorId],
+    references: [UserProfile.id],
   }),
 }));
 
@@ -2827,6 +3110,8 @@ export const productRelations = relations(Product, ({ one, many }) => ({
     references: [Supplier.id],
   }),
   attributes: many(ProductAttribute),
+  uomEquivalences: many(ProductUomEquivalence),
+  productSuppliers: many(ProductSupplier),
   prices: many(ProductPrice),
 }));
 
@@ -2836,6 +3121,38 @@ export const productAttributeRelations = relations(
     product: one(Product, {
       fields: [ProductAttribute.productId],
       references: [Product.id],
+    }),
+  }),
+);
+
+export const productUomEquivalenceRelations = relations(
+  ProductUomEquivalence,
+  ({ one }) => ({
+    workspace: one(Workspace, {
+      fields: [ProductUomEquivalence.workspaceId],
+      references: [Workspace.id],
+    }),
+    product: one(Product, {
+      fields: [ProductUomEquivalence.productId],
+      references: [Product.id],
+    }),
+  }),
+);
+
+export const productSupplierRelations = relations(
+  ProductSupplier,
+  ({ one }) => ({
+    workspace: one(Workspace, {
+      fields: [ProductSupplier.workspaceId],
+      references: [Workspace.id],
+    }),
+    product: one(Product, {
+      fields: [ProductSupplier.productId],
+      references: [Product.id],
+    }),
+    supplier: one(Supplier, {
+      fields: [ProductSupplier.supplierId],
+      references: [Supplier.id],
     }),
   }),
 );
@@ -2884,6 +3201,31 @@ export const importSessionRowRelations = relations(
 
 // --- Phase 3 relations ---
 
+export const warehouseRelations = relations(Warehouse, ({ one, many }) => ({
+  workspace: one(Workspace, {
+    fields: [Warehouse.workspaceId],
+    references: [Workspace.id],
+  }),
+  locations: many(WarehouseLocation),
+  stockLedgers: many(StockLedger),
+  stockMovements: many(StockMovement),
+  inventoryCounts: many(InventoryCount),
+}));
+
+export const warehouseLocationRelations = relations(
+  WarehouseLocation,
+  ({ one }) => ({
+    workspace: one(Workspace, {
+      fields: [WarehouseLocation.workspaceId],
+      references: [Workspace.id],
+    }),
+    warehouse: one(Warehouse, {
+      fields: [WarehouseLocation.warehouseId],
+      references: [Warehouse.id],
+    }),
+  }),
+);
+
 export const stockLedgerRelations = relations(StockLedger, ({ one }) => ({
   product: one(Product, {
     fields: [StockLedger.productId],
@@ -2916,12 +3258,69 @@ export const stockMovementRelations = relations(StockMovement, ({ one }) => ({
   }),
 }));
 
+export const inventoryCountRelations = relations(
+  InventoryCount,
+  ({ one, many }) => ({
+    workspace: one(Workspace, {
+      fields: [InventoryCount.workspaceId],
+      references: [Workspace.id],
+    }),
+    warehouse: one(Warehouse, {
+      fields: [InventoryCount.warehouseId],
+      references: [Warehouse.id],
+    }),
+    items: many(InventoryCountItem),
+    discrepancies: many(InventoryDiscrepancy),
+  }),
+);
+
+export const inventoryCountItemRelations = relations(
+  InventoryCountItem,
+  ({ one }) => ({
+    workspace: one(Workspace, {
+      fields: [InventoryCountItem.workspaceId],
+      references: [Workspace.id],
+    }),
+    count: one(InventoryCount, {
+      fields: [InventoryCountItem.countId],
+      references: [InventoryCount.id],
+    }),
+    product: one(Product, {
+      fields: [InventoryCountItem.productId],
+      references: [Product.id],
+    }),
+  }),
+);
+
+export const inventoryDiscrepancyRelations = relations(
+  InventoryDiscrepancy,
+  ({ one }) => ({
+    workspace: one(Workspace, {
+      fields: [InventoryDiscrepancy.workspaceId],
+      references: [Workspace.id],
+    }),
+    count: one(InventoryCount, {
+      fields: [InventoryDiscrepancy.countId],
+      references: [InventoryCount.id],
+    }),
+    product: one(Product, {
+      fields: [InventoryDiscrepancy.productId],
+      references: [Product.id],
+    }),
+    resolvedByUser: one(UserProfile, {
+      fields: [InventoryDiscrepancy.resolvedBy],
+      references: [UserProfile.id],
+    }),
+  }),
+);
+
 export const containerRelations = relations(Container, ({ one, many }) => ({
   supplier: one(Supplier, {
     fields: [Container.supplierId],
     references: [Supplier.id],
   }),
   items: many(ContainerItem),
+  documents: many(ContainerDocument),
 }));
 
 export const containerItemRelations = relations(ContainerItem, ({ one }) => ({
@@ -2933,16 +3332,79 @@ export const containerItemRelations = relations(ContainerItem, ({ one }) => ({
     fields: [ContainerItem.productId],
     references: [Product.id],
   }),
+  suggestedProduct: one(Product, {
+    fields: [ContainerItem.suggestedProductId],
+    references: [Product.id],
+    relationName: "containerSuggestedProduct",
+  }),
+}));
+
+export const containerDocumentRelations = relations(
+  ContainerDocument,
+  ({ one }) => ({
+    workspace: one(Workspace, {
+      fields: [ContainerDocument.workspaceId],
+      references: [Workspace.id],
+    }),
+    container: one(Container, {
+      fields: [ContainerDocument.containerId],
+      references: [Container.id],
+    }),
+    uploadedByUser: one(UserProfile, {
+      fields: [ContainerDocument.uploadedBy],
+      references: [UserProfile.id],
+    }),
+  }),
+);
+
+export const aiPromptConfigRelations = relations(AiPromptConfig, ({ one }) => ({
+  workspace: one(Workspace, {
+    fields: [AiPromptConfig.workspaceId],
+    references: [Workspace.id],
+  }),
 }));
 
 // --- Phase 4 relations ---
+
+export const exchangeRateRelations = relations(ExchangeRate, ({ one }) => ({
+  workspace: one(Workspace, {
+    fields: [ExchangeRate.workspaceId],
+    references: [Workspace.id],
+  }),
+}));
 
 export const priceHistoryRelations = relations(PriceHistory, ({ one }) => ({
   product: one(Product, {
     fields: [PriceHistory.productId],
     references: [Product.id],
   }),
+  repricingEvent: one(RepricingEvent, {
+    fields: [PriceHistory.repricingEventId],
+    references: [RepricingEvent.id],
+  }),
 }));
+
+export const pricingRuleRelations = relations(PricingRule, ({ one }) => ({
+  workspace: one(Workspace, {
+    fields: [PricingRule.workspaceId],
+    references: [Workspace.id],
+  }),
+  createdByUser: one(UserProfile, {
+    fields: [PricingRule.createdBy],
+    references: [UserProfile.id],
+  }),
+}));
+
+export const repricingEventRelations = relations(
+  RepricingEvent,
+  ({ one, many }) => ({
+    workspace: one(Workspace, {
+      fields: [RepricingEvent.workspaceId],
+      references: [Workspace.id],
+    }),
+    priceHistories: many(PriceHistory),
+  }),
+);
 
 // --- Phase 5 relations ---
 
@@ -2951,8 +3413,25 @@ export const customerRelations = relations(Customer, ({ one, many }) => ({
     fields: [Customer.assignedVendorId],
     references: [UserProfile.id],
   }),
+  addresses: many(CustomerAddress),
   orders: many(SalesOrder),
+  quotes: many(Quote),
+  receivables: many(AccountReceivable),
 }));
+
+export const customerAddressRelations = relations(
+  CustomerAddress,
+  ({ one }) => ({
+    workspace: one(Workspace, {
+      fields: [CustomerAddress.workspaceId],
+      references: [Workspace.id],
+    }),
+    customer: one(Customer, {
+      fields: [CustomerAddress.customerId],
+      references: [Customer.id],
+    }),
+  }),
+);
 
 export const salesOrderRelations = relations(SalesOrder, ({ one, many }) => ({
   customer: one(Customer, {
@@ -2961,6 +3440,9 @@ export const salesOrderRelations = relations(SalesOrder, ({ one, many }) => ({
   }),
   items: many(OrderItem),
   payments: many(Payment),
+  deliveryNotes: many(DeliveryNote),
+  internalInvoices: many(InternalInvoice),
+  receivables: many(AccountReceivable),
 }));
 
 export const orderItemRelations = relations(OrderItem, ({ one }) => ({
@@ -2974,10 +3456,275 @@ export const orderItemRelations = relations(OrderItem, ({ one }) => ({
   }),
 }));
 
-export const paymentRelations = relations(Payment, ({ one }) => ({
+export const paymentRelations = relations(Payment, ({ one, many }) => ({
   order: one(SalesOrder, {
     fields: [Payment.orderId],
     references: [SalesOrder.id],
+  }),
+  evidences: many(PaymentEvidence),
+  allocations: many(PaymentAllocation),
+}));
+
+export const paymentEvidenceRelations = relations(
+  PaymentEvidence,
+  ({ one }) => ({
+    workspace: one(Workspace, {
+      fields: [PaymentEvidence.workspaceId],
+      references: [Workspace.id],
+    }),
+    payment: one(Payment, {
+      fields: [PaymentEvidence.paymentId],
+      references: [Payment.id],
+    }),
+    uploadedByUser: one(UserProfile, {
+      fields: [PaymentEvidence.uploadedBy],
+      references: [UserProfile.id],
+    }),
+  }),
+);
+
+export const paymentAllocationRelations = relations(
+  PaymentAllocation,
+  ({ one }) => ({
+    workspace: one(Workspace, {
+      fields: [PaymentAllocation.workspaceId],
+      references: [Workspace.id],
+    }),
+    payment: one(Payment, {
+      fields: [PaymentAllocation.paymentId],
+      references: [Payment.id],
+    }),
+    receivable: one(AccountReceivable, {
+      fields: [PaymentAllocation.receivableId],
+      references: [AccountReceivable.id],
+    }),
+  }),
+);
+
+export const cashClosureRelations = relations(CashClosure, ({ one }) => ({
+  workspace: one(Workspace, {
+    fields: [CashClosure.workspaceId],
+    references: [Workspace.id],
+  }),
+}));
+
+export const quoteRelations = relations(Quote, ({ one, many }) => ({
+  workspace: one(Workspace, {
+    fields: [Quote.workspaceId],
+    references: [Workspace.id],
+  }),
+  customer: one(Customer, {
+    fields: [Quote.customerId],
+    references: [Customer.id],
+  }),
+  convertedOrder: one(SalesOrder, {
+    fields: [Quote.convertedOrderId],
+    references: [SalesOrder.id],
+  }),
+  createdByUser: one(UserProfile, {
+    fields: [Quote.createdBy],
+    references: [UserProfile.id],
+  }),
+  items: many(QuoteItem),
+}));
+
+export const quoteItemRelations = relations(QuoteItem, ({ one }) => ({
+  workspace: one(Workspace, {
+    fields: [QuoteItem.workspaceId],
+    references: [Workspace.id],
+  }),
+  quote: one(Quote, {
+    fields: [QuoteItem.quoteId],
+    references: [Quote.id],
+  }),
+  product: one(Product, {
+    fields: [QuoteItem.productId],
+    references: [Product.id],
+  }),
+}));
+
+export const deliveryNoteRelations = relations(
+  DeliveryNote,
+  ({ one, many }) => ({
+    workspace: one(Workspace, {
+      fields: [DeliveryNote.workspaceId],
+      references: [Workspace.id],
+    }),
+    order: one(SalesOrder, {
+      fields: [DeliveryNote.orderId],
+      references: [SalesOrder.id],
+    }),
+    createdByUser: one(UserProfile, {
+      fields: [DeliveryNote.createdBy],
+      references: [UserProfile.id],
+    }),
+    items: many(DeliveryNoteItem),
+  }),
+);
+
+export const deliveryNoteItemRelations = relations(
+  DeliveryNoteItem,
+  ({ one }) => ({
+    workspace: one(Workspace, {
+      fields: [DeliveryNoteItem.workspaceId],
+      references: [Workspace.id],
+    }),
+    deliveryNote: one(DeliveryNote, {
+      fields: [DeliveryNoteItem.deliveryNoteId],
+      references: [DeliveryNote.id],
+    }),
+    product: one(Product, {
+      fields: [DeliveryNoteItem.productId],
+      references: [Product.id],
+    }),
+  }),
+);
+
+export const internalInvoiceRelations = relations(
+  InternalInvoice,
+  ({ one, many }) => ({
+    workspace: one(Workspace, {
+      fields: [InternalInvoice.workspaceId],
+      references: [Workspace.id],
+    }),
+    order: one(SalesOrder, {
+      fields: [InternalInvoice.orderId],
+      references: [SalesOrder.id],
+    }),
+    customer: one(Customer, {
+      fields: [InternalInvoice.customerId],
+      references: [Customer.id],
+    }),
+    createdByUser: one(UserProfile, {
+      fields: [InternalInvoice.createdBy],
+      references: [UserProfile.id],
+    }),
+    items: many(InternalInvoiceItem),
+  }),
+);
+
+export const internalInvoiceItemRelations = relations(
+  InternalInvoiceItem,
+  ({ one }) => ({
+    workspace: one(Workspace, {
+      fields: [InternalInvoiceItem.workspaceId],
+      references: [Workspace.id],
+    }),
+    invoice: one(InternalInvoice, {
+      fields: [InternalInvoiceItem.invoiceId],
+      references: [InternalInvoice.id],
+    }),
+    product: one(Product, {
+      fields: [InternalInvoiceItem.productId],
+      references: [Product.id],
+    }),
+  }),
+);
+
+export const creditNoteRelations = relations(CreditNote, ({ one, many }) => ({
+  workspace: one(Workspace, {
+    fields: [CreditNote.workspaceId],
+    references: [Workspace.id],
+  }),
+  order: one(SalesOrder, {
+    fields: [CreditNote.orderId],
+    references: [SalesOrder.id],
+  }),
+  internalInvoice: one(InternalInvoice, {
+    fields: [CreditNote.internalInvoiceId],
+    references: [InternalInvoice.id],
+  }),
+  customer: one(Customer, {
+    fields: [CreditNote.customerId],
+    references: [Customer.id],
+  }),
+  warehouse: one(Warehouse, {
+    fields: [CreditNote.warehouseId],
+    references: [Warehouse.id],
+  }),
+  requestedByUser: one(UserProfile, {
+    fields: [CreditNote.requestedBy],
+    references: [UserProfile.id],
+  }),
+  approvedByUser: one(UserProfile, {
+    fields: [CreditNote.approvedBy],
+    references: [UserProfile.id],
+  }),
+  items: many(CreditNoteItem),
+}));
+
+export const creditNoteItemRelations = relations(CreditNoteItem, ({ one }) => ({
+  workspace: one(Workspace, {
+    fields: [CreditNoteItem.workspaceId],
+    references: [Workspace.id],
+  }),
+  creditNote: one(CreditNote, {
+    fields: [CreditNoteItem.creditNoteId],
+    references: [CreditNote.id],
+  }),
+  product: one(Product, {
+    fields: [CreditNoteItem.productId],
+    references: [Product.id],
+  }),
+}));
+
+export const legalEntityRelations = relations(LegalEntity, ({ one, many }) => ({
+  workspace: one(Workspace, {
+    fields: [LegalEntity.workspaceId],
+    references: [Workspace.id],
+  }),
+  branches: many(Branch),
+  fiscalDocuments: many(FiscalDocument),
+}));
+
+export const branchRelations = relations(Branch, ({ one, many }) => ({
+  workspace: one(Workspace, {
+    fields: [Branch.workspaceId],
+    references: [Workspace.id],
+  }),
+  legalEntity: one(LegalEntity, {
+    fields: [Branch.legalEntityId],
+    references: [LegalEntity.id],
+  }),
+  defaultWarehouse: one(Warehouse, {
+    fields: [Branch.defaultWarehouseId],
+    references: [Warehouse.id],
+  }),
+  fiscalDocuments: many(FiscalDocument),
+}));
+
+export const fiscalDocumentRelations = relations(FiscalDocument, ({ one }) => ({
+  workspace: one(Workspace, {
+    fields: [FiscalDocument.workspaceId],
+    references: [Workspace.id],
+  }),
+  legalEntity: one(LegalEntity, {
+    fields: [FiscalDocument.legalEntityId],
+    references: [LegalEntity.id],
+  }),
+  branch: one(Branch, {
+    fields: [FiscalDocument.branchId],
+    references: [Branch.id],
+  }),
+  order: one(SalesOrder, {
+    fields: [FiscalDocument.orderId],
+    references: [SalesOrder.id],
+  }),
+  internalInvoice: one(InternalInvoice, {
+    fields: [FiscalDocument.internalInvoiceId],
+    references: [InternalInvoice.id],
+  }),
+  creditNote: one(CreditNote, {
+    fields: [FiscalDocument.creditNoteId],
+    references: [CreditNote.id],
+  }),
+  customer: one(Customer, {
+    fields: [FiscalDocument.customerId],
+    references: [Customer.id],
+  }),
+  issuedByUser: one(UserProfile, {
+    fields: [FiscalDocument.issuedBy],
+    references: [UserProfile.id],
   }),
 }));
 
@@ -2999,7 +3746,7 @@ export const vendorCommissionRelations = relations(
 
 export const accountReceivableRelations = relations(
   AccountReceivable,
-  ({ one }) => ({
+  ({ one, many }) => ({
     customer: one(Customer, {
       fields: [AccountReceivable.customerId],
       references: [Customer.id],
@@ -3008,8 +3755,21 @@ export const accountReceivableRelations = relations(
       fields: [AccountReceivable.orderId],
       references: [SalesOrder.id],
     }),
+    installments: many(ArInstallment),
+    allocations: many(PaymentAllocation),
   }),
 );
+
+export const arInstallmentRelations = relations(ArInstallment, ({ one }) => ({
+  workspace: one(Workspace, {
+    fields: [ArInstallment.workspaceId],
+    references: [Workspace.id],
+  }),
+  receivable: one(AccountReceivable, {
+    fields: [ArInstallment.receivableId],
+    references: [AccountReceivable.id],
+  }),
+}));
 
 // --- Phase 7 relations ---
 
@@ -3021,7 +3781,7 @@ export const mlListingRelations = relations(MlListing, ({ one, many }) => ({
   orders: many(MlOrder),
 }));
 
-export const mlOrderRelations = relations(MlOrder, ({ one }) => ({
+export const mlOrderRelations = relations(MlOrder, ({ one, many }) => ({
   listing: one(MlListing, {
     fields: [MlOrder.mlListingId],
     references: [MlListing.id],
@@ -3029,6 +3789,61 @@ export const mlOrderRelations = relations(MlOrder, ({ one }) => ({
   salesOrder: one(SalesOrder, {
     fields: [MlOrder.salesOrderId],
     references: [SalesOrder.id],
+  }),
+  events: many(MercadolibreOrderEvent),
+}));
+
+export const integrationLogRelations = relations(IntegrationLog, ({ one }) => ({
+  workspace: one(Workspace, {
+    fields: [IntegrationLog.workspaceId],
+    references: [Workspace.id],
+  }),
+}));
+
+export const mercadolibreAccountRelations = relations(
+  MercadolibreAccount,
+  ({ one }) => ({
+    workspace: one(Workspace, {
+      fields: [MercadolibreAccount.workspaceId],
+      references: [Workspace.id],
+    }),
+  }),
+);
+
+export const mercadolibreOrderEventRelations = relations(
+  MercadolibreOrderEvent,
+  ({ one }) => ({
+    workspace: one(Workspace, {
+      fields: [MercadolibreOrderEvent.workspaceId],
+      references: [Workspace.id],
+    }),
+    mlOrder: one(MlOrder, {
+      fields: [MercadolibreOrderEvent.mlOrderId],
+      references: [MlOrder.id],
+    }),
+  }),
+);
+
+export const integrationFailureRelations = relations(
+  IntegrationFailure,
+  ({ one }) => ({
+    workspace: one(Workspace, {
+      fields: [IntegrationFailure.workspaceId],
+      references: [Workspace.id],
+    }),
+    resolvedByUser: one(UserProfile, {
+      fields: [IntegrationFailure.resolvedBy],
+      references: [UserProfile.id],
+    }),
+  }),
+);
+
+// --- Phase 8 relations ---
+
+export const systemAlertRelations = relations(SystemAlert, ({ one }) => ({
+  workspace: one(Workspace, {
+    fields: [SystemAlert.workspaceId],
+    references: [Workspace.id],
   }),
 }));
 
@@ -3233,6 +4048,16 @@ export const UserSessionActivity = pgTable(
     index("idx_user_session_activity_last_seen").on(table.lastSeenAt),
   ],
 ).enableRLS();
+
+export const userSessionActivityRelations = relations(
+  UserSessionActivity,
+  ({ one }) => ({
+    user: one(UserProfile, {
+      fields: [UserSessionActivity.userId],
+      references: [UserProfile.id],
+    }),
+  }),
+);
 
 // ╔══════════════════════════════════════════════╗
 // ║ TYPE EXPORTS                                ║

@@ -42,7 +42,7 @@ export function PosPaymentPanel({
             TOTAL A COBRAR:
           </span>
           <div className="text-right">
-            <div className="text-foreground font-mono text-4xl font-black tracking-tight tabular-nums">
+            <div className="text-foreground font-mono text-4xl font-medium tracking-tight tabular-nums">
               {cartDual.usd}
             </div>
             <div className="text-primary mt-0.5 font-mono text-xs font-medium tabular-nums">

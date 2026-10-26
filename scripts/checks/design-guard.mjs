@@ -62,7 +62,7 @@ const PATTERNS = [
   },
   {
     name: "font-bold",
-    re: /\bfont-(semibold|bold|extrabold)\b/g,
+    re: /\bfont-(semibold|bold|extrabold|black)\b/g,
     dirs: SCAN_DIRS,
     zeroFromPhase: 1,
   },
@@ -78,7 +78,7 @@ const PATTERNS = [
   {
     name: "hex-literal",
     re: /#[0-9a-fA-F]{3,8}\b/g,
-    dirs: ["apps/erp/src"],
+    dirs: SCAN_DIRS,
     zeroFromPhase: 7,
     deferF9Files: true,
   },
@@ -88,6 +88,12 @@ const PATTERNS = [
     dirs: SCAN_DIRS,
     zeroFromPhase: 7,
     deferF9Files: true,
+  },
+  {
+    name: "invalid-token",
+    re: /\b(bg|text|border|border-l)-warning(-fg|-bg|-soft)?(\/[0-9]+)?\b|\bpy-0\.2\b/g,
+    dirs: SCAN_DIRS,
+    zeroFromPhase: 7,
   },
   {
     name: "STATUS_CONFIG",

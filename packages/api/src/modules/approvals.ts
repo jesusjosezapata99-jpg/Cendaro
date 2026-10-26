@@ -17,10 +17,25 @@ import { TRPCError } from "@trpc/server";
 import { and, desc, eq, gt, isNull, or, sql } from "drizzle-orm";
 import { z } from "zod/v4";
 
-import { Approval, approvalTypeEnum, Signature } from "@cendaro/db/schema";
+import {
+  Approval,
+  approvalTypeEnum,
+  CashClosure,
+  Container,
+  InventoryCount,
+  InventoryDiscrepancy,
+  RepricingEvent,
+  SalesOrder,
+  Signature,
+  StockLedger,
+} from "@cendaro/db/schema";
 
-import type { createTRPCContext, UserRole } from "../trpc";
-import { createTRPCRouter, wsPermissionProcedure } from "../trpc";
+import type { createTRPCContext, UserRole, WorkspaceActor } from "../trpc";
+import {
+  createTRPCRouter,
+  wsPermissionProcedure,
+  wsReadPermissionProcedure,
+} from "../trpc";
 import { logAudit } from "./audit";
 import {
   applyHeldRateApproval,
@@ -143,9 +158,168 @@ async function resolveApproval(
   return resolved;
 }
 
+/**
+ * Dispatches domain side-effects for all approval types when a request is
+ * approved or rejected (F7.2).
+ */
+async function dispatchApprovalSideEffects(
+  db: Db,
+  user: WorkspaceActor,
+  workspaceId: string,
+  approval: ApprovalRow,
+  decision: "approved" | "rejected",
+): Promise<void> {
+  const heldRate = parseHeldRate(approval);
+  if (heldRate) {
+    if (decision === "approved") {
+      await applyHeldRateApproval(db, user, workspaceId, approval, heldRate);
+    } else {
+      const now = new Date();
+      await dismissApprovalAlerts(db, workspaceId, [approval.id], user, now);
+      await dismissRateTypeAlerts(
+        db,
+        workspaceId,
+        heldRate.rateType,
+        user,
+        now,
+      );
+    }
+    return;
+  }
+
+  switch (approval.approvalType) {
+    case "price_change": {
+      if (decision === "approved") {
+        await db
+          .update(RepricingEvent)
+          .set({
+            isApproved: true,
+            approvedBy: user.id,
+            approvedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(RepricingEvent.id, approval.entityId),
+              eq(RepricingEvent.workspaceId, workspaceId),
+            ),
+          );
+      }
+      break;
+    }
+    case "container_close": {
+      if (decision === "approved") {
+        await db
+          .update(Container)
+          .set({
+            status: "closed",
+            closedBy: user.id,
+            closedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(Container.id, approval.entityId),
+              eq(Container.workspaceId, workspaceId),
+            ),
+          );
+      }
+      break;
+    }
+    case "cash_closure": {
+      if (decision === "approved") {
+        await db
+          .update(CashClosure)
+          .set({
+            status: "reviewed",
+            reviewedBy: user.id,
+          })
+          .where(
+            and(
+              eq(CashClosure.id, approval.entityId),
+              eq(CashClosure.workspaceId, workspaceId),
+            ),
+          );
+      }
+      break;
+    }
+    case "product_unblock": {
+      if (decision === "approved") {
+        await db
+          .update(StockLedger)
+          .set({
+            isLocked: false,
+            updatedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(StockLedger.workspaceId, workspaceId),
+              or(
+                eq(StockLedger.id, approval.entityId),
+                eq(StockLedger.productId, approval.entityId),
+              ),
+            ),
+          );
+      }
+      break;
+    }
+    case "inventory_adjustment": {
+      if (decision === "approved") {
+        await db
+          .update(InventoryCount)
+          .set({
+            status: "approved",
+            approvedBy: user.id,
+          })
+          .where(
+            and(
+              eq(InventoryCount.id, approval.entityId),
+              eq(InventoryCount.workspaceId, workspaceId),
+            ),
+          );
+        await db
+          .update(InventoryDiscrepancy)
+          .set({
+            resolution: "Aprobado por gerencia",
+            resolvedBy: user.id,
+            resolvedAt: new Date(),
+          })
+          .where(
+            and(
+              eq(InventoryDiscrepancy.workspaceId, workspaceId),
+              or(
+                eq(InventoryDiscrepancy.id, approval.entityId),
+                eq(InventoryDiscrepancy.countId, approval.entityId),
+              ),
+            ),
+          );
+      }
+      break;
+    }
+    case "credit_sale": {
+      await db
+        .update(SalesOrder)
+        .set({
+          status: decision === "approved" ? "confirmed" : "cancelled",
+        })
+        .where(
+          and(
+            eq(SalesOrder.id, approval.entityId),
+            eq(SalesOrder.workspaceId, workspaceId),
+          ),
+        );
+      break;
+    }
+    case "channel_stock_move":
+    case "edit_post_issue_document": {
+      const now = new Date();
+      await dismissApprovalAlerts(db, workspaceId, [approval.id], user, now);
+      break;
+    }
+  }
+}
+
 export const approvalsRouter = createTRPCRouter({
   // ─── List pending approvals ───────────────────
-  listPending: wsPermissionProcedure("dashboard", "read")
+  listPending: wsReadPermissionProcedure("dashboard", "read")
     .input(
       z.object({
         limit: z.number().int().min(1).max(100).default(25),
@@ -179,7 +353,7 @@ export const approvalsRouter = createTRPCRouter({
     }),
 
   // ─── List all approvals ───────────────────────
-  list: wsPermissionProcedure("dashboard", "read")
+  list: wsReadPermissionProcedure("dashboard", "read")
     .input(
       z.object({
         limit: z.number().int().min(1).max(100).default(25),
@@ -215,7 +389,7 @@ export const approvalsRouter = createTRPCRouter({
     }),
 
   // ─── Get approval by ID with signatures ───────
-  byId: wsPermissionProcedure("dashboard", "read")
+  byId: wsReadPermissionProcedure("dashboard", "read")
     .input(z.object({ id: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       const [approval] = await ctx.db
@@ -343,15 +517,13 @@ export const approvalsRouter = createTRPCRouter({
         "approved",
         input.reason,
       );
-      if (heldRate) {
-        await applyHeldRateApproval(
-          ctx.db,
-          ctx.user,
-          workspaceId,
-          approval,
-          heldRate,
-        );
-      }
+      await dispatchApprovalSideEffects(
+        ctx.db,
+        ctx.user,
+        workspaceId,
+        approval,
+        "approved",
+      );
 
       await ctx.db.insert(Signature).values({
         workspaceId,
@@ -404,24 +576,13 @@ export const approvalsRouter = createTRPCRouter({
         "rejected",
         input.reason,
       );
-      const heldRate = parseHeldRate(approval);
-      if (heldRate) {
-        const now = new Date();
-        await dismissApprovalAlerts(
-          ctx.db,
-          workspaceId,
-          [input.id],
-          ctx.user,
-          now,
-        );
-        await dismissRateTypeAlerts(
-          ctx.db,
-          workspaceId,
-          heldRate.rateType,
-          ctx.user,
-          now,
-        );
-      }
+      await dispatchApprovalSideEffects(
+        ctx.db,
+        ctx.user,
+        workspaceId,
+        approval,
+        "rejected",
+      );
 
       await ctx.db.insert(Signature).values({
         workspaceId,

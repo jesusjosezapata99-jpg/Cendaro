@@ -275,51 +275,100 @@ export default function QuoteDetailClient() {
         <StatCard label="Estado" value={st.label} icon="Flag" />
       </div>
 
-      {/* Metadata */}
-      <section className="border-border bg-card border p-6">
-        <h2 className="text-muted-foreground mb-4 text-xs font-medium tracking-widest uppercase">
-          Información de la Propuesta
-        </h2>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {[
-            { label: "Número", value: quote.quoteNumber },
-            {
-              label: "Canal",
-              value: CHANNEL_LABELS[quote.channel] ?? quote.channel,
-            },
-            { label: "Estado", value: st.label },
-            {
-              label: "Subtotal",
-              value: `$${subtotal.toFixed(2)}`,
-            },
-            {
-              label: "Descuento",
-              value: discount > 0 ? `-$${discount.toFixed(2)}` : "—",
-            },
-            { label: "Total", value: `$${total.toFixed(2)}` },
-            {
-              label: "Validez",
-              value: quote.validUntil
-                ? new Date(quote.validUntil).toLocaleDateString("es-VE")
-                : "Indefinida",
-            },
-            {
-              label: "Creado",
-              value: new Date(quote.createdAt).toLocaleDateString("es-VE"),
-            },
-          ].map((a) => (
-            <div
-              key={a.label}
-              className="border-border flex items-center justify-between gap-3 border p-3"
-            >
-              <span className="text-muted-foreground text-sm">{a.label}</span>
-              <span className="text-foreground font-mono text-sm font-medium tabular-nums">
-                {a.value}
+      {/* Metadata & Customer */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        <section className="border-border bg-card border p-6">
+          <div className="mb-4 flex items-center justify-between gap-2">
+            <h2 className="text-muted-foreground text-xs font-medium tracking-widest uppercase">
+              Cliente / Destinatario
+            </h2>
+            {quote.customer?.id && (
+              <Link
+                href={`/customers/${quote.customer.id}`}
+                className="text-primary flex items-center gap-1 text-xs font-medium hover:underline"
+              >
+                Ver Ficha
+                <Icons.OpenInNew className="size-3.5" />
+              </Link>
+            )}
+          </div>
+          <div className="space-y-2.5 text-sm">
+            <div className="border-border flex items-center justify-between gap-3 border p-3">
+              <span className="text-muted-foreground">
+                Nombre / Razón Social
+              </span>
+              <span className="text-foreground font-medium">
+                {quote.customer?.name ?? "Consumidor Final"}
               </span>
             </div>
-          ))}
-        </div>
-      </section>
+            <div className="border-border flex items-center justify-between gap-3 border p-3">
+              <span className="text-muted-foreground">RIF / Documento</span>
+              <span className="text-foreground font-mono text-xs font-medium tabular-nums">
+                {quote.customer?.identification ?? "—"}
+              </span>
+            </div>
+            <div className="border-border flex items-center justify-between gap-3 border p-3">
+              <span className="text-muted-foreground">Teléfono / Correo</span>
+              <span className="text-foreground font-mono text-xs tabular-nums">
+                {[quote.customer?.phone, quote.customer?.email]
+                  .filter(Boolean)
+                  .join(" · ") || "—"}
+              </span>
+            </div>
+            <div className="border-border flex items-center justify-between gap-3 border p-3">
+              <span className="text-muted-foreground">Domicilio Fiscal</span>
+              <span className="text-foreground truncate text-xs">
+                {quote.customer?.address ?? "—"}
+              </span>
+            </div>
+          </div>
+        </section>
+
+        <section className="border-border bg-card border p-6">
+          <h2 className="text-muted-foreground mb-4 text-xs font-medium tracking-widest uppercase">
+            Información de la Propuesta
+          </h2>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {[
+              { label: "Número", value: quote.quoteNumber },
+              {
+                label: "Canal",
+                value: CHANNEL_LABELS[quote.channel] ?? quote.channel,
+              },
+              { label: "Estado", value: st.label },
+              {
+                label: "Subtotal",
+                value: `$${subtotal.toFixed(2)}`,
+              },
+              {
+                label: "Descuento",
+                value: discount > 0 ? `-$${discount.toFixed(2)}` : "—",
+              },
+              { label: "Total", value: `$${total.toFixed(2)}` },
+              {
+                label: "Validez",
+                value: quote.validUntil
+                  ? new Date(quote.validUntil).toLocaleDateString("es-VE")
+                  : "Indefinida",
+              },
+              {
+                label: "Creado",
+                value: new Date(quote.createdAt).toLocaleDateString("es-VE"),
+              },
+            ].map((a) => (
+              <div
+                key={a.label}
+                className="border-border flex items-center justify-between gap-3 border p-3"
+              >
+                <span className="text-muted-foreground text-sm">{a.label}</span>
+                <span className="text-foreground font-mono text-sm font-medium tabular-nums">
+                  {a.value}
+                </span>
+              </div>
+            ))}
+          </div>
+        </section>
+      </div>
 
       {/* Notes */}
       {quote.notes && (

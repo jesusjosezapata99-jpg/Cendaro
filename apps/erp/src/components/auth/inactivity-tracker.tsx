@@ -114,12 +114,12 @@ export function InactivityTracker({
       className="max-w-md"
     >
       <div className="flex flex-col gap-4 py-2">
-        <div className="border-warning-fg/20 bg-warning-bg/10 flex items-start gap-3 border p-3 text-sm text-[--status-warning-fg]">
+        <div className="border-status-warning-fg/20 bg-status-warning-bg text-status-warning-fg flex items-start gap-3 border p-3 text-sm">
           <Icons.Warning className="mt-0.5 size-5 shrink-0" />
           <div>
             <p className="font-medium">
               Tu sesión se cerrará en{" "}
-              <span className="font-mono font-medium text-[--status-warning-fg]">
+              <span className="text-status-warning-fg font-mono font-medium">
                 {Math.floor(secondsRemaining / 60)}:
                 {String(secondsRemaining % 60).padStart(2, "0")}
               </span>

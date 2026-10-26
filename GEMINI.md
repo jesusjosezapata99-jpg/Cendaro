@@ -1,10 +1,7 @@
-## graphify
+<!-- Antigravity loads this file together with AGENTS.md; shared rules, including the graphify
+     section, live in AGENTS.md. Keep only Antigravity-specific notes here. -->
 
-This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
+# Antigravity notes
 
-Rules:
-
-- For codebase questions, first run `graphify query "<question>"` when graphify-out/graph.json exists. Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts. These return a scoped subgraph, usually much smaller than GRAPH_REPORT.md or raw grep output.
-- If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
-- Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
-- After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
+- All project rules are in AGENTS.md. Implementation plans go to `~/.claude/plans/`, reports to `plans/reports/`.
+- `.gemini/knowledge/state.md` was retired on 2026-09-28 and archived read-only in `.gemini/knowledge/archive/`; do not recreate it or write session logs there. Recent history is in `git log`.

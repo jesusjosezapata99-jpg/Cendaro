@@ -96,15 +96,32 @@ describe("appRouter", () => {
 
     // Search (T2.11)
     expect(procedures).toHaveProperty("search.global");
+
+    // Credit Notes & Audit Chain (F10)
+    expect(procedures).toHaveProperty("creditNotes.list");
+    expect(procedures).toHaveProperty("creditNotes.create");
+    expect(procedures).toHaveProperty("creditNotes.approve");
+    expect(procedures).toHaveProperty("audit.verifyChainIntegrity");
+
+    // SENIAT Fiscal, Multi-Branch, ML Vault & Container Search (F11)
+    expect(procedures).toHaveProperty("fiscal.listDocuments");
+    expect(procedures).toHaveProperty("fiscal.emitDocument");
+    expect(procedures).toHaveProperty("fiscal.recordRetention");
+    expect(procedures).toHaveProperty("fiscal.salesBookReport");
+    expect(procedures).toHaveProperty("fiscal.listLegalEntities");
+    expect(procedures).toHaveProperty("fiscal.listBranches");
+    expect(procedures).toHaveProperty("integrations.listMlAccounts");
+    expect(procedures).toHaveProperty("integrations.listIntegrationFailures");
+    expect(procedures).toHaveProperty("container.search");
   });
 
   it("has the correct number of top-level routers", () => {
-    // 20 routers: users, audit, approvals, catalog, catalogImport, inventory, inventoryImport, container, pricing, quotes, sales, payments, receivables, reporting, vendor, integrations, dashboard, search, health, workspace
+    // 22 routers: users, audit, approvals, catalog, catalogImport, inventory, inventoryImport, container, pricing, quotes, sales, creditNotes, fiscal, payments, receivables, reporting, vendor, integrations, dashboard, search, health, workspace
     const topLevel = new Set<string>();
     for (const key of Object.keys(appRouter._def.procedures)) {
       const router = key.split(".")[0];
       if (router) topLevel.add(router);
     }
-    expect(topLevel.size).toBe(20);
+    expect(topLevel.size).toBe(22);
   });
 });

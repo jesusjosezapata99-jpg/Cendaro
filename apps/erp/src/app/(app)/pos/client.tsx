@@ -48,97 +48,25 @@ const CreateCustomerDialog = dynamic(
   { ssr: false },
 );
 
-const DEMO_PRODUCTS: ProductItem[] = [
-  {
-    id: "3fa85f64-5717-4562-b3fc-2c963f66afa6",
-    sku: "LUB-5W30-SN",
-    name: "Aceite Sintético 5W-30 SN Plus 1 Galón",
-    barcode: "7591234567890",
-    categoryId: "cat-lubricantes",
-    status: "active",
-    imageUrl: null,
-  },
-  {
-    id: "3fa85f64-5717-4562-b3fc-2c963f66afa7",
-    sku: "FIL-OIL-PH3614",
-    name: "Filtro de Aceite Sellado Automotriz PH3614",
-    barcode: "7591234567891",
-    categoryId: "cat-filtros",
-    status: "active",
-    imageUrl: null,
-  },
-  {
-    id: "3fa85f64-5717-4562-b3fc-2c963f66afa8",
-    sku: "LUB-20W50-MIN",
-    name: "Aceite Mineral 20W-50 Alto Kilometraje 1Qt",
-    barcode: "7591234567892",
-    categoryId: "cat-lubricantes",
-    status: "active",
-    imageUrl: null,
-  },
-  {
-    id: "3fa85f64-5717-4562-b3fc-2c963f66afa9",
-    sku: "PAST-FR-CERAMIC",
-    name: "Pastillas de Freno Cerámicas Delanteras D1044",
-    barcode: "7591234567893",
-    categoryId: "cat-frenos",
-    status: "active",
-    imageUrl: null,
-  },
-  {
-    id: "3fa85f64-5717-4562-b3fc-2c963f66afb0",
-    sku: "BUJ-IRIDIUM-IX",
-    name: "Bujía Iridium IX Spark Plug CR8EIX",
-    barcode: "7591234567894",
-    categoryId: "cat-encendido",
-    status: "active",
-    imageUrl: null,
-  },
-  {
-    id: "3fa85f64-5717-4562-b3fc-2c963f66afb1",
-    sku: "REFR-COOL-RED50",
-    name: "Refrigerante Coolant Anticongelante Rojo 50/50",
-    barcode: "7591234567895",
-    categoryId: "cat-lubricantes",
-    status: "active",
-    imageUrl: null,
-  },
-  {
-    id: "3fa85f64-5717-4562-b3fc-2c963f66afb2",
-    sku: "LIM-CARB-SPRAY",
-    name: "Limpiador de Carburador e Inyectores Spray 450ml",
-    barcode: "7591234567896",
-    categoryId: "cat-quimicos",
-    status: "active",
-    imageUrl: null,
-  },
-  {
-    id: "3fa85f64-5717-4562-b3fc-2c963f66afb3",
-    sku: "CORR-TI-132ST",
-    name: "Correa de Distribución Timing Belt 132 Dientes",
-    barcode: "7591234567897",
-    categoryId: "cat-frenos",
-    status: "active",
-    imageUrl: null,
-  },
-];
-
-const DEMO_CATEGORIES: CategoryItem[] = [
-  { id: "cat-lubricantes", name: "Lubricantes & Fluidos" },
-  { id: "cat-filtros", name: "Filtros" },
-  { id: "cat-frenos", name: "Frenos & Transmisión" },
-  { id: "cat-encendido", name: "Encendido & Eléctrico" },
-  { id: "cat-quimicos", name: "Químicos & Aditivos" },
-];
-
 export default function PosClient() {
   const trpc = useTRPC();
   const bcv = useBcvRate();
 
+  // POS State
+  const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const debouncedProductSearch = useDebounce(searchQuery.trim(), 200);
+
   // Queries
-  const { data: productsData, isLoading: isLoadingProducts } = useQuery(
-    trpc.catalog.listProducts.queryOptions({ limit: 100 }),
-  );
+  const { data: productsData, isLoading: isLoadingProducts } = useQuery({
+    ...trpc.catalog.listProducts.queryOptions({
+      limit: 100,
+      status: "active",
+      search: debouncedProductSearch || undefined,
+      categoryId: selectedCategory !== "all" ? selectedCategory : undefined,
+    }),
+    placeholderData: keepPreviousData,
+  });
   const { data: categoriesData } = useQuery(
     trpc.catalog.listCategories.queryOptions(),
   );
@@ -160,24 +88,39 @@ export default function PosClient() {
   const { data: storeOrdersData } = useQuery(
     trpc.sales.listOrders.queryOptions({ channel: "store", limit: 100 }),
   );
+  const { data: closuresData } = useQuery(
+    trpc.sales.listClosures.queryOptions(),
+  );
   const { data: stockData } = useQuery(
     trpc.inventory.stockOverview.queryOptions({}),
   );
 
   const productList: ProductItem[] = useMemo(() => {
-    const items =
-      productsData && "items" in productsData ? productsData.items : [];
-    return items.length > 0 ? items : DEMO_PRODUCTS;
+    return productsData && "items" in productsData ? productsData.items : [];
   }, [productsData]);
 
-  const categories = useMemo(() => {
-    const cats = categoriesData ?? [];
-    return cats.length > 0 ? cats : DEMO_CATEGORIES;
+  const totalProductCount = useMemo(() => {
+    return productsData &&
+      "total" in productsData &&
+      typeof productsData.total === "number"
+      ? productsData.total
+      : productList.length;
+  }, [productsData, productList.length]);
+
+  const categories: CategoryItem[] = useMemo(() => {
+    return categoriesData ?? [];
   }, [categoriesData]);
 
   const customers: CustomerInfo[] = useMemo(() => {
     return customersData ?? [];
   }, [customersData]);
+
+  const isRegisterClosedToday = useMemo(() => {
+    const todayStr = new Date().toISOString().slice(0, 10);
+    return (closuresData ?? []).some(
+      (c) => new Date(c.closureDate).toISOString().slice(0, 10) === todayStr,
+    );
+  }, [closuresData]);
 
   // Stock Map for instant lookup
   const stockMap = useMemo(() => {
@@ -190,9 +133,6 @@ export default function PosClient() {
     return map;
   }, [stockData]);
 
-  // POS State
-  const [selectedCategory, setSelectedCategory] = useState<string>("all");
-  const [searchQuery, setSearchQuery] = useState("");
   const [cart, setCart] = useState<CartLine[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerInfo | null>(
     null,
@@ -322,7 +262,14 @@ export default function PosClient() {
 
   // Add item to cart + preserve scanner focus (T6.3)
   const addToCart = useCallback(
-    (product: ProductItem, defaultPrice = 12.5) => {
+    (product: ProductItem, overridePrice?: number) => {
+      const unitPrice =
+        overridePrice ?? product.posPriceUsd ?? product.basePriceUsd ?? 0;
+      const availableStock = stockMap.get(product.id) ?? 0;
+      if (unitPrice <= 0 || availableStock <= 0) {
+        return;
+      }
+
       setCart((prev) => {
         const existingIdx = prev.findIndex((line) => line.id === product.id);
         if (existingIdx >= 0) {
@@ -345,9 +292,9 @@ export default function PosClient() {
               sku: product.sku,
               name: product.name,
               quantity: 1,
-              unitPrice: defaultPrice,
+              unitPrice,
               discount: 0,
-              lineTotal: defaultPrice,
+              lineTotal: unitPrice,
             },
           ];
         }
@@ -360,7 +307,7 @@ export default function PosClient() {
       // Restore scanner focus immediately
       refocusScanner();
     },
-    [refocusScanner],
+    [refocusScanner, stockMap],
   );
 
   // Handle barcode scanner input on Enter
@@ -447,6 +394,7 @@ export default function PosClient() {
         cartLength={cart.length}
         totalCartUnits={totalCartUnits}
         onClearCart={clearCart}
+        isRegisterClosedToday={isRegisterClosedToday}
       />
 
       {/* Main POS Interface: 7 cols Catalog / 5 cols Sales Ticket */}
@@ -456,7 +404,7 @@ export default function PosClient() {
           <ProductGrid
             products={filteredProducts}
             categories={categories}
-            totalProductCount={productList.length}
+            totalProductCount={totalProductCount}
             selectedCategory={selectedCategory}
             onSelectCategory={(catId) => {
               setSelectedCategory(catId);

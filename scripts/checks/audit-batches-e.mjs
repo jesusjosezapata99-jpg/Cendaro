@@ -72,8 +72,20 @@ for (const [batchName, routes] of Object.entries(BATCHES)) {
     const hasHeader = combined.includes("PageHeader") || combined.includes("<h1") || route === "/pos";
     const hasSuspenseOrSkeleton = pageContent.includes("Suspense") || pageContent.includes("Skeleton") || pageContent.includes("instant");
     const hasResponsiveLayout = combined.includes("lg:py-8") || combined.includes("py-4") || combined.includes("h-screen") || route === "/pos";
-    const hasStatusPill = combined.includes("StatusPill") || !combined.includes("status");
-    const hasStatCardOrKpi = combined.includes("StatCard") || combined.includes("KPI") || route.startsWith("/settings") || route.startsWith("/catalog/") || route === "/alerts";
+    const hasStatusPill =
+      combined.includes("StatusPill") ||
+      !combined.includes("status") ||
+      route === "/pos" ||
+      route === "/rates" ||
+      route === "/catalog/import";
+    const hasStatCardOrKpi =
+      combined.includes("StatCard") ||
+      combined.includes("KPI") ||
+      combined.includes("tabular-nums") ||
+      route === "/pos" ||
+      route.startsWith("/settings") ||
+      route.startsWith("/catalog/") ||
+      route === "/alerts";
 
     const checks = {
       route,
@@ -81,12 +93,21 @@ for (const [batchName, routes] of Object.entries(BATCHES)) {
       hasHeader: hasHeader ? "✓" : "✗",
       hasSuspense: hasSuspenseOrSkeleton ? "✓" : "✗",
       hasResponsiveLayout: hasResponsiveLayout ? "✓" : "✗",
+      hasStatusPill: hasStatusPill ? "✓" : "✗",
+      hasStatCardOrKpi: hasStatCardOrKpi ? "✓" : "✗",
     };
 
     summary.push(checks);
-    const passed = hasHeader && hasSuspenseOrSkeleton && hasResponsiveLayout;
+    const passed =
+      hasHeader &&
+      hasSuspenseOrSkeleton &&
+      hasResponsiveLayout &&
+      hasStatusPill &&
+      hasStatCardOrKpi;
     if (!passed) allPassed = false;
-    console.log(`  ${passed ? "✓" : "✗"} ${route.padEnd(25)} Header: ${checks.hasHeader} | Suspense: ${checks.hasSuspense} | Layout: ${checks.hasResponsiveLayout}`);
+    console.log(
+      `  ${passed ? "✓" : "✗"} ${route.padEnd(25)} Header: ${checks.hasHeader} | Suspense: ${checks.hasSuspense} | Layout: ${checks.hasResponsiveLayout} | Status: ${checks.hasStatusPill} | KPI: ${checks.hasStatCardOrKpi}`,
+    );
   }
 }
 

@@ -32,10 +32,10 @@ async function PricingPrefetch() {
   try {
     await Promise.all([
       queryClient.prefetchQuery(
-        trpc.pricing.listRepricingEvents.queryOptions({ limit: 20 }),
+        trpc.pricing.listRepricingEvents.queryOptions({ limit: 50 }),
       ),
       queryClient.prefetchQuery(
-        trpc.pricing.priceHistory.queryOptions({ limit: 50 }),
+        trpc.pricing.priceHistory.queryOptions({ limit: 100 }),
       ),
     ]);
   } catch {

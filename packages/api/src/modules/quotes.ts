@@ -9,6 +9,7 @@ import { and, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import {
+  Customer,
   OrderItem,
   Product,
   Quote,
@@ -18,12 +19,16 @@ import {
   SalesOrder,
 } from "@cendaro/db/schema";
 
-import { createTRPCRouter, wsPermissionProcedure } from "../trpc";
+import {
+  createTRPCRouter,
+  wsPermissionProcedure,
+  wsReadPermissionProcedure,
+} from "../trpc";
 import { logAudit } from "./audit";
 import { assertVendorCustomer, vendorScopeId } from "./vendor-scope";
 
 export const quotesRouter = createTRPCRouter({
-  list: wsPermissionProcedure("orders", "read")
+  list: wsReadPermissionProcedure("orders", "read")
     .input(
       z.object({
         limit: z.number().int().min(1).max(100).default(25),
@@ -46,6 +51,8 @@ export const quotesRouter = createTRPCRouter({
           id: Quote.id,
           quoteNumber: Quote.quoteNumber,
           customerId: Quote.customerId,
+          customerName: Customer.name,
+          customerIdentification: Customer.identification,
           status: Quote.status,
           channel: Quote.channel,
           total: Quote.total,
@@ -53,13 +60,20 @@ export const quotesRouter = createTRPCRouter({
           createdAt: Quote.createdAt,
         })
         .from(Quote)
+        .leftJoin(
+          Customer,
+          and(
+            eq(Quote.customerId, Customer.id),
+            eq(Customer.workspaceId, ctx.workspace.workspaceId),
+          ),
+        )
         .where(and(...conditions))
         .orderBy(desc(Quote.createdAt))
         .limit(input.limit)
         .offset(input.offset);
     }),
 
-  byId: wsPermissionProcedure("orders", "read")
+  byId: wsReadPermissionProcedure("orders", "read")
     .input(z.object({ id: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       const vendorId = vendorScopeId(ctx);
@@ -77,35 +91,58 @@ export const quotesRouter = createTRPCRouter({
 
       if (!quote) return null;
 
-      const items = await ctx.db
-        .select({
-          id: QuoteItem.id,
-          workspaceId: QuoteItem.workspaceId,
-          quoteId: QuoteItem.quoteId,
-          productId: QuoteItem.productId,
-          productName: Product.name,
-          sku: Product.sku,
-          quantity: QuoteItem.quantity,
-          unitPrice: QuoteItem.unitPrice,
-          discount: QuoteItem.discount,
-          lineTotal: QuoteItem.lineTotal,
-        })
-        .from(QuoteItem)
-        .leftJoin(
-          Product,
-          and(
-            eq(QuoteItem.productId, Product.id),
-            eq(Product.workspaceId, ctx.workspace.workspaceId),
+      const [items, customerRows] = await Promise.all([
+        ctx.db
+          .select({
+            id: QuoteItem.id,
+            workspaceId: QuoteItem.workspaceId,
+            quoteId: QuoteItem.quoteId,
+            productId: QuoteItem.productId,
+            productName: Product.name,
+            sku: Product.sku,
+            quantity: QuoteItem.quantity,
+            unitPrice: QuoteItem.unitPrice,
+            discount: QuoteItem.discount,
+            lineTotal: QuoteItem.lineTotal,
+          })
+          .from(QuoteItem)
+          .leftJoin(
+            Product,
+            and(
+              eq(QuoteItem.productId, Product.id),
+              eq(Product.workspaceId, ctx.workspace.workspaceId),
+            ),
+          )
+          .where(
+            and(
+              eq(QuoteItem.quoteId, input.id),
+              eq(QuoteItem.workspaceId, ctx.workspace.workspaceId),
+            ),
           ),
-        )
-        .where(
-          and(
-            eq(QuoteItem.quoteId, input.id),
-            eq(QuoteItem.workspaceId, ctx.workspace.workspaceId),
-          ),
-        );
+        quote.customerId
+          ? ctx.db
+              .select({
+                id: Customer.id,
+                name: Customer.name,
+                legalName: Customer.legalName,
+                identification: Customer.identification,
+                phone: Customer.phone,
+                email: Customer.email,
+                address: Customer.address,
+                customerType: Customer.customerType,
+              })
+              .from(Customer)
+              .where(
+                and(
+                  eq(Customer.id, quote.customerId),
+                  eq(Customer.workspaceId, ctx.workspace.workspaceId),
+                ),
+              )
+              .limit(1)
+          : Promise.resolve([]),
+      ]);
 
-      return { ...quote, items };
+      return { ...quote, customer: customerRows[0] ?? null, items };
     }),
 
   create: wsPermissionProcedure("orders", "create")
@@ -158,13 +195,12 @@ export const quotesRouter = createTRPCRouter({
       );
       const total = subtotal - totalDiscount;
 
-      const quoteNumber = `QTE-${Date.now().toString(36).toUpperCase()}`;
-
       const [quote] = await ctx.db
         .insert(Quote)
         .values({
           workspaceId: ctx.workspace.workspaceId,
-          quoteNumber,
+          // Trigger trg_quote_number assigns sequential number
+          quoteNumber: "",
           customerId: input.customerId,
           channel: input.channel,
           subtotal,
@@ -175,6 +211,11 @@ export const quotesRouter = createTRPCRouter({
           createdBy: ctx.user.id,
         })
         .returning();
+
+      const effectiveQuoteNumber =
+        quote?.quoteNumber && quote.quoteNumber.length > 0
+          ? quote.quoteNumber
+          : `QTE-${Date.now().toString(36).toUpperCase()}`;
 
       if (quote && input.items.length > 0) {
         await ctx.db.insert(QuoteItem).values(
@@ -195,10 +236,14 @@ export const quotesRouter = createTRPCRouter({
         action: "quote.create",
         entity: "quote",
         entityId: quote?.id,
-        newValue: { quoteNumber, channel: input.channel, total },
+        newValue: {
+          quoteNumber: effectiveQuoteNumber,
+          channel: input.channel,
+          total,
+        },
       });
 
-      return quote;
+      return quote ? { ...quote, quoteNumber: effectiveQuoteNumber } : quote;
     }),
 
   updateStatus: wsPermissionProcedure("orders", "update")
@@ -242,7 +287,7 @@ export const quotesRouter = createTRPCRouter({
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       const vendorId = vendorScopeId(ctx);
-      const [quote] = await ctx.db
+      const baseQuery = ctx.db
         .select()
         .from(Quote)
         .where(
@@ -254,10 +299,35 @@ export const quotesRouter = createTRPCRouter({
         )
         .limit(1);
 
+      const lockedQuery =
+        typeof (baseQuery as unknown as { for?: unknown }).for === "function"
+          ? baseQuery.for("update")
+          : baseQuery;
+
+      const [quote] = await lockedQuery;
+
       if (!quote) {
         throw new TRPCError({
           code: "NOT_FOUND",
           message: "Cotización no encontrada",
+        });
+      }
+
+      if (quote.status === "converted") {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "Esta cotización ya fue convertida en pedido",
+        });
+      }
+
+      if (
+        quote.status === "rejected" ||
+        quote.status === "expired" ||
+        (quote.validUntil && new Date() > new Date(quote.validUntil))
+      ) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "No se puede convertir una cotización vencida o rechazada",
         });
       }
 
@@ -271,13 +341,12 @@ export const quotesRouter = createTRPCRouter({
           ),
         );
 
-      const orderNumber = `ORD-${Date.now().toString(36).toUpperCase()}`;
-
       const [order] = await ctx.db
         .insert(SalesOrder)
         .values({
           workspaceId: ctx.workspace.workspaceId,
-          orderNumber,
+          // Trigger trg_order_number assigns sequential number
+          orderNumber: "",
           customerId: quote.customerId,
           channel: quote.channel,
           subtotal: quote.subtotal,
@@ -287,6 +356,11 @@ export const quotesRouter = createTRPCRouter({
           createdBy: ctx.user.id,
         })
         .returning();
+
+      const effectiveOrderNumber =
+        order?.orderNumber && order.orderNumber.length > 0
+          ? order.orderNumber
+          : `ORD-${Date.now().toString(36).toUpperCase()}`;
 
       if (order && items.length > 0) {
         await ctx.db.insert(OrderItem).values(
@@ -322,9 +396,9 @@ export const quotesRouter = createTRPCRouter({
         action: "quote.convert",
         entity: "quote",
         entityId: input.id,
-        newValue: { orderNumber, orderId: order?.id },
+        newValue: { orderNumber: effectiveOrderNumber, orderId: order?.id },
       });
 
-      return order;
+      return order ? { ...order, orderNumber: effectiveOrderNumber } : order;
     }),
 });
