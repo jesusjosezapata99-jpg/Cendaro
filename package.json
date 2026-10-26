@@ -20,6 +20,7 @@
     "lint": "turbo run lint --continue -- --cache --cache-location .cache/.eslintcache",
     "lint:fix": "turbo run lint --continue -- --fix --cache --cache-location .cache/.eslintcache",
     "lint:ws": "sherif",
+    "lint-staged": "lint-staged --max-arg-length 3000",
     "security:agents": "agentshield scan --path . --min-severity medium --compliance soc2,iso",
     "security:agents:gate": "agentshield scan --path . --min-severity medium --baseline .agentshield/baseline.json --gate --supply-chain",
     "security:agents:baseline": "agentshield scan --path . --min-severity medium --save-baseline .agentshield/baseline.json",

@@ -28,6 +28,8 @@ The dev server wrote those generated route types while another process read them
 
 A root `eslint.config.ts` must exist and export `defineConfig(baseConfig)`.
 
+On Windows, when many files are staged (100+), `cmd.exe` fails with `"La línea de comandos es demasiado larga"` because lint-staged's default `maxArgLength` (8191) does not account for quote expansion and command wrappers. `.husky/pre-commit` passes `--max-arg-length 3000` to chunk tasks into safe argument lengths.
+
 ## TypeScript and ESLint disagree about `?.`
 
 When TypeScript's types say a value can be nullish but ESLint reports the optional chain as unnecessary, keep `?.` and add an `eslint-disable-next-line` comment with the rule name.
