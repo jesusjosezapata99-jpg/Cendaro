@@ -1,7 +1,7 @@
 ---
-version: "3.8"
-last-audit: "2026-09-15"
-entries: 20
+version: "3.9"
+last-audit: "2026-10-26"
+entries: 19
 shared-by: ["Gemini/Antigravity"]
 ---
 
@@ -47,6 +47,7 @@ This file is the **single source of truth** for error history. Every entry makes
 | 30  | `WorkspaceModule` uses row presence (not an `isEnabled` boolean column) to represent enabled modules; always `.insert(WorkspaceModule).onConflictDoNothing()` when enabling and `.delete(WorkspaceModule)` when disabling.                                                                                                                                     | Drizzle / Multi-tenancy              |
 | 31  | In `logAudit`, always resolve `workspaceId` (`entry.workspaceId ?? resolveWorkspaceId(user)`) BEFORE calling `buildAuditIntegrityMetadata` and `computeAuditChainHash`, and keep `prevHash`/`chainHash` in their dedicated `AuditLog` columns so `verifyAuditRecordIntegrity` and `verifyAuditChain` match 1:1.                                                | WORM Audit Chain / Cryptography      |
 | 32  | Never perform `.insert()`, `.update()`, or `.delete()` inside a `.query()` procedure built with `wsReadPermissionProcedure`, because `runInWorkspaceRlsReadonly` wraps all queries in `SET TRANSACTION READ ONLY` (`Postgres 25006`). Move state transitions to `.mutation()` or handle expiration virtually on read.                                          | tRPC / PostgreSQL READ ONLY          |
+| 33  | On Windows, pass `--max-arg-length 3000` to lint-staged in `.husky/pre-commit` to prevent `cmd.exe` 8,191-character command line buffer overflow (`La línea de comandos es demasiado larga`) when many files are staged.                                                                                                                                       | Windows / Git Hooks / lint-staged    |
 
 ## Entry Template
 
@@ -65,6 +66,19 @@ This file is the **single source of truth** for error history. Every entry makes
 ---
 
 ## Entries
+
+### [2026-10-26] Windows cmd.exe 8,191-char Command Line Overflow in lint-staged (`La línea de comandos es demasiado larga`)
+
+- **Error**: `git commit` failed during husky pre-commit hook with:
+  `✖ pnpm exec eslint --cache --cache-location .cache/.eslintcache --no-warn-ignored:`
+  `La línea de comandos es demasiado larga.`
+  `husky - pre-commit script failed (code 1)`
+- **Root Cause**: On Windows (`win32`), `cmd.exe` enforces a strict 8,191-character command line buffer limit. By default, `lint-staged` sets `maxArgLength = 8191` and estimates argument length without accounting for the extra quotes (`"..."`) added around each filepath when spawning child processes via `tinyexec`/Node, nor the overhead of `cmd.exe` and `pnpm.cmd` wrappers. When committing 113+ files, `lint-staged` calculated an argument string of 8,140 characters, assumed it fit within 8,191 characters, and skipped chunking. When passed through Windows `cmd.exe`, the actual command line exceeded 8,191 characters, triggering the native OS failure.
+- **Fix**: Updated `.husky/pre-commit` to invoke `pnpm exec lint-staged --max-arg-length 3000` and added `"lint-staged": "lint-staged --max-arg-length 3000"` to root `package.json`. At 3,000 characters, `lint-staged` splits large file lists into safe chunks of ~30-40 files (~3,100 characters total command length), well below the Windows limit. Verified with 136 staged files (4 ESLint chunks and 4 Prettier chunks executing and succeeding cleanly).
+- **Prevention**: Always pass explicit `--max-arg-length 3000` to `lint-staged` on Windows repositories with large commits.
+- **Workspace**: Root monorepo (`.husky/pre-commit`, `package.json`, `.agents/skills/troubleshooting/SKILL.md`)
+- **Severity**: Critical (Blocked all git commits containing >100 staged files)
+- **Recurrence**: 1st (Rule #33)
 
 ### [2026-09-15] Production Browser Audit: CSP Eval Block, Font Preload Delay, Missing Form Input Attributes & Alert Count 500
 
@@ -317,10 +331,10 @@ This file is the **single source of truth** for error history. Every entry makes
 
 | Metric                    | Value                        |
 | ------------------------- | ---------------------------- |
-| **Total entries**         | 18                           |
-| **Critical**              | 8                            |
+| **Total entries**         | 19                           |
+| **Critical**              | 9                            |
 | **Major**                 | 8                            |
 | **Minor**                 | 2                            |
-| **Most common workspace** | Root monorepo (8/18 entries) |
-| **Date of last entry**    | 2026-09-26                   |
-| **Quick Reference rules** | 28                           |
+| **Most common workspace** | Root monorepo (9/19 entries) |
+| **Date of last entry**    | 2026-10-26                   |
+| **Quick Reference rules** | 33                           |
