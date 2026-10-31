@@ -37,6 +37,7 @@ import {
   Payment,
   paymentMethodEnum,
   Product,
+  ProductPrice,
   salesChannelEnum,
   SalesOrder,
   StockLedger,
@@ -188,6 +189,128 @@ const CLOSING_STATUSES: readonly string[] = ["delivered", "invoiced"];
 const REVERT_STATUSES: readonly string[] = ["returned", "cancelled"];
 
 /**
+ * SEC-API-001 / SEC-AUTH-01: Validates that client-supplied line prices and
+ * discounts respect authoritative ProductPrice entries and Product.costAvg
+ * minimum margins unless the caller has management pricing authority.
+ */
+async function assertCatalogPricingAndMargin(
+  ctx: SalesWriteContext,
+  channel: SalesOrderRow["channel"],
+  items: readonly {
+    productId: string;
+    quantity: number;
+    unitPrice: number;
+    discount: number;
+  }[],
+  foundProducts: readonly {
+    id: string;
+    status?: string | null;
+    costAvg?: number | string | null;
+  }[],
+): Promise<void> {
+  if (items.length === 0) return;
+
+  const isManagement = ["owner", "admin", "supervisor"].includes(
+    ctx.workspace.role,
+  );
+  const productIds = [...new Set(items.map((i) => i.productId))];
+
+  const priceRows = await ctx.db
+    .select({
+      productId: ProductPrice.productId,
+      priceType: ProductPrice.priceType,
+      amountUsd: ProductPrice.amountUsd,
+    })
+    .from(ProductPrice)
+    .where(
+      and(
+        eq(ProductPrice.workspaceId, ctx.workspace.workspaceId),
+        inArray(ProductPrice.productId, productIds),
+      ),
+    );
+
+  const validPriceRows = priceRows.filter(
+    (r) =>
+      typeof r.productId === "string" &&
+      typeof r.amountUsd === "number" &&
+      r.amountUsd > 0,
+  );
+
+  const pricesByProduct = new Map<
+    string,
+    { priceType: string; amountUsd: number }[]
+  >();
+  for (const row of validPriceRows) {
+    const list = pricesByProduct.get(row.productId) ?? [];
+    list.push({ priceType: String(row.priceType), amountUsd: row.amountUsd });
+    pricesByProduct.set(row.productId, list);
+  }
+
+  const costByProduct = new Map<string, number>();
+  for (const prod of foundProducts) {
+    const numericCost = Number(prod.costAvg ?? 0);
+    if (Number.isFinite(numericCost) && numericCost > 0) {
+      costByProduct.set(prod.id, numericCost);
+    }
+  }
+
+  const targetPriceType = channel === "vendors" ? "vendor" : "store";
+
+  for (const item of items) {
+    if (item.unitPrice <= 0) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "El precio unitario de cada artículo debe ser mayor a cero",
+      });
+    }
+    const netUnit = item.unitPrice - item.discount;
+    if (netUnit <= 0) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message:
+          "El precio neto unitario después de descuento debe ser mayor a cero",
+      });
+    }
+
+    const costAvg = costByProduct.get(item.productId);
+    if (
+      costAvg !== undefined &&
+      !isManagement &&
+      netUnit < costAvg - MONEY_EPSILON
+    ) {
+      throw new TRPCError({
+        code: "FORBIDDEN",
+        message:
+          "No tienes autorización para vender por debajo del costo promedio sin aprobación de gerencia",
+      });
+    }
+
+    const catalogPrices = pricesByProduct.get(item.productId);
+    if (catalogPrices && catalogPrices.length > 0) {
+      const channelMatch = catalogPrices.find(
+        (p) => p.priceType === targetPriceType,
+      );
+      const minCatalogPrice = Math.min(
+        ...catalogPrices.map((p) => p.amountUsd),
+      );
+      const referencePrice = channelMatch?.amountUsd ?? minCatalogPrice;
+
+      // Non-management roles may apply at most a 10% discretionary discount below catalog price
+      const minAllowed = isManagement
+        ? minCatalogPrice * 0.5
+        : referencePrice * 0.9;
+      if (netUnit < minAllowed - MONEY_EPSILON) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message:
+            "El precio unitario o descuento excede el margen permitido en el catálogo; requiere autorización de gerencia",
+        });
+      }
+    }
+  }
+}
+
+/**
  * Stock lifecycle of an order moving to `status`: deducts its items from the
  * sales channel when it closes (delivered / invoiced) and restores them when
  * a deducted order is returned or cancelled. Each change is logged in
@@ -279,6 +402,43 @@ async function applyStockLifecycle(
       productIds.length === 1 && productIds[0]
         ? eq(prodCol, productIds[0])
         : inArray(prodCol, productIds);
+
+    // SEC-API-009: Acquire row-level lock (FOR UPDATE) on stock rows during
+    // closing deduction and verify available stock when ledger rows exist.
+    if (isClosing && primaryWarehouseId) {
+      const lockQuery = ctx.db
+        .select({
+          productId: StockLedger.productId,
+          quantity: StockLedger.quantity,
+        })
+        .from(StockLedger)
+        .where(
+          and(
+            eq(StockLedger.workspaceId, ctx.workspace.workspaceId),
+            productFilter(StockLedger.productId),
+            eq(StockLedger.warehouseId, primaryWarehouseId),
+          ),
+        );
+      const lockedStockRows =
+        typeof (lockQuery as unknown as { for?: unknown }).for === "function"
+          ? await lockQuery.for("update")
+          : await lockQuery;
+
+      for (const row of lockedStockRows) {
+        if (
+          typeof row.productId === "string" &&
+          typeof row.quantity === "number"
+        ) {
+          const delta = deltaByProduct.get(row.productId) ?? 0;
+          if (delta < 0 && row.quantity + delta < 0) {
+            throw new TRPCError({
+              code: "CONFLICT",
+              message: "Stock insuficiente en almacén para despachar el pedido",
+            });
+          }
+        }
+      }
+    }
 
     await ctx.db
       .update(ChannelAllocation)
@@ -1056,7 +1216,11 @@ export const salesRouter = createTRPCRouter({
       const productIds = [...new Set(input.items.map((i) => i.productId))];
       if (productIds.length > 0) {
         const found = await ctx.db
-          .select({ id: Product.id, status: Product.status })
+          .select({
+            id: Product.id,
+            status: Product.status,
+            costAvg: Product.costAvg,
+          })
           .from(Product)
           .where(
             and(
@@ -1080,6 +1244,13 @@ export const salesRouter = createTRPCRouter({
               "No se pueden vender productos en estado borrador o descontinuado",
           });
         }
+
+        await assertCatalogPricingAndMargin(
+          ctx,
+          input.channel,
+          input.items,
+          found,
+        );
 
         const lockedRows = await ctx.db
           .select({
@@ -1141,7 +1312,7 @@ export const salesRouter = createTRPCRouter({
         if (
           customerRow &&
           typeof customerRow.creditLimit === "number" &&
-          customerRow.creditLimit > 0 &&
+          customerRow.creditLimit >= 0 &&
           (customerRow.balance ?? 0) + total >
             customerRow.creditLimit + MONEY_EPSILON
         ) {
@@ -1251,6 +1422,19 @@ export const salesRouter = createTRPCRouter({
         });
       }
 
+      // SEC-API-013: Prevent invalid state transitions (e.g. draft -> delivered or cancelled -> delivered)
+      if (
+        (currentOrder.status === "draft" ||
+          currentOrder.status === "cancelled" ||
+          currentOrder.status === "returned") &&
+        (input.status === "delivered" || input.status === "invoiced")
+      ) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `No se puede pasar directamente un pedido en estado "${currentOrder.status}" a "${input.status}"`,
+        });
+      }
+
       if (input.status === "invoiced" && currentOrder.customerId) {
         await assertInvoiceReadyBuyer(ctx, currentOrder.customerId);
       }
@@ -1345,7 +1529,11 @@ export const salesRouter = createTRPCRouter({
 
       const productIds = [...new Set(input.items.map((i) => i.productId))];
       const found = await ctx.db
-        .select({ id: Product.id })
+        .select({
+          id: Product.id,
+          status: Product.status,
+          costAvg: Product.costAvg,
+        })
         .from(Product)
         .where(
           and(
@@ -1361,6 +1549,15 @@ export const salesRouter = createTRPCRouter({
         });
       }
 
+      if (input.items.some((i) => i.discount > i.unitPrice)) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "El descuento de un artículo no puede superar su precio",
+        });
+      }
+
+      await assertCatalogPricingAndMargin(ctx, "store", input.items, found);
+
       const subtotal = input.items.reduce(
         (sum, i) => sum + i.unitPrice * i.quantity,
         0,
@@ -1369,12 +1566,6 @@ export const salesRouter = createTRPCRouter({
         (sum, i) => sum + i.discount * i.quantity,
         0,
       );
-      if (input.items.some((i) => i.discount > i.unitPrice)) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "El descuento de un artículo no puede superar su precio",
-        });
-      }
       const total = subtotal - discount;
       const received = input.payments.reduce((sum, p) => sum + p.amount, 0);
       if (received < total - MONEY_EPSILON) {
@@ -1568,9 +1759,13 @@ export const salesRouter = createTRPCRouter({
       }),
     )
     .query(async ({ ctx, input }) => {
+      const vendorId = vendorScopeId(ctx);
       const conditions = [
         eq(DeliveryNote.workspaceId, ctx.workspace.workspaceId),
       ];
+      if (vendorId) {
+        conditions.push(eq(DeliveryNote.createdBy, vendorId));
+      }
       if (input.orderId) {
         conditions.push(eq(DeliveryNote.orderId, input.orderId));
       }
@@ -1737,9 +1932,13 @@ export const salesRouter = createTRPCRouter({
       }),
     )
     .query(async ({ ctx, input }) => {
+      const vendorId = vendorScopeId(ctx);
       const conditions = [
         eq(InternalInvoice.workspaceId, ctx.workspace.workspaceId),
       ];
+      if (vendorId) {
+        conditions.push(eq(InternalInvoice.createdBy, vendorId));
+      }
       if (input.orderId) {
         conditions.push(eq(InternalInvoice.orderId, input.orderId));
       }

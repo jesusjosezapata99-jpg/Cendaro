@@ -32,6 +32,7 @@ import {
   StockLedger,
   Supplier,
 } from "@cendaro/db/schema";
+import { can } from "@cendaro/validators";
 
 import {
   createTRPCRouter,
@@ -323,14 +324,22 @@ export const catalogRouter = createTRPCRouter({
           .where(eq(ProductSupplier.productId, input.id)),
       ]);
 
+      // SEC-FE-02: Redact confidential product cost average and supplier costs
+      // from RSC streaming payloads and API responses unless caller has pricing:read
+      const canReadPricing = can(ctx.workspace.role, "pricing", "read");
+      const redactedSuppliers = canReadPricing
+        ? productSuppliers
+        : productSuppliers.map((s) => ({ ...s, cost: null }));
+
       return {
         ...product,
+        costAvg: canReadPricing ? product.costAvg : null,
         attributes,
         prices,
         stockLedger,
         channelAllocations,
         uomEquivalences,
-        productSuppliers,
+        productSuppliers: redactedSuppliers,
       };
     }),
 

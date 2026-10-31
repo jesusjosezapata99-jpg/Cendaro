@@ -22,12 +22,33 @@ export function sheetToJson<T>(wb: WorkBook, sheetName: string): T[] {
   return utils.sheet_to_json<T>(ws);
 }
 
+const FORMULA_TRIGGER_RE = /^[\s]*[=+\-@|\t\r]/;
+
+/**
+ * SEC-FE-04: Neutralize Spreadsheet Formula Injection (CSV / DDE Injection)
+ * by prefixing strings that start with formula control characters with `'`.
+ */
+export function sanitizeSpreadsheetCell(value: unknown): unknown {
+  if (typeof value === "string" && FORMULA_TRIGGER_RE.test(value)) {
+    return `'${value}`;
+  }
+  return value;
+}
+
+function sanitizeRow<T extends object>(row: T): T {
+  const copy: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(row)) {
+    copy[k] = sanitizeSpreadsheetCell(v);
+  }
+  return copy as T;
+}
+
 /** Build a workbook from an array of objects (single sheet) */
 export function jsonToWorkbook<T extends object>(
   rows: T[],
   sheetName = "Sheet1",
 ): WorkBook {
-  const ws = utils.json_to_sheet(rows);
+  const ws = utils.json_to_sheet(rows.map((r) => sanitizeRow(r)));
   const wb = utils.book_new();
   utils.book_append_sheet(wb, ws, sheetName);
   return wb;
@@ -39,7 +60,7 @@ export function buildMultiSheetWorkbook(
 ): WorkBook {
   const wb = utils.book_new();
   for (const { name, rows } of sheets) {
-    const ws = utils.json_to_sheet(rows);
+    const ws = utils.json_to_sheet(rows.map((r) => sanitizeRow(r)));
     utils.book_append_sheet(wb, ws, name);
   }
   return wb;
@@ -50,7 +71,10 @@ export function aoaToWorkbook(
   data: unknown[][],
   sheetName = "Sheet1",
 ): WorkBook {
-  const ws = utils.aoa_to_sheet(data);
+  const sanitized = data.map((row) =>
+    row.map((cell) => sanitizeSpreadsheetCell(cell)),
+  );
+  const ws = utils.aoa_to_sheet(sanitized);
   const wb = utils.book_new();
   utils.book_append_sheet(wb, ws, sheetName);
   return wb;

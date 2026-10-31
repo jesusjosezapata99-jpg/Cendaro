@@ -10,6 +10,7 @@ import { z } from "zod/v4";
 
 import type { getDb } from "@cendaro/db/client";
 import {
+  AccountReceivable,
   CashClosure,
   Payment,
   PaymentEvidence,
@@ -116,6 +117,12 @@ export async function executeAddPayment(
   workspaceId: string,
   input: z.infer<typeof addPaymentInputSchema>,
 ) {
+  if (input.reference) {
+    await db.execute(
+      sql`SELECT pg_advisory_xact_lock(hashtextextended(${`payment_ref:${workspaceId}:${input.orderId}:${input.reference}`}, 0))`,
+    );
+  }
+
   const [order] = await db
     .select()
     .from(SalesOrder)
@@ -164,6 +171,39 @@ export async function executeAddPayment(
         eq(SalesOrder.workspaceId, workspaceId),
       ),
     );
+
+  // SEC-API-015: Synchronize linked AccountReceivable balance when present
+  const [ar] = await db
+    .select()
+    .from(AccountReceivable)
+    .where(
+      and(
+        eq(AccountReceivable.orderId, input.orderId),
+        eq(AccountReceivable.workspaceId, workspaceId),
+      ),
+    )
+    .limit(1);
+
+  if (ar && typeof ar.balance === "number" && ar.balance > 0) {
+    const newPaid = Number((ar.paidAmount + input.amount).toFixed(2));
+    const newBalance = Math.max(
+      0,
+      Number((ar.balance - input.amount).toFixed(2)),
+    );
+    await db
+      .update(AccountReceivable)
+      .set({
+        paidAmount: newPaid,
+        balance: newBalance,
+        status: newBalance <= 0.009 ? "paid" : "partial",
+      })
+      .where(
+        and(
+          eq(AccountReceivable.id, ar.id),
+          eq(AccountReceivable.workspaceId, workspaceId),
+        ),
+      );
+  }
 
   await logAudit(db, user, {
     workspaceId,

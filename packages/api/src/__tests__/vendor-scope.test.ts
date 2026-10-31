@@ -131,6 +131,9 @@ function filtersBy(
 const ORDER_OWNER = `"sales_order"."createdBy"`;
 const QUOTE_OWNER = `"quote"."createdBy"`;
 const CUSTOMER_VENDOR = `"customer"."assignedVendorId"`;
+const DELIVERY_NOTE_OWNER = `"delivery_note"."createdBy"`;
+const INTERNAL_INVOICE_OWNER = `"internal_invoice"."createdBy"`;
+const FISCAL_DOC_ISSUER = `"fiscal_document"."issuedBy"`;
 const channel = salesChannelEnum.enumValues[0];
 
 describe("vendor reads are scoped to their own rows", () => {
@@ -150,6 +153,26 @@ describe("vendor reads are scoped to their own rows", () => {
       "sales.customerById",
       CUSTOMER_VENDOR,
       (c) => c.sales.customerById({ id: nextId() }),
+    ],
+    [
+      "sales.listDeliveryNotes",
+      DELIVERY_NOTE_OWNER,
+      (c) => c.sales.listDeliveryNotes({}),
+    ],
+    [
+      "sales.listInternalInvoices",
+      INTERNAL_INVOICE_OWNER,
+      (c) => c.sales.listInternalInvoices({}),
+    ],
+    [
+      "fiscal.listDocuments",
+      FISCAL_DOC_ISSUER,
+      (c) => c.fiscal.listDocuments({}),
+    ],
+    [
+      "fiscal.salesBookReport",
+      FISCAL_DOC_ISSUER,
+      (c) => c.fiscal.salesBookReport({}),
     ],
     ["quotes.list", QUOTE_OWNER, (c) => c.quotes.list({})],
     ["quotes.byId", QUOTE_OWNER, (c) => c.quotes.byId({ id: nextId() })],

@@ -244,6 +244,18 @@ export const creditNotesRouter = createTRPCRouter({
           });
         }
 
+        // SEC-API-003: Prevent arbitrary price inflation in credit notes
+        if (
+          line.unitPriceUsd !== undefined &&
+          line.unitPriceUsd > billed.unitPrice + 0.005
+        ) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message:
+              "El precio unitario de la nota de crédito no puede superar el precio facturado originalmente",
+          });
+        }
+
         const unitPriceUsd = roundMoney2(line.unitPriceUsd ?? billed.unitPrice);
         const lineSubtotal = multiplyMoney(unitPriceUsd, line.quantity);
         subtotalUsd = roundMoney2(subtotalUsd + lineSubtotal);
@@ -385,6 +397,15 @@ export const creditNotesRouter = createTRPCRouter({
         throw new TRPCError({
           code: "PRECONDITION_FAILED",
           message: "No se puede aprobar una nota de crédito anulada",
+        });
+      }
+
+      // SEC-AUTH-05: Segregation of Duties — prevent self-approval
+      if (note.requestedBy && note.requestedBy === ctx.user.id) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message:
+            "Segregación de funciones: no puedes aprobar una nota de crédito solicitada por ti mismo",
         });
       }
 

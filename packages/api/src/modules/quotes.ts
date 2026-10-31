@@ -165,6 +165,14 @@ export const quotesRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       await assertVendorCustomer(ctx, input.customerId);
 
+      // SEC-API-002: Reject inverted discounts (discount > unitPrice)
+      if (input.items.some((i) => i.discount > i.unitPrice)) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "El descuento de un artículo no puede superar su precio",
+        });
+      }
+
       // Validate all products belong to workspace
       const productIds = input.items.map((i) => i.productId);
       if (productIds.length > 0) {
@@ -328,6 +336,15 @@ export const quotesRouter = createTRPCRouter({
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: "No se puede convertir una cotización vencida o rechazada",
+        });
+      }
+
+      // SEC-API-002: Prevent converting negative-total quotes into orders
+      if (typeof quote.total === "number" && quote.total < 0) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message:
+            "No se puede convertir una cotización con monto total negativo",
         });
       }
 

@@ -485,4 +485,87 @@ describe("Phase 5 — Commercial Cycle (F5.2 - F5.5)", () => {
     const movements = inserted.filter((r) => r.movementType === "sale");
     expect(movements).toHaveLength(2);
   });
+
+  it("SEC-API-001 & SEC-AUTH-04: enforces minimum costAvg margin for non-management and blocks zero-credit orders", async () => {
+    const employeeCaller = createMockCaller({
+      role: "employee",
+      productRows: [{ id: productId, status: "active", costAvg: 50 }],
+    });
+    await expect(
+      employeeCaller.caller.sales.createOrder({
+        channel: "store",
+        items: [{ productId, quantity: 1, unitPrice: 10, discount: 0 }],
+      }),
+    ).rejects.toThrowError(
+      expect.objectContaining({ code: "FORBIDDEN" }) as Error,
+    );
+
+    const zeroCreditCaller = createMockCaller({
+      productRows: [{ id: productId, status: "active" }],
+      customerRow: {
+        id: customerId,
+        creditLimit: 0,
+        creditDays: 0,
+        balance: 0,
+      },
+    });
+    await expect(
+      zeroCreditCaller.caller.sales.createOrder({
+        customerId,
+        channel: "store",
+        items: [{ productId, quantity: 1, unitPrice: 50, discount: 0 }],
+      }),
+    ).rejects.toThrowError(
+      expect.objectContaining({ code: "PRECONDITION_FAILED" }) as Error,
+    );
+  });
+
+  it("SEC-API-002 & SEC-API-013: blocks inverted quote discounts, negative quote conversions, and draft->delivered jumps", async () => {
+    const { caller } = createMockCaller();
+    await expect(
+      caller.quotes.create({
+        channel: "store",
+        items: [{ productId, quantity: 1, unitPrice: 10, discount: 50 }],
+      }),
+    ).rejects.toThrowError(
+      expect.objectContaining({ code: "BAD_REQUEST" }) as Error,
+    );
+
+    const negQuoteId = nextId();
+    const negQuoteCaller = createMockCaller({
+      quoteRow: {
+        id: negQuoteId,
+        quoteNumber: "COT-NEG",
+        status: "sent",
+        channel: "store",
+        subtotal: 10,
+        discount: 50,
+        total: -40,
+      },
+    });
+    await expect(
+      negQuoteCaller.caller.quotes.convertToOrder({ id: negQuoteId }),
+    ).rejects.toThrowError(
+      expect.objectContaining({ code: "BAD_REQUEST" }) as Error,
+    );
+
+    const draftOrderId = nextId();
+    const draftOrderCaller = createMockCaller({
+      orderRow: {
+        id: draftOrderId,
+        customerId: null,
+        channel: "store",
+        status: "draft",
+        stockDeducted: false,
+      },
+    });
+    await expect(
+      draftOrderCaller.caller.sales.updateOrderStatus({
+        id: draftOrderId,
+        status: "delivered",
+      }),
+    ).rejects.toThrowError(
+      expect.objectContaining({ code: "BAD_REQUEST" }) as Error,
+    );
+  });
 });

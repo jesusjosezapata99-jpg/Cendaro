@@ -33,6 +33,7 @@ import {
   wsReadPermissionProcedure,
 } from "../trpc";
 import { logAudit } from "./audit";
+import { vendorScopeId } from "./vendor-scope";
 
 export interface SeniatLineInput {
   subtotalUsd: number;
@@ -153,7 +154,11 @@ export const fiscalRouter = createTRPCRouter({
     )
     .query(async ({ ctx, input }) => {
       const wsId = ctx.workspace.workspaceId;
+      const vendorId = vendorScopeId(ctx);
       const conditions = [eq(FiscalDocument.workspaceId, wsId)];
+      if (vendorId) {
+        conditions.push(eq(FiscalDocument.issuedBy, vendorId));
+      }
       if (input?.documentType) {
         conditions.push(eq(FiscalDocument.documentType, input.documentType));
       }
@@ -201,6 +206,15 @@ export const fiscalRouter = createTRPCRouter({
     )
     .mutation(async ({ ctx, input }) => {
       const wsId = ctx.workspace.workspaceId;
+
+      // SEC-AUTH-03: External commission vendors cannot directly emit legal SENIAT documents
+      if (ctx.workspace.role === "vendor") {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message:
+            "Los vendedores externos no pueden emitir documentos fiscales SENIAT directamente",
+        });
+      }
 
       if (
         (input.documentType === "nota_credito" ||
@@ -286,6 +300,15 @@ export const fiscalRouter = createTRPCRouter({
     )
     .mutation(async ({ ctx, input }) => {
       const wsId = ctx.workspace.workspaceId;
+
+      // SEC-API-007: Only management roles may apply tax retentions that reduce AR balances
+      if (!["owner", "admin", "supervisor"].includes(ctx.workspace.role)) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message:
+            "Solo supervisores o administradores pueden registrar retenciones fiscales que afectan cuentas por cobrar",
+        });
+      }
 
       const [doc] = await ctx.db
         .select()
@@ -399,7 +422,11 @@ export const fiscalRouter = createTRPCRouter({
     )
     .query(async ({ ctx, input }) => {
       const wsId = ctx.workspace.workspaceId;
+      const vendorId = vendorScopeId(ctx);
       const conditions = [eq(FiscalDocument.workspaceId, wsId)];
+      if (vendorId) {
+        conditions.push(eq(FiscalDocument.issuedBy, vendorId));
+      }
       if (input?.fromDate) {
         conditions.push(gte(FiscalDocument.issuedAt, new Date(input.fromDate)));
       }
@@ -484,6 +511,15 @@ export const fiscalRouter = createTRPCRouter({
     )
     .mutation(async ({ ctx, input }) => {
       const wsId = ctx.workspace.workspaceId;
+
+      // SEC-API-007: Only management roles may apply tax retentions that reduce AR balances
+      if (!["owner", "admin", "supervisor"].includes(ctx.workspace.role)) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message:
+            "Solo supervisores o administradores pueden registrar retenciones fiscales que afectan cuentas por cobrar",
+        });
+      }
 
       if (input.id) {
         const [updated] = await ctx.db
@@ -571,6 +607,15 @@ export const fiscalRouter = createTRPCRouter({
     )
     .mutation(async ({ ctx, input }) => {
       const wsId = ctx.workspace.workspaceId;
+
+      // SEC-API-007: Only management roles may apply tax retentions that reduce AR balances
+      if (!["owner", "admin", "supervisor"].includes(ctx.workspace.role)) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message:
+            "Solo supervisores o administradores pueden registrar retenciones fiscales que afectan cuentas por cobrar",
+        });
+      }
 
       if (input.id) {
         const [updated] = await ctx.db

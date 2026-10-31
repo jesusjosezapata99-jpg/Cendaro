@@ -242,10 +242,23 @@ export async function extractImagesFromXlsx(
   const JSZip = (await import("jszip")).default;
   const buffer = await file.arrayBuffer();
   const zip = await JSZip.loadAsync(buffer);
+  const entries = Object.entries(zip.files);
+
+  // SEC-FE-05: Browser Zip Bomb protections
+  const MAX_ZIP_ENTRIES = 500;
+  const MAX_SINGLE_IMAGE_BYTES = 10 * 1024 * 1024; // 10 MB per uncompressed image
+  const MAX_TOTAL_UNCOMPRESSED_BYTES = 25 * 1024 * 1024; // 25 MB total
+  if (entries.length > MAX_ZIP_ENTRIES) {
+    throw new Error(
+      `El archivo excede el número máximo de entradas internas (${MAX_ZIP_ENTRIES})`,
+    );
+  }
+
   const images: BrowserImage[] = [];
   let idx = 0;
+  let totalUncompressedBytes = 0;
 
-  for (const [path, zipFile] of Object.entries(zip.files)) {
+  for (const [path, zipFile] of entries) {
     if (idx >= MAX_TOTAL_IMAGES) break;
     if (zipFile.dir) continue;
     if (!path.startsWith("xl/media/")) continue;
@@ -255,6 +268,10 @@ export async function extractImagesFromXlsx(
 
     try {
       const blob = await zipFile.async("blob");
+      if (blob.size > MAX_SINGLE_IMAGE_BYTES) continue;
+      totalUncompressedBytes += blob.size;
+      if (totalUncompressedBytes > MAX_TOTAL_UNCOMPRESSED_BYTES) break;
+
       const compressed = await compressImageInBrowser(blob);
       if (compressed) {
         images.push({

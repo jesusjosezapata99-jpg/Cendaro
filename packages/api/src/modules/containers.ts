@@ -175,6 +175,15 @@ export const containerRouter = createTRPCRouter({
         });
       }
 
+      // SEC-API-011: Prevent replay attack on already received or closed containers
+      if (container.status === "received" || container.status === "closed") {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message:
+            "Este contenedor ya fue recibido o cerrado previamente; no se puede volver a inyectar su inventario",
+        });
+      }
+
       const [warehouse] = await ctx.db
         .select({ id: Warehouse.id })
         .from(Warehouse)
@@ -324,17 +333,15 @@ export const containerRouter = createTRPCRouter({
         });
       }
 
-      if (container.status === "created" || container.status === "in_transit") {
-        await ctx.db
-          .update(Container)
-          .set({ status: "received" })
-          .where(
-            and(
-              eq(Container.id, input.containerId),
-              eq(Container.workspaceId, workspaceId),
-            ),
-          );
-      }
+      await ctx.db
+        .update(Container)
+        .set({ status: "received" })
+        .where(
+          and(
+            eq(Container.id, input.containerId),
+            eq(Container.workspaceId, workspaceId),
+          ),
+        );
 
       await logAudit(ctx.db, ctx.user, {
         workspaceId,

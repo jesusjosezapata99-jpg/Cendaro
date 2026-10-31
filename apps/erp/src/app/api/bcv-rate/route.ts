@@ -2,6 +2,8 @@ import { connection, NextResponse } from "next/server";
 
 import { getVesRates } from "@cendaro/api";
 
+import { rateLimit } from "~/lib/rate-limit";
+
 /**
  * Public official (BCV) + parallel Bs rates for display.
  *
@@ -12,11 +14,27 @@ import { getVesRates } from "@cendaro/api";
  * request amplification, finding M6/F8.6); it is ignored now — a forced
  * refresh is `pricing.syncRates({ force: true })`, gated by rates.update.
  */
-export async function GET() {
+export async function GET(request?: Request) {
   // Dynamic per request. Without it the build's prerender probe runs this
   // handler, aborts the upstream fetches when it finishes, and logs each
   // abort as "exchange-rate upstream failed".
   await connection();
+
+  // SEC-FE-08: Per-IP rate limiting on public exchange rate route
+  if (request) {
+    const rawIp = request.headers.get("x-forwarded-for") ?? "";
+    const ip = rawIp.split(",")[0]?.trim() ?? "unknown";
+    const { success: allowed } = await rateLimit(`bcv-rate:ip:${ip}`, {
+      window: 60_000,
+      max: 60,
+    });
+    if (!allowed) {
+      return NextResponse.json(
+        { error: "Demasiadas solicitudes. Intente nuevamente en un minuto." },
+        { status: 429 },
+      );
+    }
+  }
   const rates = await getVesRates();
   if (!rates) {
     return NextResponse.json(

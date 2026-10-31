@@ -96,6 +96,10 @@ export async function POST(request: Request) {
   // Use "global" to invalidate all sessions across all devices (for account compromise scenarios).
   await supabase.auth.signOut({ scope: "local" });
 
+  // SEC-AUTH-07: Cleanse workspace and activity cookies on logout
+  cookieStore.delete("cendaro-workspace-id");
+  cookieStore.delete("cendaro-last-activity");
+
   return NextResponse.json(
     { success: true },
     { status: 200, headers: AUTH_SECURITY_HEADERS },

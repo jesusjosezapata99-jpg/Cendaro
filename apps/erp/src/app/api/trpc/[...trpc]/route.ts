@@ -20,12 +20,33 @@ import { createSupabaseServerClient } from "@cendaro/auth/server";
 
 import { env } from "~/env";
 import { readBodyWithByteLimit } from "~/lib/request-body-limit";
+import { isTrustedOrigin } from "~/lib/trusted-origin";
 
 const MAX_BATCH_SIZE = 15;
 const MAX_PAYLOAD_BYTES = 10 * 1024 * 1024; // 10MB
 
 const handler = async (incoming: Request) => {
   let req = incoming;
+
+  // ── SEC-FE-07: CSRF / Same-Origin Verification on State-Mutating POSTs ──
+  if (
+    req.method === "POST" &&
+    (req.headers.has("origin") || req.headers.has("referer")) &&
+    !isTrustedOrigin(req.headers, req.url)
+  ) {
+    return new Response(
+      JSON.stringify({
+        error: {
+          message: "Origen de solicitud no autorizado (CSRF)",
+          code: -32600,
+        },
+      }),
+      {
+        status: 403,
+        headers: { "Content-Type": "application/json" },
+      },
+    );
+  }
 
   // ── DoS Guard: Batch Query Amplification Limit ──
   try {
