@@ -6,10 +6,12 @@
 export const PUBLIC_ROUTES_EXACT: readonly string[] = [
   "/",
   "/opengraph-image",
-  // Public marketing site (PLAN-2026-09-LANDING-REDESIGN F1).
+  // Public marketing site (PLAN-2026-09-LANDING-REDESIGN F1 & PLAN-2026-10-MAESTRO-SEO-GEO-AI-MARKETING).
   "/funciones",
   "/sitemap.xml",
   "/robots.txt",
+  "/llms.txt",
+  "/llms-full.txt",
 ];
 
 /**

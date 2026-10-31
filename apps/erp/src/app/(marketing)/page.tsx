@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 
-import { siteUrl } from "~/lib/site-env";
-import { HERO } from "../_components/landing/content";
+import { HERO, HERO_VIDEO_LABEL } from "../_components/landing/content";
 import { BeforeAfter } from "../_components/landing/home/before-after";
 import { DualCurrency } from "../_components/landing/home/dual-currency";
 import { faqJsonLd, FaqSection } from "../_components/landing/home/faq-section";
@@ -12,7 +11,15 @@ import { ModulesGrid } from "../_components/landing/home/modules-grid";
 import { PlansSection } from "../_components/landing/home/plans-section";
 import { ProofStrip } from "../_components/landing/home/proof-strip";
 import { SecuritySection } from "../_components/landing/home/security-section";
-import { JsonLd } from "../_components/landing/seo";
+import {
+  JsonLd,
+  marketingAlternates,
+  organizationJsonLd,
+  softwareApplicationJsonLd,
+  videoObjectJsonLd,
+  webPageJsonLd,
+  websiteJsonLd,
+} from "../_components/landing/seo";
 
 const TITLE = "Cendaro — Vende, importa y cobra desde un solo sistema";
 const DESCRIPTION =
@@ -21,7 +28,20 @@ const DESCRIPTION =
 export const metadata: Metadata = {
   title: TITLE,
   description: DESCRIPTION,
-  alternates: { canonical: "/" },
+  keywords: [
+    "ERP Venezuela",
+    "sistema administrativo Venezuela",
+    "ERP para distribuidoras",
+    "sistema para importadoras Venezuela",
+    "inventario multi-almacén",
+    "tasa BCV automática",
+    "facturación dólares y bolívares",
+    "punto de venta RIF Venezuela",
+    "packing list con IA",
+    "cuentas por cobrar bimoneda",
+    "Cendaro",
+  ],
+  alternates: marketingAlternates("/"),
   openGraph: {
     title: TITLE,
     description: DESCRIPTION,
@@ -37,26 +57,22 @@ export const metadata: Metadata = {
   },
 };
 
-/** Organization + SoftwareApplication (no offers: no public prices) + FAQPage. */
+/** Organization + WebSite + WebPage + SoftwareApplication + VideoObject + FAQPage. */
 const JSON_LD = [
-  {
-    "@context": "https://schema.org",
-    "@type": "Organization",
-    name: "Cendaro",
-    url: siteUrl.origin,
-    logo: new URL("/icon-512.png", siteUrl).href,
-    areaServed: "VE",
-  },
-  {
-    "@context": "https://schema.org",
-    "@type": "SoftwareApplication",
-    name: "Cendaro",
-    applicationCategory: "BusinessApplication",
-    operatingSystem: "Web",
-    inLanguage: "es-VE",
-    description: HERO.lead,
-    url: siteUrl.origin,
-  },
+  organizationJsonLd(),
+  websiteJsonLd(),
+  webPageJsonLd({
+    path: "/",
+    name: TITLE,
+    description: DESCRIPTION,
+  }),
+  softwareApplicationJsonLd(),
+  videoObjectJsonLd({
+    pathId: "/#hero-video",
+    name: `${HERO.title.join(" ")} — Demostración de Cendaro ERP`,
+    description: HERO_VIDEO_LABEL,
+    clipId: "hero-overview",
+  }),
   faqJsonLd(),
 ];
 

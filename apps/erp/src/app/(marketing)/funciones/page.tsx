@@ -21,7 +21,13 @@ import {
 import { FinalCta } from "../../_components/landing/home/final-cta";
 import { Reveal } from "../../_components/landing/primitives/reveal";
 import { SectionHeading } from "../../_components/landing/primitives/section-heading";
-import { breadcrumbJsonLd, JsonLd } from "../../_components/landing/seo";
+import {
+  breadcrumbJsonLd,
+  JsonLd,
+  marketingAlternates,
+  modulesItemListJsonLd,
+  webPageJsonLd,
+} from "../../_components/landing/seo";
 
 const TITLE = `Funciones: los ${FACTS.modules} módulos de Cendaro`;
 const DESCRIPTION =
@@ -30,7 +36,7 @@ const DESCRIPTION =
 export const metadata: Metadata = {
   title: TITLE,
   description: DESCRIPTION,
-  alternates: { canonical: "/funciones" },
+  alternates: marketingAlternates("/funciones"),
   openGraph: {
     title: TITLE,
     description: DESCRIPTION,
@@ -62,10 +68,19 @@ const MODULE_ENTRIES: readonly ModuleEntry[] = ERP_MODULES.map((id) => {
 const delay = (ms: number): CSSProperties =>
   ({ "--line-delay": `${ms}ms` }) as CSSProperties;
 
-const JSON_LD = breadcrumbJsonLd([
-  { name: "Inicio", path: "/" },
-  { name: "Funciones", path: "/funciones" },
-]);
+const JSON_LD = [
+  webPageJsonLd({
+    path: "/funciones",
+    name: TITLE,
+    description: DESCRIPTION,
+    type: "CollectionPage",
+  }),
+  breadcrumbJsonLd([
+    { name: "Inicio", path: "/" },
+    { name: "Funciones", path: "/funciones" },
+  ]),
+  modulesItemListJsonLd(),
+];
 
 /** Index of every module, with the three deep-dive pages first (plan T5.4). */
 export default function FuncionesPage() {
@@ -104,8 +119,8 @@ export default function FuncionesPage() {
             className="animate-hero-rise text-muted-foreground mt-6 max-w-2xl text-lg leading-relaxed text-pretty md:text-xl"
           >
             {FACTS.modules} módulos que comparten los mismos productos,
-            clientes, tasas y permisos. Empieza por los tres que más cambian el
-            día a día de una distribuidora.
+            clientes, tasas y permisos. Explora en detalle cada área de la
+            operación de una distribuidora.
           </p>
         </div>
 
@@ -125,7 +140,7 @@ export default function FuncionesPage() {
                     className="group hover:bg-muted flex h-full flex-col gap-6 p-6 transition-colors duration-(--motion-micro) md:p-8"
                   >
                     <span className="text-muted-foreground font-mono text-xs tracking-[0.18em] uppercase">
-                      0{i + 1} — {page.eyebrow}
+                      {String(i + 1).padStart(2, "0")} — {page.eyebrow}
                     </span>
                     <span className="font-serif text-3xl leading-tight tracking-[-0.01em] text-balance">
                       {page.title}

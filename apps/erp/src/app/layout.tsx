@@ -8,6 +8,8 @@ import {
 import { AppToaster } from "~/components/app-toaster";
 import { MotionProvider } from "~/components/motion-provider";
 import { ThemeProvider } from "~/components/theme-provider";
+import { env } from "~/env";
+import { isIndexableDeployment } from "~/lib/site";
 import { siteUrl } from "~/lib/site-env";
 
 import "./globals.css";
@@ -46,18 +48,54 @@ const geistMono = Geist_Mono({
   preload: false,
 });
 
+const isIndexable = isIndexableDeployment(env.VERCEL_ENV);
+
 export const metadata: Metadata = {
   // Canonical origin for OG/Twitter images and canonical links: the public
   // site URL (NEXT_PUBLIC_SITE_URL, else the production Vercel URL), never a
   // per-deployment preview URL (PLAN-2026-09-LANDING-REDESIGN T1.3).
   metadataBase: siteUrl,
   title: "Cendaro",
+  applicationName: "Cendaro",
+  category: "business",
+  creator: "Cendaro",
+  publisher: "Cendaro",
   description:
     "Sistema ERP Omnicanal para gestión de inventarios, ventas, precios y operaciones",
   manifest: "/manifest.json",
   icons: {
-    icon: "/favicon.ico",
+    icon: [
+      { url: "/favicon.ico", sizes: "48x48", type: "image/x-icon" },
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [
+      { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
+    ],
   },
+  robots: isIndexable
+    ? {
+        index: true,
+        follow: true,
+        googleBot: {
+          index: true,
+          follow: true,
+          "max-video-preview": -1,
+          "max-image-preview": "large",
+          "max-snippet": -1,
+        },
+      }
+    : {
+        index: false,
+        follow: false,
+      },
+  ...(env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION
+    ? {
+        verification: {
+          google: env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION,
+        },
+      }
+    : {}),
 };
 
 export const viewport: Viewport = {
@@ -86,6 +124,19 @@ export default function RootLayout({
         />
         <meta name="apple-mobile-web-app-title" content="Cendaro" />
         <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+        {/* AI & LLM Discovery (llmstxt.org v2 specification) */}
+        <link
+          rel="alternate"
+          type="text/markdown"
+          href="/llms.txt"
+          title="Cendaro — Resumen estructurado para IA (llms.txt)"
+        />
+        <link
+          rel="alternate"
+          type="text/markdown"
+          href="/llms-full.txt"
+          title="Cendaro — Documentación completa para IA (llms-full.txt)"
+        />
       </head>
       <body
         className={`${hedvigSans.variable} ${hedvigSerif.variable} ${geistMono.variable} bg-background text-foreground font-sans antialiased`}
