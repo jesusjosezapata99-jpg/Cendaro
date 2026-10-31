@@ -4,10 +4,14 @@ import { RevealObserver } from "../_components/landing/primitives/reveal-observe
 
 /**
  * Runs before the sections below are parsed, so `<Reveal>` content starts
- * hidden only when JavaScript is available (see globals.css). Allowed by the
- * static CSP's script-src 'unsafe-inline' (apps/erp/csp.mjs, finding M3).
+ * hidden only when JavaScript is available and the visitor is not a search or
+ * AI crawler (Googlebot WRS, Bingbot, Perplexity, Claude, OAI-SearchBot,
+ * Lighthouse do not scroll pages, so they must see every section at opacity 1
+ * on Frame 0). Allowed by the static CSP's script-src 'unsafe-inline'
+ * (apps/erp/csp.mjs, finding M3).
  */
-const REVEAL_BOOTSTRAP = "document.documentElement.classList.add('js-reveal')";
+const REVEAL_BOOTSTRAP =
+  "if(!/bot|crawl|spider|google|bing|perplexity|claude|gpt|lighthouse/i.test(navigator.userAgent))document.documentElement.classList.add('js-reveal')";
 
 /**
  * Shared shell of the public marketing site: `/` and `/funciones/*`

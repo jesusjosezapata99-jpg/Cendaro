@@ -66,6 +66,20 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // Non-existent top-level paths (neither in PUBLIC_ROUTES nor in the
+  // protected ERP route allowlist) pass through to Next.js App Router's
+  // `not-found.tsx` so search crawlers (Googlebot, PerplexityBot,
+  // Claude-SearchBot) and visitors receive a true HTTP 404 Not Found instead
+  // of a 307 redirect to `/login`.
+  const isProtectedAppRoute = REDIRECT_ALLOWLIST_PREFIX.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+  );
+  if (!isProtectedAppRoute) {
+    const notFoundRes = NextResponse.next();
+    notFoundRes.headers.set("X-Robots-Tag", "noindex, nofollow");
+    return notFoundRes;
+  }
+
   // Forward workspace cookie as request header for RSC context
   const wsId = request.cookies.get("cendaro-workspace-id")?.value;
   const requestHeaders = new Headers(request.headers);

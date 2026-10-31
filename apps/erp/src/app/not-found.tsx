@@ -28,12 +28,15 @@ export default function RootNotFound() {
           La página solicitada no está disponible o ha cambiado de dirección.
         </p>
 
-        <div className="mt-6 flex items-center gap-3">
+        <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
           <Button variant="outline" asChild className="gap-2">
-            <Link href="/dashboard">
+            <Link href="/">
               <Icons.ArrowBack className="size-4" />
               Ir al inicio
             </Link>
+          </Button>
+          <Button variant="ghost" asChild>
+            <Link href="/funciones">Ver funciones</Link>
           </Button>
         </div>
       </div>
