@@ -20,18 +20,28 @@
  * @param {boolean} isDev
  * @returns {string}
  */
-export function buildContentSecurityPolicy(isDev) {
+export function buildContentSecurityPolicy(isDev, supabaseUrl) {
+  let supabaseOrigin = "https://ljwoptpaxazqmnhdczsb.supabase.co";
+  const rawUrl = supabaseUrl ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (rawUrl) {
+    try {
+      supabaseOrigin = new URL(rawUrl).origin;
+    } catch {
+      // Fall back to default project origin
+    }
+  }
+
   return [
     "default-src 'self'",
     `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""} https://challenges.cloudflare.com`,
     "style-src 'self' 'unsafe-inline'",
     "font-src 'self'",
-    "img-src 'self' data: blob: https://*.supabase.co",
+    `img-src 'self' data: blob: ${supabaseOrigin}`,
     "media-src 'self'",
     "frame-src 'self' https://challenges.cloudflare.com",
     "object-src 'none'",
     "frame-ancestors 'none'",
-    `connect-src 'self'${isDev ? " ws: wss:" : ""} https://*.supabase.co https://*.sentry.io https://challenges.cloudflare.com`,
+    `connect-src 'self'${isDev ? " ws: wss:" : ""} ${supabaseOrigin} https://*.sentry.io https://challenges.cloudflare.com`,
     "base-uri 'self'",
     "form-action 'self'",
     ...(isDev ? [] : ["upgrade-insecure-requests"]),

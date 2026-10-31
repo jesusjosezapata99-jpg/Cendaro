@@ -63,6 +63,10 @@ describe("Content-Security-Policy (F9.1, M3)", () => {
     );
     expect(directive(prod, "base-uri")).toBe("'self'");
     expect(directive(prod, "form-action")).toBe("'self'");
+    expect(directive(prod, "connect-src")).not.toContain(
+      "https://*.supabase.co",
+    );
+    expect(directive(prod, "img-src")).not.toContain("https://*.supabase.co");
     expect(prod).toContain("upgrade-insecure-requests");
   });
 });
