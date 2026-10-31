@@ -39,6 +39,8 @@ describe("Proxy Route Allowlist Security Invariants (C4)", () => {
       "/funciones",
       "/sitemap.xml",
       "/robots.txt",
+      "/llms.txt",
+      "/llms-full.txt",
     ]);
   });
 
@@ -61,7 +63,12 @@ describe("Proxy Route Allowlist Security Invariants (C4)", () => {
       "/funciones/inventario",
       "/funciones/importaciones",
       "/funciones/finanzas",
+      "/funciones/ventas-y-pos",
+      "/funciones/canales",
+      "/funciones/seguridad-y-control",
       "/funciones/inventario/opengraph-image",
+      "/llms.txt",
+      "/llms-full.txt",
     ]) {
       expect(isPublic(path)).toBe(true);
     }

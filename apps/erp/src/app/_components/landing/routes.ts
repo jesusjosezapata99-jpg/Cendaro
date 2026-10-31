@@ -15,4 +15,7 @@ export const MARKETING_ROUTES: readonly MarketingRoute[] = [
   { path: "/funciones/inventario", priority: 0.7 },
   { path: "/funciones/importaciones", priority: 0.7 },
   { path: "/funciones/finanzas", priority: 0.7 },
+  { path: "/funciones/ventas-y-pos", priority: 0.7 },
+  { path: "/funciones/canales", priority: 0.7 },
+  { path: "/funciones/seguridad-y-control", priority: 0.7 },
 ];

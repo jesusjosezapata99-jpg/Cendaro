@@ -6,7 +6,7 @@ import { Icon, Icons } from "@cendaro/ui/icons";
 import type { FeaturePage as FeaturePageContent } from "../features";
 import { siteUrl } from "~/lib/site-env";
 import { CLIP_LABELS, MODULES } from "../content";
-import { featureHref, MODULE_FEATURE } from "../features";
+import { FEATURE_CLIP, featureHref, MODULE_FEATURE } from "../features";
 import { FaqSection } from "../home/faq-section";
 import { FinalCta } from "../home/final-cta";
 import { MEDIA } from "../media";
@@ -23,17 +23,10 @@ const FRAME_PATH = {
   inventario: "/inventory",
   importaciones: "/containers",
   finanzas: "/rates",
-} as const;
-
-/** Recording shown in the product frame of each feature page. */
-const FEATURE_CLIP = {
-  inventario: "flow-inventory-stock",
-  importaciones: "flow-container-ai",
-  finanzas: "flow-rates-bcv",
-} as const satisfies Record<
-  FeaturePageContent["slug"],
-  keyof typeof CLIP_LABELS
->;
+  "ventas-y-pos": "/orders",
+  canales: "/catalog/import",
+  "seguridad-y-control": "/accounts-receivable",
+} as const satisfies Record<FeaturePageContent["slug"], string>;
 
 const pad = (n: number): string => String(n).padStart(2, "0");
 const delay = (ms: number): CSSProperties =>

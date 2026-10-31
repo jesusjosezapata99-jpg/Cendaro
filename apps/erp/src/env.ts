@@ -83,6 +83,11 @@ export const env = createEnv({
       (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
       z.string().min(1).optional(),
     ),
+    // Google Search Console verification token (<meta name="google-site-verification">).
+    NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION: z.preprocess(
+      (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+      z.string().min(1).optional(),
+    ),
   },
   experimental__runtimeEnv: {
     NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -92,6 +97,8 @@ export const env = createEnv({
     NEXT_PUBLIC_CONTACT_WHATSAPP: process.env.NEXT_PUBLIC_CONTACT_WHATSAPP,
     NEXT_PUBLIC_CONTACT_EMAIL: process.env.NEXT_PUBLIC_CONTACT_EMAIL,
     NEXT_PUBLIC_TURNSTILE_SITE_KEY: process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY,
+    NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION:
+      process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION,
   },
   skipValidation:
     !!process.env.CI || process.env.npm_lifecycle_event === "lint",

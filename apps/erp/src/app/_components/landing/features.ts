@@ -11,10 +11,16 @@
  */
 import type { ErpModule } from "@cendaro/validators";
 
-import type { Claim, FaqItem } from "./content";
+import type { Claim, CLIP_LABELS, FaqItem } from "./content";
 import { FACTS } from "./content";
 
-export type FeatureSlug = "inventario" | "importaciones" | "finanzas";
+export type FeatureSlug =
+  | "inventario"
+  | "importaciones"
+  | "finanzas"
+  | "ventas-y-pos"
+  | "canales"
+  | "seguridad-y-control";
 
 export interface FeatureStep extends Claim {
   title: string;
@@ -45,6 +51,20 @@ const PACKING_LIST = "apps/erp/src/app/api/ai/parse-packing-list/route.ts";
 const RATE_SYNC = "packages/api/src/modules/rate-sync.ts";
 const PAYMENTS = "packages/api/src/modules/payments.ts";
 const RECEIVABLES = "packages/api/src/modules/receivables.ts";
+const SALES = "packages/api/src/modules/sales.ts";
+const QUOTES = "packages/api/src/modules/quotes.ts";
+const FISCAL = "packages/api/src/modules/fiscal.ts";
+const VENDORS = "packages/api/src/modules/vendors.ts";
+const POS_CLIENT = "apps/erp/src/app/(app)/pos/client.tsx";
+const WHATSAPP_CLIENT = "apps/erp/src/app/(app)/whatsapp/client.tsx";
+const MARKETPLACE_CLIENT = "apps/erp/src/app/(app)/marketplace/client.tsx";
+const INTEGRATIONS = "packages/api/src/modules/integrations.ts";
+const AUTHZ = "packages/validators/src/authz.ts";
+const AUDIT = "packages/api/src/modules/audit.ts";
+const ISOLATION = "packages/db/migrations/022_workspace_select_scoped.sql";
+const SECURITY_SETTINGS = "apps/erp/src/app/(app)/settings/security/page.tsx";
+const LOGIN_ROUTE = "apps/erp/src/app/api/auth/login/route.ts";
+const PROXY = "apps/erp/src/proxy.ts";
 
 export const FEATURES: Readonly<Record<FeatureSlug, FeaturePage>> = {
   inventario: {
@@ -264,6 +284,206 @@ export const FEATURES: Readonly<Record<FeatureSlug, FeaturePage>> = {
       },
     ],
   },
+
+  "ventas-y-pos": {
+    slug: "ventas-y-pos",
+    name: "Ventas, POS y vendedores",
+    eyebrow: "Mostrador, pedidos y calle",
+    title: "Vende en mostrador, por pedido o con tu equipo en la calle",
+    lead: "Punto de venta con datos fiscales, cotizaciones que pasan a pedido en un clic, notas de entrega y comisiones por vendedor en dólares y bolívares.",
+    metaTitle: "Punto de venta, pedidos y vendedores — Cendaro",
+    metaDescription:
+      "Vende en mostrador con RIF y cédula, convierte cotizaciones en pedidos, emite notas de entrega y calcula comisiones por vendedor en Venezuela.",
+    steps: [
+      {
+        title: "Registra al cliente con su RIF o cédula",
+        text: "Guarda datos fiscales, direcciones, límite de crédito y saldo pendiente. El sistema normaliza y valida el formato antes de facturar.",
+        source: SALES,
+      },
+      {
+        title: "Cotiza y convierte en pedido",
+        text: "Envía una cotización con fecha de vigencia y, cuando el cliente aprueba, conviértela en pedido sin volver a cargar los productos.",
+        source: QUOTES,
+      },
+      {
+        title: "Cobra en mostrador con el punto de venta",
+        text: "Busca productos al instante, aplica el desglose fiscal (IVA e IGTF para pagos en divisas) y cobra en dólares o bolívares a tasa BCV.",
+        source: POS_CLIENT,
+      },
+      {
+        title: "Despacha con nota de entrega o factura",
+        text: "Sigue el pedido de borrador a confirmado, despachado y entregado, generando su nota de entrega o documento fiscal.",
+        source: FISCAL,
+      },
+      {
+        title: "Liquida las comisiones de tus vendedores",
+        text: "Cada vendedor atiende su cartera de clientes y ve sus pedidos y comisiones calculadas según el monto cobrado.",
+        source: VENDORS,
+      },
+    ],
+    capabilities: [
+      { text: "RIF y cédula validados", source: SALES },
+      { text: "Cotizaciones convertibles en pedido", source: QUOTES },
+      { text: "Desglose de IVA e IGTF", source: FISCAL },
+      { text: "Notas de entrega y facturas", source: SALES },
+      { text: "Cartera asignada por vendedor", source: VENDORS },
+      { text: "Cálculo y pago de comisiones", source: VENDORS },
+    ],
+    difference: {
+      title: "Mostrador y calle sobre el mismo inventario",
+      body: "Lo que vende la tienda en el punto de venta y lo que compromete un vendedor en la calle descuenta del mismo stock y alimenta la misma cobranza.",
+    },
+    modules: ["pos", "orders", "customers", "vendors", "pricing"],
+    faq: [
+      {
+        q: "¿Valida el RIF y la cédula de los clientes?",
+        a: "Sí. Cendaro normaliza el formato del documento fiscal (V, E, J, G, P) y verifica que el cliente tenga los datos completos antes de emitir documentos.",
+        source: SALES,
+      },
+      {
+        q: "¿Calcula el IVA y el IGTF del 3 %?",
+        a: "Sí. El motor fiscal separa alícuota general (16 %), reducida (8 %) y exentos, y calcula el 3 % de IGTF sobre la base pagada en divisas.",
+        source: FISCAL,
+      },
+      {
+        q: "¿Un vendedor puede ver los clientes de otro?",
+        a: "No. El rol de vendedor solo accede a su propia cartera de clientes, sus cotizaciones, sus pedidos y sus comisiones.",
+        source: "packages/api/src/modules/vendor-scope.ts",
+      },
+    ],
+  },
+
+  canales: {
+    slug: "canales",
+    name: "WhatsApp y Mercado Libre",
+    eyebrow: "Canales de venta",
+    title: "Tus ventas por chat y en Mercado Libre, junto a tu stock",
+    lead: "Atiende pedidos por WhatsApp con enlace directo al chat de cada cliente y sincroniza tus publicaciones y órdenes de Mercado Libre en un solo lugar.",
+    metaTitle: "WhatsApp y Mercado Libre en tu inventario — Cendaro",
+    metaDescription:
+      "Centraliza tus pedidos de WhatsApp con enlace directo al chat del cliente y gestiona publicaciones y órdenes de Mercado Libre junto a tu stock.",
+    steps: [
+      {
+        title: "Registra el pedido del canal WhatsApp",
+        text: "Filtra y crea pedidos originados por WhatsApp viendo el total en dólares y su equivalente en bolívares a la tasa BCV del día.",
+        source: WHATSAPP_CLIENT,
+      },
+      {
+        title: "Abre el chat con el resumen listo",
+        text: "Con un clic abres la conversación de WhatsApp del cliente con su número de pedido y el monto listo para enviar.",
+        source: WHATSAPP_CLIENT,
+      },
+      {
+        title: "Vincula tus publicaciones de Mercado Libre",
+        text: "Consulta tus publicaciones activas o pausadas, precios y existencias sincronizadas junto al resto de tu catálogo.",
+        source: MARKETPLACE_CLIENT,
+      },
+      {
+        title: "Importa las órdenes a tu operación",
+        text: "Revisa las ventas de Mercado Libre y su estado de envío para despacharlas desde el mismo flujo de pedidos e inventario.",
+        source: INTEGRATIONS,
+      },
+    ],
+    capabilities: [
+      { text: "Canal de pedidos por WhatsApp", source: WHATSAPP_CLIENT },
+      { text: "Enlace directo wa.me con el pedido", source: WHATSAPP_CLIENT },
+      {
+        text: "Publicaciones de Mercado Libre",
+        source: MARKETPLACE_CLIENT,
+      },
+      { text: "Órdenes y estado de envío", source: MARKETPLACE_CLIENT },
+      { text: "Asignación de stock por canal", source: SALES },
+      { text: "Totales en USD y bolívares BCV", source: WHATSAPP_CLIENT },
+    ],
+    difference: {
+      title: "Ningún pedido se queda perdido en un teléfono",
+      body: "Aunque cierres la venta por chat o por Mercado Libre, el pedido queda registrado con su cliente, su stock reservado y su cuenta por cobrar.",
+    },
+    modules: ["whatsapp", "marketplace", "orders", "inventory"],
+    faq: [
+      {
+        q: "¿Cómo funciona la conexión con WhatsApp?",
+        a: "Registra los pedidos del canal WhatsApp y genera enlaces directos (wa.me) hacia el teléfono del cliente con los datos del pedido listos para enviar, sin requerir configuraciones complejas.",
+        source: WHATSAPP_CLIENT,
+      },
+      {
+        q: "¿Qué veo en el módulo de Mercado Libre?",
+        a: "Ves tus publicaciones con su estado y stock sincronizado, las órdenes recibidas con el estado de envío y el registro de sincronizaciones.",
+        source: MARKETPLACE_CLIENT,
+      },
+      {
+        q: "¿Puedo separar el stock por canal?",
+        a: "Sí. El inventario permite asignar existencias por almacén y por canal de venta para no vender dos veces el mismo producto.",
+        source: INVENTORY,
+      },
+    ],
+  },
+
+  "seguridad-y-control": {
+    slug: "seguridad-y-control",
+    name: "Seguridad, roles y auditoría",
+    eyebrow: "Control y permisos",
+    title: "Cada quien en su rol, cada cambio en la auditoría",
+    lead: "Datos aislados por empresa en la base de datos, seis roles verificados en el servidor, acceso con segundo factor y trazabilidad de cada operación.",
+    metaTitle: "Roles, permisos, auditoría y seguridad — Cendaro",
+    metaDescription:
+      "Datos aislados por empresa, seis roles con permisos por acción, verificación en dos pasos (TOTP) y registro de auditoría de cada movimiento.",
+    steps: [
+      {
+        title: "Asigna uno de los seis roles a cada miembro",
+        text: "Dueño, administrador, supervisor, empleado, vendedor o marketing: cada rol define qué módulos puede ver y qué acciones puede ejecutar.",
+        source: AUTHZ,
+      },
+      {
+        title: "Activa la verificación en dos pasos",
+        text: "Cada usuario protege su cuenta con una aplicación autenticadora (TOTP), exigida para operaciones sensibles.",
+        source: SECURITY_SETTINGS,
+      },
+      {
+        title: "Opera con aislamiento por empresa",
+        text: "Las políticas de seguridad de la base de datos garantizan que cada consulta y escritura ocurra únicamente dentro de tu empresa.",
+        source: ISOLATION,
+      },
+      {
+        title: "Audita quién cambió qué y cuándo",
+        text: "Precios, tasas, conteos, cierres de caja y permisos quedan asentados en un registro de auditoría verificable.",
+        source: AUDIT,
+      },
+    ],
+    capabilities: [
+      { text: `${FACTS.roles} roles con permisos por acción`, source: AUTHZ },
+      { text: "Aislamiento por empresa en base de datos", source: ISOLATION },
+      {
+        text: "Verificación en dos pasos (TOTP)",
+        source: SECURITY_SETTINGS,
+      },
+      { text: "Cierre de sesión tras 30 min inactivo", source: PROXY },
+      { text: "Bloqueo ante intentos fallidos", source: LOGIN_ROUTE },
+      { text: "Registro de auditoría encadenado", source: AUDIT },
+    ],
+    difference: {
+      title: "Delegas la operación sin entregar las llaves",
+      body: "El cajero cobra, el almacenista cuenta y el vendedor toma pedidos, mientras las aprobaciones de tasas, precios y contenedores quedan bajo tu control.",
+    },
+    modules: ["users", "audit", "settings", "dashboard"],
+    faq: [
+      {
+        q: "¿Qué roles incluye Cendaro?",
+        a: `Incluye ${FACTS.roles} roles: dueño, administrador, supervisor, empleado, vendedor y marketing. Cada permiso se verifica en el servidor antes de ejecutar cualquier acción.`,
+        source: AUTHZ,
+      },
+      {
+        q: "¿Qué pasa si alguien deja una sesión abierta?",
+        a: "La sesión se cierra automáticamente tras 30 minutos sin actividad, tanto en el navegador como en el servidor.",
+        source: PROXY,
+      },
+      {
+        q: "¿Se puede borrar o alterar el historial de auditoría?",
+        a: "No. El registro de auditoría encadena criptográficamente cada evento para que cualquier intento de alteración sea detectable.",
+        source: AUDIT,
+      },
+    ],
+  },
 };
 
 export const FEATURE_SLUGS = Object.keys(FEATURES) as readonly FeatureSlug[];
@@ -277,12 +497,33 @@ export const MODULE_FEATURE: Partial<Record<ErpModule, FeatureSlug>> = {
   inventory: "inventario",
   containers: "importaciones",
   rates: "finanzas",
+  pricing: "finanzas",
   payments: "finanzas",
   receivables: "finanzas",
   cash_closure: "finanzas",
+  pos: "ventas-y-pos",
+  orders: "ventas-y-pos",
+  customers: "ventas-y-pos",
+  vendors: "ventas-y-pos",
+  whatsapp: "canales",
+  marketplace: "canales",
+  dashboard: "seguridad-y-control",
+  users: "seguridad-y-control",
+  audit: "seguridad-y-control",
+  settings: "seguridad-y-control",
 };
 
 export const featureHref = (slug: FeatureSlug): string => `/funciones/${slug}`;
+
+/** Recording shown in the product frame of each feature page. */
+export const FEATURE_CLIP = {
+  inventario: "flow-inventory-stock",
+  importaciones: "flow-container-ai",
+  finanzas: "flow-rates-bcv",
+  "ventas-y-pos": "flow-orders-sale",
+  canales: "flow-catalog-import",
+  "seguridad-y-control": "flow-receivables-close",
+} as const satisfies Record<FeatureSlug, keyof typeof CLIP_LABELS>;
 
 /** Every factual statement on the feature pages, for the truth guard. */
 export const FEATURE_CLAIMS: readonly Claim[] = Object.values(FEATURES).flatMap(
