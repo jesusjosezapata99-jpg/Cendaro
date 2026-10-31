@@ -14,6 +14,7 @@ import {
   Brand,
   Category,
   CategoryAlias,
+  ChannelAllocation,
   ImportSession,
   ImportSessionRow,
   Product,
@@ -209,11 +210,18 @@ async function commitCatalogRow(
         warehouseId: defaultWarehouseId,
         quantity: qty,
       });
+      await db.insert(ChannelAllocation).values({
+        workspaceId: actor.workspaceId,
+        productId: newProduct.id,
+        channel: "store",
+        quantity: qty,
+      });
       await db.insert(StockMovement).values({
         workspaceId: actor.workspaceId,
         productId: newProduct.id,
         movementType: "initial_stock",
         quantity: qty,
+        toChannel: "store",
         warehouseId: defaultWarehouseId,
         referenceType: "catalog_import",
         createdBy: actor.userId,

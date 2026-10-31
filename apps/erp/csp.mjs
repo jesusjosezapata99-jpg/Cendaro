@@ -31,7 +31,7 @@ export function buildContentSecurityPolicy(isDev) {
     "frame-src 'self' https://challenges.cloudflare.com",
     "object-src 'none'",
     "frame-ancestors 'none'",
-    `connect-src 'self'${isDev ? " ws: wss:" : ""} https://*.supabase.co https://api.groq.com https://ve.dolarapi.com https://api.frankfurter.dev https://v6.exchangerate-api.com https://*.sentry.io https://challenges.cloudflare.com`,
+    `connect-src 'self'${isDev ? " ws: wss:" : ""} https://*.supabase.co https://*.sentry.io https://challenges.cloudflare.com`,
     "base-uri 'self'",
     "form-action 'self'",
     ...(isDev ? [] : ["upgrade-insecure-requests"]),

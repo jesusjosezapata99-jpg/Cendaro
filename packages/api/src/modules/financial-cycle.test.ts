@@ -96,7 +96,28 @@ function createFinancialCaller(state: MockFinancialState = {}) {
       }
       return state.arRow ? [state.arRow] : [];
     }
+    if (lastWhere.includes('"cash_closure"')) {
+      return [];
+    }
+    if (lastWhere.includes('"warehouse"')) {
+      return [{ id: "55555555-5555-4555-8555-555555555555" }];
+    }
+    if (lastWhere.includes('"product"')) {
+      return [
+        {
+          id: "66666666-6666-4666-8666-666666666666",
+          costAvg: 10,
+          costLast: 10,
+        },
+      ];
+    }
     if (lastWhere.includes('"stock_ledger"')) {
+      if (
+        lastWhere.includes('"productId"') ||
+        lastWhere.includes('"product_id"')
+      ) {
+        return [{ totalQty: 10 }];
+      }
       return [{ anomalyCount: 0 }];
     }
     return [{ id: nextId(), plan: "pro", fullName: "Owner" }];
@@ -116,6 +137,8 @@ function createFinancialCaller(state: MockFinancialState = {}) {
       "offset",
       "returning",
       "for",
+      "onConflictDoUpdate",
+      "onConflictDoNothing",
     ]) {
       self[method] = () => self;
     }
@@ -319,5 +342,77 @@ describe("Phase 6 — Financial Cycle & Ledger Reconciliation (F6.1–F6.6)", ()
     expect(report.financials.discrepancy).toBe(0);
     expect(report.financials.isBalanced).toBe(true);
     expect(report.inventory.isHealthy).toBe(true);
+  });
+
+  it("Phase 3: sales.openShift opens a cash register shift with initial float and createClosure closes it", async () => {
+    const { caller, inserted, updated } = createFinancialCaller({
+      dailySalesTotal: 200,
+      dailyCashTotal: 120,
+      dailyDigitalTotal: 80,
+    });
+
+    const shift = await caller.sales.openShift({
+      openingCashUsd: 50,
+      notes: "Turno matutino Caja 1",
+    });
+
+    expect(shift?.status).toBe("open");
+    expect(shift?.actualTotal).toBe(50);
+
+    const openInsert = inserted.find((row) => row.status === "open");
+    expect(openInsert).toBeDefined();
+    expect(openInsert?.actualTotal).toBe(50);
+
+    const closed = await caller.sales.createClosure({
+      shiftId: shift?.id,
+      closureDate: "2026-10-30T16:00:00.000Z",
+      totalSales: 0,
+      totalCash: 0,
+      totalDigital: 0,
+      expectedTotal: 0,
+      actualTotal: 200,
+      notes: "Cierre de turno",
+    });
+
+    expect(closed?.status).toBe("closed");
+    const closedUpdate = updated.find((row) => row.status === "closed");
+    expect(closedUpdate).toBeDefined();
+    expect(closedUpdate?.expectedTotal).toBe(200);
+    expect(closedUpdate?.discrepancy).toBe(0);
+  });
+
+  it("Phase 3: inventory.receivePurchase recalculates weighted-average costAvg and syncs StockLedger + ChannelAllocation ('store')", async () => {
+    const { caller, inserted, updated } = createFinancialCaller();
+
+    const result = await caller.inventory.receivePurchase({
+      warehouseId: "55555555-5555-4555-8555-555555555555",
+      invoiceNumber: "FAC-NAC-001",
+      notes: "Compra nacional directa",
+      items: [
+        {
+          productId: "66666666-6666-4666-8666-666666666666",
+          quantity: 10,
+          unitCostUsd: 20,
+        },
+      ],
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.totalUnits).toBe(10);
+    expect(result.totalCostUsd).toBe(200);
+
+    // Weighted average of 10 existing @ $10 + 10 new @ $20 = $15.0000
+    const productUpdate = updated.find((row) => "costAvg" in row);
+    expect(Number(productUpdate?.costAvg)).toBe(15);
+
+    const storeAllocInsert = inserted.find(
+      (row) => row.channel === "store" && row.quantity === 10,
+    );
+    expect(storeAllocInsert).toBeDefined();
+
+    const movementInsert = inserted.find(
+      (row) => row.movementType === "purchase" && row.quantity === 10,
+    );
+    expect(movementInsert).toBeDefined();
   });
 });

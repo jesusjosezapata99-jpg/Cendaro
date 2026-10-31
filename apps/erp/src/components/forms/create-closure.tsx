@@ -49,6 +49,16 @@ export function CreateClosureDialog({ open, onClose }: Props) {
     enabled: open && Boolean(form.closureDate),
   });
 
+  const { data: closures } = useQuery({
+    ...trpc.sales.listClosures.queryOptions(),
+    enabled: open,
+  });
+
+  const openShift = useMemo(
+    () => closures?.find((c) => c.status === "open") ?? null,
+    [closures],
+  );
+
   useEffect(() => {
     if (open && preview) {
       setForm((f) => ({
@@ -89,6 +99,7 @@ export function CreateClosureDialog({ open, onClose }: Props) {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     create.mutate({
+      shiftId: openShift?.id,
       closureDate: new Date(
         `${form.closureDate}T12:00:00.000-04:00`,
       ).toISOString(),

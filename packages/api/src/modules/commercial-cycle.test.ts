@@ -33,6 +33,7 @@ interface MockOptions {
   orderRow?: Record<string, unknown>;
   orderItems?: Record<string, unknown>[];
   warehouseId?: string;
+  auditRow?: Record<string, unknown>;
 }
 
 function createMockCaller(opts: MockOptions = {}) {
@@ -124,6 +125,9 @@ function createMockCaller(opts: MockOptions = {}) {
     }
     if (where.includes(`"warehouse"."isActive" = $`)) {
       return opts.warehouseId ? [{ id: opts.warehouseId }] : [];
+    }
+    if (where.includes(`"audit_log"."action" = $`)) {
+      return opts.auditRow ? [opts.auditRow] : [];
     }
     return [{ id: nextId(), plan: "pro", fullName: "Tester" }];
   };
@@ -386,5 +390,99 @@ describe("Phase 5 — Commercial Cycle (F5.2 - F5.5)", () => {
       unitPrice: 30,
       lineTotal: 60,
     });
+  });
+
+  it("PROP-01 & PROP-02: sales.checkoutPos replays idempotent sale from AuditLog on duplicate idempotencyKey without re-inserting", async () => {
+    const existingOrderId = nextId();
+    const idempotencyKey = "11111111-2222-4333-8444-555555555555";
+    const { caller, inserted } = createMockCaller({
+      auditRow: {
+        entityId: existingOrderId,
+        newValue: {
+          orderNumber: "POS-000777",
+          total: 50,
+          totalPaid: 50,
+          changeUsd: 0,
+          fiscalStatus: "not_requested",
+          fiscalDocumentId: null,
+          fiscalInvoiceNumber: null,
+          fiscalControlNumber: null,
+          idempotencyKey,
+        },
+      },
+      orderRow: {
+        id: existingOrderId,
+        orderNumber: "POS-000777",
+        channel: "store",
+        status: "delivered",
+        subtotal: 50,
+        discount: 0,
+        total: 50,
+        totalPaid: 50,
+        stockDeducted: true,
+      },
+    });
+
+    const result = await caller.sales.checkoutPos({
+      idempotencyKey,
+      items: [{ productId, quantity: 1, unitPrice: 50, discount: 0 }],
+      payments: [{ amount: 50, method: "cash", currency: "USD" }],
+    });
+
+    expect(result.orderNumber).toBe("POS-000777");
+    expect(result.totalPaid).toBe(50);
+    // No duplicate order, payment, or stock movement inserted
+    expect(inserted.length).toBe(0);
+  });
+
+  it("PROP-01: applyStockLifecycle executes set-based batch update for multi-item orders", async () => {
+    const orderId = nextId();
+    const warehouseId = nextId();
+    const productB = "00000000-0000-4000-8000-000000000303";
+    const { caller, inserted, wheres } = createMockCaller({
+      orderRow: {
+        id: orderId,
+        customerId: null,
+        channel: "store",
+        status: "dispatched",
+        stockDeducted: false,
+      },
+      orderItems: [
+        {
+          id: nextId(),
+          orderId,
+          productId,
+          quantity: 2,
+          unitPrice: 10,
+          discount: 0,
+          lineTotal: 20,
+        },
+        {
+          id: nextId(),
+          orderId,
+          productId: productB,
+          quantity: 5,
+          unitPrice: 15,
+          discount: 0,
+          lineTotal: 75,
+        },
+      ],
+      warehouseId,
+    });
+
+    await caller.sales.updateOrderStatus({ id: orderId, status: "delivered" });
+
+    // Multi-item batch update uses IN (...) instead of N individual UPDATE statements
+    expect(
+      wheres.some(
+        (w) =>
+          w.sql.includes(`"channel_allocation"."productId" in (`) &&
+          w.params.includes(productId) &&
+          w.params.includes(productB),
+      ),
+    ).toBe(true);
+
+    const movements = inserted.filter((r) => r.movementType === "sale");
+    expect(movements).toHaveLength(2);
   });
 });

@@ -26,8 +26,21 @@ function AnimatedSizeContainer({
 }: AnimatedSizeContainerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState<{ width?: number; height?: number }>({});
+  const [reducedMotion] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    const prefersReduced = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    const isLowSpecCpu =
+      typeof navigator !== "undefined" &&
+      typeof navigator.hardwareConcurrency === "number" &&
+      navigator.hardwareConcurrency > 0 &&
+      navigator.hardwareConcurrency <= 4;
+    return prefersReduced || isLowSpecCpu;
+  });
 
   useEffect(() => {
+    if (reducedMotion) return;
     const el = containerRef.current;
     if (!el) return;
     const observer = new ResizeObserver(([entry]) => {
@@ -39,7 +52,15 @@ function AnimatedSizeContainer({
     });
     observer.observe(el);
     return () => observer.disconnect();
-  }, [width, height]);
+  }, [width, height, reducedMotion]);
+
+  if (reducedMotion) {
+    return (
+      <div className={cn("overflow-hidden", className)}>
+        <div ref={containerRef}>{children}</div>
+      </div>
+    );
+  }
 
   return (
     <m.div

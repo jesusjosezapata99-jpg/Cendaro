@@ -1007,6 +1007,8 @@ export const Product = pgTable(
   (table) => [
     unique("uq_product_sku").on(table.workspaceId, table.sku),
     index("idx_product_barcode").on(table.barcode),
+    index("idx_product_ws_barcode").on(table.workspaceId, table.barcode),
+    index("idx_product_ws_created").on(table.workspaceId, table.createdAt),
     index("idx_product_brand").on(table.brandId),
     index("idx_product_category").on(table.categoryId),
     index("idx_product_supplier").on(table.supplierId),
@@ -1988,6 +1990,7 @@ export const SalesOrder = pgTable(
     index("idx_order_channel").on(table.channel),
     index("idx_order_status").on(table.status),
     index("idx_order_created").on(table.createdAt),
+    index("idx_order_ws_created").on(table.workspaceId, table.createdAt),
 
     workspacePolicy("sales_order"),
   ],

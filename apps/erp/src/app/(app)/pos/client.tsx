@@ -2,14 +2,23 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
+import { toast } from "sonner";
 
+import { Button } from "@cendaro/ui";
+import { Icons } from "@cendaro/ui/icons";
 import { isFiscalInvoiceReady } from "@cendaro/validators";
 
 import type {
   CartLine,
   CategoryItem,
   CustomerInfo,
+  OfflinePosSalePayload,
   PosReceiptData,
   ProductItem,
 } from "~/modules/pos";
@@ -17,10 +26,19 @@ import { useBcvRate } from "~/hooks/use-bcv-rate";
 import { useDebounce } from "~/hooks/use-debounce";
 import { formatDualCurrency } from "~/lib/format-currency";
 import {
+  loadActivePosCart,
+  loadOfflinePosQueue,
+  loadPosCatalogCache,
+  loadPosStockCache,
+  lookupPosProductByCode,
   PosCart,
   PosPaymentPanel,
   PosToolbar,
   ProductGrid,
+  removeOfflinePosSale,
+  saveActivePosCart,
+  syncPosCatalogCache,
+  syncPosStockCache,
 } from "~/modules/pos";
 import { useTRPC } from "~/trpc/client";
 
@@ -50,6 +68,7 @@ const CreateCustomerDialog = dynamic(
 
 export default function PosClient() {
   const trpc = useTRPC();
+  const qc = useQueryClient();
   const bcv = useBcvRate();
 
   // POS State
@@ -95,9 +114,109 @@ export default function PosClient() {
     trpc.inventory.stockOverview.queryOptions({}),
   );
 
-  const productList: ProductItem[] = useMemo(() => {
-    return productsData && "items" in productsData ? productsData.items : [];
+  const [cachedCatalog, setCachedCatalog] = useState<ProductItem[]>([]);
+  const [cachedStock, setCachedStock] = useState<
+    { id: string; storeStock: number }[]
+  >([]);
+  const [offlineQueue, setOfflineQueue] = useState<OfflinePosSalePayload[]>([]);
+  const [isSyncingOffline, setIsSyncingOffline] = useState(false);
+
+  const checkoutReplay = useMutation(trpc.sales.checkoutPos.mutationOptions());
+
+  const refreshOfflineQueue = useCallback(() => {
+    void loadOfflinePosQueue().then((rows) => setOfflineQueue(rows));
+  }, []);
+
+  const syncOfflineQueue = useCallback(async () => {
+    if (isSyncingOffline) return;
+    const queue = await loadOfflinePosQueue();
+    if (queue.length === 0) {
+      setOfflineQueue([]);
+      return;
+    }
+    setIsSyncingOffline(true);
+    let syncedCount = 0;
+    try {
+      for (const queuedSale of queue) {
+        await checkoutReplay.mutateAsync({
+          idempotencyKey: queuedSale.idempotencyKey,
+          customerId: queuedSale.customerId,
+          items: queuedSale.items.map((i) => ({
+            productId: i.productId,
+            quantity: i.quantity,
+            unitPrice: i.unitPrice,
+            discount: i.discount,
+          })),
+          payments: queuedSale.payments,
+        });
+        await removeOfflinePosSale(queuedSale.idempotencyKey);
+        syncedCount += 1;
+      }
+      if (syncedCount > 0) {
+        toast.success(
+          `${syncedCount} venta(s) offline sincronizada(s) con el servidor`,
+        );
+        void qc.invalidateQueries({ queryKey: [["sales"]] });
+        void qc.invalidateQueries({ queryKey: [["inventory"]] });
+        void qc.invalidateQueries({ queryKey: [["payments"]] });
+        void qc.invalidateQueries({ queryKey: [["dashboard"]] });
+      }
+    } catch {
+      // Remaining sales stay safely in IndexedDB for the next online retry
+    } finally {
+      setIsSyncingOffline(false);
+      refreshOfflineQueue();
+    }
+  }, [checkoutReplay, isSyncingOffline, qc, refreshOfflineQueue]);
+
+  // Hydrate POS catalog, stock, active cart, and offline sales queue from IndexedDB on mount
+  useEffect(() => {
+    void loadPosCatalogCache().then((rows) => {
+      if (rows.length > 0) setCachedCatalog(rows);
+    });
+    void loadPosStockCache().then((rows) => {
+      if (rows.length > 0) setCachedStock(rows);
+    });
+    void loadActivePosCart().then((savedCart) => {
+      if (savedCart.length > 0) {
+        setCart((prev) => (prev.length === 0 ? savedCart : prev));
+      }
+    });
+    refreshOfflineQueue();
+  }, [refreshOfflineQueue]);
+
+  // Automatically replay queued offline sales when internet connectivity returns
+  useEffect(() => {
+    const handleOnline = () => {
+      void syncOfflineQueue();
+    };
+    window.addEventListener("online", handleOnline);
+    return () => window.removeEventListener("online", handleOnline);
+  }, [syncOfflineQueue]);
+
+  // Sync live server catalog & stock into IndexedDB for local-first resilience (PROP-03)
+  useEffect(() => {
+    if (
+      productsData &&
+      "items" in productsData &&
+      productsData.items.length > 0
+    ) {
+      void syncPosCatalogCache(productsData.items);
+    }
   }, [productsData]);
+
+  useEffect(() => {
+    if (stockData && stockData.length > 0) {
+      void syncPosStockCache(stockData);
+    }
+  }, [stockData]);
+
+  const productList: ProductItem[] = useMemo(() => {
+    if (productsData && "items" in productsData) {
+      return productsData.items;
+    }
+    return cachedCatalog;
+  }, [productsData, cachedCatalog]);
 
   const totalProductCount = useMemo(() => {
     return productsData &&
@@ -118,20 +237,21 @@ export default function PosClient() {
   const isRegisterClosedToday = useMemo(() => {
     const todayStr = new Date().toISOString().slice(0, 10);
     return (closuresData ?? []).some(
-      (c) => new Date(c.closureDate).toISOString().slice(0, 10) === todayStr,
+      (c) =>
+        new Date(c.closureDate).toISOString().slice(0, 10) === todayStr &&
+        (c.status === "closed" || c.status === "reviewed"),
     );
   }, [closuresData]);
 
-  // Stock Map for instant lookup
+  // Stock Map for instant lookup (falls back to IndexedDB snapshot during micro-outages)
   const stockMap = useMemo(() => {
     const map = new Map<string, number>();
-    if (stockData) {
-      for (const row of stockData) {
-        map.set(row.id, row.storeStock);
-      }
+    const source = stockData ?? cachedStock;
+    for (const row of source) {
+      map.set(row.id, row.storeStock);
     }
     return map;
-  }, [stockData]);
+  }, [stockData, cachedStock]);
 
   const [cart, setCart] = useState<CartLine[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerInfo | null>(
@@ -310,14 +430,19 @@ export default function PosClient() {
     [refocusScanner, stockMap],
   );
 
-  // Handle barcode scanner input on Enter
+  // Persist active cart to IndexedDB on every change so micro-cuts or reloads never lose a customer's ticket
+  useEffect(() => {
+    void saveActivePosCart(cart);
+  }, [cart]);
+
+  // Handle barcode scanner input on Enter (instant in-memory + IndexedDB index lookup without debounce wait)
   const handleBarcodeSubmit = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
       e.preventDefault();
       const code = searchQuery.trim().toLowerCase();
       if (!code) return;
 
-      // Match exact barcode or SKU first
+      // 1. Match exact barcode or SKU in memory (<1ms)
       const exactMatch = productList.find(
         (p) =>
           p.sku.toLowerCase() === code || p.barcode?.toLowerCase() === code,
@@ -326,11 +451,22 @@ export default function PosClient() {
       if (exactMatch) {
         addToCart(exactMatch);
         setSearchQuery("");
-      } else if (filteredProducts.length === 1 && filteredProducts[0]) {
-        // If only 1 product matches current search, add it
+        return;
+      }
+
+      if (filteredProducts.length === 1 && filteredProducts[0]) {
         addToCart(filteredProducts[0]);
         setSearchQuery("");
+        return;
       }
+
+      // 2. Instant IndexedDB barcode/SKU index lookup (<2ms) for products outside the initial 100 slice
+      void lookupPosProductByCode(code).then((cachedMatch) => {
+        if (cachedMatch) {
+          addToCart(cachedMatch);
+          setSearchQuery("");
+        }
+      });
     }
   };
 
@@ -385,6 +521,28 @@ export default function PosClient() {
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-1 space-y-4 py-4 duration-200 lg:py-6">
+      {offlineQueue.length > 0 ? (
+        <div className="border-border bg-card flex flex-wrap items-center justify-between gap-3 border px-4 py-2.5 text-xs">
+          <div className="flex items-center gap-2">
+            <Icons.Sync className="text-primary size-4 shrink-0" />
+            <span className="text-foreground font-medium">
+              Cola Resiliente Offline: {offlineQueue.length} venta(s)
+              pendiente(s) por sincronizar
+            </span>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={isSyncingOffline}
+            onClick={() => void syncOfflineQueue()}
+            className="h-7 text-xs"
+          >
+            <Icons.Sync className="mr-1 size-3.5" />
+            {isSyncingOffline ? "Sincronizando..." : "Sincronizar Ahora"}
+          </Button>
+        </div>
+      ) : null}
+
       {/* Module 1: PosToolbar */}
       <PosToolbar
         bcv={bcv}
@@ -520,6 +678,7 @@ export default function PosClient() {
         customer={selectedCustomer}
         bcvRate={bcv.rate}
         onPaymentComplete={handlePaymentComplete}
+        onOfflineQueued={refreshOfflineQueue}
       />
 
       {/* Thermal Receipt Dialog */}

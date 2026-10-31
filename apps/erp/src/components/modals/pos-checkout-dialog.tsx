@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { Button } from "@cendaro/ui";
@@ -9,6 +9,7 @@ import { isFiscalInvoiceReady } from "@cendaro/validators";
 
 import { Dialog } from "~/components/dialog";
 import { formatDualCurrency } from "~/lib/format-currency";
+import { enqueueOfflinePosSale } from "~/modules/pos/pos-local-cache";
 import { useTRPC } from "~/trpc/client";
 
 export interface CartLine {
@@ -72,6 +73,7 @@ interface PosCheckoutDialogProps {
     bcvRate: number;
     date: Date;
   }) => void;
+  onOfflineQueued?: () => void;
 }
 
 const PAYMENT_METHODS = [
@@ -114,6 +116,7 @@ export function PosCheckoutDialog({
   customer,
   bcvRate,
   onPaymentComplete,
+  onOfflineQueued,
 }: PosCheckoutDialogProps) {
   const trpc = useTRPC();
   const qc = useQueryClient();
@@ -129,6 +132,19 @@ export function PosCheckoutDialog({
   // Registered payment lines for this checkout
   const [payments, setPayments] = useState<PaymentEntry[]>([]);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const idempotencyKeyRef = useRef<string>(crypto.randomUUID());
+
+  // Reset idempotency key only when the cart signature changes (new ticket)
+  const cartSignature = useMemo(
+    () =>
+      cart.items
+        .map((i) => `${i.id}:${i.quantity}:${i.unitPrice}:${i.discount}`)
+        .join("|"),
+    [cart.items],
+  );
+  useEffect(() => {
+    idempotencyKeyRef.current = crypto.randomUUID();
+  }, [cartSignature]);
 
   const totalDual = useMemo(
     () => formatDualCurrency(cart.total, bcvRate),
@@ -232,10 +248,74 @@ export function PosCheckoutDialog({
     }
 
     setSubmitError(null);
+    const currentKey = idempotencyKeyRef.current;
+
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      await enqueueOfflinePosSale({
+        idempotencyKey: currentKey,
+        customerId: customer?.id,
+        customerName: customer?.name ?? "Consumidor Final",
+        customerIdentification: customer?.identification ?? undefined,
+        items: cart.items.map((item) => ({
+          productId: item.id,
+          sku: item.sku,
+          name: item.name,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          discount: item.discount,
+          lineTotal: item.lineTotal,
+        })),
+        payments: payments.map((p) => ({
+          method: p.method,
+          amount: p.amountUsd,
+          currency: p.currency,
+          amountBs: p.currency === "VES" ? p.amountBs : undefined,
+          reference: p.reference,
+          bankName: p.bankName,
+        })),
+        subtotal: cart.subtotal,
+        discount: cart.discount,
+        total: cart.total,
+        changeUsd,
+        changeBs,
+        bcvRate,
+        createdAt: new Date().toISOString(),
+      });
+      idempotencyKeyRef.current = crypto.randomUUID();
+      onOfflineQueued?.();
+      onPaymentComplete({
+        orderId: currentKey,
+        orderNumber: `OFF-${currentKey.slice(0, 6).toUpperCase()}`,
+        customerName: customer?.name ?? "Consumidor Final",
+        customerIdentification: customer?.identification ?? undefined,
+        items: cart.items,
+        subtotal: cart.subtotal,
+        discount: cart.discount,
+        total: cart.total,
+        payments: payments.map((p) => ({
+          method: p.method,
+          amount: p.currency === "VES" ? p.amountBs : p.amountUsd,
+          currency: p.currency,
+          reference: p.reference,
+          bankName: p.bankName,
+        })),
+        changeUsd,
+        changeBs,
+        bcvRate,
+        date: new Date(),
+      });
+      onClose();
+      setPayments([]);
+      setAmountInput("");
+      setReference("");
+      setBankName("");
+      return;
+    }
 
     let sale: Awaited<ReturnType<typeof checkout.mutateAsync>>;
     try {
       sale = await checkout.mutateAsync({
+        idempotencyKey: idempotencyKeyRef.current,
         customerId: customer?.id,
         items: cart.items.map((item) => ({
           productId: item.id,
@@ -253,7 +333,8 @@ export function PosCheckoutDialog({
         })),
       });
     } catch (error) {
-      // Nothing was saved: the cashier can fix the cause and confirm again.
+      // Nothing was saved (or if the response dropped in transit, the same
+      // idempotencyKeyRef.current prevents duplicate billing on retry).
       setSubmitError(
         `No se registró la venta: ${
           error instanceof Error ? error.message : "error desconocido"
@@ -261,6 +342,8 @@ export function PosCheckoutDialog({
       );
       return;
     }
+
+    idempotencyKeyRef.current = crypto.randomUUID();
 
     void qc.invalidateQueries({ queryKey: [["sales"]] });
     void qc.invalidateQueries({ queryKey: [["payments"]] });

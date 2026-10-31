@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 
 import type { StatusTone } from "@cendaro/ui/status-pill";
 import {
@@ -45,69 +46,31 @@ const CHANNEL_LABELS: Record<string, string> = {
   instagram: "Instagram Shop",
 };
 
-const DEMO_ORDER = {
-  id: "preview",
-  orderNumber: "ORD-9824-VEN",
-  customerId: "demo-customer",
-  channel: "store" as const,
-  status: "invoiced" as const,
-  subtotal: 450.0,
-  discount: 25.0,
-  total: 425.0,
-  totalPaid: 425.0,
-  createdAt: new Date(),
-  items: [
-    {
-      id: "item-1",
-      productId: "prod-1",
-      productName: "Batería Automotriz 12V 75Ah Cendaro Pro",
-      sku: "BAT-12V-75",
-      quantity: 2,
-      unitPrice: 150.0,
-      discount: 25.0,
-      lineTotal: 275.0,
-    },
-    {
-      id: "item-2",
-      productId: "prod-2",
-      productName: "Aceite Sintético para Motor 5W-30 (Galón)",
-      sku: "LUB-SYN-5W30",
-      quantity: 3,
-      unitPrice: 50.0,
-      discount: 0,
-      lineTotal: 150.0,
-    },
-  ],
-  payments: [
-    {
-      id: "pay-1",
-      amount: 425.0,
-      method: "transfer",
-      reference: "TRANSF-8823901",
-      createdAt: new Date(),
-    },
-  ],
-};
-
 export function InvoiceVoucherDialog({
   open,
   onClose,
   orderId,
 }: InvoiceVoucherDialogProps) {
   const trpc = useTRPC();
+  const qc = useQueryClient();
   const bcv = useBcvRate();
 
-  const isPreview = orderId === "preview";
+  const validOrderId =
+    orderId && orderId !== "preview"
+      ? orderId
+      : "00000000-0000-0000-0000-000000000000";
 
-  const { data: realOrder, isLoading: orderLoading } = useQuery(
+  const { data: order, isLoading: orderLoading } = useQuery(
     trpc.sales.orderById.queryOptions(
-      {
-        id:
-          orderId && !isPreview
-            ? orderId
-            : "00000000-0000-0000-0000-000000000000",
-      },
-      { enabled: open && !!orderId && !isPreview },
+      { id: validOrderId },
+      { enabled: open && !!orderId && orderId !== "preview" },
+    ),
+  );
+
+  const { data: internalInvoices, refetch: refetchInvoices } = useQuery(
+    trpc.sales.listInternalInvoices.queryOptions(
+      { orderId: validOrderId, limit: 1 },
+      { enabled: open && !!orderId && orderId !== "preview" },
     ),
   );
 
@@ -118,18 +81,21 @@ export function InvoiceVoucherDialog({
     ),
   );
 
-  const order = isPreview ? DEMO_ORDER : realOrder;
+  const createInternalInvoice = useMutation(
+    trpc.sales.createInternalInvoice.mutationOptions({
+      onSuccess: (inv) => {
+        toast.success(`Factura interna ${inv?.invoiceNumber ?? ""} emitida`);
+        void refetchInvoices();
+        void qc.invalidateQueries({ queryKey: [["sales"]] });
+      },
+      onError: (err) => {
+        toast.error(err.message || "Error al emitir factura interna");
+      },
+    }),
+  );
 
-  const customer = isPreview
-    ? {
-        name: "Distribuidora Automotriz Caracas C.A.",
-        identification: "J-40192834-5",
-        phone: "+58 412-555-0123",
-        email: "facturacion@distribuidora.ve",
-        address: "Av. Francisco de Miranda, Edif. Centro, Piso 4, Caracas",
-        legalName: "Distribuidora Automotriz Caracas C.A.",
-      }
-    : customersData?.find((c) => c.id === order?.customerId);
+  const persistedInvoice = internalInvoices?.[0];
+  const customer = customersData?.find((c) => c.id === order?.customerId);
 
   const isPaid = order ? Number(order.totalPaid) >= Number(order.total) : false;
   const isPartial =
@@ -196,7 +162,8 @@ export function InvoiceVoucherDialog({
                       Factura Proforma Interna
                     </span>
                     <p className="text-primary font-mono text-xl font-medium tracking-tight tabular-nums">
-                      FAC-{order.orderNumber}
+                      {persistedInvoice?.invoiceNumber ??
+                        `FAC-${order.orderNumber}`}
                     </p>
                     <p className="text-muted-foreground text-xs">
                       Ref. Orden:{" "}
@@ -478,6 +445,24 @@ export function InvoiceVoucherDialog({
 
           <SheetFooter>
             <div className="flex flex-wrap items-center justify-end gap-2">
+              {!persistedInvoice ? (
+                <Button
+                  variant="outline"
+                  disabled={createInternalInvoice.isPending}
+                  onClick={() =>
+                    createInternalInvoice.mutate({
+                      orderId: order.id,
+                      notes: `Emitida a tasa BCV Bs. ${bcv.rate.toFixed(2)}`,
+                    })
+                  }
+                  className="min-h-10 text-xs"
+                >
+                  <Icons.Add className="size-4" />
+                  {createInternalInvoice.isPending
+                    ? "Emitiendo..."
+                    : "Emitir Factura Interna"}
+                </Button>
+              ) : null}
               <Button
                 variant="outline"
                 onClick={handlePrint}

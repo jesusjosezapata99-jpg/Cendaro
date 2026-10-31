@@ -1160,4 +1160,183 @@ export const inventoryRouter = createTRPCRouter({
         discrepancies: discrepancies.length,
       };
     }),
+
+  // ─── National / Direct Supplier Purchase Receipt ───────────────
+
+  receivePurchase: wsPermissionProcedure("inventory", "update")
+    .input(
+      z.object({
+        warehouseId: z.string().uuid(),
+        supplierId: z.string().uuid().optional(),
+        invoiceNumber: z.string().min(1).max(128),
+        notes: z.string().max(500).optional(),
+        items: z
+          .array(
+            z.object({
+              productId: z.string().uuid(),
+              quantity: z.number().int().positive(),
+              unitCostUsd: z.number().nonnegative(),
+            }),
+          )
+          .min(1)
+          .max(200),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const [wh] = await ctx.db
+        .select({ id: Warehouse.id })
+        .from(Warehouse)
+        .where(
+          and(
+            eq(Warehouse.id, input.warehouseId),
+            eq(Warehouse.workspaceId, ctx.workspace.workspaceId),
+          ),
+        )
+        .limit(1);
+
+      if (!wh) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Almacén de destino no encontrado en este workspace",
+        });
+      }
+
+      let totalUnits = 0;
+      let totalCostUsd = 0;
+
+      for (const item of input.items) {
+        const [prod] = await ctx.db
+          .select({ id: Product.id, costAvg: Product.costAvg })
+          .from(Product)
+          .where(
+            and(
+              eq(Product.id, item.productId),
+              eq(Product.workspaceId, ctx.workspace.workspaceId),
+            ),
+          )
+          .limit(1);
+
+        if (!prod) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: `Producto ${item.productId} no encontrado en el catálogo`,
+          });
+        }
+
+        const existingStockRows = await ctx.db
+          .select({
+            totalQty: sql<number>`coalesce(sum(${StockLedger.quantity}), 0)::int`,
+          })
+          .from(StockLedger)
+          .where(
+            and(
+              eq(StockLedger.productId, item.productId),
+              eq(StockLedger.workspaceId, ctx.workspace.workspaceId),
+            ),
+          );
+
+        const existingQty = Math.max(
+          0,
+          Number(existingStockRows[0]?.totalQty ?? 0),
+        );
+        const existingCost = parseFloat(prod.costAvg ?? "0") || 0;
+        const newTotalQty = existingQty + item.quantity;
+        const weightedCostAvg =
+          newTotalQty > 0
+            ? (existingQty * existingCost + item.quantity * item.unitCostUsd) /
+              newTotalQty
+            : item.unitCostUsd;
+
+        if (item.unitCostUsd > 0) {
+          await ctx.db
+            .update(Product)
+            .set({ costAvg: weightedCostAvg.toFixed(4) })
+            .where(
+              and(
+                eq(Product.id, item.productId),
+                eq(Product.workspaceId, ctx.workspace.workspaceId),
+              ),
+            );
+        }
+
+        await ctx.db
+          .insert(StockLedger)
+          .values({
+            workspaceId: ctx.workspace.workspaceId,
+            productId: item.productId,
+            warehouseId: input.warehouseId,
+            quantity: item.quantity,
+          })
+          .onConflictDoUpdate({
+            target: [
+              StockLedger.workspaceId,
+              StockLedger.productId,
+              StockLedger.warehouseId,
+            ],
+            set: {
+              quantity: sql`${StockLedger.quantity} + ${item.quantity}`,
+              updatedAt: new Date(),
+            },
+          });
+
+        // Synchronize store ChannelAllocation so received national purchase stock is immediately sellable at POS
+        await ctx.db
+          .insert(ChannelAllocation)
+          .values({
+            workspaceId: ctx.workspace.workspaceId,
+            productId: item.productId,
+            channel: "store",
+            quantity: item.quantity,
+          })
+          .onConflictDoUpdate({
+            target: [
+              ChannelAllocation.workspaceId,
+              ChannelAllocation.productId,
+              ChannelAllocation.channel,
+            ],
+            set: {
+              quantity: sql`${ChannelAllocation.quantity} + ${item.quantity}`,
+              updatedAt: new Date(),
+            },
+          });
+
+        await ctx.db.insert(StockMovement).values({
+          workspaceId: ctx.workspace.workspaceId,
+          productId: item.productId,
+          warehouseId: input.warehouseId,
+          movementType: "purchase",
+          quantity: item.quantity,
+          toChannel: "store",
+          referenceId: input.supplierId,
+          referenceType: "local_purchase",
+          notes: `Compra Nacional Factura/Nota ${input.invoiceNumber}${input.notes ? ` — ${input.notes}` : ""}`,
+          createdBy: ctx.user.id,
+        });
+
+        totalUnits += item.quantity;
+        totalCostUsd += item.quantity * item.unitCostUsd;
+      }
+
+      await logAudit(ctx.db, ctx.user, {
+        workspaceId: ctx.workspace.workspaceId,
+        action: "inventory.receive_purchase",
+        entity: "stock_movement",
+        entityId: input.warehouseId,
+        newValue: {
+          warehouseId: input.warehouseId,
+          supplierId: input.supplierId,
+          invoiceNumber: input.invoiceNumber,
+          itemsCount: input.items.length,
+          totalUnits,
+          totalCostUsd: Number(totalCostUsd.toFixed(2)),
+        },
+      });
+
+      return {
+        success: true,
+        invoiceNumber: input.invoiceNumber,
+        totalUnits,
+        totalCostUsd: Number(totalCostUsd.toFixed(2)),
+      };
+    }),
 });

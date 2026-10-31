@@ -72,8 +72,20 @@ export default function DeliveryNotesClient() {
     refetch,
   } = useQuery(trpc.sales.listOrders.queryOptions({ limit: 100 }));
 
+  const { data: deliveryNotesData } = useQuery(
+    trpc.sales.listDeliveryNotes.queryOptions({ limit: 100 }),
+  );
+
   const { data: customersData } = useQuery(
     trpc.sales.listCustomers.queryOptions({ limit: 100 }),
+  );
+
+  const createDeliveryNote = useMutation(
+    trpc.sales.createDeliveryNote.mutationOptions({
+      onSuccess: () => {
+        void qc.invalidateQueries({ queryKey: [["sales"]] });
+      },
+    }),
   );
 
   const updateStatus = useMutation(
@@ -87,6 +99,23 @@ export default function DeliveryNotesClient() {
   const customerMap = useMemo(() => {
     return new Map((customersData ?? []).map((c) => [c.id, c.name]));
   }, [customersData]);
+
+  const deliveryNoteByOrderId = useMemo(() => {
+    const map = new Map<
+      string,
+      { id: string; noteNumber: string; status: string }
+    >();
+    for (const note of deliveryNotesData ?? []) {
+      if (note.orderId && !map.has(note.orderId)) {
+        map.set(note.orderId, {
+          id: note.id,
+          noteNumber: note.noteNumber,
+          status: note.status,
+        });
+      }
+    }
+    return map;
+  }, [deliveryNotesData]);
 
   const orders = useMemo(() => (ordersData ?? []) as OrderItem[], [ordersData]);
 
@@ -118,7 +147,10 @@ export default function DeliveryNotesClient() {
       // Text search
       if (search.trim()) {
         const q = search.toLowerCase();
-        const noteNum = `NE-${order.orderNumber}`.toLowerCase();
+        const persistedNote = deliveryNoteByOrderId.get(order.id);
+        const noteNum = (
+          persistedNote?.noteNumber ?? `NE-${order.orderNumber}`
+        ).toLowerCase();
         const orderNum = order.orderNumber.toLowerCase();
         const customerName = (
           (order.customerId ? customerMap.get(order.customerId) : null) ??
@@ -134,7 +166,7 @@ export default function DeliveryNotesClient() {
 
       return true;
     });
-  }, [orders, filter, search, customerMap]);
+  }, [orders, filter, search, customerMap, deliveryNoteByOrderId]);
 
   // Aggregate metrics
   const totalDespachos = orders.length;
@@ -151,12 +183,15 @@ export default function DeliveryNotesClient() {
   const handleAdvanceStatus = useCallback(
     (orderId: string, currentStatus: string) => {
       if (currentStatus === "confirmed" || currentStatus === "prepared") {
+        if (!deliveryNoteByOrderId.has(orderId)) {
+          createDeliveryNote.mutate({ orderId });
+        }
         updateStatus.mutate({ id: orderId, status: "dispatched" });
       } else if (currentStatus === "dispatched") {
         updateStatus.mutate({ id: orderId, status: "delivered" });
       }
     },
-    [updateStatus],
+    [createDeliveryNote, deliveryNoteByOrderId, updateStatus],
   );
 
   const columns = useMemo<ColumnDef<OrderItem>[]>(
@@ -165,18 +200,21 @@ export default function DeliveryNotesClient() {
         accessorKey: "orderNumber",
         header: "Nota #",
         meta: { sticky: true, className: "w-36" },
-        cell: ({ row }) => (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              setSelectedOrderId(row.original.id);
-            }}
-            className="text-primary font-mono text-xs font-medium tabular-nums hover:underline"
-          >
-            NE-{row.original.orderNumber}
-          </button>
-        ),
+        cell: ({ row }) => {
+          const persisted = deliveryNoteByOrderId.get(row.original.id);
+          return (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setSelectedOrderId(row.original.id);
+              }}
+              className="text-primary font-mono text-xs font-medium tabular-nums hover:underline"
+            >
+              {persisted?.noteNumber ?? `NE-${row.original.orderNumber}`}
+            </button>
+          );
+        },
       },
       {
         id: "orderRef",
@@ -354,7 +392,13 @@ export default function DeliveryNotesClient() {
         ),
       },
     ],
-    [bcv.rate, customerMap, handleAdvanceStatus, updateStatus.isPending],
+    [
+      bcv.rate,
+      customerMap,
+      deliveryNoteByOrderId,
+      handleAdvanceStatus,
+      updateStatus.isPending,
+    ],
   );
 
   const handleRowClick = useCallback(
@@ -372,14 +416,16 @@ export default function DeliveryNotesClient() {
         description="Control logístico de expedición, control de transporte y confirmación de recepción"
         actions={
           <div className="flex w-full flex-wrap gap-2 sm:w-auto">
-            <Button
-              variant="outline"
-              onClick={() => setSelectedOrderId("preview")}
-              className="min-h-11 flex-1 sm:flex-initial"
-            >
-              <Icons.LocalShipping className="size-4.5" />
-              Modelo Guía
-            </Button>
+            {orders[0] && (
+              <Button
+                variant="outline"
+                onClick={() => setSelectedOrderId(orders[0]?.id ?? null)}
+                className="min-h-11 flex-1 sm:flex-initial"
+              >
+                <Icons.LocalShipping className="size-4.5" />
+                Última Guía
+              </Button>
+            )}
             <Button asChild className="min-h-11 flex-1 sm:flex-initial">
               <Link href="/orders">
                 <Icons.Add className="size-4.5" />

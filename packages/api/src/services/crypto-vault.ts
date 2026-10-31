@@ -20,14 +20,25 @@ const VERSION_PREFIX = "v1";
 function deriveVaultKey(rawSecret?: string): Buffer {
   const source =
     rawSecret ??
-    process.env.INTEGRATION_VAULT_KEY ??
-    process.env.SUPABASE_SERVICE_ROLE_KEY ??
-    "cendaro-dev-fallback-vault-key-do-not-use-in-prod";
+    (process.env.INTEGRATION_VAULT_KEY?.trim()
+      ? process.env.INTEGRATION_VAULT_KEY.trim()
+      : undefined) ??
+    (process.env.NODE_ENV === "production"
+      ? undefined
+      : "cendaro-dev-fallback-vault-key-do-not-use-in-prod");
+
+  if (!source) {
+    throw new Error(
+      "INTEGRATION_VAULT_KEY es obligatoria en producción para el cifrado del vault",
+    );
+  }
 
   if (/^[0-9a-fA-F]{64}$/.test(source)) {
     return Buffer.from(source, "hex");
   }
-  return createHash("sha256").update(source, "utf8").digest();
+  return createHash("sha256")
+    .update(`cendaro:integration-vault:v1:${source}`, "utf8")
+    .digest();
 }
 
 /**

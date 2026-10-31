@@ -3,15 +3,23 @@
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 
 import { Button } from "@cendaro/ui";
 import { Icons } from "@cendaro/ui/icons";
 import { StatusPill } from "@cendaro/ui/status-pill";
 
 import { DataTable } from "~/components/data-table/data-table";
+import { Field, Input, TextArea } from "~/components/dialog";
 import { EmptyState } from "~/components/empty-state";
 import { PageHeader } from "~/components/page-header";
 import { Can, RoleGuard } from "~/components/role-guard";
+import {
+  SheetBody,
+  SheetFooter,
+  SheetFormActions,
+  SheetModal,
+} from "~/components/sheet-modal";
 import { StatCard } from "~/components/stat-card";
 import { useClosureParams } from "~/hooks/params/use-closure-params";
 import { useBcvRate } from "~/hooks/use-bcv-rate";
@@ -38,6 +46,9 @@ export default function CashClosureClient() {
 
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [, setClosureParams] = useClosureParams();
+  const [showOpenShiftModal, setShowOpenShiftModal] = useState(false);
+  const [openingCashUsd, setOpeningCashUsd] = useState("50.00");
+  const [shiftNotes, setShiftNotes] = useState("");
 
   const {
     data: closures,
@@ -45,6 +56,22 @@ export default function CashClosureClient() {
     isError,
     refetch,
   } = useQuery(trpc.sales.listClosures.queryOptions());
+
+  const openShiftMutation = useMutation(
+    trpc.sales.openShift.mutationOptions({
+      onSuccess: () => {
+        toast.success("Turno de caja abierto exitosamente");
+        setShowOpenShiftModal(false);
+        setOpeningCashUsd("50.00");
+        setShiftNotes("");
+        void qc.invalidateQueries({ queryKey: [["sales"]] });
+        void qc.invalidateQueries({ queryKey: [["payments"]] });
+      },
+      onError: (err) => {
+        toast.error(err.message);
+      },
+    }),
+  );
 
   const review = useMutation(
     trpc.sales.reviewClosure.mutationOptions({
@@ -204,6 +231,24 @@ export default function CashClosureClient() {
               </div>
             );
           }
+          if (closure.status === "open") {
+            return (
+              <div className="text-right">
+                <Can module="cash_closure" action="create">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      void setClosureParams({ createClosure: true })
+                    }
+                    className="border-border h-7 px-2.5 text-xs font-medium"
+                  >
+                    Cerrar Turno
+                  </Button>
+                </Can>
+              </div>
+            );
+          }
           return (
             <div className="text-right">
               <RoleGuard allow={["owner", "admin", "supervisor"]}>
@@ -222,7 +267,7 @@ export default function CashClosureClient() {
         },
       },
     ],
-    [review],
+    [review, setClosureParams],
   );
 
   return (
@@ -232,16 +277,81 @@ export default function CashClosureClient() {
         description="Arqueo de fondos, conciliación diaria y control de discrepancias"
         actions={
           <Can module="cash_closure" action="create">
-            <Button
-              onClick={() => void setClosureParams({ createClosure: true })}
-              className="min-h-11 flex-1 sm:flex-initial"
-            >
-              <Icons.LockClock className="size-4.5" />
-              Cerrar Día
-            </Button>
+            <div className="flex w-full flex-wrap gap-2 sm:w-auto">
+              <Button
+                variant="outline"
+                onClick={() => setShowOpenShiftModal(true)}
+                className="min-h-11 flex-1 sm:flex-initial"
+              >
+                <Icons.PointOfSale className="size-4.5" />
+                Abrir Turno
+              </Button>
+              <Button
+                onClick={() => void setClosureParams({ createClosure: true })}
+                className="min-h-11 flex-1 sm:flex-initial"
+              >
+                <Icons.LockClock className="size-4.5" />
+                Cerrar Día
+              </Button>
+            </div>
           </Can>
         }
       />
+
+      <SheetModal
+        open={showOpenShiftModal}
+        onClose={() => setShowOpenShiftModal(false)}
+        title="Abrir Turno de Caja"
+        description="Registra el fondo inicial en efectivo (float) para el turno actual."
+      >
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            openShiftMutation.mutate({
+              openingCashUsd: parseFloat(openingCashUsd) || 0,
+              notes: shiftNotes.trim() || undefined,
+            });
+          }}
+          className="flex h-full flex-col"
+        >
+          <SheetBody>
+            <Field
+              label="Fondo Inicial en Efectivo ($ USD)"
+              required
+              hint="Monto físico entregado al cajero al iniciar turno"
+            >
+              <Input
+                id="shift-opening-cash"
+                name="openingCashUsd"
+                type="number"
+                step="0.01"
+                min="0"
+                required
+                value={openingCashUsd}
+                onChange={(e) => setOpeningCashUsd(e.target.value)}
+                className="font-mono tabular-nums"
+              />
+            </Field>
+            <Field label="Notas de Apertura">
+              <TextArea
+                id="shift-notes"
+                name="shiftNotes"
+                rows={2}
+                placeholder="Ej. Turno matutino, Caja 1, billetes de baja denominación..."
+                value={shiftNotes}
+                onChange={(e) => setShiftNotes(e.target.value)}
+              />
+            </Field>
+          </SheetBody>
+          <SheetFooter>
+            <SheetFormActions
+              onCancel={() => setShowOpenShiftModal(false)}
+              submitting={openShiftMutation.isPending}
+              submitLabel="Abrir Turno"
+            />
+          </SheetFooter>
+        </form>
+      </SheetModal>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
