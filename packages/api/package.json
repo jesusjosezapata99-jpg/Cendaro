@@ -38,8 +38,8 @@
     "eslint": "catalog:",
     "prettier": "catalog:",
     "typescript": "catalog:",
-    "vite": "^7.3.5",
-    "vitest": "^4.1.11"
+    "vite": "^7.3.7",
+    "vitest": "^4.1.12"
   },
   "prettier": "@cendaro/prettier-config",
   "author": "Cendaro",
