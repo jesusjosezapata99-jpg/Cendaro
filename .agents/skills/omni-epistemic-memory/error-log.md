@@ -48,6 +48,7 @@ This file is the **single source of truth** for error history. Every entry makes
 | 31  | In `logAudit`, always resolve `workspaceId` (`entry.workspaceId ?? resolveWorkspaceId(user)`) BEFORE calling `buildAuditIntegrityMetadata` and `computeAuditChainHash`, and keep `prevHash`/`chainHash` in their dedicated `AuditLog` columns so `verifyAuditRecordIntegrity` and `verifyAuditChain` match 1:1.                                                | WORM Audit Chain / Cryptography      |
 | 32  | Never perform `.insert()`, `.update()`, or `.delete()` inside a `.query()` procedure built with `wsReadPermissionProcedure`, because `runInWorkspaceRlsReadonly` wraps all queries in `SET TRANSACTION READ ONLY` (`Postgres 25006`). Move state transitions to `.mutation()` or handle expiration virtually on read.                                          | tRPC / PostgreSQL READ ONLY          |
 | 33  | On Windows, pass `--max-arg-length 3000` to lint-staged in `.husky/pre-commit` to prevent `cmd.exe` 8,191-character command line buffer overflow (`La línea de comandos es demasiado larga`) when many files are staged.                                                                                                                                       | Windows / Git Hooks / lint-staged    |
+| 34  | In GitHub Mermaid `sequenceDiagram` blocks, never include semicolons (`;`), hash characters (`#`), angle brackets (`<uuid>`), or raw arrow tokens (`->`) inside message labels (`A->>B: text`), because Mermaid's sequence lexer (`[^#;\n]+`) treats `;` as a statement terminator and throws `Parse error ... got 'INVALID'`.                                 | GitHub Markdown / Mermaid Diagrams   |
 
 ## Entry Template
 
@@ -66,6 +67,17 @@ This file is the **single source of truth** for error history. Every entry makes
 ---
 
 ## Entries
+
+### [2026-10-31] GitHub Mermaid `sequenceDiagram` Parse Error on Semicolons (`;`) and Angle Brackets in Message Labels
+
+- **Error**: GitHub failed to render the `Request Lifecycle` `sequenceDiagram` in `README.md` with:
+  `Unable to render rich display — Parse error on line 27: ...app.workspace_id = '<uuid>'; D->>S: Pa — Expecting 'NEWLINE', ',', '()', 'SOLID_OPEN_ARROW', ... got 'INVALID'`
+- **Root Cause**: Line 260 of `README.md` contained `D->>+S: SET LOCAL ROLE app_user; SET LOCAL app.workspace_id = '<uuid>';`. In Mermaid's `sequenceDiagram` Jison lexer, message text (`TXT`) matches `[^#;\n]+`, which treats `;` as a statement separator equivalent to a newline (`NEWLINE`). The first semicolon terminated the `D->>+S` statement early, causing the parser to interpret `SET LOCAL app.workspace_id = '<uuid>'` as a new participant/statement and fail on `'<uuid>';`.
+- **Fix**: Replaced all semicolons (`;`), angle brackets (`<uuid>`), and arrow tokens (`->`) in `sequenceDiagram` and `flowchart` message labels in `README.md` with clean, parser-safe phrasing (`D->>+S: Set Local Role app_user and Tenant app.workspace_id`, `HTTP 302 Redirect to /login`), and audited all 8 Mermaid blocks in `README.md`.
+- **Prevention**: Never use `;`, `#`, `<...>`, or raw `->` tokens inside Mermaid `sequenceDiagram` message labels or `alt`/`else`/`opt` descriptions.
+- **Workspace**: Root monorepo (`README.md`)
+- **Severity**: Minor (Documentation rendering error on GitHub)
+- **Recurrence**: 1st (Rule #34)
 
 ### [2026-10-26] Windows cmd.exe 8,191-char Command Line Overflow in lint-staged (`La línea de comandos es demasiado larga`)
 

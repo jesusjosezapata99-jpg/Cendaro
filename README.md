@@ -241,27 +241,27 @@ sequenceDiagram
   participant S as Supabase Postgres 16
 
   U->>+P: HTTPS Request (Cookie + x-workspace-id)
-  P->>P: Verify Supabase SSR Session & Idle Timeout (30m)
-  alt Unauthenticated or Expired
-    P-->>U: 302 Redirect -> /login?expired=1
-  else Owner/Admin without AAL2 (MFA)
-    P-->>U: 302 Redirect -> /login/mfa
+  P->>P: Verify Supabase SSR Session and Idle Timeout (30m)
+  alt Unauthenticated or Session Expired
+    P-->>U: HTTP 302 Redirect to /login
+  else Owner or Admin without AAL2 MFA
+    P-->>U: HTTP 302 Redirect to /login/mfa
   end
 
   P->>+N: Authenticated Request Context
-  N->>+T: Invoke Procedure (Caller / HTTP Batch)
-  T->>T: Validate RFC 4122 workspaceId & workspace_member Role
-  T->>T: Check meta.authz (ROLE_PERMISSIONS & WorkspaceModule)
+  N->>+T: Invoke Procedure (Server Caller or HTTP Batch)
+  T->>T: Validate RFC 4122 workspaceId and workspace_member Role
+  T->>T: Verify meta.authz (ROLE_PERMISSIONS and WorkspaceModule)
   alt Unauthorized Role or Disabled Module
-    T-->>N: 403 FORBIDDEN
+    T-->>N: HTTP 403 FORBIDDEN
   end
 
   T->>+D: Open Scoped Transaction (Read-Only or Read-Write)
-  D->>+S: SET LOCAL ROLE app_user; SET LOCAL app.workspace_id = '<uuid>';
-  D->>S: Parameterized SQL Query (Restrictive RLS Active)
-  S-->>-D: Tenant-Isolated Rows
+  D->>+S: Set Local Role app_user and Tenant app.workspace_id
+  D->>S: Execute Parameterized SQL Query (Restrictive RLS Active)
+  S-->>-D: Return Tenant-Isolated Rows
   opt Auditable Mutation
-    D->>S: INSERT audit_log (prev_hash + SHA-256 chain_hash)
+    D->>S: Append audit_log (prev_hash + SHA-256 chain_hash)
   end
   D-->>-T: Strictly Typed Result
   T-->>-N: SuperJSON Serialized Payload
@@ -660,7 +660,7 @@ flowchart TB
   end
 
   subgraph T3["TIER 3 · AI INFERENCE & CATALOG MATCHING (GROQ LPU)"]
-    C1["Groq LPU · Qwen3-32B<br/>Mandarin/English -> Commercial Spanish"]
+    C1["Groq LPU · Qwen3-32B<br/>Mandarin/English to Commercial Spanish"]
     C2["Llama 4 Scout Vision<br/>Visual Attribute Extraction & Rate-Limit Fallback"]
     C3["Context-Aware Catalog Matcher<br/>SKU Affinity Scoring + AiPromptConfig"]
   end
