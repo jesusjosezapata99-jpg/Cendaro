@@ -1,43 +1,40 @@
 # Original User Request
 
-## Initial Request — 2026-10-30T23:08:15Z
+## Initial Request — 2026-10-31T18:57:13Z
 
-Lanzar múltiples agentes en los cuales cada uno se encargue de estas tareas, se compartan las tareas y creen un plan a nivel profesional proponiendo posibles cambios. Auditar de forma crítica la seguridad, escalabilidad, funcionalidad e interconexión de todos los módulos y apartados para empleados, así como el rendimiento en local y en la nube en Venezuela (latencia hacia bases de datos y fluidez con animaciones) del sistema ERP Cendaro, elaborando un plan profesional con propuestas de cambio fundamentadas sin modificar código en esta fase.
+Ejecuta la cantidad necesaria de agentes que puedas para esta tarea. Ejecutar una auditoría profesional y avanzada de ciberseguridad e investigación profunda sobre posibles brechas de seguridad en todos los módulos del sistema ERP Cendaro (desde la landing page hasta cualquier módulo), identificando vectores de ataque de robo de datos, manipulación de precios y accesos indebidos, y entregando un informe exhaustivo con el plan detallado de remediación sin modificar código en esta fase.
 
-Integrity mode: development
+Integrity mode: demo
+The team must NOT: ejecutar scripts externos o delegar la ejecución a herramientas o servicios externos
 
 ## Requirements
 
-### R1. Auditoría de Seguridad y Escalabilidad
+### R1. Auditoría Integral de Ciberseguridad y Deep Research
 
-Auditar la arquitectura y el código del proyecto identificando vulnerabilidades de seguridad, cumplimiento de buenas prácticas de autenticación/autorización y cuellos de botella para la escalabilidad. Entregar un informe crítico que documente los riesgos detectados y su nivel de severidad.
+Ejecutar un deep research y auditoría exhaustiva en todos los módulos del ERP Cendaro (landing page, aplicaciones web, endpoints tRPC, autenticación Supabase, políticas RLS y esquemas de base de datos). Identificar todos los vectores por los cuales un atacante podría robar datos, alterar precios, escalar privilegios o vulnerar el sistema.
 
-### R2. Auditoría Funcional, Interconexión y Ergonomía de Módulos
+### R2. Informe Exhaustivo y Plan de Remediación
 
-Revisar integralmente todos los módulos y apartados destinados a empleados, verificando su estado funcional actual, su correcta interconexión y la rapidez de acceso ergonómica y visual. Documentar detalladamente los elementos y flujos pendientes por cerrar para alcanzar el 100% de operatividad.
+Documentar detalladamente cada vulnerabilidad detectada indicando su ubicación exacta, vector de explotación, nivel de severidad e impacto potencial para el negocio. Estructurar un plan de remediación profesional con las recomendaciones técnicas necesarias para mitigar cada brecha, sin modificar archivos de código del repositorio en esta fase.
 
-### R3. Auditoría de Rendimiento y Latencia (Local, Nube y Venezuela)
+### R3. Entorno de Pruebas y Restricciones Operativas
 
-Evaluar el rendimiento del ERP para su operación fluida tanto en local como en la nube con acceso desde Venezuela, auditando la latencia en la conexión y consultas a la base de datos, así como la fluidez de las animaciones existentes frente a condiciones de red adversas.
-
-### R4. Plan Profesional de Propuestas de Cambio
-
-Consolidar los hallazgos en un plan estratégico estructurado que proponga soluciones y mejoras justificadas con criterio crítico, sin modificar archivos de código en esta fase del encargo.
+Las evaluaciones dinámicas pueden realizarse contra entornos desplegados o de staging si están disponibles, manteniendo el análisis estático y arquitectónico como base principal. Se prohíbe terminantemente ejecutar escrituras, modificaciones o mutaciones destructivas sobre la base de datos de producción sin aprobación explícita, respetando las directivas del repositorio.
 
 ## Verification Resources
 
-- Comprobaciones existentes del repositorio: `pnpm typecheck`, `pnpm lint`, `pnpm test`, `node scripts/checks/design-guard.mjs --phase F9`.
-- Rúbrica de auditoría técnica que desglose punto por punto: riesgos de seguridad, límites de escalabilidad, operatividad de módulos, métricas de rendimiento/latencia y catálogo de cambios propuestos.
+- Herramientas y comprobaciones del repositorio: `pnpm typecheck`, `pnpm lint`, `pnpm test`, `procedure-authz-coverage.test.ts` y scripts de comprobación de permisos.
+- Estándares de seguridad: Rúbrica de evaluación basada en OWASP Top 10, ASVS y la matriz de roles y permisos del ERP (`packages/validators`).
 
 ## Acceptance Criteria
 
-### Informes de Auditoría
+### Informe de Auditoría y Brechas
 
-- [ ] El informe de seguridad y escalabilidad documenta vulnerabilidades encontradas, riesgos y cuellos de botella con nivel de severidad.
-- [ ] El inventario de módulos y apartados de empleados detalla para cada uno su estado funcional actual, brechas de interconexión, aspectos visuales/de acceso y tareas pendientes para el 100%.
-- [ ] El análisis de rendimiento evalúa la latencia hacia los servidores de base de datos, el impacto en despliegues nube para Venezuela y la fluidez de las animaciones.
+- [ ] El informe cubre todos los módulos del ERP (desde la landing page hasta los módulos internos), detallando vectores de ataque para robo de datos, alteración de precios y bypass de autorización.
+- [ ] Cada hallazgo incluye clasificación de severidad, evidencia técnica (archivo, endpoint o política afectada) y recomendación de mitigación.
+- [ ] El código del repositorio permanece sin modificaciones en esta fase.
 
-### Plan Profesional
+### Verificación y Conformidad
 
-- [ ] El plan estratégico consolida las propuestas de cambio priorizadas con su justificación técnica sin realizar modificaciones al código del repositorio.
-- [ ] Las herramientas de comprobación del repositorio (`pnpm typecheck`, `pnpm lint`, `pnpm test`) se ejecutan y sus resultados se incorporan al diagnóstico.
+- [ ] La auditoría verifica la cobertura de autorización de procedimientos tRPC y la consistencia de políticas RLS contra la matriz de permisos.
+- [ ] No se realizan escrituras ni mutaciones no autorizadas sobre bases de datos o servicios de producción.
