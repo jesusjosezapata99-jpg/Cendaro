@@ -8,6 +8,8 @@ import { siteUrl } from "~/lib/site-env";
 const PUBLIC_ALLOW = [
   "/",
   "/funciones",
+  "/sitemap.xml",
+  "/feed.xml",
   "/llms.txt",
   "/llms-full.txt",
   "/opengraph-image",
@@ -93,7 +95,10 @@ export default function robots(): MetadataRoute.Robots {
         disallow: "/",
       },
     ],
-    sitemap: new URL("/sitemap.xml", siteUrl).href,
+    sitemap: [
+      new URL("/sitemap.xml", siteUrl).href,
+      new URL("/feed.xml", siteUrl).href,
+    ],
     host: siteUrl.origin,
   };
 }

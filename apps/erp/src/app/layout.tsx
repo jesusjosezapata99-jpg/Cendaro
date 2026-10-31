@@ -65,7 +65,6 @@ export const metadata: Metadata = {
   manifest: "/manifest.json",
   icons: {
     icon: [
-      { url: "/favicon.ico", sizes: "48x48", type: "image/x-icon" },
       { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
       { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
     ],
@@ -123,8 +122,13 @@ export default function RootLayout({
           content="black-translucent"
         />
         <meta name="apple-mobile-web-app-title" content="Cendaro" />
-        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-        {/* AI & LLM Discovery (llmstxt.org v2 specification) */}
+        {/* AI, LLM & Google WebSub Discovery (llmstxt.org v2 + RSS 2.0) */}
+        <link
+          rel="alternate"
+          type="application/rss+xml"
+          href="/feed.xml"
+          title="Cendaro — Módulos y Funciones del Sistema ERP (RSS)"
+        />
         <link
           rel="alternate"
           type="text/markdown"

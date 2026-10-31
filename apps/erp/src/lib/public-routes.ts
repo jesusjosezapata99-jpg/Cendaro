@@ -9,6 +9,7 @@ export const PUBLIC_ROUTES_EXACT: readonly string[] = [
   // Public marketing site (PLAN-2026-09-LANDING-REDESIGN F1 & PLAN-2026-10-MAESTRO-SEO-GEO-AI-MARKETING).
   "/funciones",
   "/sitemap.xml",
+  "/feed.xml",
   "/robots.txt",
   "/llms.txt",
   "/llms-full.txt",

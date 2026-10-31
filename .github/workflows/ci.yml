@@ -83,6 +83,13 @@ jobs:
       - name: Test
         run: pnpm test
 
+      - name: Notify Search & AI Engines (Google WebSub + IndexNow + GSC)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          NEXT_PUBLIC_SITE_URL: ${{ vars.NEXT_PUBLIC_SITE_URL }}
+          GSC_SERVICE_ACCOUNT_KEY: ${{ secrets.GSC_SERVICE_ACCOUNT_KEY }}
+        run: node scripts/seo/ping-indexnow.mjs --wait-deploy
+
   agentshield:
     name: AgentShield (AI agent configuration)
     runs-on: ubuntu-latest

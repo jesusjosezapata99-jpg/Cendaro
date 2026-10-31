@@ -38,6 +38,7 @@ describe("Proxy Route Allowlist Security Invariants (C4)", () => {
       "/opengraph-image",
       "/funciones",
       "/sitemap.xml",
+      "/feed.xml",
       "/robots.txt",
       "/llms.txt",
       "/llms-full.txt",
