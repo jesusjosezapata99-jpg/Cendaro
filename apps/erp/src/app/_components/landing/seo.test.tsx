@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import { ERP_MODULES } from "@cendaro/validators";
 
 import { FEATURE_SLUGS } from "./features";
+import { buildRssFeedXml } from "./feed";
 import { buildLlmsFullTxt, buildLlmsTxt } from "./llms";
 import {
   breadcrumbJsonLd,
@@ -156,6 +157,22 @@ describe("llms.txt and llms-full.txt builders", () => {
     expect(full.startsWith("# Cendaro — Documentación Completa")).toBe(true);
     for (const slug of FEATURE_SLUGS) {
       expect(full).toContain(`https://example.test/funciones/${slug}`);
+    }
+  });
+
+  it("emits valid RSS 2.0 + Google WebSub hub links in buildRssFeedXml", () => {
+    const xml = buildRssFeedXml(origin, new Date("2026-09-25T00:00:00Z"));
+    expect(xml).toContain('<rss version="2.0"');
+    expect(xml).toContain(
+      '<atom:link href="https://pubsubhubbub.appspot.com/" rel="hub" />',
+    );
+    expect(xml).toContain(
+      '<atom:link href="https://example.test/feed.xml" rel="self" type="application/rss+xml" />',
+    );
+    for (const slug of FEATURE_SLUGS) {
+      expect(xml).toContain(
+        `<link>https://example.test/funciones/${slug}</link>`,
+      );
     }
   });
 });

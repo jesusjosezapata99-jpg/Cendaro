@@ -94,6 +94,22 @@ const config = {
             key: "Cache-Control",
             value: "public, max-age=31536000, immutable",
           },
+          {
+            key: "Cross-Origin-Resource-Policy",
+            value: "cross-origin",
+          },
+        ],
+      },
+      {
+        // Public social preview cards and brand icons must be embeddable
+        // cross-origin by search engines, AI assistants, and social networks.
+        source:
+          "/:path(opengraph-image.*|funciones/.*opengraph-image.*|icon-.*\\.png|apple-touch-icon\\.png|favicon\\.ico)",
+        headers: [
+          {
+            key: "Cross-Origin-Resource-Policy",
+            value: "cross-origin",
+          },
         ],
       },
       {
