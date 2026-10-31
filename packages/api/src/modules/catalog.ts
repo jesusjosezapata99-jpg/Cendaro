@@ -4,7 +4,17 @@
  * CRUD + search + filters for products, brands, categories, suppliers.
  * PRD §10: 5000+ SKUs, full-text search, hierarchical categories.
  */
-import { and, asc, count, desc, eq, ilike, inArray, or } from "drizzle-orm";
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  ilike,
+  inArray,
+  or,
+  sql,
+} from "drizzle-orm";
 import { z } from "zod/v4";
 
 import {
@@ -81,6 +91,8 @@ export const listProductsInputSchema = z.object({
   limit: z.number().int().min(1).max(100).default(25),
   offset: z.number().int().min(0).default(0),
   cursor: z.number().int().min(0).nullish(),
+  afterCreatedAt: z.string().datetime().optional(),
+  afterId: z.string().uuid().optional(),
   search: z.string().max(256).optional(),
   brandId: z.string().uuid().optional(),
   brandIds: z.array(z.string().uuid()).optional(),
@@ -148,6 +160,13 @@ export const catalogRouter = createTRPCRouter({
         conditions.push(inArray(Product.supplierId, input.supplierIds));
       } else if (input.supplierId) {
         conditions.push(eq(Product.supplierId, input.supplierId));
+      }
+
+      if (input.afterCreatedAt && input.afterId) {
+        const cursorDate = new Date(input.afterCreatedAt);
+        conditions.push(
+          sql`(${Product.createdAt}, ${Product.id}) < (${cursorDate}, ${input.afterId}::uuid)`,
+        );
       }
 
       // Sorting

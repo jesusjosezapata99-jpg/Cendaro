@@ -274,6 +274,12 @@ describe("Phase 7 — Containers, Approvals & Reporting", () => {
     );
     expect(movementInsert).toBeDefined();
     expect(movementInsert?.quantity).toBe(10);
+
+    // PROP-04: ChannelAllocation ("store") upserted alongside StockLedger
+    const channelAllocInsert = inserted.find(
+      (row) => row.channel === "store" && row.quantity === 10,
+    );
+    expect(channelAllocInsert).toBeDefined();
   });
 
   it("F7.2: approvals.approve dispatches side effects for container_close, cash_closure, product_unblock, and credit_sale", async () => {

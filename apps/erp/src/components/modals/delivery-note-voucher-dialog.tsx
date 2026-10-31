@@ -36,40 +36,6 @@ const CHANNEL_LABELS: Record<string, string> = {
   instagram: "Delivery Redes",
 };
 
-const DEMO_DELIVERY = {
-  id: "preview",
-  orderNumber: "ORD-9824-VEN",
-  customerId: "demo-customer",
-  channel: "vendors" as const,
-  status: "dispatched" as const,
-  subtotal: 350.0,
-  discount: 35.0,
-  total: 315.0,
-  createdAt: new Date(),
-  items: [
-    {
-      id: "item-1",
-      productId: "prod-1",
-      productName: "Batería Automotriz 12V 75Ah Cendaro Pro",
-      sku: "BAT-12V-75",
-      quantity: 2,
-      unitPrice: 120.0,
-      discount: 10.0,
-      lineTotal: 230.0,
-    },
-    {
-      id: "item-2",
-      productId: "prod-2",
-      productName: "Aceite Sintético para Motor 5W-30 (Galón)",
-      sku: "LUB-SYN-5W30",
-      quantity: 3,
-      unitPrice: 35.0,
-      discount: 0,
-      lineTotal: 105.0,
-    },
-  ],
-};
-
 export function DeliveryNoteVoucherDialog({
   open,
   onClose,
@@ -79,23 +45,39 @@ export function DeliveryNoteVoucherDialog({
   const qc = useQueryClient();
   const bcv = useBcvRate();
 
-  const isDemo = orderId === "preview";
+  const validOrderId =
+    orderId && orderId !== "preview"
+      ? orderId
+      : "00000000-0000-0000-0000-000000000000";
 
-  const { data: realOrder, isLoading: orderLoading } = useQuery(
+  const { data: order, isLoading: orderLoading } = useQuery(
     trpc.sales.orderById.queryOptions(
-      {
-        id:
-          orderId && !isDemo ? orderId : "00000000-0000-0000-0000-000000000000",
-      },
-      { enabled: open && !!orderId && !isDemo },
+      { id: validOrderId },
+      { enabled: open && !!orderId && orderId !== "preview" },
     ),
   );
+
+  const { data: deliveryNotesData } = useQuery(
+    trpc.sales.listDeliveryNotes.queryOptions(
+      { orderId: validOrderId, limit: 1 },
+      { enabled: open && !!orderId && orderId !== "preview" },
+    ),
+  );
+  const persistedNote = deliveryNotesData?.[0];
 
   const { data: customersData } = useQuery(
     trpc.sales.listCustomers.queryOptions(
       { limit: 100 },
       { enabled: open && !!orderId },
     ),
+  );
+
+  const createDeliveryNote = useMutation(
+    trpc.sales.createDeliveryNote.mutationOptions({
+      onSuccess: () => {
+        void qc.invalidateQueries({ queryKey: [["sales"]] });
+      },
+    }),
   );
 
   const updateStatus = useMutation(
@@ -107,16 +89,7 @@ export function DeliveryNoteVoucherDialog({
     }),
   );
 
-  const order = isDemo ? DEMO_DELIVERY : realOrder;
-
-  const customer = isDemo
-    ? {
-        name: "Distribuidora Industrial del Centro C.A.",
-        identification: "J-30982145-0",
-        phone: "+58 414-555-0199",
-        address: "Av. Principal Los Guayos, Galpón 4, Valencia, Edo. Carabobo",
-      }
-    : customersData?.find((c) => c.id === order?.customerId);
+  const customer = customersData?.find((c) => c.id === order?.customerId);
 
   const st = order
     ? getStatus("deliveryNote", order.status)
@@ -134,6 +107,9 @@ export function DeliveryNoteVoucherDialog({
   const handleAdvanceStatus = () => {
     if (!order) return;
     if (order.status === "confirmed" || order.status === "prepared") {
+      if (!persistedNote) {
+        createDeliveryNote.mutate({ orderId: order.id });
+      }
       updateStatus.mutate({ id: order.id, status: "dispatched" });
     } else if (order.status === "dispatched") {
       updateStatus.mutate({ id: order.id, status: "delivered" });
@@ -180,7 +156,7 @@ export function DeliveryNoteVoucherDialog({
                       Guía de Despacho / Nota de Entrega
                     </span>
                     <p className="text-primary font-mono text-xl font-medium tracking-tight tabular-nums">
-                      NE-{order.orderNumber}
+                      {persistedNote?.noteNumber ?? `NE-${order.orderNumber}`}
                     </p>
                     <p className="text-muted-foreground text-xs">
                       Orden de Venta:{" "}

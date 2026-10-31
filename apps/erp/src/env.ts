@@ -24,6 +24,13 @@ export const env = createEnv({
     ),
     MERCADOLIBRE_APP_ID: z.string().optional(),
     MERCADOLIBRE_SECRET: z.string().optional(),
+    // Dedicated AES-256-GCM key for external integration OAuth tokens at rest
+    // (PROP-08 / SEC-01). Isolated from SUPABASE_SERVICE_ROLE_KEY so keys can
+    // rotate independently.
+    INTEGRATION_VAULT_KEY: z.preprocess(
+      (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+      z.string().min(32).optional(),
+    ),
     // Cloudflare Turnstile CAPTCHA server secret (F9.1). Optional in local/CI;
     // when set, /api/auth/login enforces siteverify before calling Supabase Auth.
     TURNSTILE_SECRET_KEY: z.preprocess(

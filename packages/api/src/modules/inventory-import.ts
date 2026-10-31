@@ -13,6 +13,7 @@ import { z } from "zod/v4";
 import {
   AuditLog,
   Brand,
+  ChannelAllocation,
   Product,
   StockLedger,
   StockMovement,
@@ -359,6 +360,12 @@ async function writeLedgerQuantities(
     warehouseId,
     quantity,
   }));
+  const channelRows = [...quantities].map(([productId, quantity]) => ({
+    workspaceId,
+    productId,
+    channel: "store" as const,
+    quantity,
+  }));
   for (const part of chunk(rows, WRITE_CHUNK_SIZE)) {
     await db
       .insert(StockLedger)
@@ -368,6 +375,19 @@ async function writeLedgerQuantities(
           StockLedger.workspaceId,
           StockLedger.productId,
           StockLedger.warehouseId,
+        ],
+        set: { quantity: sql`excluded.quantity`, updatedAt: sql`now()` },
+      });
+  }
+  for (const part of chunk(channelRows, WRITE_CHUNK_SIZE)) {
+    await db
+      .insert(ChannelAllocation)
+      .values(part)
+      .onConflictDoUpdate({
+        target: [
+          ChannelAllocation.workspaceId,
+          ChannelAllocation.productId,
+          ChannelAllocation.channel,
         ],
         set: { quantity: sql`excluded.quantity`, updatedAt: sql`now()` },
       });

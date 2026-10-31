@@ -111,6 +111,7 @@ export default function InventoryClient() {
   const [showTransfer, setShowTransfer] = useState(false);
   const [showCycle, setShowCycle] = useState(false);
   const [showWarehouseModal, setShowWarehouseModal] = useState(false);
+  const [showPurchaseModal, setShowPurchaseModal] = useState(false);
   const [whForm, setWhForm] = useState<{
     name: string;
     type:
@@ -126,6 +127,15 @@ export default function InventoryClient() {
     type: "warehouse",
     location: "",
   });
+  const [purchaseForm, setPurchaseForm] = useState({
+    warehouseId: "",
+    supplierId: "",
+    invoiceNumber: "",
+    productId: "",
+    quantity: "1",
+    unitCostUsd: "0",
+    notes: "",
+  });
 
   const createWarehouse = useMutation(
     trpc.inventory.createWarehouse.mutationOptions({
@@ -134,6 +144,31 @@ export default function InventoryClient() {
         setShowWarehouseModal(false);
         setWhForm({ name: "", type: "warehouse", location: "" });
         void qc.invalidateQueries({ queryKey: [["inventory"]] });
+      },
+      onError: (err) => {
+        toast.error(err.message);
+      },
+    }),
+  );
+
+  const receivePurchase = useMutation(
+    trpc.inventory.receivePurchase.mutationOptions({
+      onSuccess: (res) => {
+        toast.success(
+          `Compra recibida (${res.totalUnits} unidades actualizadas en inventario y tienda)`,
+        );
+        setShowPurchaseModal(false);
+        setPurchaseForm({
+          warehouseId: "",
+          supplierId: "",
+          invoiceNumber: "",
+          productId: "",
+          quantity: "1",
+          unitCostUsd: "0",
+          notes: "",
+        });
+        void qc.invalidateQueries({ queryKey: [["inventory"]] });
+        void qc.invalidateQueries({ queryKey: [["catalog"]] });
       },
       onError: (err) => {
         toast.error(err.message);
@@ -246,6 +281,9 @@ export default function InventoryClient() {
   );
   const { data: warehouses } = useQuery(
     trpc.inventory.listWarehouses.queryOptions(),
+  );
+  const { data: suppliers } = useQuery(
+    trpc.catalog.listSuppliers.queryOptions(),
   );
   const { data: counts } = useQuery(trpc.inventory.listCounts.queryOptions());
 
@@ -431,6 +469,14 @@ export default function InventoryClient() {
           <div className="flex w-full flex-wrap gap-2 sm:w-auto">
             <Button
               variant="outline"
+              onClick={() => setShowPurchaseModal(true)}
+              className="min-h-11 flex-1 sm:flex-initial"
+            >
+              <Icons.LocalShipping className="size-4.5" />
+              Compra Nacional
+            </Button>
+            <Button
+              variant="outline"
               onClick={() => setShowWarehouseModal(true)}
               className="min-h-11 flex-1 sm:flex-initial"
             >
@@ -517,6 +563,186 @@ export default function InventoryClient() {
               onCancel={() => setShowWarehouseModal(false)}
               submitting={createWarehouse.isPending}
               submitLabel="Crear Almacén"
+            />
+          </SheetFooter>
+        </form>
+      </SheetModal>
+
+      <SheetModal
+        open={showPurchaseModal}
+        onClose={() => setShowPurchaseModal(false)}
+        title="Recepción de Compra Nacional / Directa"
+        description="Ingresa mercancía adquirida localmente sin contenedor marítimo. Recalcula el costo promedio ponderado y habilita stock en tienda."
+      >
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            const targetWh =
+              (purchaseForm.warehouseId || warehouses?.[0]?.id) ?? "";
+            const targetProd = (purchaseForm.productId || items[0]?.id) ?? "";
+            if (!targetWh || !targetProd) {
+              toast.error("Selecciona un almacén y un producto válidos");
+              return;
+            }
+            receivePurchase.mutate({
+              warehouseId: targetWh,
+              supplierId: purchaseForm.supplierId || undefined,
+              invoiceNumber: purchaseForm.invoiceNumber.trim() || "S/N",
+              notes: purchaseForm.notes.trim() || undefined,
+              items: [
+                {
+                  productId: targetProd,
+                  quantity: Math.max(
+                    1,
+                    parseInt(purchaseForm.quantity, 10) || 1,
+                  ),
+                  unitCostUsd: Math.max(
+                    0,
+                    parseFloat(purchaseForm.unitCostUsd) || 0,
+                  ),
+                },
+              ],
+            });
+          }}
+          className="flex h-full flex-col"
+        >
+          <SheetBody>
+            <Field label="Almacén de Destino" required>
+              <Select
+                id="purchase-warehouse-id"
+                name="warehouseId"
+                required
+                value={(purchaseForm.warehouseId || warehouses?.[0]?.id) ?? ""}
+                onChange={(e) =>
+                  setPurchaseForm((prev) => ({
+                    ...prev,
+                    warehouseId: e.target.value,
+                  }))
+                }
+              >
+                {warehouses?.map((w) => (
+                  <option key={w.id} value={w.id}>
+                    {w.name}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Proveedor (Opcional)">
+              <Select
+                id="purchase-supplier-id"
+                name="supplierId"
+                value={purchaseForm.supplierId}
+                onChange={(e) =>
+                  setPurchaseForm((prev) => ({
+                    ...prev,
+                    supplierId: e.target.value,
+                  }))
+                }
+              >
+                <option value="">— Compra directa / Sin proveedor —</option>
+                {suppliers?.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name} ({s.country})
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="N° Factura / Nota de Entrega">
+              <Input
+                id="purchase-invoice-number"
+                name="invoiceNumber"
+                value={purchaseForm.invoiceNumber}
+                onChange={(e) =>
+                  setPurchaseForm((prev) => ({
+                    ...prev,
+                    invoiceNumber: e.target.value,
+                  }))
+                }
+                placeholder="Ej. FAC-0004821"
+              />
+            </Field>
+            <Field label="Producto" required>
+              <Select
+                id="purchase-product-id"
+                name="productId"
+                required
+                value={(purchaseForm.productId || items[0]?.id) ?? ""}
+                onChange={(e) =>
+                  setPurchaseForm((prev) => ({
+                    ...prev,
+                    productId: e.target.value,
+                  }))
+                }
+              >
+                {items.map((it) => (
+                  <option key={it.id} value={it.id}>
+                    {it.sku} — {it.name}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Cantidad Recibida" required>
+                <Input
+                  id="purchase-quantity"
+                  name="quantity"
+                  type="number"
+                  min="1"
+                  step="1"
+                  required
+                  value={purchaseForm.quantity}
+                  onChange={(e) =>
+                    setPurchaseForm((prev) => ({
+                      ...prev,
+                      quantity: e.target.value,
+                    }))
+                  }
+                  className="font-mono tabular-nums"
+                />
+              </Field>
+              <Field
+                label="Costo Unitario ($ USD)"
+                required
+                hint="Actualiza costo promedio"
+              >
+                <Input
+                  id="purchase-unit-cost"
+                  name="unitCostUsd"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  required
+                  value={purchaseForm.unitCostUsd}
+                  onChange={(e) =>
+                    setPurchaseForm((prev) => ({
+                      ...prev,
+                      unitCostUsd: e.target.value,
+                    }))
+                  }
+                  className="font-mono tabular-nums"
+                />
+              </Field>
+            </div>
+            <Field label="Observaciones">
+              <Input
+                id="purchase-notes"
+                name="notes"
+                value={purchaseForm.notes}
+                onChange={(e) =>
+                  setPurchaseForm((prev) => ({
+                    ...prev,
+                    notes: e.target.value,
+                  }))
+                }
+                placeholder="Detalle de recepción o lote..."
+              />
+            </Field>
+          </SheetBody>
+          <SheetFooter>
+            <SheetFormActions
+              onCancel={() => setShowPurchaseModal(false)}
+              submitting={receivePurchase.isPending}
+              submitLabel="Registrar Compra"
             />
           </SheetFooter>
         </form>

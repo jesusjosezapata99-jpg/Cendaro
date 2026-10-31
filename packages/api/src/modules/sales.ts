@@ -23,6 +23,7 @@ import { z } from "zod/v4";
 import type { getDb } from "@cendaro/db/client";
 import {
   AccountReceivable,
+  AuditLog,
   ChannelAllocation,
   Customer,
   CustomerAddress,
@@ -67,8 +68,10 @@ import {
   executeCreateClosure,
   executeListClosures,
   executeListPayments,
+  executeOpenShift,
   executeReviewClosure,
   executeValidatePayment,
+  openShiftInputSchema,
 } from "./payments";
 import { escapeLike } from "./search";
 import { assertVendorCustomer, vendorScopeId } from "./vendor-scope";
@@ -152,7 +155,11 @@ const MONEY_EPSILON = 0.005;
 async function assertInvoiceReadyBuyer(
   ctx: SalesWriteContext,
   customerId: string,
-): Promise<void> {
+): Promise<{
+  name: string;
+  identification: string | null;
+  address: string | null;
+}> {
   const [buyer] = await ctx.db
     .select({
       name: Customer.name,
@@ -174,6 +181,7 @@ async function assertInvoiceReadyBuyer(
         "El cliente no tiene los datos fiscales que exige el SENIAT (documento válido y domicilio fiscal). Actualiza la ficha del cliente antes de facturar.",
     });
   }
+  return buyer;
 }
 
 const CLOSING_STATUSES: readonly string[] = ["delivered", "invoiced"];
@@ -184,11 +192,15 @@ const REVERT_STATUSES: readonly string[] = ["returned", "cancelled"];
  * sales channel when it closes (delivered / invoiced) and restores them when
  * a deducted order is returned or cancelled. Each change is logged in
  * stock_movement and the order's stockDeducted flag is kept in step.
+ *
+ * Uses set-based batch updates (CASE + IN) and a single multi-row INSERT on
+ * stock_movement to eliminate the N+1 query waterfall on high-latency links.
  */
 async function applyStockLifecycle(
   ctx: SalesWriteContext,
   order: Pick<SalesOrderRow, "id" | "channel" | "stockDeducted">,
   status: SalesOrderRow["status"],
+  preloadedItems?: readonly { productId: string; quantity: number }[],
 ): Promise<{ isClosing: boolean; isReverting: boolean }> {
   const isClosing = CLOSING_STATUSES.includes(status) && !order.stockDeducted;
   const isReverting =
@@ -196,15 +208,20 @@ async function applyStockLifecycle(
   if (!isClosing && !isReverting) return { isClosing, isReverting };
 
   const [items, warehouseRows] = await Promise.all([
-    ctx.db
-      .select()
-      .from(OrderItem)
-      .where(
-        and(
-          eq(OrderItem.orderId, order.id),
-          eq(OrderItem.workspaceId, ctx.workspace.workspaceId),
-        ),
-      ),
+    preloadedItems
+      ? Promise.resolve(preloadedItems)
+      : ctx.db
+          .select({
+            productId: OrderItem.productId,
+            quantity: OrderItem.quantity,
+          })
+          .from(OrderItem)
+          .where(
+            and(
+              eq(OrderItem.orderId, order.id),
+              eq(OrderItem.workspaceId, ctx.workspace.workspaceId),
+            ),
+          ),
     ctx.db
       .select({ id: Warehouse.id })
       .from(Warehouse)
@@ -226,19 +243,56 @@ async function applyStockLifecycle(
     order.channel === "whatsapp" || order.channel === "instagram"
       ? "store"
       : order.channel;
+  const sign = isClosing ? -1 : 1;
 
-  for (const item of items) {
-    const sign = isClosing ? -1 : 1;
+  if (items.length > 0) {
+    // Aggregate net delta per productId so duplicate lines in the same order
+    // are applied atomically in one statement.
+    const deltaByProduct = new Map<string, number>();
+    for (const item of items) {
+      deltaByProduct.set(
+        item.productId,
+        (deltaByProduct.get(item.productId) ?? 0) + sign * item.quantity,
+      );
+    }
+    const entries = [...deltaByProduct.entries()];
+    const productIds = entries.map(([productId]) => productId);
+
+    const buildDeltaCaseExpr = (
+      col: typeof ChannelAllocation.quantity | typeof StockLedger.quantity,
+      prodCol:
+        typeof ChannelAllocation.productId | typeof StockLedger.productId,
+    ) => {
+      if (entries.length === 1 && entries[0]) {
+        return sql`GREATEST(${col} + ${entries[0][1]}, 0)`;
+      }
+      const chunks = entries.map(
+        ([pid, delta]) => sql`WHEN ${prodCol} = ${pid} THEN ${delta}`,
+      );
+      return sql`GREATEST(${col} + (CASE ${sql.join(chunks, sql` `)} ELSE 0 END), 0)`;
+    };
+
+    const productFilter = (
+      prodCol:
+        typeof ChannelAllocation.productId | typeof StockLedger.productId,
+    ) =>
+      productIds.length === 1 && productIds[0]
+        ? eq(prodCol, productIds[0])
+        : inArray(prodCol, productIds);
 
     await ctx.db
       .update(ChannelAllocation)
       .set({
-        quantity: sql`GREATEST(quantity + ${sign * item.quantity}, 0)`,
+        quantity: buildDeltaCaseExpr(
+          ChannelAllocation.quantity,
+          ChannelAllocation.productId,
+        ),
+        updatedAt: new Date(),
       })
       .where(
         and(
           eq(ChannelAllocation.workspaceId, ctx.workspace.workspaceId),
-          eq(ChannelAllocation.productId, item.productId),
+          productFilter(ChannelAllocation.productId),
           eq(ChannelAllocation.channel, effectiveChannel),
         ),
       );
@@ -247,30 +301,36 @@ async function applyStockLifecycle(
       await ctx.db
         .update(StockLedger)
         .set({
-          quantity: sql`GREATEST(${StockLedger.quantity} + ${sign * item.quantity}, 0)`,
+          quantity: buildDeltaCaseExpr(
+            StockLedger.quantity,
+            StockLedger.productId,
+          ),
           updatedAt: new Date(),
         })
         .where(
           and(
             eq(StockLedger.workspaceId, ctx.workspace.workspaceId),
-            eq(StockLedger.productId, item.productId),
+            productFilter(StockLedger.productId),
             eq(StockLedger.warehouseId, primaryWarehouseId),
           ),
         );
     }
 
-    await ctx.db.insert(StockMovement).values({
-      workspaceId: ctx.workspace.workspaceId,
-      productId: item.productId,
-      warehouseId: primaryWarehouseId,
-      movementType: isClosing ? "sale" : "return",
-      quantity: sign * item.quantity,
-      fromChannel: isClosing ? effectiveChannel : undefined,
-      toChannel: isReverting ? effectiveChannel : undefined,
-      createdBy: ctx.user.id,
-      referenceId: order.id,
-      referenceType: "sales_order",
-    });
+    const movementType: "sale" | "return" = isClosing ? "sale" : "return";
+    await ctx.db.insert(StockMovement).values(
+      items.map((item) => ({
+        workspaceId: ctx.workspace.workspaceId,
+        productId: item.productId,
+        warehouseId: primaryWarehouseId,
+        movementType,
+        quantity: sign * item.quantity,
+        fromChannel: isClosing ? effectiveChannel : undefined,
+        toChannel: isReverting ? effectiveChannel : undefined,
+        createdBy: ctx.user.id,
+        referenceId: order.id,
+        referenceType: "sales_order",
+      })),
+    );
   }
 
   await ctx.db
@@ -291,6 +351,7 @@ async function applyStockLifecycle(
  * USD; `amountBs` only records what the cashier received in bolívares.
  */
 export const posCheckoutInputSchema = z.object({
+  idempotencyKey: z.string().uuid().optional(),
   customerId: z.string().uuid().optional(),
   notes: z.string().trim().max(500).optional(),
   items: z
@@ -1238,10 +1299,49 @@ export const salesRouter = createTRPCRouter({
   checkoutPos: wsPermissionProcedure("pos", "create")
     .input(posCheckoutInputSchema)
     .mutation(async ({ ctx, input }) => {
-      await assertVendorCustomer(ctx, input.customerId);
-      if (input.customerId) {
-        await assertInvoiceReadyBuyer(ctx, input.customerId);
+      if (input.idempotencyKey) {
+        await ctx.db.execute(
+          sql`SELECT pg_advisory_xact_lock(hashtextextended(${`pos_checkout:${ctx.workspace.workspaceId}:${input.idempotencyKey}`}, 0))`,
+        );
+        const [previous] = await ctx.db
+          .select({
+            entityId: AuditLog.entityId,
+            newValue: AuditLog.newValue,
+          })
+          .from(AuditLog)
+          .where(
+            and(
+              eq(AuditLog.workspaceId, ctx.workspace.workspaceId),
+              eq(AuditLog.action, "order.pos_checkout"),
+              eq(AuditLog.entity, "sales_order"),
+              sql`${AuditLog.newValue} ->> 'idempotencyKey' = ${input.idempotencyKey}`,
+            ),
+          )
+          .limit(1);
+        if (previous?.entityId && previous.newValue) {
+          const cached = previous.newValue as Record<string, unknown>;
+          const cachedOrderNumber =
+            typeof cached.orderNumber === "string" ? cached.orderNumber : "";
+          const cachedStatus: SalesOrderRow["status"] =
+            typeof cached.status === "string"
+              ? (cached.status as SalesOrderRow["status"])
+              : "invoiced";
+          return {
+            id: previous.entityId,
+            orderNumber: cachedOrderNumber,
+            status: cachedStatus,
+            total: Number(cached.total ?? 0),
+            totalPaid: Number(cached.totalPaid ?? 0),
+            received: Number(cached.received ?? 0),
+            change: Number(cached.change ?? 0),
+          };
+        }
       }
+
+      await assertVendorCustomer(ctx, input.customerId);
+      const buyer = input.customerId
+        ? await assertInvoiceReadyBuyer(ctx, input.customerId)
+        : undefined;
 
       const productIds = [...new Set(input.items.map((i) => i.productId))];
       const found = await ctx.db
@@ -1322,22 +1422,6 @@ export const salesRouter = createTRPCRouter({
         })),
       );
 
-      const [buyer] = input.customerId
-        ? await ctx.db
-            .select({
-              name: Customer.name,
-              identification: Customer.identification,
-            })
-            .from(Customer)
-            .where(
-              and(
-                eq(Customer.id, input.customerId),
-                eq(Customer.workspaceId, ctx.workspace.workspaceId),
-              ),
-            )
-            .limit(1)
-        : [];
-
       // A zero-total sale (fully discounted) keeps no money: nothing to store.
       if (recorded.length > 0) {
         await ctx.db.insert(Payment).values(
@@ -1365,7 +1449,10 @@ export const salesRouter = createTRPCRouter({
           ),
         )
         .returning();
-      await applyStockLifecycle(ctx, order, "invoiced");
+      await applyStockLifecycle(ctx, order, "invoiced", input.items);
+
+      const effectiveOrderNumber = invoiced?.orderNumber ?? order.orderNumber;
+      const effectiveStatus = invoiced?.status ?? "invoiced";
 
       await logAudit(ctx.db, ctx.user, {
         workspaceId: ctx.workspace.workspaceId,
@@ -1373,7 +1460,9 @@ export const salesRouter = createTRPCRouter({
         entity: "sales_order",
         entityId: order.id,
         newValue: {
-          orderNumber: order.orderNumber,
+          idempotencyKey: input.idempotencyKey ?? null,
+          orderNumber: effectiveOrderNumber,
+          status: effectiveStatus,
           customerId: input.customerId ?? null,
           total,
           totalPaid,
@@ -1389,8 +1478,8 @@ export const salesRouter = createTRPCRouter({
 
       return {
         id: order.id,
-        orderNumber: invoiced?.orderNumber ?? order.orderNumber,
-        status: invoiced?.status ?? "invoiced",
+        orderNumber: effectiveOrderNumber,
+        status: effectiveStatus,
         total,
         totalPaid,
         received,
@@ -1434,6 +1523,12 @@ export const salesRouter = createTRPCRouter({
   listClosures: wsReadPermissionProcedure("cash_closure", "read").query(
     ({ ctx }) => executeListClosures(ctx.db, ctx.workspace.workspaceId),
   ),
+
+  openShift: wsPermissionProcedure("cash_closure", "create")
+    .input(openShiftInputSchema)
+    .mutation(({ ctx, input }) =>
+      executeOpenShift(ctx.db, ctx.user, ctx.workspace.workspaceId, input),
+    ),
 
   dailyClosurePreview: wsReadPermissionProcedure("cash_closure", "read")
     .input(z.object({ closureDate: z.string().min(1) }))

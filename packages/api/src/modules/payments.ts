@@ -39,7 +39,13 @@ export const addPaymentInputSchema = z.object({
   notes: z.string().optional(),
 });
 
+export const openShiftInputSchema = z.object({
+  openingCashUsd: z.number().nonnegative().default(0),
+  notes: z.string().max(500).optional(),
+});
+
 export const createClosureInputSchema = z.object({
+  shiftId: z.string().uuid().optional(),
   closureDate: z.string().datetime(),
   totalSales: z.number().nonnegative().default(0),
   totalCash: z.number().nonnegative().default(0),
@@ -223,11 +229,55 @@ export async function executeListClosures(db: DbClient, workspaceId: string) {
       actualTotal: CashClosure.actualTotal,
       discrepancy: CashClosure.discrepancy,
       status: CashClosure.status,
+      notes: CashClosure.notes,
+      closedBy: CashClosure.closedBy,
     })
     .from(CashClosure)
     .where(eq(CashClosure.workspaceId, workspaceId))
     .orderBy(desc(CashClosure.closureDate))
     .limit(100);
+}
+
+export async function executeOpenShift(
+  db: DbClient,
+  user: { id: string; email?: string | null },
+  workspaceId: string,
+  input: z.infer<typeof openShiftInputSchema>,
+) {
+  const openingCash = Number(input.openingCashUsd.toFixed(2));
+  const shiftNotes = input.notes
+    ? `[Fondo Inicial: $${openingCash.toFixed(2)}] ${input.notes}`
+    : `[Fondo Inicial: $${openingCash.toFixed(2)}]`;
+
+  const [shift] = await db
+    .insert(CashClosure)
+    .values({
+      workspaceId,
+      closureDate: new Date(),
+      status: "open",
+      totalSales: 0,
+      totalCash: openingCash,
+      totalDigital: 0,
+      expectedTotal: openingCash,
+      actualTotal: openingCash,
+      discrepancy: 0,
+      notes: shiftNotes,
+      closedBy: user.id,
+    })
+    .returning();
+
+  await logAudit(db, user, {
+    workspaceId,
+    action: "cash.shift_open",
+    entity: "cash_closure",
+    entityId: shift?.id,
+    newValue: {
+      openingCashUsd: openingCash,
+      notes: shiftNotes,
+    },
+  });
+
+  return shift;
 }
 
 export async function executeComputeDailyClosureTotals(
@@ -308,11 +358,51 @@ export async function executeCreateClosure(
     computed.expectedTotal > 0 ? computed.expectedTotal : input.expectedTotal;
   const discrepancy = Number((input.actualTotal - expectedTotal).toFixed(2));
 
+  if (input.shiftId) {
+    const [closedShift] = await db
+      .update(CashClosure)
+      .set({
+        closureDate: new Date(input.closureDate),
+        status: "closed",
+        totalSales,
+        totalCash,
+        totalDigital,
+        expectedTotal,
+        actualTotal: input.actualTotal,
+        discrepancy,
+        notes: input.notes,
+        closedBy: user.id,
+      })
+      .where(
+        and(
+          eq(CashClosure.id, input.shiftId),
+          eq(CashClosure.workspaceId, workspaceId),
+        ),
+      )
+      .returning();
+
+    await logAudit(db, user, {
+      workspaceId,
+      action: "cash.close",
+      entity: "cash_closure",
+      entityId: closedShift?.id ?? input.shiftId,
+      newValue: {
+        expectedTotal,
+        actualTotal: input.actualTotal,
+        discrepancy,
+        shiftId: input.shiftId,
+      },
+    });
+
+    return closedShift;
+  }
+
   const [closure] = await db
     .insert(CashClosure)
     .values({
       workspaceId,
       closureDate: new Date(input.closureDate),
+      status: "closed",
       totalSales,
       totalCash,
       totalDigital,
@@ -418,6 +508,12 @@ export const paymentsRouter = createTRPCRouter({
   listClosures: wsReadPermissionProcedure("cash_closure", "read").query(
     ({ ctx }) => executeListClosures(ctx.db, ctx.workspace.workspaceId),
   ),
+
+  openShift: wsPermissionProcedure("cash_closure", "create")
+    .input(openShiftInputSchema)
+    .mutation(({ ctx, input }) =>
+      executeOpenShift(ctx.db, ctx.user, ctx.workspace.workspaceId, input),
+    ),
 
   dailyClosurePreview: wsReadPermissionProcedure("cash_closure", "read")
     .input(z.object({ closureDate: z.string().min(1) }))

@@ -12,6 +12,7 @@ import {
   AiPromptConfig,
   Brand,
   Category,
+  ChannelAllocation,
   Container,
   ContainerDocument,
   ContainerItem,
@@ -275,9 +276,35 @@ export const containerRouter = createTRPCRouter({
             quantity: item.quantityReceived,
           })
           .onConflictDoUpdate({
-            target: [StockLedger.productId, StockLedger.warehouseId],
+            target: [
+              StockLedger.workspaceId,
+              StockLedger.productId,
+              StockLedger.warehouseId,
+            ],
             set: {
               quantity: sql`${StockLedger.quantity} + ${item.quantityReceived}`,
+              updatedAt: new Date(),
+            },
+          });
+
+        // Auto-allocate received merchandise to the store channel so it is
+        // immediately available for POS counter sales (PROP-04).
+        await ctx.db
+          .insert(ChannelAllocation)
+          .values({
+            workspaceId,
+            productId: item.productId,
+            channel: "store",
+            quantity: item.quantityReceived,
+          })
+          .onConflictDoUpdate({
+            target: [
+              ChannelAllocation.workspaceId,
+              ChannelAllocation.productId,
+              ChannelAllocation.channel,
+            ],
+            set: {
+              quantity: sql`${ChannelAllocation.quantity} + ${item.quantityReceived}`,
               updatedAt: new Date(),
             },
           });
@@ -289,6 +316,7 @@ export const containerRouter = createTRPCRouter({
           warehouseId: input.warehouseId,
           movementType: "container_receipt",
           quantity: item.quantityReceived,
+          toChannel: "store",
           referenceId: input.containerId,
           referenceType: "container",
           notes: `Recepción contenedor #${container.containerNumber}`,

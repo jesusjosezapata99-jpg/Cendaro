@@ -137,6 +137,10 @@ export default function InvoicesClient() {
     refetch,
   } = useQuery(trpc.sales.listOrders.queryOptions({ limit: 100 }));
 
+  const { data: internalInvoicesData } = useQuery(
+    trpc.sales.listInternalInvoices.queryOptions({ limit: 100 }),
+  );
+
   const { data: customersData } = useQuery(
     trpc.sales.listCustomers.queryOptions({ limit: 100 }),
   );
@@ -144,6 +148,23 @@ export default function InvoicesClient() {
   const customerMap = useMemo(() => {
     return new Map((customersData ?? []).map((c) => [c.id, c.name]));
   }, [customersData]);
+
+  const internalInvoiceByOrderId = useMemo(() => {
+    const map = new Map<
+      string,
+      { id: string; invoiceNumber: string; status: string }
+    >();
+    for (const inv of internalInvoicesData ?? []) {
+      if (!map.has(inv.orderId)) {
+        map.set(inv.orderId, {
+          id: inv.id,
+          invoiceNumber: inv.invoiceNumber,
+          status: inv.status,
+        });
+      }
+    }
+    return map;
+  }, [internalInvoicesData]);
 
   const orders = useMemo(
     () => (ordersData ?? []) as InvoiceItem[],
@@ -166,7 +187,10 @@ export default function InvoicesClient() {
       // Text search
       if (search.trim()) {
         const q = search.toLowerCase();
-        const invoiceNum = `FAC-${order.orderNumber}`.toLowerCase();
+        const persistedInvoice = internalInvoiceByOrderId.get(order.id);
+        const invoiceNum = (
+          persistedInvoice?.invoiceNumber ?? `FAC-${order.orderNumber}`
+        ).toLowerCase();
         const orderNum = order.orderNumber.toLowerCase();
         const customerName = (
           (order.customerId ? customerMap.get(order.customerId) : null) ??
@@ -182,7 +206,7 @@ export default function InvoicesClient() {
 
       return true;
     });
-  }, [orders, filter, search, customerMap]);
+  }, [orders, filter, search, customerMap, internalInvoiceByOrderId]);
 
   // Aggregate metrics
   const totalFacturas = orders.length;
@@ -199,18 +223,21 @@ export default function InvoicesClient() {
         accessorKey: "orderNumber",
         header: "Factura #",
         meta: { sticky: true, className: "w-36" },
-        cell: ({ row }) => (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              setSelectedOrderId(row.original.id);
-            }}
-            className="text-primary font-mono text-xs font-medium tabular-nums hover:underline"
-          >
-            FAC-{row.original.orderNumber}
-          </button>
-        ),
+        cell: ({ row }) => {
+          const persisted = internalInvoiceByOrderId.get(row.original.id);
+          return (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setSelectedOrderId(row.original.id);
+              }}
+              className="text-primary font-mono text-xs font-medium tabular-nums hover:underline"
+            >
+              {persisted?.invoiceNumber ?? `FAC-${row.original.orderNumber}`}
+            </button>
+          );
+        },
       },
       {
         id: "orderRef",
@@ -386,7 +413,7 @@ export default function InvoicesClient() {
         ),
       },
     ],
-    [bcv.rate, customerMap],
+    [bcv.rate, customerMap, internalInvoiceByOrderId],
   );
 
   const handleRowClick = useCallback(
@@ -404,14 +431,16 @@ export default function InvoicesClient() {
         description="Emisión de comprobantes proforma, liquidación comercial y estado de cobranza"
         actions={
           <div className="flex w-full flex-wrap gap-2 sm:w-auto">
-            <Button
-              variant="outline"
-              onClick={() => setSelectedOrderId("preview")}
-              className="min-h-11 flex-1 sm:flex-initial"
-            >
-              <Icons.ReceiptLong className="size-4.5" />
-              Modelo Comprobante
-            </Button>
+            {orders[0] ? (
+              <Button
+                variant="outline"
+                onClick={() => setSelectedOrderId(orders[0]?.id ?? null)}
+                className="min-h-11 flex-1 sm:flex-initial"
+              >
+                <Icons.ReceiptLong className="size-4.5" />
+                Último Comprobante
+              </Button>
+            ) : null}
             <Button asChild className="min-h-11 flex-1 sm:flex-initial">
               <Link href="/orders">
                 <Icons.Add className="size-4.5" />

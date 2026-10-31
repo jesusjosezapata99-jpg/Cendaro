@@ -61,10 +61,11 @@ const createDb = () => {
 
     // Connection pool sizing (per server instance):
     //   Transaction pooler: Supavisor shares 15 backends across all clients,
-    //   so a small per-instance pool is enough to run a tRPC batch in
-    //   parallel without hoarding client slots.
+    //   so a small per-instance pool (max 3) runs a tRPC batch in parallel
+    //   while allowing up to 5–8 concurrent Vercel function instances without
+    //   saturating the 15-connection backend limit (SCALE-05).
     //   Direct/local: conservative to avoid exhausting connection limits
-    max: isTransactionPooler ? 5 : 3,
+    max: isTransactionPooler ? 3 : 2,
 
     // Release idle connections quickly — serverless instances sit idle
     // between bursts and should not hold pooler slots while doing so.

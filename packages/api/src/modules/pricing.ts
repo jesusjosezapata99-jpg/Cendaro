@@ -5,7 +5,7 @@
  * PRD §12: admin-only rates panel, 5% auto-repricing trigger, 24h approval window.
  */
 import { TRPCError } from "@trpc/server";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import {
@@ -375,27 +375,57 @@ export const pricingRouter = createTRPCRouter({
           (p) => p.productId && typeof p.amountUsd === "number",
         );
 
-        for (const p of validPrices) {
-          const newAmountBs = roundMoney(p.amountUsd * newRate, 2);
-          await ctx.db
-            .update(ProductPrice)
-            .set({
-              amountBs: newAmountBs,
-              rateUsed: newRate,
-              updatedAt: new Date(),
-            })
-            .where(eq(ProductPrice.id, p.id));
+        if (validPrices.length > 0) {
+          if (validPrices.length === 1 && validPrices[0]) {
+            const p = validPrices[0];
+            const newAmountBs = roundMoney(p.amountUsd * newRate, 2);
+            await ctx.db
+              .update(ProductPrice)
+              .set({
+                amountBs: newAmountBs,
+                rateUsed: newRate,
+                updatedAt: new Date(),
+              })
+              .where(eq(ProductPrice.id, p.id));
 
-          await ctx.db.insert(PriceHistory).values({
-            workspaceId: ctx.workspace.workspaceId,
-            productId: p.productId,
-            priceType: p.priceType,
-            oldAmountUsd: p.amountUsd,
-            newAmountUsd: p.amountUsd,
-            rateUsed: newRate,
-            trigger: "auto",
-            userId: ctx.user.id,
-          });
+            await ctx.db.insert(PriceHistory).values({
+              workspaceId: ctx.workspace.workspaceId,
+              productId: p.productId,
+              priceType: p.priceType,
+              oldAmountUsd: p.amountUsd,
+              newAmountUsd: p.amountUsd,
+              rateUsed: newRate,
+              trigger: "auto",
+              userId: ctx.user.id,
+            });
+          } else {
+            // Set-based batch update and chunked bulk history insert (SCALE-02)
+            await ctx.db
+              .update(ProductPrice)
+              .set({
+                amountBs: sql`round((${ProductPrice.amountUsd} * ${newRate})::numeric, 2)::float8`,
+                rateUsed: newRate,
+                updatedAt: new Date(),
+              })
+              .where(eq(ProductPrice.workspaceId, ctx.workspace.workspaceId));
+
+            const CHUNK_SIZE = 500;
+            for (let i = 0; i < validPrices.length; i += CHUNK_SIZE) {
+              const part = validPrices.slice(i, i + CHUNK_SIZE);
+              await ctx.db.insert(PriceHistory).values(
+                part.map((p) => ({
+                  workspaceId: ctx.workspace.workspaceId,
+                  productId: p.productId,
+                  priceType: p.priceType,
+                  oldAmountUsd: p.amountUsd,
+                  newAmountUsd: p.amountUsd,
+                  rateUsed: newRate,
+                  trigger: "auto" as const,
+                  userId: ctx.user.id,
+                })),
+              );
+            }
+          }
         }
         affectedCount = new Set(validPrices.map((p) => p.productId)).size;
       }
