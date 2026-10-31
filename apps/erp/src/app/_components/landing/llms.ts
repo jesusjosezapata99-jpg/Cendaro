@@ -20,7 +20,12 @@ import {
   SECURITY,
   STEPS,
 } from "./content";
-import { FEATURE_SLUGS, featureHref, FEATURES } from "./features";
+import {
+  FEATURE_SLUGS,
+  featureHref,
+  FEATURES,
+  MODULE_FEATURE,
+} from "./features";
 
 /** Concise Markdown index at `/llms.txt` following llmstxt.org v2. */
 export function buildLlmsTxt(origin: URL): string {
@@ -83,6 +88,17 @@ export function buildLlmsFullTxt(origin: URL): string {
       ...items.map((m) => `- **${m.name}**: ${m.line}.`),
     ].join("\n");
   }).join("\n\n");
+
+  const modulesTable = [
+    "| Módulo | Área | Qué resuelve en la operación | Documentación |",
+    "| :--- | :--- | :--- | :--- |",
+    ...ERP_MODULES.map((id) => {
+      const m = MODULES[id];
+      const slug = MODULE_FEATURE[id];
+      const link = slug ? abs(featureHref(slug)) : abs(`/funciones#${id}`);
+      return `| **${m.name}** | ${m.group} | ${m.line} | ${link} |`;
+    }),
+  ].join("\n");
 
   const featuresSection = FEATURE_SLUGS.map((slug) => {
     const page = FEATURES[slug];
@@ -147,6 +163,8 @@ export function buildLlmsFullTxt(origin: URL): string {
     "---",
     "",
     `## Los ${FACTS.modules} módulos por área`,
+    "",
+    modulesTable,
     "",
     groupsSection,
     "",

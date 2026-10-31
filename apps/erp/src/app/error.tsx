@@ -53,7 +53,7 @@ export default function RootSegmentError({
           </Button>
 
           <Button variant="outline" asChild>
-            <Link href="/dashboard">Ir al Dashboard</Link>
+            <Link href="/">Ir al inicio</Link>
           </Button>
         </div>
       </div>

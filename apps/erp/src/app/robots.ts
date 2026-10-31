@@ -1,49 +1,37 @@
 import type { MetadataRoute } from "next";
 
 import { env } from "~/env";
+import { REDIRECT_ALLOWLIST_PREFIX } from "~/lib/redirect-allowlist";
 import { isIndexableDeployment } from "~/lib/site";
 import { siteUrl } from "~/lib/site-env";
+import { MARKETING_ROUTES } from "./_components/landing/routes";
 
-/** Publicly indexable routes and assets on the production origin. */
+/**
+ * Publicly indexable routes and assets on the production origin.
+ * Dynamically includes every route from `MARKETING_ROUTES` (`routes.ts`) so
+ * future marketing pages are automatically welcomed by crawlers.
+ */
 const PUBLIC_ALLOW = [
-  "/",
-  "/funciones",
-  "/sitemap.xml",
-  "/feed.xml",
-  "/llms.txt",
-  "/llms-full.txt",
-  "/opengraph-image",
-  "/media/landing/",
+  ...new Set([
+    ...MARKETING_ROUTES.map((route) => route.path),
+    "/sitemap.xml",
+    "/feed.xml",
+    "/llms.txt",
+    "/llms-full.txt",
+    "/opengraph-image",
+    "/media/landing/",
+  ]),
 ];
 
-/** Authenticated ERP paths and internal endpoints excluded from crawlers. */
+/**
+ * Authenticated ERP paths and internal endpoints excluded from crawlers.
+ * Dynamically synced with `REDIRECT_ALLOWLIST_PREFIX`.
+ */
 const PRIVATE_DISALLOW = [
   "/api/",
   "/login",
   "/monitoring",
-  "/dashboard",
-  "/catalog",
-  "/inventory",
-  "/containers",
-  "/pos",
-  "/orders",
-  "/quotes",
-  "/delivery-notes",
-  "/invoices",
-  "/customers",
-  "/vendors",
-  "/pricing",
-  "/rates",
-  "/payments",
-  "/cash-closure",
-  "/accounts-receivable",
-  "/marketplace",
-  "/whatsapp",
-  "/users",
-  "/audit",
-  "/reports",
-  "/alerts",
-  "/settings",
+  ...REDIRECT_ALLOWLIST_PREFIX,
 ];
 
 /**
@@ -55,6 +43,7 @@ const AI_AND_SEARCH_BOTS = [
   "Google-Extended",
   "bingbot",
   "Applebot",
+  "Applebot-Extended",
   "OAI-SearchBot",
   "ChatGPT-User",
   "GPTBot",
@@ -63,6 +52,9 @@ const AI_AND_SEARCH_BOTS = [
   "Claude-SearchBot",
   "Claude-User",
   "ClaudeBot",
+  "DuckAssistBot",
+  "Amazonbot",
+  "YouBot",
 ];
 
 /** Non-attributing bulk scrapers blocked across the entire origin. */
