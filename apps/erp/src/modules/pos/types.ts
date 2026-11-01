@@ -16,6 +16,8 @@ export interface ProductItem {
   imageUrl: string | null;
   basePriceUsd?: number | null;
   posPriceUsd?: number | null;
+  stockCount?: number;
+  storeStock?: number;
 }
 
 export interface CategoryItem {

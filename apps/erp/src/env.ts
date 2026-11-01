@@ -37,6 +37,8 @@ export const env = createEnv({
       (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
       z.string().min(1).optional(),
     ),
+    // Off until the workspace has fiscal numbering authorized by SENIAT.
+    FISCAL_EMISSION_ENABLED: z.enum(["true", "false"]).optional(),
     VERCEL_URL: z
       .string()
       .regex(/^[a-z0-9.-]+$/)

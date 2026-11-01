@@ -282,12 +282,10 @@ export default function OrderDetailPage() {
                     reason: cnReason.trim(),
                     returnToStock: cnReturnToStock,
                     warehouseId: cnReturnToStock ? cnWarehouseId : undefined,
-                    exchangeRateBcv: bcv.rate > 0 ? bcv.rate : 1,
                     externalRefundReference: cnRefundRef.trim() || undefined,
                     items: items.map((it) => ({
                       productId: it.productId,
                       quantity: it.quantity,
-                      unitPriceUsd: Number(it.unitPrice),
                     })),
                   });
                 }}

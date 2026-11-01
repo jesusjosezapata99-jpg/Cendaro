@@ -251,36 +251,44 @@ export function PosCheckoutDialog({
     const currentKey = idempotencyKeyRef.current;
 
     if (typeof navigator !== "undefined" && !navigator.onLine) {
-      await enqueueOfflinePosSale({
-        idempotencyKey: currentKey,
-        customerId: customer?.id,
-        customerName: customer?.name ?? "Consumidor Final",
-        customerIdentification: customer?.identification ?? undefined,
-        items: cart.items.map((item) => ({
-          productId: item.id,
-          sku: item.sku,
-          name: item.name,
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
-          discount: item.discount,
-          lineTotal: item.lineTotal,
-        })),
-        payments: payments.map((p) => ({
-          method: p.method,
-          amount: p.amountUsd,
-          currency: p.currency,
-          amountBs: p.currency === "VES" ? p.amountBs : undefined,
-          reference: p.reference,
-          bankName: p.bankName,
-        })),
-        subtotal: cart.subtotal,
-        discount: cart.discount,
-        total: cart.total,
-        changeUsd,
-        changeBs,
-        bcvRate,
-        createdAt: new Date().toISOString(),
-      });
+      try {
+        await enqueueOfflinePosSale({
+          idempotencyKey: currentKey,
+          customerId: customer?.id,
+          customerName: customer?.name ?? "Consumidor Final",
+          customerIdentification: customer?.identification ?? undefined,
+          items: cart.items.map((item) => ({
+            productId: item.id,
+            sku: item.sku,
+            name: item.name,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            discount: item.discount,
+            lineTotal: item.lineTotal,
+          })),
+          payments: payments.map((p) => ({
+            method: p.method,
+            amount: p.amountUsd,
+            currency: p.currency,
+            amountBs: p.currency === "VES" ? p.amountBs : undefined,
+            reference: p.reference,
+            bankName: p.bankName,
+          })),
+          subtotal: cart.subtotal,
+          discount: cart.discount,
+          total: cart.total,
+          changeUsd,
+          changeBs,
+          bcvRate,
+          createdAt: new Date().toISOString(),
+        });
+      } catch {
+        // Keep the dialog open: closing it would lose a sale the customer paid.
+        setSubmitError(
+          "Sin conexión y no se pudo guardar la venta en este dispositivo. No cierres esta ventana: reintenta o anota la venta.",
+        );
+        return;
+      }
       idempotencyKeyRef.current = crypto.randomUUID();
       onOfflineQueued?.();
       onPaymentComplete({
@@ -346,6 +354,7 @@ export function PosCheckoutDialog({
     idempotencyKeyRef.current = crypto.randomUUID();
 
     void qc.invalidateQueries({ queryKey: [["sales"]] });
+    void qc.invalidateQueries({ queryKey: [["catalog"]] });
     void qc.invalidateQueries({ queryKey: [["payments"]] });
     void qc.invalidateQueries({ queryKey: [["inventory"]] });
     void qc.invalidateQueries({ queryKey: [["dashboard"]] });

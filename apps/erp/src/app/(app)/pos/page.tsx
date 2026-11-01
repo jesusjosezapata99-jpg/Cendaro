@@ -39,16 +39,18 @@ async function PosPrefetch() {
   try {
     await Promise.all([
       queryClient.prefetchQuery(
-        trpc.catalog.listProducts.queryOptions({ limit: 100 }),
+        trpc.catalog.listProducts.queryOptions({
+          limit: 48,
+          status: "active",
+        }),
       ),
       queryClient.prefetchQuery(trpc.catalog.listCategories.queryOptions()),
       queryClient.prefetchQuery(
-        trpc.sales.listCustomers.queryOptions({ limit: 100 }),
+        trpc.sales.listCustomers.queryOptions({ limit: 20 }),
       ),
       queryClient.prefetchQuery(
         trpc.sales.listOrders.queryOptions({ channel: "store", limit: 100 }),
       ),
-      queryClient.prefetchQuery(trpc.inventory.stockOverview.queryOptions({})),
       queryClient.prefetchQuery(trpc.pricing.latestRates.queryOptions()),
     ]);
   } catch {

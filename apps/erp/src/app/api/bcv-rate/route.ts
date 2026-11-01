@@ -2,6 +2,7 @@ import { connection, NextResponse } from "next/server";
 
 import { getVesRates } from "@cendaro/api";
 
+import { getClientIp } from "~/lib/client-ip";
 import { rateLimit } from "~/lib/rate-limit";
 
 /**
@@ -22,8 +23,7 @@ export async function GET(request?: Request) {
 
   // Per-IP rate limiting on public exchange rate route
   if (request) {
-    const rawIp = request.headers.get("x-forwarded-for") ?? "";
-    const ip = rawIp.split(",")[0]?.trim() ?? "unknown";
+    const ip = getClientIp(request.headers);
     const { success: allowed } = await rateLimit(`bcv-rate:ip:${ip}`, {
       window: 60_000,
       max: 60,

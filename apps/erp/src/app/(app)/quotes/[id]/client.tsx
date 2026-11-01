@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import type { PaymentTerms } from "@cendaro/validators";
 import {
   Button,
   Table,
@@ -57,6 +58,7 @@ export default function QuoteDetailClient() {
 
   const [showStatusDialog, setShowStatusDialog] = useState(false);
   const [showConvertConfirm, setShowConvertConfirm] = useState(false);
+  const [paymentTerms, setPaymentTerms] = useState<PaymentTerms>("cash");
 
   const { data: quote, isLoading } = useQuery(
     trpc.quotes.byId.queryOptions({ id }),
@@ -68,9 +70,7 @@ export default function QuoteDetailClient() {
         void qc.invalidateQueries({ queryKey: [["quotes"]] });
         void qc.invalidateQueries({ queryKey: [["sales"]] });
         setShowConvertConfirm(false);
-        if (order?.id) {
-          router.push(`/orders/${order.id}`);
-        }
+        router.push(`/orders/${order.id}`);
       },
     }),
   );
@@ -185,6 +185,19 @@ export default function QuoteDetailClient() {
           title="Convertir Cotización en Pedido"
           description={`¿Deseas convertir la cotización ${quote.quoteNumber} en un pedido formal de venta? Esta acción generará una orden con todas las líneas de productos correspondientes.`}
         >
+          <label className="text-foreground mb-4 block text-sm font-medium">
+            Condición de pago
+            <select
+              value={paymentTerms}
+              onChange={(e) => setPaymentTerms(e.target.value as PaymentTerms)}
+              className="border-border-subtle bg-background mt-1 min-h-11 w-full border px-3 py-2 text-sm"
+            >
+              <option value="cash">Contado</option>
+              <option value="credit" disabled={!quote.customerId}>
+                Crédito
+              </option>
+            </select>
+          </label>
           <div className="flex justify-end gap-2 pt-4">
             <Button
               variant="outline"
@@ -197,7 +210,9 @@ export default function QuoteDetailClient() {
             <Button
               type="button"
               disabled={convertMutation.isPending}
-              onClick={() => convertMutation.mutate({ id: quote.id })}
+              onClick={() =>
+                convertMutation.mutate({ id: quote.id, paymentTerms })
+              }
               className="min-h-11"
             >
               {convertMutation.isPending

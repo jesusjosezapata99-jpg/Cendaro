@@ -1,7 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 
 import { Icons } from "@cendaro/ui/icons";
 
@@ -13,6 +18,7 @@ import {
   SheetModal,
 } from "~/components/sheet-modal";
 import { useBcvRate } from "~/hooks/use-bcv-rate";
+import { useDebounce } from "~/hooks/use-debounce";
 import { formatDualCurrency } from "~/lib/format-currency";
 import { useTRPC } from "~/trpc/client";
 
@@ -35,26 +41,6 @@ export function CreateQuoteDialog({ open, onClose }: Props) {
   const qc = useQueryClient();
   const bcv = useBcvRate();
 
-  const { data: customers } = useQuery(
-    trpc.sales.listCustomers.queryOptions({ limit: 100 }),
-  );
-  const { data: productsData } = useQuery(
-    trpc.catalog.listProducts.queryOptions({ limit: 100 }),
-  );
-  const productList = useMemo(
-    () => (productsData && "items" in productsData ? productsData.items : []),
-    [productsData],
-  );
-
-  const create = useMutation(
-    trpc.quotes.create.mutationOptions({
-      onSuccess: () => {
-        void qc.invalidateQueries({ queryKey: [["quotes"]] });
-        onClose();
-      },
-    }),
-  );
-
   const [customerId, setCustomerId] = useState("");
   const [channel, setChannel] = useState("store");
   const [validityDays, setValidityDays] = useState("15");
@@ -72,9 +58,45 @@ export function CreateQuoteDialog({ open, onClose }: Props) {
   const quantityInputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
+  const rawSearchTerm = useMemo(() => {
+    const trimmed = productSearch.trim();
+    if (trimmed.includes(" — ")) {
+      return trimmed.split(" — ")[0]?.trim() ?? "";
+    }
+    return trimmed;
+  }, [productSearch]);
+  const debouncedProductSearch = useDebounce(rawSearchTerm, 200);
+
+  const { data: customers } = useQuery({
+    ...trpc.sales.listCustomers.queryOptions({ limit: 100 }),
+    enabled: open,
+  });
+  const { data: productsData } = useQuery({
+    ...trpc.catalog.listProducts.queryOptions({
+      limit: 30,
+      status: "active",
+      search: debouncedProductSearch || undefined,
+    }),
+    enabled: open,
+    placeholderData: keepPreviousData,
+  });
+  const productList = useMemo(
+    () => (productsData && "items" in productsData ? productsData.items : []),
+    [productsData],
+  );
+
+  const create = useMutation(
+    trpc.quotes.create.mutationOptions({
+      onSuccess: () => {
+        void qc.invalidateQueries({ queryKey: [["quotes"]] });
+        onClose();
+      },
+    }),
+  );
+
   const filteredProducts = useMemo(() => {
-    if (!productSearch.trim()) return [];
-    const q = productSearch.toLowerCase();
+    if (!rawSearchTerm) return [];
+    const q = rawSearchTerm.toLowerCase();
     return productList
       .filter(
         (p: {
@@ -87,8 +109,8 @@ export function CreateQuoteDialog({ open, onClose }: Props) {
           p.name.toLowerCase().includes(q) ||
           p.barcode?.toLowerCase().includes(q),
       )
-      .slice(0, 10);
-  }, [productSearch, productList]);
+      .slice(0, 12);
+  }, [rawSearchTerm, productList]);
 
   // Reset form state when dialog reopens
   useEffect(() => {
@@ -121,12 +143,27 @@ export function CreateQuoteDialog({ open, onClose }: Props) {
   }, []);
 
   const selectProduct = useCallback(
-    (product: { id: string; name: string; sku: string }) => {
+    (product: {
+      id: string;
+      name: string;
+      sku: string;
+      basePriceUsd?: number | null;
+      posPriceUsd?: number | null;
+    }) => {
       setProductSearch(`${product.sku} — ${product.name}`);
+      const suggestedPrice =
+        channel === "store"
+          ? (product.posPriceUsd ?? product.basePriceUsd)
+          : (product.basePriceUsd ?? product.posPriceUsd);
+      setAddPrice(
+        typeof suggestedPrice === "number" && suggestedPrice > 0
+          ? suggestedPrice.toFixed(2)
+          : "",
+      );
       setShowDropdown(false);
       setTimeout(() => quantityInputRef.current?.focus(), 50);
     },
-    [],
+    [channel],
   );
 
   const getSelectedProduct = useCallback(() => {
@@ -379,32 +416,46 @@ export function CreateQuoteDialog({ open, onClose }: Props) {
                           name: string;
                           sku: string;
                           barcode: string | null;
+                          basePriceUsd?: number | null;
+                          posPriceUsd?: number | null;
+                          stockCount?: number;
                         },
                         idx: number,
-                      ) => (
-                        <button
-                          key={p.id}
-                          type="button"
-                          onClick={() => selectProduct(p)}
-                          className={`flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition-colors ${
-                            idx === highlightIdx
-                              ? "bg-primary/10 text-primary"
-                              : "text-foreground hover:bg-accent"
-                          }`}
-                        >
-                          <span className="text-primary shrink-0 font-mono text-xs font-medium">
-                            {p.sku}
-                          </span>
-                          <span className="min-w-0 flex-1 truncate">
-                            {p.name}
-                          </span>
-                          {p.barcode && (
-                            <span className="text-muted-foreground shrink-0 font-mono text-[10px]">
-                              {p.barcode}
+                      ) => {
+                        const unitPrice =
+                          channel === "store"
+                            ? (p.posPriceUsd ?? p.basePriceUsd)
+                            : (p.basePriceUsd ?? p.posPriceUsd);
+                        return (
+                          <button
+                            key={p.id}
+                            type="button"
+                            onClick={() => selectProduct(p)}
+                            className={`flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition-colors ${
+                              idx === highlightIdx
+                                ? "bg-primary/10 text-primary"
+                                : "text-foreground hover:bg-accent"
+                            }`}
+                          >
+                            <span className="text-primary shrink-0 font-mono text-xs font-medium">
+                              {p.sku}
                             </span>
-                          )}
-                        </button>
-                      ),
+                            <span className="min-w-0 flex-1 truncate">
+                              {p.name}
+                            </span>
+                            {typeof p.stockCount === "number" && (
+                              <span className="text-muted-foreground shrink-0 font-mono text-[10px] tabular-nums">
+                                {p.stockCount} un.
+                              </span>
+                            )}
+                            {typeof unitPrice === "number" && unitPrice > 0 && (
+                              <span className="text-foreground shrink-0 font-mono text-xs font-medium tabular-nums">
+                                ${unitPrice.toFixed(2)}
+                              </span>
+                            )}
+                          </button>
+                        );
+                      },
                     )}
                   </div>
                 )}

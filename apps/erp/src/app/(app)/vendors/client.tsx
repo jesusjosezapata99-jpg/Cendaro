@@ -364,7 +364,7 @@ export default function VendorsPage() {
       </div>
 
       {/* Filter Tabs — Clean sharp style */}
-      <div className="mobile-scroll-x flex items-center gap-1.5 border-b border-[--line] pb-2">
+      <div className="mobile-scroll-x flex items-center gap-1.5 border-b border-(--line) pb-2">
         {FILTER_TABS.map((tab) => {
           const isActive = activeFilter === tab.key;
           const count =
@@ -384,7 +384,7 @@ export default function VendorsPage() {
               className={`flex min-h-8 items-center gap-2 border px-3 py-1 text-xs font-medium whitespace-nowrap transition-colors ${
                 isActive
                   ? "border-primary bg-primary text-primary-foreground"
-                  : "bg-card text-muted-foreground hover:bg-secondary hover:text-foreground border-[--line] hover:border-[--line-hover]"
+                  : "bg-card text-muted-foreground hover:bg-secondary hover:text-foreground border-(--line) hover:border-(--line-hover)"
               }`}
             >
               <span>{tab.label}</span>

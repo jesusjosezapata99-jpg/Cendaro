@@ -494,7 +494,7 @@ export default function DeliveryNotesClient() {
               className={`flex min-h-8 items-center border px-3 py-1 text-xs font-medium whitespace-nowrap transition-colors ${
                 filter === f.key
                   ? "border-primary bg-primary text-primary-foreground"
-                  : "bg-card text-muted-foreground hover:bg-secondary hover:text-foreground border-[--line] hover:border-[--line-hover]"
+                  : "bg-card text-muted-foreground hover:bg-secondary hover:text-foreground border-(--line) hover:border-(--line-hover)"
               }`}
             >
               {f.label}

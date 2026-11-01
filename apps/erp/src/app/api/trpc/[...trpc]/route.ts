@@ -29,11 +29,9 @@ const handler = async (incoming: Request) => {
   let req = incoming;
 
   // ── CSRF / Same-Origin Verification on State-Mutating POSTs ──
-  if (
-    req.method === "POST" &&
-    (req.headers.has("origin") || req.headers.has("referer")) &&
-    !isTrustedOrigin(req.headers, req.url)
-  ) {
+  // Browsers always send one of these on a POST, so a request with neither is
+  // not this app's client.
+  if (req.method === "POST" && !isTrustedOrigin(req.headers, req.url)) {
     return new Response(
       JSON.stringify({
         error: {

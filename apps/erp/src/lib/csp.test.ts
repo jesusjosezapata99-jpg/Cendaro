@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { buildContentSecurityPolicy } from "../../csp.mjs";
 
@@ -19,10 +19,12 @@ function directive(csp: string, name: string): string {
   );
 }
 
+const SUPABASE_URL = "https://project.supabase.co";
+
 describe("Content-Security-Policy (F9.1, M3)", () => {
   it("production script-src forbids eval", () => {
     const scriptSrc = directive(
-      buildContentSecurityPolicy(false),
+      buildContentSecurityPolicy(false, SUPABASE_URL),
       "script-src",
     );
 
@@ -31,7 +33,7 @@ describe("Content-Security-Policy (F9.1, M3)", () => {
 
   it("does not use nonce/strict-dynamic, which would block PPR static shells", () => {
     const scriptSrc = directive(
-      buildContentSecurityPolicy(false),
+      buildContentSecurityPolicy(false, SUPABASE_URL),
       "script-src",
     );
 
@@ -41,8 +43,8 @@ describe("Content-Security-Policy (F9.1, M3)", () => {
   });
 
   it("allows eval and websockets only in development", () => {
-    const dev = buildContentSecurityPolicy(true);
-    const prod = buildContentSecurityPolicy(false);
+    const dev = buildContentSecurityPolicy(true, SUPABASE_URL);
+    const prod = buildContentSecurityPolicy(false, SUPABASE_URL);
 
     expect(directive(dev, "script-src")).toContain("'unsafe-eval'");
     expect(directive(dev, "connect-src")).toContain("ws:");
@@ -50,7 +52,7 @@ describe("Content-Security-Policy (F9.1, M3)", () => {
   });
 
   it("keeps the non-script directives strict", () => {
-    const prod = buildContentSecurityPolicy(false);
+    const prod = buildContentSecurityPolicy(false, SUPABASE_URL);
 
     expect(directive(prod, "default-src")).toBe("'self'");
     expect(directive(prod, "object-src")).toBe("'none'");
@@ -68,5 +70,14 @@ describe("Content-Security-Policy (F9.1, M3)", () => {
     );
     expect(directive(prod, "img-src")).not.toContain("https://*.supabase.co");
     expect(prod).toContain("upgrade-insecure-requests");
+  });
+
+  it("takes the Supabase origin from configuration and refuses to guess it", () => {
+    expect(buildContentSecurityPolicy(false, SUPABASE_URL)).toContain(
+      "connect-src 'self' https://project.supabase.co",
+    );
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "");
+    expect(() => buildContentSecurityPolicy(false)).toThrow();
+    vi.unstubAllEnvs();
   });
 });

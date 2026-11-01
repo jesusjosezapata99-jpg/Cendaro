@@ -8,7 +8,7 @@ import { Icons } from "@cendaro/ui/icons";
 import { Dialog } from "~/components/dialog";
 
 interface InactivityTrackerProps {
-  /** Total minutes of inactivity before automatic logout. Default: 15 (SOC 2 / ISO 27001 standard) */
+  /** Total minutes of inactivity before automatic logout. Default: 15. */
   timeoutMinutes?: number;
   /** Minutes before timeout to show the expiration warning modal. Default: 2 */
   warningMinutes?: number;

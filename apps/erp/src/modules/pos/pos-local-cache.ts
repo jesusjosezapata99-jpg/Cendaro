@@ -240,20 +240,25 @@ export async function loadActivePosCart(): Promise<CartLine[]> {
   });
 }
 
+/** Rejects when the sale could not be stored: a paid sale must not vanish. */
 export async function enqueueOfflinePosSale(
   sale: OfflinePosSalePayload,
 ): Promise<void> {
   const db = await openPosDb();
-  if (!db) return;
-  await new Promise<void>((resolve) => {
+  if (!db) {
+    throw new Error("El almacenamiento local no está disponible");
+  }
+  await new Promise<void>((resolve, reject) => {
+    const fail = () => reject(new Error("No se pudo guardar la venta"));
     try {
       const tx = db.transaction(STORE_OFFLINE_QUEUE, "readwrite");
       const store = tx.objectStore(STORE_OFFLINE_QUEUE);
       store.put(sale);
       tx.oncomplete = () => resolve();
-      tx.onerror = () => resolve();
+      tx.onerror = fail;
+      tx.onabort = fail;
     } catch {
-      resolve();
+      fail();
     }
   });
 }

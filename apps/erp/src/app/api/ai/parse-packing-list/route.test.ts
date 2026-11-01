@@ -87,6 +87,7 @@ function jsonRequest(opts: {
     ...(opts.workspace !== undefined && opts.workspace !== null
       ? { "x-workspace-id": opts.workspace }
       : {}),
+    origin: "https://erp.example.com",
     ...opts.headers,
   };
   return new Request("https://erp.example.com/api/ai/parse-packing-list", {
@@ -105,6 +106,16 @@ describe("POST /api/ai/parse-packing-list", () => {
   beforeEach(() => {
     mocks.claims = { sub: CALLER_ID, email: "actor@example.com" };
     mocks.memberRole = "owner";
+  });
+
+  it("rejects a request from another origin before anything else", async () => {
+    const res = await POST(
+      jsonRequest({
+        workspace: WORKSPACE,
+        headers: { origin: "https://evil.example.com" },
+      }) as never,
+    );
+    expect(res.status).toBe(403);
   });
 
   it("rejects an unauthenticated caller with 401", async () => {
@@ -214,7 +225,10 @@ describe("POST /api/ai/parse-packing-list", () => {
       form.append("containerId", "c0000000-0000-0000-0000-000000000001");
       return new Request("https://erp.example.com/api/ai/parse-packing-list", {
         method: "POST",
-        headers: { "x-workspace-id": WORKSPACE },
+        headers: {
+          "x-workspace-id": WORKSPACE,
+          origin: "https://erp.example.com",
+        },
         body: form,
       });
     }

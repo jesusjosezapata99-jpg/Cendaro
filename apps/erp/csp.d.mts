@@ -1,1 +1,4 @@
-export declare function buildContentSecurityPolicy(isDev: boolean): string;
+export declare function buildContentSecurityPolicy(
+  isDev: boolean,
+  supabaseUrl?: string,
+): string;

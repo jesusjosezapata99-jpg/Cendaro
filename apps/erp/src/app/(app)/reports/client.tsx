@@ -116,7 +116,7 @@ export default function ReportsClient() {
     <div className="space-y-6 py-4 lg:py-8">
       <PageHeader
         title="Reportes Ejecutivos & Conciliación Financiera"
-        description="Analítica comercial por canal, valoración de inventario a costo promedio y conciliación contable SOC 1 ICFR"
+        description="Analítica comercial por canal, valoración de inventario a costo promedio y conciliación contable"
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <div className="flex items-center gap-1.5">
@@ -206,8 +206,7 @@ export default function ReportsClient() {
             <div className="space-y-1">
               <div className="flex items-center gap-2.5">
                 <h2 className="text-foreground text-sm font-medium tracking-wider uppercase">
-                  Conciliación Automática de Libros (
-                  {reconciliation.complianceStandard})
+                  Conciliación Automática de Libros
                 </h2>
                 <StatusPill
                   tone={
