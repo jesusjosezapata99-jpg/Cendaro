@@ -154,6 +154,7 @@ describe("Phase 10 — Credit Notes & WORM Audit Cryptographic Chain (DCG-F10)",
             orderNumber: "ORD-1001",
             customerId: null,
             status: "invoiced",
+            stockDeducted: true,
             total: 100,
           },
         ];
@@ -180,6 +181,7 @@ describe("Phase 10 — Credit Notes & WORM Audit Cryptographic Chain (DCG-F10)",
             status: "pending_approval",
             returnToStock: true,
             warehouseId: WAREHOUSE_ID,
+            subtotalUsd: 40,
             totalUsd: 40,
           },
         ];
@@ -294,7 +296,7 @@ describe("Phase 10 — Credit Notes & WORM Audit Cryptographic Chain (DCG-F10)",
       externalRefundReference: "PM-998877",
     });
 
-    expect(approved?.status).toBe("applied");
+    expect(approved.status).toBe("applied");
     expect(insertedTables).toContain("stock_movement");
     const arUpdate = updatedTables.find(
       (u) => u.table === "account_receivable",

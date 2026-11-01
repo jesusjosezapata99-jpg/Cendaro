@@ -20,10 +20,15 @@ import {
   Product,
   StockLedger,
   StockMovement,
+  Supplier,
   Warehouse,
 } from "@cendaro/db/schema";
 import { can } from "@cendaro/validators";
 
+import {
+  assertAllInWorkspace,
+  assertInWorkspace,
+} from "../services/workspace-guard";
 import {
   createTRPCRouter,
   wsPermissionProcedure,
@@ -166,7 +171,8 @@ export const containerRouter = createTRPCRouter({
             eq(Container.workspaceId, workspaceId),
           ),
         )
-        .limit(1);
+        .limit(1)
+        .for("update");
 
       if (!container) {
         throw new TRPCError({
@@ -175,12 +181,10 @@ export const containerRouter = createTRPCRouter({
         });
       }
 
-      // Prevent replay attack on already received or closed containers
       if (container.status === "received" || container.status === "closed") {
         throw new TRPCError({
           code: "CONFLICT",
-          message:
-            "Este contenedor ya fue recibido o cerrado previamente; no se puede volver a inyectar su inventario",
+          message: "Este contenedor ya fue recibido por completo o cerrado",
         });
       }
 
@@ -202,9 +206,75 @@ export const containerRouter = createTRPCRouter({
         });
       }
 
+      const existingItems = await ctx.db
+        .select({
+          id: ContainerItem.id,
+          quantityExpected: ContainerItem.quantityExpected,
+          quantityReceived: ContainerItem.quantityReceived,
+        })
+        .from(ContainerItem)
+        .where(
+          and(
+            eq(ContainerItem.containerId, input.containerId),
+            eq(ContainerItem.workspaceId, workspaceId),
+          ),
+        );
+      const existingById = new Map(existingItems.map((i) => [i.id, i]));
+      const canExceedExpected = can(
+        ctx.workspace.role,
+        "containers",
+        "approve",
+      );
+
+      if (
+        new Set(input.items.map((i) => i.containerItemId)).size !==
+        input.items.length
+      ) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message:
+            "Un ítem del contenedor aparece más de una vez en la recepción",
+        });
+      }
+
       let totalUnitsReceived = 0;
 
       for (const item of input.items) {
+        // quantityReceived is the running total of the line, so repeating a
+        // request adds nothing and later partial receipts add the difference.
+        const existing = existingById.get(item.containerItemId);
+        if (!existing) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "El ítem no pertenece a este contenedor",
+          });
+        }
+        const delta = item.quantityReceived - (existing.quantityReceived ?? 0);
+        if (delta < 0) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message:
+              "La cantidad recibida no puede ser menor que la ya registrada",
+          });
+        }
+        if (
+          item.quantityReceived > existing.quantityExpected &&
+          !canExceedExpected
+        ) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message:
+              "Recibir más de lo esperado requiere autorización de un administrador",
+          });
+        }
+        await assertInWorkspace(
+          ctx.db,
+          Product,
+          item.productId,
+          workspaceId,
+          "Producto",
+        );
+
         await ctx.db
           .update(ContainerItem)
           .set({
@@ -221,8 +291,8 @@ export const containerRouter = createTRPCRouter({
             ),
           );
 
-        if (item.quantityReceived <= 0) continue;
-        totalUnitsReceived += item.quantityReceived;
+        if (delta === 0) continue;
+        totalUnitsReceived += delta;
 
         // Weighted average cost (costAvg) update on Product
         if (item.unitCost !== undefined && item.unitCost > 0) {
@@ -256,9 +326,8 @@ export const containerRouter = createTRPCRouter({
           );
           const weightedCost =
             currentQty > 0
-              ? (currentQty * currentCost +
-                  item.quantityReceived * item.unitCost) /
-                (currentQty + item.quantityReceived)
+              ? (currentQty * currentCost + delta * item.unitCost) /
+                (currentQty + delta)
               : item.unitCost;
 
           await ctx.db
@@ -282,7 +351,7 @@ export const containerRouter = createTRPCRouter({
             workspaceId,
             productId: item.productId,
             warehouseId: input.warehouseId,
-            quantity: item.quantityReceived,
+            quantity: delta,
           })
           .onConflictDoUpdate({
             target: [
@@ -291,7 +360,7 @@ export const containerRouter = createTRPCRouter({
               StockLedger.warehouseId,
             ],
             set: {
-              quantity: sql`${StockLedger.quantity} + ${item.quantityReceived}`,
+              quantity: sql`${StockLedger.quantity} + ${delta}`,
               updatedAt: new Date(),
             },
           });
@@ -304,7 +373,7 @@ export const containerRouter = createTRPCRouter({
             workspaceId,
             productId: item.productId,
             channel: "store",
-            quantity: item.quantityReceived,
+            quantity: delta,
           })
           .onConflictDoUpdate({
             target: [
@@ -313,7 +382,7 @@ export const containerRouter = createTRPCRouter({
               ChannelAllocation.channel,
             ],
             set: {
-              quantity: sql`${ChannelAllocation.quantity} + ${item.quantityReceived}`,
+              quantity: sql`${ChannelAllocation.quantity} + ${delta}`,
               updatedAt: new Date(),
             },
           });
@@ -324,7 +393,7 @@ export const containerRouter = createTRPCRouter({
           productId: item.productId,
           warehouseId: input.warehouseId,
           movementType: "container_receipt",
-          quantity: item.quantityReceived,
+          quantity: delta,
           toChannel: "store",
           referenceId: input.containerId,
           referenceType: "container",
@@ -333,9 +402,17 @@ export const containerRouter = createTRPCRouter({
         });
       }
 
+      const receivedByItem = new Map(
+        input.items.map((i) => [i.containerItemId, i.quantityReceived]),
+      );
+      const isComplete = existingItems.every(
+        (i) =>
+          (receivedByItem.get(i.id) ?? i.quantityReceived ?? 0) >=
+          i.quantityExpected,
+      );
       await ctx.db
         .update(Container)
-        .set({ status: "received" })
+        .set({ status: isComplete ? "received" : "in_transit" })
         .where(
           and(
             eq(Container.id, input.containerId),
@@ -374,6 +451,13 @@ export const containerRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      await assertInWorkspace(
+        ctx.db,
+        Supplier,
+        input.supplierId,
+        ctx.workspace.workspaceId,
+        "Proveedor",
+      );
       const [container] = await ctx.db
         .insert(Container)
         .values({
@@ -415,6 +499,28 @@ export const containerRouter = createTRPCRouter({
           code: "FORBIDDEN",
           message: "Solo administradores pueden cerrar o liberar contenedores",
         });
+      }
+
+      // Marking it received closes a shipment that arrived short; it needs at
+      // least one recorded receipt, since only receipts add stock.
+      if (input.status === "received") {
+        const [received] = await ctx.db
+          .select({
+            units: sql<string>`COALESCE(SUM(${ContainerItem.quantityReceived}), 0)`,
+          })
+          .from(ContainerItem)
+          .where(
+            and(
+              eq(ContainerItem.containerId, input.id),
+              eq(ContainerItem.workspaceId, ctx.workspace.workspaceId),
+            ),
+          );
+        if (Number(received?.units ?? 0) <= 0) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: "Registra la recepción de los artículos primero",
+          });
+        }
       }
 
       const setCols: Record<string, unknown> = { status: input.status };
@@ -484,6 +590,14 @@ export const containerRouter = createTRPCRouter({
           message: "Contenedor no encontrado en este workspace",
         });
       }
+
+      await assertAllInWorkspace(
+        ctx.db,
+        Product,
+        input.items.map((item) => item.productId),
+        ctx.workspace.workspaceId,
+        "Producto",
+      );
 
       if (input.items.length > 0) {
         await ctx.db.insert(ContainerItem).values(

@@ -167,6 +167,7 @@ describe("catalog, pricing & import invariants (Phase 4)", () => {
     const { caller, insertedRows } = buildMockContext({
       selectQueue: [
         [{ id: "mod-pricing" }],
+        [{ id: PRODUCT_ID }], // product belongs to the workspace
         [{ amountUsd: 18.5 }], // existing price
       ],
     });

@@ -10,27 +10,30 @@ import { and, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import {
-  AccountReceivable,
   Approval,
-  ChannelAllocation,
   CreditNote,
   CreditNoteItem,
   creditNoteStatusEnum,
+  FiscalDocument,
+  InternalInvoice,
   OrderItem,
   paymentMethodEnum,
   Product,
   SalesOrder,
-  StockLedger,
-  StockMovement,
+  Warehouse,
 } from "@cendaro/db/schema";
-import { multiplyMoney, roundMoney2 } from "@cendaro/validators";
+import { MONEY_EPSILON, multiplyMoney, roundMoney2 } from "@cendaro/validators";
 
+import { applyCreditNote } from "../services/credit-note-application";
+import { getOfficialBcvRate } from "../services/official-rate";
+import { assertInWorkspace } from "../services/workspace-guard";
 import {
   createTRPCRouter,
   wsPermissionProcedure,
   wsReadPermissionProcedure,
 } from "../trpc";
 import { logAudit } from "./audit";
+import { createdByVendor, vendorScopeId } from "./vendor-scope";
 
 export const creditNotesRouter = createTRPCRouter({
   /** List credit notes for the current workspace */
@@ -49,6 +52,9 @@ export const creditNotesRouter = createTRPCRouter({
     .query(async ({ ctx, input }) => {
       const wsId = ctx.workspace.workspaceId;
       const conditions = [eq(CreditNote.workspaceId, wsId)];
+      const vendorId = vendorScopeId(ctx);
+      if (vendorId)
+        conditions.push(createdByVendor(CreditNote.orderId, vendorId));
       if (input?.orderId)
         conditions.push(eq(CreditNote.orderId, input.orderId));
       if (input?.customerId) {
@@ -70,11 +76,18 @@ export const creditNotesRouter = createTRPCRouter({
     .input(z.object({ id: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       const wsId = ctx.workspace.workspaceId;
+      const vendorId = vendorScopeId(ctx);
       const [note] = await ctx.db
         .select()
         .from(CreditNote)
         .where(
-          and(eq(CreditNote.id, input.id), eq(CreditNote.workspaceId, wsId)),
+          and(
+            eq(CreditNote.id, input.id),
+            eq(CreditNote.workspaceId, wsId),
+            vendorId
+              ? createdByVendor(CreditNote.orderId, vendorId)
+              : undefined,
+          ),
         )
         .limit(1);
 
@@ -107,7 +120,7 @@ export const creditNotesRouter = createTRPCRouter({
    * Create a new credit note in `pending_approval` status.
    * Validates that returned quantities do not exceed billed quantities on the order.
    */
-  create: wsPermissionProcedure("orders", "create")
+  create: wsPermissionProcedure("orders", "update")
     .input(
       z.object({
         orderId: z.string().uuid(),
@@ -115,8 +128,6 @@ export const creditNotesRouter = createTRPCRouter({
         reason: z.string().min(3).max(1024),
         returnToStock: z.boolean().default(true),
         warehouseId: z.string().uuid().optional(),
-        exchangeRateBcv: z.number().positive().default(1),
-        taxUsd: z.number().min(0).default(0),
         refundMethod: z.enum(paymentMethodEnum.enumValues).optional(),
         externalRefundReference: z.string().max(128).optional(),
         items: z
@@ -150,12 +161,36 @@ export const creditNotesRouter = createTRPCRouter({
             eq(SalesOrder.workspaceId, wsId),
           ),
         )
-        .limit(1);
+        .limit(1)
+        .for("update");
 
       if (!order) {
         throw new TRPCError({
           code: "NOT_FOUND",
           message: "Pedido original no encontrado",
+        });
+      }
+
+      await assertInWorkspace(
+        ctx.db,
+        Warehouse,
+        input.warehouseId,
+        wsId,
+        "Almacén",
+      );
+      await assertInWorkspace(
+        ctx.db,
+        InternalInvoice,
+        input.internalInvoiceId,
+        wsId,
+        "Factura interna",
+      );
+
+      if (input.returnToStock && !order.stockDeducted) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message:
+            "La mercancía de este pedido no ha salido del inventario: no hay nada que devolver a stock",
         });
       }
 
@@ -174,15 +209,19 @@ export const creditNotesRouter = createTRPCRouter({
           and(eq(OrderItem.orderId, order.id), eq(OrderItem.workspaceId, wsId)),
         );
 
+      // What the customer was charged per unit, net of discounts, across every
+      // line of the product.
       const billedByProduct = new Map<
         string,
-        { quantity: number; unitPrice: number }
+        { quantity: number; netTotal: number }
       >();
       for (const oi of orderItems) {
         const prev = billedByProduct.get(oi.productId);
         billedByProduct.set(oi.productId, {
           quantity: (prev?.quantity ?? 0) + oi.quantity,
-          unitPrice: Number(oi.unitPrice),
+          netTotal:
+            (prev?.netTotal ?? 0) +
+            (Number(oi.unitPrice) - Number(oi.discount ?? 0)) * oi.quantity,
         });
       }
 
@@ -244,19 +283,19 @@ export const creditNotesRouter = createTRPCRouter({
           });
         }
 
-        // Prevent arbitrary price inflation in credit notes
+        const billedUnitPrice = roundMoney2(billed.netTotal / billed.quantity);
         if (
           line.unitPriceUsd !== undefined &&
-          line.unitPriceUsd > billed.unitPrice + 0.005
+          line.unitPriceUsd > billedUnitPrice + MONEY_EPSILON
         ) {
           throw new TRPCError({
             code: "BAD_REQUEST",
             message:
-              "El precio unitario de la nota de crédito no puede superar el precio facturado originalmente",
+              "El precio unitario de la nota de crédito no puede superar el precio cobrado",
           });
         }
 
-        const unitPriceUsd = roundMoney2(line.unitPriceUsd ?? billed.unitPrice);
+        const unitPriceUsd = roundMoney2(line.unitPriceUsd ?? billedUnitPrice);
         const lineSubtotal = multiplyMoney(unitPriceUsd, line.quantity);
         subtotalUsd = roundMoney2(subtotalUsd + lineSubtotal);
 
@@ -268,10 +307,50 @@ export const creditNotesRouter = createTRPCRouter({
         });
       }
 
-      const taxUsd = roundMoney2(input.taxUsd);
+      // Tax follows the fiscal document of the order, in proportion to what is credited.
+      const [fiscalDocument] = await ctx.db
+        .select({
+          iva16Usd: FiscalDocument.iva16Usd,
+          iva8Usd: FiscalDocument.iva8Usd,
+          exemptAmountUsd: FiscalDocument.exemptAmountUsd,
+          taxableBase16Usd: FiscalDocument.taxableBase16Usd,
+          taxableBase8Usd: FiscalDocument.taxableBase8Usd,
+        })
+        .from(FiscalDocument)
+        .where(
+          and(
+            eq(FiscalDocument.orderId, order.id),
+            eq(FiscalDocument.workspaceId, wsId),
+            eq(FiscalDocument.documentType, "factura"),
+          ),
+        )
+        .limit(1);
+      const documentBase = fiscalDocument
+        ? fiscalDocument.exemptAmountUsd +
+          fiscalDocument.taxableBase16Usd +
+          fiscalDocument.taxableBase8Usd
+        : 0;
+      const taxUsd =
+        fiscalDocument && documentBase > 0
+          ? roundMoney2(
+              (subtotalUsd *
+                (fiscalDocument.iva16Usd + fiscalDocument.iva8Usd)) /
+                documentBase,
+            )
+          : 0;
       const totalUsd = roundMoney2(subtotalUsd + taxUsd);
-      const totalVes = multiplyMoney(totalUsd, input.exchangeRateBcv);
-      const creditNoteNumber = `NC-${Date.now().toString(36).toUpperCase()}`;
+      const exchangeRateBcv = await getOfficialBcvRate(ctx.db, wsId);
+      const totalVes = multiplyMoney(totalUsd, exchangeRateBcv);
+      const numberResult = await ctx.db.execute<{ number: string }>(
+        sql`SELECT public.next_document_number(${wsId}::uuid, 'credit_note') AS number`,
+      );
+      const creditNoteNumber = numberResult.rows[0]?.number;
+      if (!creditNoteNumber) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "No se pudo numerar la nota de crédito",
+        });
+      }
 
       const [created] = await ctx.db
         .insert(CreditNote)
@@ -288,7 +367,7 @@ export const creditNotesRouter = createTRPCRouter({
           subtotalUsd,
           taxUsd,
           totalUsd,
-          exchangeRateBcv: input.exchangeRateBcv,
+          exchangeRateBcv,
           totalVes,
           refundMethod: input.refundMethod,
           externalRefundReference: input.externalRefundReference,
@@ -363,188 +442,42 @@ export const creditNotesRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       const wsId = ctx.workspace.workspaceId;
 
-      if (!["owner", "admin", "supervisor"].includes(ctx.workspace.role)) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message:
-            "Solo propietarios, administradores o supervisores pueden aprobar notas de crédito",
-        });
-      }
+      const { note: updated, arAdjustedAmount } = await applyCreditNote(
+        ctx.db,
+        ctx.user.id,
+        wsId,
+        input.id,
+        input.externalRefundReference,
+      );
 
-      const [note] = await ctx.db
-        .select()
-        .from(CreditNote)
-        .where(
-          and(eq(CreditNote.id, input.id), eq(CreditNote.workspaceId, wsId)),
-        )
-        .limit(1);
-
-      if (!note) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Nota de crédito no encontrada",
-        });
-      }
-
-      if (note.status === "applied" || note.status === "approved") {
-        throw new TRPCError({
-          code: "CONFLICT",
-          message: "Esta nota de crédito ya fue aprobada y aplicada",
-        });
-      }
-
-      if (note.status === "cancelled") {
-        throw new TRPCError({
-          code: "PRECONDITION_FAILED",
-          message: "No se puede aprobar una nota de crédito anulada",
-        });
-      }
-
-      // Segregation of Duties — prevent self-approval
-      if (note.requestedBy && note.requestedBy === ctx.user.id) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message:
-            "Segregación de funciones: no puedes aprobar una nota de crédito solicitada por ti mismo",
-        });
-      }
-
-      const items = await ctx.db
-        .select()
-        .from(CreditNoteItem)
-        .where(
-          and(
-            eq(CreditNoteItem.creditNoteId, note.id),
-            eq(CreditNoteItem.workspaceId, wsId),
-          ),
-        );
-
-      // 1. Return items to stock if configured
-      if (note.returnToStock && note.warehouseId) {
-        for (const item of items) {
-          const [existingStock] = await ctx.db
-            .select()
-            .from(StockLedger)
-            .where(
-              and(
-                eq(StockLedger.workspaceId, wsId),
-                eq(StockLedger.productId, item.productId),
-                eq(StockLedger.warehouseId, note.warehouseId),
-              ),
-            )
-            .limit(1);
-
-          if (existingStock) {
-            await ctx.db
-              .update(StockLedger)
-              .set({
-                quantity: sql`${StockLedger.quantity} + ${item.quantity}`,
-                updatedAt: new Date(),
-              })
-              .where(eq(StockLedger.id, existingStock.id));
-          } else {
-            await ctx.db.insert(StockLedger).values({
-              workspaceId: wsId,
-              productId: item.productId,
-              warehouseId: note.warehouseId,
-              quantity: item.quantity,
-            });
-          }
-
-          await ctx.db
-            .insert(ChannelAllocation)
-            .values({
-              workspaceId: wsId,
-              productId: item.productId,
-              channel: "store",
-              quantity: item.quantity,
-            })
-            .onConflictDoUpdate({
-              target: [ChannelAllocation.productId, ChannelAllocation.channel],
-              set: {
-                quantity: sql`${ChannelAllocation.quantity} + ${item.quantity}`,
-                updatedAt: new Date(),
-              },
-            });
-
-          await ctx.db.insert(StockMovement).values({
-            workspaceId: wsId,
-            productId: item.productId,
-            warehouseId: note.warehouseId,
-            movementType: "return",
-            quantity: item.quantity,
-            referenceType: "credit_note",
-            referenceId: note.id,
-            notes: `Devolución por Nota de Crédito ${note.creditNoteNumber}`,
-            createdBy: ctx.user.id,
-          });
-        }
-      }
-
-      // 2. Reduce open AccountReceivable balance on the original order if present
-      let arAdjustedAmount = 0;
-      const [ar] = await ctx.db
-        .select()
-        .from(AccountReceivable)
-        .where(
-          and(
-            eq(AccountReceivable.orderId, note.orderId),
-            eq(AccountReceivable.workspaceId, wsId),
-          ),
-        )
-        .limit(1);
-
-      if (ar && Number(ar.balance) > 0) {
-        const currentBalance = Number(ar.balance);
-        const creditAmount = Number(note.totalUsd);
-        const newBalance = Math.max(
-          0,
-          roundMoney2(currentBalance - creditAmount),
-        );
-        arAdjustedAmount = roundMoney2(currentBalance - newBalance);
-
-        await ctx.db
-          .update(AccountReceivable)
-          .set({
-            balance: newBalance,
-            status: newBalance <= 0.009 ? "paid" : "partial",
-          })
-          .where(
-            and(
-              eq(AccountReceivable.id, ar.id),
-              eq(AccountReceivable.workspaceId, wsId),
-            ),
-          );
-      }
-
-      // 3. Mark CreditNote as applied
-      const [updated] = await ctx.db
-        .update(CreditNote)
+      // Keep the approvals inbox in step with a note approved from here.
+      await ctx.db
+        .update(Approval)
         .set({
-          status: "applied",
-          approvedBy: ctx.user.id,
-          approvedAt: new Date(),
-          externalRefundReference:
-            input.externalRefundReference ?? note.externalRefundReference,
-          updatedAt: new Date(),
+          status: "approved",
+          resolvedBy: ctx.user.id,
+          resolvedAt: new Date(),
         })
         .where(
-          and(eq(CreditNote.id, note.id), eq(CreditNote.workspaceId, wsId)),
-        )
-        .returning();
+          and(
+            eq(Approval.workspaceId, wsId),
+            eq(Approval.entityType, "credit_note"),
+            eq(Approval.entityId, updated.id),
+            eq(Approval.status, "pending"),
+          ),
+        );
 
       await logAudit(ctx.db, ctx.user, {
         workspaceId: wsId,
         action: "credit_note.approve",
         entity: "credit_note",
-        entityId: note.id,
-        oldValue: { status: note.status },
+        entityId: updated.id,
+        oldValue: { status: "pending_approval" },
         newValue: {
           status: "applied",
           arAdjustedAmount,
-          returnToStock: note.returnToStock,
-          externalRefundReference:
-            input.externalRefundReference ?? note.externalRefundReference,
+          returnToStock: updated.returnToStock,
+          externalRefundReference: updated.externalRefundReference,
         },
       });
 

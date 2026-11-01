@@ -41,13 +41,18 @@ describe("Database Schema & Migration Integrity (DCG-F1)", () => {
       import.meta.dirname,
       "../../../db/migrations",
     );
-    const baselinePath = path.join(migrationsDir, "000_initial_schema.sql");
+    const baselinePath = path.resolve(
+      migrationsDir,
+      "../baseline/production-022.sql",
+    );
     const triggerFixPath = path.join(
       migrationsDir,
       "023_fix_broken_triggers_and_sequences.sql",
     );
 
-    expect(existsSync(baselinePath)).toBe(true);
+    expect(readFileSync(baselinePath, "utf8")).toContain(
+      "CREATE TABLE public.sales_order",
+    );
     expect(existsSync(triggerFixPath)).toBe(true);
 
     const triggerFixSql = readFileSync(triggerFixPath, "utf8");

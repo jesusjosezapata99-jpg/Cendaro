@@ -115,6 +115,10 @@ const PII_PATTERNS: [RegExp, string][] = [
   [/(eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)/g, "[JWT_REDACTED]"],
   [/(sk_live_[A-Za-z0-9]+)/g, "[STRIPE_KEY_REDACTED]"],
   [/(sb_[A-Za-z0-9_-]{20,})/g, "[SUPABASE_KEY_REDACTED]"],
+  // Uppercase only: a lowercase prefix is the start of a UUID, not a fiscal ID.
+  [/(?<![\w-])[JVEGPC]-?\d{7,9}(?:-?\d)?(?![\w-])/g, "[FISCAL_ID_REDACTED]"],
+  [/\+\d{1,3}[\s-]?\d[\d\s-]{6,13}\d(?![\w-])/g, "[PHONE_REDACTED]"],
+  [/(?<![\w-])0[24]\d{2}[\s-]?\d{3}[\s-]?\d{4}(?![\w-])/g, "[PHONE_REDACTED]"],
 ];
 
 const SENSITIVE_KEY_PATTERN =
@@ -350,7 +354,8 @@ class Logger {
     const entry: LogEntry = {
       timestamp: new Date().toISOString(),
       level,
-      message: redactPII(message),
+      // A line break in a logged value could forge a second log entry.
+      message: redactPII(message).replace(/[\r\n]+/g, " "),
       service: SERVICE_NAME,
       environment: VERCEL_ENV ?? (IS_PRODUCTION ? "production" : "development"),
       context: { ...this._ctx, ...context },

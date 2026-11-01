@@ -5,7 +5,6 @@
  * and WORM cryptographic hash-chaining (`prevHash` → `chainHash`) (PRD §24, F10.4).
  */
 import crypto from "node:crypto";
-import { desc, eq } from "drizzle-orm";
 
 import { AuditLog } from "@cendaro/db/schema";
 
@@ -299,47 +298,10 @@ export async function logAudit(
     entry.workspaceId ??
     (isWorkspaceActor(user) ? user.workspaceId : undefined);
 
-  let prevHash = GENESIS_AUDIT_HASH;
-  if (resolvedWorkspaceId && typeof db.select === "function") {
-    try {
-      const prevRows = await db
-        .select({
-          chainHash: AuditLog.chainHash,
-          metadata: AuditLog.metadata,
-        })
-        .from(AuditLog)
-        .where(eq(AuditLog.workspaceId, resolvedWorkspaceId))
-        .orderBy(desc(AuditLog.createdAt))
-        .limit(1);
-      const lastRow = Array.isArray(prevRows) ? prevRows[0] : undefined;
-      if (lastRow) {
-        const meta = lastRow.metadata as Record<string, unknown> | null;
-        prevHash =
-          lastRow.chainHash ??
-          (meta && typeof meta._chainHash === "string"
-            ? meta._chainHash
-            : meta && typeof meta._integrityHash === "string"
-              ? meta._integrityHash
-              : GENESIS_AUDIT_HASH);
-      }
-    } catch {
-      // Fallback to GENESIS_AUDIT_HASH when running against lightweight test mocks
-      prevHash = GENESIS_AUDIT_HASH;
-    }
-  }
-
   const baseMetadata = buildAuditIntegrityMetadata(
     { ...entry, workspaceId: resolvedWorkspaceId, actorId: user?.id },
     entry.metadata,
   );
-  const integrityHash =
-    typeof baseMetadata._integrityHash === "string"
-      ? baseMetadata._integrityHash
-      : "";
-  const chainHash = computeAuditChainHash(prevHash, integrityHash);
-
-  const metadataWithIntegrity = baseMetadata;
-
   await db.insert(AuditLog).values({
     id,
     workspaceId: resolvedWorkspaceId,
@@ -351,10 +313,8 @@ export async function logAudit(
     entityId: entry.entityId,
     oldValue: entry.oldValue,
     newValue: entry.newValue,
-    metadata: metadataWithIntegrity,
+    metadata: baseMetadata,
     correlationId: entry.correlationId,
-    prevHash,
-    chainHash,
   });
 
   return id;

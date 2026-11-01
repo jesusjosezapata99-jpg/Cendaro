@@ -15,25 +15,32 @@ import { z } from "zod/v4";
 import {
   AccountReceivable,
   Branch,
+  CreditNote,
+  Customer,
   FiscalDocument,
   fiscalDocumentTypeEnum,
+  InternalInvoice,
   LegalEntity,
+  SalesOrder,
   taxClassificationEnum,
+  Warehouse,
 } from "@cendaro/db/schema";
 import {
   addMoney,
   calculatePercentage,
   convertUsdToVes,
+  MONEY_EPSILON,
   roundMoney2,
 } from "@cendaro/validators";
 
+import { getOfficialBcvRate } from "../services/official-rate";
+import { assertInWorkspace } from "../services/workspace-guard";
 import {
   createTRPCRouter,
   wsPermissionProcedure,
   wsReadPermissionProcedure,
 } from "../trpc";
 import { logAudit } from "./audit";
-import { vendorScopeId } from "./vendor-scope";
 
 export interface SeniatLineInput {
   subtotalUsd: number;
@@ -143,7 +150,7 @@ export function computeFiscalRetentions(params: {
 
 export const fiscalRouter = createTRPCRouter({
   /** List SENIAT fiscal documents for the current workspace */
-  listDocuments: wsReadPermissionProcedure("orders", "read")
+  listDocuments: wsReadPermissionProcedure("receivables", "read")
     .input(
       z
         .object({
@@ -154,11 +161,7 @@ export const fiscalRouter = createTRPCRouter({
     )
     .query(async ({ ctx, input }) => {
       const wsId = ctx.workspace.workspaceId;
-      const vendorId = vendorScopeId(ctx);
       const conditions = [eq(FiscalDocument.workspaceId, wsId)];
-      if (vendorId) {
-        conditions.push(eq(FiscalDocument.issuedBy, vendorId));
-      }
       if (input?.documentType) {
         conditions.push(eq(FiscalDocument.documentType, input.documentType));
       }
@@ -172,7 +175,7 @@ export const fiscalRouter = createTRPCRouter({
     }),
 
   /** Emit a SENIAT Fiscal Document (Factura, Nota de Crédito, Nota de Débito) */
-  emitDocument: wsPermissionProcedure("orders", "create")
+  emitDocument: wsPermissionProcedure("payments", "approve")
     .input(
       z.object({
         legalEntityId: z.string().uuid().optional(),
@@ -190,7 +193,6 @@ export const fiscalRouter = createTRPCRouter({
         buyerRif: z.string().min(3).max(32),
         buyerLegalName: z.string().min(2).max(256),
         buyerAddress: z.string().max(512).optional(),
-        exchangeRateBcv: z.number().positive(),
         igtfBaseUsd: z.number().min(0).default(0),
         lines: z
           .array(
@@ -207,13 +209,78 @@ export const fiscalRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       const wsId = ctx.workspace.workspaceId;
 
-      // External commission vendors cannot directly emit legal SENIAT documents
-      if (ctx.workspace.role === "vendor") {
+      if (process.env.FISCAL_EMISSION_ENABLED !== "true") {
         throw new TRPCError({
-          code: "FORBIDDEN",
+          code: "PRECONDITION_FAILED",
           message:
-            "Los vendedores externos no pueden emitir documentos fiscales SENIAT directamente",
+            "La emisión de documentos fiscales no está habilitada para este negocio",
         });
+      }
+      if (!input.fiscalInvoiceNumber || !input.controlNumber) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message:
+            "El número de factura y el número de control son obligatorios y los asigna el emisor autorizado",
+        });
+      }
+      await assertInWorkspace(
+        ctx.db,
+        LegalEntity,
+        input.legalEntityId,
+        wsId,
+        "Entidad legal",
+      );
+      await assertInWorkspace(ctx.db, Branch, input.branchId, wsId, "Sucursal");
+      await assertInWorkspace(
+        ctx.db,
+        InternalInvoice,
+        input.internalInvoiceId,
+        wsId,
+        "Factura interna",
+      );
+      await assertInWorkspace(
+        ctx.db,
+        CreditNote,
+        input.creditNoteId,
+        wsId,
+        "Nota de crédito",
+      );
+      await assertInWorkspace(
+        ctx.db,
+        Customer,
+        input.customerId,
+        wsId,
+        "Cliente",
+      );
+
+      if (input.orderId) {
+        const [order] = await ctx.db
+          .select({ total: SalesOrder.total })
+          .from(SalesOrder)
+          .where(
+            and(
+              eq(SalesOrder.id, input.orderId),
+              eq(SalesOrder.workspaceId, wsId),
+            ),
+          )
+          .limit(1);
+        if (!order) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Pedido no encontrado en este espacio de trabajo",
+          });
+        }
+        const linesTotal = input.lines.reduce(
+          (sum, l) => sum + l.subtotalUsd,
+          0,
+        );
+        if (Math.abs(linesTotal - Number(order.total)) > MONEY_EPSILON) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message:
+              "Las líneas del documento no coinciden con el total del pedido",
+          });
+        }
       }
 
       if (
@@ -228,15 +295,13 @@ export const fiscalRouter = createTRPCRouter({
         });
       }
 
+      const exchangeRateBcv = await getOfficialBcvRate(ctx.db, wsId);
       const breakdown = computeSeniatBreakdown({
         lines: input.lines,
         igtfBaseUsd: input.igtfBaseUsd,
-        exchangeRateBcv: input.exchangeRateBcv,
+        exchangeRateBcv,
       });
-
-      const suffix = Date.now().toString().slice(-8);
-      const fiscalInvoiceNumber = input.fiscalInvoiceNumber ?? `A-${suffix}`;
-      const controlNumber = input.controlNumber ?? `00-${suffix}`;
+      const { fiscalInvoiceNumber, controlNumber } = input;
 
       const [created] = await ctx.db
         .insert(FiscalDocument)
@@ -255,7 +320,7 @@ export const fiscalRouter = createTRPCRouter({
           buyerRif: input.buyerRif.trim().toUpperCase(),
           buyerLegalName: input.buyerLegalName.trim(),
           buyerAddress: input.buyerAddress?.trim(),
-          exchangeRateBcv: input.exchangeRateBcv,
+          exchangeRateBcv,
           exemptAmountUsd: breakdown.exemptAmountUsd,
           taxableBase16Usd: breakdown.taxableBase16Usd,
           iva16Usd: breakdown.iva16Usd,
@@ -278,7 +343,6 @@ export const fiscalRouter = createTRPCRouter({
           documentType: input.documentType,
           fiscalInvoiceNumber,
           controlNumber,
-          buyerRif: input.buyerRif,
           totalUsd: breakdown.totalUsd,
           totalVes: breakdown.totalVes,
         },
@@ -288,7 +352,7 @@ export const fiscalRouter = createTRPCRouter({
     }),
 
   /** Record SENIAT IVA (75%/100%) or ISLR retention voucher against a FiscalDocument */
-  recordRetention: wsPermissionProcedure("payments", "create")
+  recordRetention: wsPermissionProcedure("receivables", "update")
     .input(
       z.object({
         fiscalDocumentId: z.string().uuid(),
@@ -301,15 +365,6 @@ export const fiscalRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       const wsId = ctx.workspace.workspaceId;
 
-      // Only management roles may apply tax retentions that reduce AR balances
-      if (!["owner", "admin", "supervisor"].includes(ctx.workspace.role)) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message:
-            "Solo supervisores o administradores pueden registrar retenciones fiscales que afectan cuentas por cobrar",
-        });
-      }
-
       const [doc] = await ctx.db
         .select()
         .from(FiscalDocument)
@@ -319,12 +374,22 @@ export const fiscalRouter = createTRPCRouter({
             eq(FiscalDocument.workspaceId, wsId),
           ),
         )
-        .limit(1);
+        .limit(1)
+        .for("update");
 
       if (!doc) {
         throw new TRPCError({
           code: "NOT_FOUND",
           message: "Documento fiscal no encontrado",
+        });
+      }
+      if (
+        (input.ivaRetentionPct > 0 && !input.ivaRetentionVoucher) ||
+        (input.islrRetentionPct > 0 && !input.islrRetentionVoucher)
+      ) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Cada retención necesita su número de comprobante",
         });
       }
 
@@ -351,6 +416,7 @@ export const fiscalRouter = createTRPCRouter({
           islrRetentionPct: input.islrRetentionPct,
           islrRetentionVoucher: input.islrRetentionVoucher,
           islrRetentionUsd: retentions.islrRetentionUsd,
+          retentionAppliedUsd: retentions.totalRetainedUsd,
         })
         .where(
           and(
@@ -360,8 +426,19 @@ export const fiscalRouter = createTRPCRouter({
         )
         .returning();
 
-      // Adjust open AccountReceivable if the fiscal document is linked to an order
-      if (doc.orderId && retentions.totalRetainedUsd > 0) {
+      // Only the difference from what was already applied reaches the receivable,
+      // so correcting or repeating a retention cannot discount it again.
+      const retentionDelta = roundMoney2(
+        retentions.totalRetainedUsd - doc.retentionAppliedUsd,
+      );
+      if (retentionDelta < 0) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message:
+            "Una retención ya aplicada no se puede reducir: corrígela con una nota de débito",
+        });
+      }
+      if (doc.orderId && retentionDelta > 0) {
         const [ar] = await ctx.db
           .select()
           .from(AccountReceivable)
@@ -371,18 +448,19 @@ export const fiscalRouter = createTRPCRouter({
               eq(AccountReceivable.workspaceId, wsId),
             ),
           )
-          .limit(1);
+          .limit(1)
+          .for("update");
 
         if (ar && Number(ar.balance) > 0) {
           const newBalance = Math.max(
             0,
-            roundMoney2(Number(ar.balance) - retentions.totalRetainedUsd),
+            roundMoney2(Number(ar.balance) - retentionDelta),
           );
           await ctx.db
             .update(AccountReceivable)
             .set({
               balance: newBalance,
-              status: newBalance <= 0.009 ? "paid" : "partial",
+              status: newBalance <= MONEY_EPSILON ? "paid" : "partial",
             })
             .where(
               and(
@@ -411,7 +489,7 @@ export const fiscalRouter = createTRPCRouter({
     }),
 
   /** Generate SENIAT Libro de Ventas report for a period */
-  salesBookReport: wsReadPermissionProcedure("orders", "read")
+  salesBookReport: wsReadPermissionProcedure("receivables", "read")
     .input(
       z
         .object({
@@ -422,11 +500,7 @@ export const fiscalRouter = createTRPCRouter({
     )
     .query(async ({ ctx, input }) => {
       const wsId = ctx.workspace.workspaceId;
-      const vendorId = vendorScopeId(ctx);
       const conditions = [eq(FiscalDocument.workspaceId, wsId)];
-      if (vendorId) {
-        conditions.push(eq(FiscalDocument.issuedBy, vendorId));
-      }
       if (input?.fromDate) {
         conditions.push(gte(FiscalDocument.issuedAt, new Date(input.fromDate)));
       }
@@ -511,15 +585,6 @@ export const fiscalRouter = createTRPCRouter({
     )
     .mutation(async ({ ctx, input }) => {
       const wsId = ctx.workspace.workspaceId;
-
-      // Only management roles may apply tax retentions that reduce AR balances
-      if (!["owner", "admin", "supervisor"].includes(ctx.workspace.role)) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message:
-            "Solo supervisores o administradores pueden registrar retenciones fiscales que afectan cuentas por cobrar",
-        });
-      }
 
       if (input.id) {
         const [updated] = await ctx.db
@@ -607,15 +672,20 @@ export const fiscalRouter = createTRPCRouter({
     )
     .mutation(async ({ ctx, input }) => {
       const wsId = ctx.workspace.workspaceId;
-
-      // Only management roles may apply tax retentions that reduce AR balances
-      if (!["owner", "admin", "supervisor"].includes(ctx.workspace.role)) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message:
-            "Solo supervisores o administradores pueden registrar retenciones fiscales que afectan cuentas por cobrar",
-        });
-      }
+      await assertInWorkspace(
+        ctx.db,
+        LegalEntity,
+        input.legalEntityId,
+        wsId,
+        "Entidad legal",
+      );
+      await assertInWorkspace(
+        ctx.db,
+        Warehouse,
+        input.defaultWarehouseId,
+        wsId,
+        "Almacén",
+      );
 
       if (input.id) {
         const [updated] = await ctx.db

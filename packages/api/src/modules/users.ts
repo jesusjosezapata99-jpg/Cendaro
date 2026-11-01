@@ -38,6 +38,7 @@ import { revokeSessionsIfAccessLost } from "../services/auth-admin";
 import { mfaComplianceFor } from "../services/mfa-enforcement";
 import {
   createTRPCRouter,
+  isValidUuid,
   memberReadProcedure,
   selfProcedure,
   wsPermissionProcedure,
@@ -58,13 +59,6 @@ const LISTED_MEMBER_STATUSES: (typeof WorkspaceMember.$inferSelect)["status"][] 
 export const usersRouter = createTRPCRouter({
   /** List all users in current workspace (admin, owner, supervisor) */
   list: wsReadPermissionProcedure("users", "read").query(async ({ ctx }) => {
-    if (!["owner", "admin", "supervisor"].includes(ctx.workspace.role)) {
-      throw new TRPCError({
-        code: "FORBIDDEN",
-        message: "No tienes permisos para ver los usuarios del workspace",
-      });
-    }
-
     return ctx.db
       .select({
         id: UserProfile.id,
@@ -97,20 +91,29 @@ export const usersRouter = createTRPCRouter({
       .from(UserProfile)
       .where(eq(UserProfile.id, ctx.user.id))
       .limit(1);
-    return profile ?? null;
+    if (!profile) return null;
+
+    // What the interface shows must match what the server enforces: the role in
+    // the active workspace, not the one stored on the profile.
+    if (!isValidUuid(ctx.workspaceId)) return profile;
+    const [member] = await ctx.db
+      .select({ role: WorkspaceMember.role })
+      .from(WorkspaceMember)
+      .where(
+        and(
+          eq(WorkspaceMember.userId, ctx.user.id),
+          eq(WorkspaceMember.workspaceId, ctx.workspaceId),
+          eq(WorkspaceMember.status, "active"),
+        ),
+      )
+      .limit(1);
+    return member ? { ...profile, role: member.role } : profile;
   }),
 
   /** Get user by ID (admin, owner, supervisor) */
   byId: wsReadPermissionProcedure("users", "read")
     .input(z.object({ id: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
-      if (!["owner", "admin", "supervisor"].includes(ctx.workspace.role)) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "No tienes permisos para ver detalles de este usuario",
-        });
-      }
-
       const [member] = await ctx.db
         .select({
           id: UserProfile.id,
@@ -154,13 +157,6 @@ export const usersRouter = createTRPCRouter({
       const callerRole = ctx.workspace.role;
       const isCallerOwner = callerRole === "owner";
       const isSelf = ctx.user.id === id;
-
-      if (callerRole !== "owner" && callerRole !== "admin") {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "Solo propietarios o administradores pueden editar usuarios",
-        });
-      }
 
       const [targetMember] = await ctx.db
         .select({ role: WorkspaceMember.role, status: WorkspaceMember.status })
@@ -402,12 +398,9 @@ export const usersRouter = createTRPCRouter({
     };
   }),
 
-  // ─── Data Subject Rights (ISO/IEC 27018 & GDPR DSR) ───
+  // ─── Data subject requests ───
 
-  /**
-   * Export all personal data belonging to the authenticated user.
-   * Complies with ISO/IEC 27018 §A.10 and GDPR Article 15/20 (Data Portability).
-   */
+  /** Export the personal data of the authenticated user. */
   exportMyData: selfProcedure.query(async ({ ctx }) => {
     const [profile] = await ctx.db
       .select()
@@ -450,7 +443,6 @@ export const usersRouter = createTRPCRouter({
       metadata: {
         exportedAt: new Date().toISOString(),
         requestorId: ctx.user.id,
-        standard: "ISO/IEC 27018 & GDPR DSR",
         formatVersion: "1.0",
       },
       profile: {
@@ -474,9 +466,9 @@ export const usersRouter = createTRPCRouter({
   }),
 
   /**
-   * Anonymize user PII (Right to be Forgotten).
-   * Complies with ISO/IEC 27018 §A.11 and GDPR Article 17 (Right to Erasure).
-   * Preserves historical UUID links for financial/tax compliance (SOC 1 ICFR).
+   * Anonymize the user's profile. Keeps the UUID so financial records still link
+   * to it. audit_log is immutable and the Supabase Auth account is not touched:
+   * see docs/security/data-inventory.md.
    */
   anonymizeMyData: selfProcedure
     .input(
@@ -559,9 +551,7 @@ export const usersRouter = createTRPCRouter({
             action: "user.data_anonymization_dsr",
             entity: "user_profile",
             entityId: ctx.user.id,
-            metadata: {
-              standard: "ISO/IEC 27018 / GDPR Right to Erasure",
-            },
+            metadata: { reason: "data_subject_request" },
           });
         }
       });
@@ -570,8 +560,7 @@ export const usersRouter = createTRPCRouter({
 
       return {
         success: true,
-        message:
-          "Datos personales anonimizados exitosamente conforme a ISO/IEC 27018.",
+        message: "Tus datos de perfil fueron anonimizados.",
       };
     }),
 });

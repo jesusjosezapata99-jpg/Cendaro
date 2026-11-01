@@ -12,7 +12,7 @@
 import { TRPCError } from "@trpc/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { logger, redactDeep } from "../logger";
+import { logger, redactDeep, redactPII } from "../logger";
 import {
   createCallerFactory,
   createTRPCRouter,
@@ -123,5 +123,21 @@ describe("loggingMiddleware (C2 regression)", () => {
         },
       },
     });
+  });
+
+  it("redacts fiscal IDs and phone numbers in free text", () => {
+    expect(redactPII("RIF J-12345678-9, cédula V-12345678 y V12345678")).toBe(
+      "RIF [FISCAL_ID_REDACTED], cédula [FISCAL_ID_REDACTED] y [FISCAL_ID_REDACTED]",
+    );
+    expect(
+      redactPII("Llamar 0412-1234567, +58 412 1234567 o +1 305 555 0100."),
+    ).toBe("Llamar [PHONE_REDACTED], [PHONE_REDACTED] o [PHONE_REDACTED].");
+  });
+
+  it("leaves IDs and document numbers readable", () => {
+    const text =
+      "e1000000-0000-4000-8000-000000000001 ORD-000123 NC-000045 FAC-000001 took 1250ms";
+
+    expect(redactPII(text)).toBe(text);
   });
 });

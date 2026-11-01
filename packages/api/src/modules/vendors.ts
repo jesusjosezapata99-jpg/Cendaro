@@ -1,5 +1,5 @@
 import { TRPCError } from "@trpc/server";
-import { and, desc, eq, lte, sql } from "drizzle-orm";
+import { and, desc, eq, lte, ne, sql } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import {
@@ -12,6 +12,7 @@ import {
   VendorCommission,
 } from "@cendaro/db/schema";
 
+import { assertInWorkspace } from "../services/workspace-guard";
 import {
   createTRPCRouter,
   wsPermissionProcedure,
@@ -115,13 +116,6 @@ export const vendorRouter = createTRPCRouter({
       }),
     )
     .query(async ({ ctx, input }) => {
-      if (!["owner", "admin", "supervisor"].includes(ctx.workspace.role)) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "No tiene permisos para ver todas las comisiones",
-        });
-      }
-
       const conditions = [
         eq(VendorCommission.workspaceId, ctx.workspace.workspaceId),
       ];
@@ -150,14 +144,6 @@ export const vendorRouter = createTRPCRouter({
   payCommission: wsPermissionProcedure("vendors", "approve")
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
-      if (!["owner", "admin", "supervisor"].includes(ctx.workspace.role)) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message:
-            "Solo supervisores o administradores pueden pagar comisiones",
-        });
-      }
-
       const [updated] = await ctx.db
         .update(VendorCommission)
         .set({ isPaid: true, paidAt: new Date() })
@@ -341,6 +327,33 @@ export const vendorRouter = createTRPCRouter({
         });
       }
 
+      await assertInWorkspace(
+        ctx.db,
+        SalesOrder,
+        input.orderId,
+        ctx.workspace.workspaceId,
+        "Pedido",
+      );
+      if (input.orderId) {
+        const [open] = await ctx.db
+          .select({ id: AccountReceivable.id })
+          .from(AccountReceivable)
+          .where(
+            and(
+              eq(AccountReceivable.orderId, input.orderId),
+              eq(AccountReceivable.workspaceId, ctx.workspace.workspaceId),
+              ne(AccountReceivable.status, "written_off"),
+            ),
+          )
+          .limit(1);
+        if (open) {
+          throw new TRPCError({
+            code: "CONFLICT",
+            message: "Este pedido ya tiene una cuenta por cobrar",
+          });
+        }
+      }
+
       const [ar] = await ctx.db
         .insert(AccountReceivable)
         .values({
@@ -354,18 +367,6 @@ export const vendorRouter = createTRPCRouter({
           createdBy: ctx.user.id,
         })
         .returning();
-
-      await ctx.db
-        .update(Customer)
-        .set({
-          balance: sql`COALESCE(${Customer.balance}, 0) + ${input.totalAmount}`,
-        })
-        .where(
-          and(
-            eq(Customer.id, input.customerId),
-            eq(Customer.workspaceId, ctx.workspace.workspaceId),
-          ),
-        );
 
       await logAudit(ctx.db, ctx.user, {
         workspaceId: ctx.workspace.workspaceId,

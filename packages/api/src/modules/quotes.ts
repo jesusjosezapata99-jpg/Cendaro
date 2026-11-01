@@ -10,15 +10,16 @@ import { z } from "zod/v4";
 
 import {
   Customer,
-  OrderItem,
   Product,
   Quote,
   QuoteItem,
   quoteStatusEnum,
   salesChannelEnum,
-  SalesOrder,
 } from "@cendaro/db/schema";
+import { PAYMENT_TERMS } from "@cendaro/validators";
 
+import { createCommercialOrder } from "../services/order-lifecycle";
+import { assertInWorkspace } from "../services/workspace-guard";
 import {
   createTRPCRouter,
   wsPermissionProcedure,
@@ -152,14 +153,17 @@ export const quotesRouter = createTRPCRouter({
         channel: z.enum(salesChannelEnum.enumValues),
         validUntil: z.string().datetime().optional(),
         notes: z.string().optional(),
-        items: z.array(
-          z.object({
-            productId: z.string().uuid(),
-            quantity: z.number().int().positive(),
-            unitPrice: z.number().nonnegative(),
-            discount: z.number().nonnegative().default(0),
-          }),
-        ),
+        items: z
+          .array(
+            z.object({
+              productId: z.string().uuid(),
+              quantity: z.number().int().positive(),
+              unitPrice: z.number().positive(),
+              discount: z.number().nonnegative().default(0),
+            }),
+          )
+          .min(1)
+          .max(200),
       }),
     )
     .mutation(async ({ ctx, input }) => {
@@ -173,6 +177,13 @@ export const quotesRouter = createTRPCRouter({
         });
       }
 
+      await assertInWorkspace(
+        ctx.db,
+        Customer,
+        input.customerId,
+        ctx.workspace.workspaceId,
+        "Cliente",
+      );
       // Validate all products belong to workspace
       const productIds = input.items.map((i) => i.productId);
       if (productIds.length > 0) {
@@ -220,11 +231,6 @@ export const quotesRouter = createTRPCRouter({
         })
         .returning();
 
-      const effectiveQuoteNumber =
-        quote?.quoteNumber && quote.quoteNumber.length > 0
-          ? quote.quoteNumber
-          : `QTE-${Date.now().toString(36).toUpperCase()}`;
-
       if (quote && input.items.length > 0) {
         await ctx.db.insert(QuoteItem).values(
           input.items.map((item) => ({
@@ -245,13 +251,13 @@ export const quotesRouter = createTRPCRouter({
         entity: "quote",
         entityId: quote?.id,
         newValue: {
-          quoteNumber: effectiveQuoteNumber,
+          quoteNumber: quote?.quoteNumber,
           channel: input.channel,
           total,
         },
       });
 
-      return quote ? { ...quote, quoteNumber: effectiveQuoteNumber } : quote;
+      return quote;
     }),
 
   updateStatus: wsPermissionProcedure("orders", "update")
@@ -262,6 +268,32 @@ export const quotesRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      // Only convertToOrder converts, and a converted quote stays that way:
+      // reopening it would allow a second order from the same quote.
+      if (input.status === "converted") {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Una cotización se convierte creando el pedido",
+        });
+      }
+      const [current] = await ctx.db
+        .select({ status: Quote.status })
+        .from(Quote)
+        .where(
+          and(
+            eq(Quote.id, input.id),
+            eq(Quote.workspaceId, ctx.workspace.workspaceId),
+          ),
+        )
+        .limit(1)
+        .for("update");
+      if (current?.status === "converted") {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "Esta cotización ya fue convertida en pedido",
+        });
+      }
+
       const [updated] = await ctx.db
         .update(Quote)
         .set({ status: input.status, updatedAt: new Date() })
@@ -292,7 +324,12 @@ export const quotesRouter = createTRPCRouter({
     }),
 
   convertToOrder: wsPermissionProcedure("orders", "create")
-    .input(z.object({ id: z.string().uuid() }))
+    .input(
+      z.object({
+        id: z.string().uuid(),
+        paymentTerms: z.enum(PAYMENT_TERMS).default("cash"),
+      }),
+    )
     .mutation(async ({ ctx, input }) => {
       const vendorId = vendorScopeId(ctx);
       const baseQuery = ctx.db
@@ -307,12 +344,7 @@ export const quotesRouter = createTRPCRouter({
         )
         .limit(1);
 
-      const lockedQuery =
-        typeof (baseQuery as unknown as { for?: unknown }).for === "function"
-          ? baseQuery.for("update")
-          : baseQuery;
-
-      const [quote] = await lockedQuery;
+      const [quote] = await baseQuery.for("update");
 
       if (!quote) {
         throw new TRPCError({
@@ -339,14 +371,7 @@ export const quotesRouter = createTRPCRouter({
         });
       }
 
-      // Prevent converting negative-total quotes into orders
-      if (typeof quote.total === "number" && quote.total < 0) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message:
-            "No se puede convertir una cotización con monto total negativo",
-        });
-      }
+      await assertVendorCustomer(ctx, quote.customerId);
 
       const items = await ctx.db
         .select()
@@ -357,48 +382,33 @@ export const quotesRouter = createTRPCRouter({
             eq(QuoteItem.workspaceId, ctx.workspace.workspaceId),
           ),
         );
-
-      const [order] = await ctx.db
-        .insert(SalesOrder)
-        .values({
-          workspaceId: ctx.workspace.workspaceId,
-          // Trigger trg_order_number assigns sequential number
-          orderNumber: "",
-          customerId: quote.customerId,
-          channel: quote.channel,
-          subtotal: quote.subtotal,
-          discount: quote.discount ?? 0,
-          total: quote.total,
-          notes: `Convertido de cotización ${quote.quoteNumber}`,
-          createdBy: ctx.user.id,
-        })
-        .returning();
-
-      const effectiveOrderNumber =
-        order?.orderNumber && order.orderNumber.length > 0
-          ? order.orderNumber
-          : `ORD-${Date.now().toString(36).toUpperCase()}`;
-
-      if (order && items.length > 0) {
-        await ctx.db.insert(OrderItem).values(
-          items.map((item) => ({
-            workspaceId: ctx.workspace.workspaceId,
-            orderId: order.id,
-            productId: item.productId,
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
-            discount: item.discount ?? 0,
-            lineTotal: item.lineTotal,
-          })),
-        );
+      if (items.length === 0) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "La cotización no tiene artículos",
+        });
       }
+
+      // Prices are checked again: the catalog may have changed since the quote.
+      const order = await createCommercialOrder(ctx, {
+        customerId: quote.customerId,
+        channel: quote.channel,
+        notes: `Convertido de cotización ${quote.quoteNumber}`,
+        paymentTerms: input.paymentTerms,
+        items: items.map((item) => ({
+          productId: item.productId,
+          quantity: item.quantity,
+          unitPrice: Number(item.unitPrice),
+          discount: Number(item.discount ?? 0),
+        })),
+      });
 
       // Mark quote as converted
       await ctx.db
         .update(Quote)
         .set({
           status: "converted",
-          convertedOrderId: order?.id,
+          convertedOrderId: order.id,
           updatedAt: new Date(),
         })
         .where(
@@ -413,9 +423,13 @@ export const quotesRouter = createTRPCRouter({
         action: "quote.convert",
         entity: "quote",
         entityId: input.id,
-        newValue: { orderNumber: effectiveOrderNumber, orderId: order?.id },
+        newValue: {
+          orderNumber: order.orderNumber,
+          orderId: order.id,
+          status: order.status,
+        },
       });
 
-      return order ? { ...order, orderNumber: effectiveOrderNumber } : order;
+      return order;
     }),
 });
