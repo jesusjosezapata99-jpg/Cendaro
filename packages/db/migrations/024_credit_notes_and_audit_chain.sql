@@ -1,16 +1,8 @@
 -- =============================================================================
--- Migration 024: Credit Notes (PRD v2.0 §3.1) & WORM Audit Hash Chain (F10.1)
+-- Migration 024: Credit Notes (PRD v2.0 §3.1). The audit chain is migration 029.
 -- =============================================================================
 
--- 1. Add cryptographic hash-chain columns to audit_log
-ALTER TABLE public.audit_log
-  ADD COLUMN IF NOT EXISTS prev_hash text,
-  ADD COLUMN IF NOT EXISTS chain_hash text;
-
-CREATE INDEX IF NOT EXISTS idx_audit_log_workspace_created
-  ON public.audit_log (workspace_id, created_at DESC);
-
--- 2. Create credit_note_status enum
+-- 1. Create credit_note_status enum
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'credit_note_status') THEN
@@ -25,7 +17,7 @@ BEGIN
 END
 $$;
 
--- 3. Create credit_note table
+-- 2. Create credit_note table
 CREATE TABLE IF NOT EXISTS public.credit_note (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   workspace_id uuid NOT NULL REFERENCES public.workspace(id) DEFAULT (current_setting('app.workspace_id')::uuid),
@@ -70,9 +62,10 @@ CREATE POLICY credit_note_workspace_isolation ON public.credit_note
   USING (workspace_id = (select current_setting('app.workspace_id', true))::uuid)
   WITH CHECK (workspace_id = (select current_setting('app.workspace_id', true))::uuid);
 
+REVOKE ALL ON public.credit_note FROM app_user;
 GRANT SELECT, INSERT, UPDATE ON public.credit_note TO app_user;
 
--- 4. Create credit_note_item table
+-- 3. Create credit_note_item table
 CREATE TABLE IF NOT EXISTS public.credit_note_item (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   workspace_id uuid NOT NULL REFERENCES public.workspace(id) DEFAULT (current_setting('app.workspace_id')::uuid),
@@ -96,4 +89,5 @@ CREATE POLICY credit_note_item_workspace_isolation ON public.credit_note_item
   USING (workspace_id = (select current_setting('app.workspace_id', true))::uuid)
   WITH CHECK (workspace_id = (select current_setting('app.workspace_id', true))::uuid);
 
+REVOKE ALL ON public.credit_note_item FROM app_user;
 GRANT SELECT, INSERT, UPDATE ON public.credit_note_item TO app_user;

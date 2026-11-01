@@ -273,6 +273,7 @@ export const approvalTypeEnum = pgEnum("approval_type", [
   "price_change", // cambio de precio / repricing
   "container_close", // cierre de contenedor
   "cash_closure", // cierre de caja
+  "price_override", // precio bajo el mínimo permitido
   "edit_post_issue_document", // edición de doc post-emisión
 ]);
 
@@ -581,6 +582,9 @@ export const AuditLog = pgTable(
     correlationId: t.uuid(),
     ipAddress: t.varchar({ length: 45 }),
     userAgent: t.text(),
+    // Set by trg_audit_log_chain (migration 029), never by the application.
+    // NOT NULL in the database: audit_log_chain assigns it once it holds the lock.
+    seq: t.bigint({ mode: "number" }),
     prevHash: t.text(),
     chainHash: t.text(),
     createdAt: t
@@ -595,6 +599,7 @@ export const AuditLog = pgTable(
       table.workspaceId,
       table.createdAt,
     ),
+    index("idx_audit_log_workspace_seq").on(table.workspaceId, table.seq),
     index("idx_audit_log_actor").on(table.actorId),
     index("idx_audit_log_entity").on(table.entity, table.entityId),
     index("idx_audit_log_created").on(table.createdAt),
@@ -2050,6 +2055,7 @@ export const Payment = pgTable(
     evidenceUrl: t.text(),
     isValidated: t.boolean().default(false),
     validatedBy: t.uuid(),
+    idempotencyKey: t.uuid(),
     notes: t.text(),
     createdAt: t
       .timestamp({ mode: "date", withTimezone: true })
@@ -2566,12 +2572,18 @@ export const FiscalDocument = pgTable(
     buyerAddress: t.text(),
     exchangeRateBcv: t.doublePrecision().notNull().default(1),
     exemptAmountUsd: t.doublePrecision().notNull().default(0),
-    taxableBase16Usd: t.doublePrecision().notNull().default(0),
-    iva16Usd: t.doublePrecision().notNull().default(0),
-    taxableBase8Usd: t.doublePrecision().notNull().default(0),
-    iva8Usd: t.doublePrecision().notNull().default(0),
+    taxableBase16Usd: t
+      .doublePrecision("taxable_base_16_usd")
+      .notNull()
+      .default(0),
+    iva16Usd: t.doublePrecision("iva_16_usd").notNull().default(0),
+    taxableBase8Usd: t
+      .doublePrecision("taxable_base_8_usd")
+      .notNull()
+      .default(0),
+    iva8Usd: t.doublePrecision("iva_8_usd").notNull().default(0),
     igtfBaseUsd: t.doublePrecision().notNull().default(0),
-    igtf3Usd: t.doublePrecision().notNull().default(0),
+    igtf3Usd: t.doublePrecision("igtf_3_usd").notNull().default(0),
     totalUsd: t.doublePrecision().notNull().default(0),
     totalVes: t.doublePrecision().notNull().default(0),
     ivaRetentionPct: t.integer().notNull().default(0),
@@ -2581,6 +2593,7 @@ export const FiscalDocument = pgTable(
     islrRetentionPct: t.doublePrecision().notNull().default(0),
     islrRetentionVoucher: t.varchar({ length: 64 }),
     islrRetentionUsd: t.doublePrecision().notNull().default(0),
+    retentionAppliedUsd: t.doublePrecision().notNull().default(0),
     issuedBy: t.uuid().references(() => UserProfile.id),
     issuedAt: t
       .timestamp({ mode: "date", withTimezone: true })

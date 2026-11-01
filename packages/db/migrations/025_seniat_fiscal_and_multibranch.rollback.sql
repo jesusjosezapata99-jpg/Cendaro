@@ -3,6 +3,7 @@
 -- =============================================================================
 
 DROP TABLE IF EXISTS public.fiscal_document CASCADE;
+DROP FUNCTION IF EXISTS public.protect_fiscal_document();
 DROP TABLE IF EXISTS public.branch CASCADE;
 DROP TABLE IF EXISTS public.legal_entity CASCADE;
 DROP TYPE IF EXISTS public.fiscal_document_type;
