@@ -55,6 +55,13 @@ Design system (radius is 0 by design, and the Hedvig fonts ship only weight 400)
 - Icons only from `@cendaro/ui/icons`: `<Icons.Name />`, or `<Icon name={x as IconName} />` for dynamic names.
 - Status chips through `getStatus(domain, value)` in `~/lib/status.ts` plus `StatusPill`; never a new inline status map.
 
+## Money and stock
+
+- One writer per value: `customer.balance`, receivable paid amounts and the audit chain belong to database triggers; see `docs/runbooks/release-and-migrations.md`. Application code never updates them too.
+- A write that touches money or stock locks what it reads and is covered by a test against real Postgres (`pnpm -F @cendaro/api test:integration`). Mocks cannot see locks, triggers or CHECK constraints.
+- Never change production code to satisfy a mock.
+- A migration reaches production before the code that needs it, after a rehearsal in production order.
+
 ## Git
 
 Commit or push only when the user explicitly asks, and never force-push. "Save the changes" means `git add` only. Status, diff, log and add are always fine.

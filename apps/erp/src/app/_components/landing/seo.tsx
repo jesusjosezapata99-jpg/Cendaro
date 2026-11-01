@@ -81,7 +81,7 @@ export function organizationJsonLd(): Record<string, unknown> {
       "Sistema ERP omnicanal",
       "Gestión de inventario por almacén",
       "Importación de contenedores con inteligencia artificial",
-      "Punto de venta fiscal con RIF y cédula",
+      "Punto de venta con RIF y cédula",
       "Sincronización diaria de la tasa BCV",
       "Cobranzas y cierre de caja en dólares y bolívares",
     ],

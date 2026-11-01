@@ -117,7 +117,7 @@ export const STEPS: readonly Step[] = [
     id: "venta",
     index: "03",
     title: "Vende en mostrador, por pedido o en la calle",
-    body: "Punto de venta con los datos fiscales del cliente, pedidos con su recorrido completo y cotizaciones que tus vendedores convierten en pedido.",
+    body: "Punto de venta con los datos del cliente, pedidos con su recorrido completo y cotizaciones que tus vendedores convierten en pedido.",
     bullets: [
       "RIF y cédula validados",
       "Pedidos, cotizaciones y notas de entrega",
@@ -190,7 +190,7 @@ export const MODULES: Readonly<Record<ErpModule, ModuleInfo>> = {
   },
   pos: {
     name: "Punto de venta",
-    line: "Venta en mostrador con datos fiscales",
+    line: "Venta en mostrador con RIF o cédula",
     icon: "PointOfSale",
     group: "Ventas",
   },
@@ -232,7 +232,7 @@ export const MODULES: Readonly<Record<ErpModule, ModuleInfo>> = {
   },
   marketplace: {
     name: "Mercado Libre",
-    line: "Publicaciones y pedidos junto a tu stock",
+    line: "Sin conexión automática por ahora",
     icon: "Storefront",
     group: "Canales",
   },
@@ -353,7 +353,7 @@ export const PLANS: readonly Plan[] = [
     highlights: [
       "Todo Starter, más importaciones con IA",
       "Tasas automáticas, precios y cuentas por cobrar",
-      "Vendedores con comisiones, WhatsApp y Mercado Libre",
+      "Vendedores con comisiones y WhatsApp",
       "Hasta 10 usuarios y 3 almacenes",
     ],
     onboarding: "Migración asistida de tu catálogo y stock",

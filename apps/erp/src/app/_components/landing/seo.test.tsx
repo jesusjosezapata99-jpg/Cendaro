@@ -189,7 +189,7 @@ describe("JsonLd", () => {
 
   it("emits valid JSON that round-trips", () => {
     const html = renderToStaticMarkup(<JsonLd data={[{ a: 1 }, { b: "<" }]} />);
-    const body = html.replace(/^<script[^>]*>/, "").replace(/<\/script>$/, "");
+    const body = html.slice(html.indexOf(">") + 1, html.lastIndexOf("<"));
 
     expect(JSON.parse(body)).toEqual([{ a: 1 }, { b: "<" }]);
   });

@@ -58,7 +58,6 @@ const VENDORS = "packages/api/src/modules/vendors.ts";
 const POS_CLIENT = "apps/erp/src/app/(app)/pos/client.tsx";
 const WHATSAPP_CLIENT = "apps/erp/src/app/(app)/whatsapp/client.tsx";
 const MARKETPLACE_CLIENT = "apps/erp/src/app/(app)/marketplace/client.tsx";
-const INTEGRATIONS = "packages/api/src/modules/integrations.ts";
 const AUTHZ = "packages/validators/src/authz.ts";
 const AUDIT = "packages/api/src/modules/audit.ts";
 const ISOLATION = "packages/db/migrations/022_workspace_select_scoped.sql";
@@ -307,7 +306,7 @@ export const FEATURES: Readonly<Record<FeatureSlug, FeaturePage>> = {
       },
       {
         title: "Cobra en mostrador con el punto de venta",
-        text: "Busca productos al instante, aplica el desglose fiscal (IVA e IGTF para pagos en divisas) y cobra en dólares o bolívares a tasa BCV.",
+        text: "Busca productos al instante, registra los datos del cliente y cobra en dólares o bolívares a tasa BCV.",
         source: POS_CLIENT,
       },
       {
@@ -337,12 +336,12 @@ export const FEATURES: Readonly<Record<FeatureSlug, FeaturePage>> = {
     faq: [
       {
         q: "¿Valida el RIF y la cédula de los clientes?",
-        a: "Sí. Cendaro normaliza el formato del documento fiscal (V, E, J, G, P) y verifica que el cliente tenga los datos completos antes de emitir documentos.",
+        a: "Sí. Cendaro normaliza el formato del documento fiscal (V, E, J, G, P) y verifica que el cliente tenga los datos completos antes de facturar.",
         source: SALES,
       },
       {
-        q: "¿Calcula el IVA y el IGTF del 3 %?",
-        a: "Sí. El motor fiscal separa alícuota general (16 %), reducida (8 %) y exentos, y calcula el 3 % de IGTF sobre la base pagada en divisas.",
+        q: "¿Emite facturas fiscales con IVA e IGTF?",
+        a: "Todavía no. El cálculo de IVA e IGTF está implementado, pero la emisión de documentos fiscales permanece desactivada hasta que la validen un contador y un emisor autorizado por el SENIAT.",
         source: FISCAL,
       },
       {
@@ -355,13 +354,13 @@ export const FEATURES: Readonly<Record<FeatureSlug, FeaturePage>> = {
 
   canales: {
     slug: "canales",
-    name: "WhatsApp y Mercado Libre",
+    name: "WhatsApp y canales de venta",
     eyebrow: "Canales de venta",
-    title: "Tus ventas por chat y en Mercado Libre, junto a tu stock",
-    lead: "Atiende pedidos por WhatsApp con enlace directo al chat de cada cliente y sincroniza tus publicaciones y órdenes de Mercado Libre en un solo lugar.",
-    metaTitle: "WhatsApp y Mercado Libre en tu inventario — Cendaro",
+    title: "Tus ventas por chat, junto a tu stock",
+    lead: "Atiende pedidos por WhatsApp con enlace directo al chat de cada cliente y registra cada venta con su canal, para ver toda tu operación en un solo lugar.",
+    metaTitle: "WhatsApp y canales de venta en tu inventario — Cendaro",
     metaDescription:
-      "Centraliza tus pedidos de WhatsApp con enlace directo al chat del cliente y gestiona publicaciones y órdenes de Mercado Libre junto a tu stock.",
+      "Centraliza tus pedidos de WhatsApp con enlace directo al chat del cliente y asigna existencias por canal de venta junto a tu stock.",
     steps: [
       {
         title: "Registra el pedido del canal WhatsApp",
@@ -374,32 +373,27 @@ export const FEATURES: Readonly<Record<FeatureSlug, FeaturePage>> = {
         source: WHATSAPP_CLIENT,
       },
       {
-        title: "Vincula tus publicaciones de Mercado Libre",
-        text: "Consulta tus publicaciones activas o pausadas, precios y existencias sincronizadas junto al resto de tu catálogo.",
-        source: MARKETPLACE_CLIENT,
+        title: "Reserva existencias por canal",
+        text: "Asigna stock a cada canal de venta para que lo que vendes por chat no compita con el mostrador.",
+        source: INVENTORY,
       },
       {
-        title: "Importa las órdenes a tu operación",
-        text: "Revisa las ventas de Mercado Libre y su estado de envío para despacharlas desde el mismo flujo de pedidos e inventario.",
-        source: INTEGRATIONS,
+        title: "Despacha desde el mismo flujo",
+        text: "El pedido por chat sigue los mismos estados que cualquier otro, de confirmado a despachado y entregado, y descuenta su stock al cerrarse.",
+        source: SALES,
       },
     ],
     capabilities: [
       { text: "Canal de pedidos por WhatsApp", source: WHATSAPP_CLIENT },
       { text: "Enlace directo wa.me con el pedido", source: WHATSAPP_CLIENT },
-      {
-        text: "Publicaciones de Mercado Libre",
-        source: MARKETPLACE_CLIENT,
-      },
-      { text: "Órdenes y estado de envío", source: MARKETPLACE_CLIENT },
       { text: "Asignación de stock por canal", source: SALES },
       { text: "Totales en USD y bolívares BCV", source: WHATSAPP_CLIENT },
     ],
     difference: {
       title: "Ningún pedido se queda perdido en un teléfono",
-      body: "Aunque cierres la venta por chat o por Mercado Libre, el pedido queda registrado con su cliente, su stock reservado y su cuenta por cobrar.",
+      body: "Aunque cierres la venta por chat, el pedido queda registrado con su cliente, su stock y, si es a crédito, su cuenta por cobrar.",
     },
-    modules: ["whatsapp", "marketplace", "orders", "inventory"],
+    modules: ["whatsapp", "orders", "inventory"],
     faq: [
       {
         q: "¿Cómo funciona la conexión con WhatsApp?",
@@ -407,8 +401,8 @@ export const FEATURES: Readonly<Record<FeatureSlug, FeaturePage>> = {
         source: WHATSAPP_CLIENT,
       },
       {
-        q: "¿Qué veo en el módulo de Mercado Libre?",
-        a: "Ves tus publicaciones con su estado y stock sincronizado, las órdenes recibidas con el estado de envío y el registro de sincronizaciones.",
+        q: "¿Se conecta con Mercado Libre?",
+        a: "Todavía no hay conexión automática con Mercado Libre. Hoy registras esas ventas como pedidos en Cendaro.",
         source: MARKETPLACE_CLIENT,
       },
       {

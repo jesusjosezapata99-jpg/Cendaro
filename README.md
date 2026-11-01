@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <strong>Enterprise-Grade Omnichannel ERP for Wholesale, Import &amp; Retail Commerce</strong><br/>
+  <strong>Omnichannel ERP for Wholesale, Import &amp; Retail Commerce</strong><br/>
   Multi-warehouse inventory · Dual-currency treasury (USD / Bs · BCV) · AI packing-list ingestion · Fiscal &amp; POS operations · Multi-tenant RLS isolation
 </p>
 
@@ -65,13 +65,13 @@
 
 Built as a strictly typed **pnpm + Turborepo** monorepo on **Next.js 16 (App Router)**, **React 19**, **tRPC v11**, **Drizzle ORM**, and **Supabase PostgreSQL**, Cendaro replaces fragmented spreadsheets and legacy desktop accounting software with a single, cryptographically audited operational backbone.
 
-| Pillar                        | Architectural Capability                                                                                                                                                                                                   | Verification & Enforcement                                                                                                                           |
-| :---------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Omnichannel Core**          | **18 domain modules** across **23 authenticated route groups** unifying catalog, multi-warehouse stock, containers, POS, sales orders, quotes, AR aging, and vendor portals.                                               | Enforced via [`ERP_MODULES`](packages/validators/src/authz.ts) and verified by automated smoke & role-matrix guards.                                 |
-| **Bi-Currency Treasury**      | USD base pricing with real-time VES (Bolívares) settlement, automated daily **BCV** & **USD/CNY** exchange rate ingestion, spread analytics, and **≥ 5% deviation preventive holds**.                                      | Validated in [`packages/api/src/modules/pricing.ts`](packages/api/src/modules/pricing.ts) & [`rate-sync.ts`](packages/api/src/modules/rate-sync.ts). |
-| **AI Container Ingestion**    | 3-tier pipeline parsing **130 MB+ Excel/PDF packing lists** (including embedded product photos), translating supplier manifests into Spanish, and matching SKUs against catalog history.                                   | Powered by client-side SheetJS extraction + Groq LPU (`Qwen3-32B` & `Llama 4 Scout`).                                                                |
-| **Defense-in-Depth Security** | **7 security layers**: Supabase SSR Auth, mandatory **MFA/TOTP (`aal2`)** for privileged roles, Cloudflare Turnstile, 6-role RBAC builders, PostgreSQL **Restrictive RLS**, and a **SHA-256 hash-chained WORM audit log**. | Enforced in CI by `procedure-authz-coverage.test.ts`, `CodeQL`, and `ecc-agentshield`.                                                               |
-| **0-Radius Monochrome UI**    | Precision editorial interface inspired by Midday (`--radius: 0rem`), **Hedvig Letters Sans/Serif** + **Geist Mono** tabular numerals (`tnum`), and WCAG AA semantic status tokens.                                         | Validated on every commit by [`design-guard.mjs`](scripts/checks/design-guard.mjs) and [`contrast.mjs`](scripts/checks/contrast.mjs).                |
+| Pillar                        | Architectural Capability                                                                                                                                                                                         | Verification & Enforcement                                                                                                                           |
+| :---------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Omnichannel Core**          | **18 domain modules** across **23 authenticated route groups** unifying catalog, multi-warehouse stock, containers, POS, sales orders, quotes, AR aging, and vendor portals.                                     | Enforced via [`ERP_MODULES`](packages/validators/src/authz.ts) and verified by automated smoke & role-matrix guards.                                 |
+| **Bi-Currency Treasury**      | USD base pricing with real-time VES (Bolívares) settlement, automated daily **BCV** & **USD/CNY** exchange rate ingestion, spread analytics, and **≥ 5% deviation preventive holds**.                            | Validated in [`packages/api/src/modules/pricing.ts`](packages/api/src/modules/pricing.ts) & [`rate-sync.ts`](packages/api/src/modules/rate-sync.ts). |
+| **AI Container Ingestion**    | 3-tier pipeline parsing **130 MB+ Excel/PDF packing lists** (including embedded product photos), translating supplier manifests into Spanish, and matching SKUs against catalog history.                         | Powered by client-side SheetJS extraction + Groq LPU (`Qwen3-32B` & `Llama 4 Scout`).                                                                |
+| **Defense-in-Depth Security** | **7 security layers**: Supabase SSR Auth, **MFA/TOTP (`aal2`)** for privileged roles, Cloudflare Turnstile, 6-role RBAC builders, PostgreSQL **Restrictive RLS**, and a **SHA-256 hash-chained WORM audit log**. | Enforced in CI by `procedure-authz-coverage.test.ts`, `CodeQL`, and `ecc-agentshield`.                                                               |
+| **0-Radius Monochrome UI**    | Precision editorial interface inspired by Midday (`--radius: 0rem`), **Hedvig Letters Sans/Serif** + **Geist Mono** tabular numerals (`tnum`), and WCAG AA semantic status tokens.                               | Validated on every commit by [`design-guard.mjs`](scripts/checks/design-guard.mjs) and [`contrast.mjs`](scripts/checks/contrast.mjs).                |
 
 ---
 
@@ -136,7 +136,7 @@ Centralized foreign-exchange desk tracking official **BCV (USD/VES)**, parallel 
 
 ### 3. Multi-Warehouse & Omnichannel Inventory Control (`/inventory`)
 
-Real-time stock ledger across physical warehouses, retail storefronts, in-transit maritime containers, Mercado Libre allocations, and field sales force quotas—backed by double-entry stock movement trails, inter-warehouse transfers, and blind cycle counts.
+Real-time stock ledger across physical warehouses, retail storefronts, in-transit maritime containers, and field sales force quotas—backed by double-entry stock movement trails, inter-warehouse transfers, and blind cycle counts.
 
 <p align="center">
   <picture>
@@ -152,7 +152,7 @@ Real-time stock ledger across physical warehouses, retail storefronts, in-transi
 
 #### Omnichannel Sales Orders & Dual-Currency Billing (`/orders`)
 
-End-to-end order orchestration across POS counter sales, WhatsApp assisted commerce, field vendors, and Mercado Libre—displaying line-item breakdowns, tax profiles, dispatch notes, and simultaneous USD / Bs settlement balances.
+End-to-end order orchestration across POS counter sales, WhatsApp assisted commerce, and field vendors—displaying line-item breakdowns, tax profiles, dispatch notes, and simultaneous USD / Bs settlement balances.
 
 <p align="center">
   <picture>
@@ -445,7 +445,7 @@ Every procedure in `@cendaro/api` must be constructed from one of five explicit 
 | 15  | `receivables`     | [`modules/receivables.ts`](packages/api/src/modules/receivables.ts)           | Accounts receivable ledger, installment schedules, aging analytics, BCV-indexed debt settlement.                                                                          | Role-based (`receivables`)       |
 | 16  | `reporting`       | [`modules/reporting.ts`](packages/api/src/modules/reporting.ts)               | Financial, inventory valuation, margin, and commercial performance reports (`/reports`).                                                                                  | `owner`, `admin`, `supervisor`   |
 | 17  | `vendor`          | [`modules/vendors.ts`](packages/api/src/modules/vendors.ts)                   | Field sales portal (strictly row-scoped via `vendor-scope.ts`), commission calculation, assigned client AR.                                                               | `vendor` (self-scoped), `admin`  |
-| 18  | `integrations`    | [`modules/integrations.ts`](packages/api/src/modules/integrations.ts)         | Mercado Libre OAuth (AES-256-GCM encrypted token vault), listing/order sync, failure retry queue.                                                                         | `owner`, `admin`                 |
+| 18  | `integrations`    | [`modules/integrations.ts`](packages/api/src/modules/integrations.ts)         | Mercado Libre data model and failure retry queue; no live connection yet.                                                                                                 | `owner`, `admin`                 |
 | 19  | `dashboard`       | [`modules/dashboard.ts`](packages/api/src/modules/dashboard.ts)               | Executive KPIs, revenue/margin time series, active system alert counters, notification routing.                                                                           | Role-based (`dashboard`)         |
 | 20  | `search`          | [`modules/search.ts`](packages/api/src/modules/search.ts)                     | Global low-latency command search across products, customers, orders, quotes, and containers.                                                                             | Authenticated member             |
 | 21  | `workspace`       | [`modules/workspace.ts`](packages/api/src/modules/workspace.ts)               | Multi-tenant workspace provisioning, member invitations, seat quotas (`workspace-seats.ts`), module toggles.                                                              | Authenticated / `owner`          |
@@ -587,7 +587,7 @@ flowchart TB
 | 15  | `/cash-closure`        | Finance      | Daily blind cash reconciliation (_Cierre de Caja_) verifying cashier declarations against server-computed ledger totals.                       |
 | 16  | `/accounts-receivable` | Finance      | Customer debt aging, installment schedules, BCV-indexed partial abonos, and automated ledger reconciliation.                                   |
 | 17  | `/reports`             | Control      | Executive analytics: inventory valuation, sales by channel/vendor, gross margin breakdowns, and fiscal exports.                                |
-| 18  | `/marketplace`         | Channels     | Mercado Libre OAuth account linking, catalog listing synchronization, and order ingestion.                                                     |
+| 18  | `/marketplace`         | Channels     | Mercado Libre listings and orders data; no live connection yet.                                                                                |
 | 19  | `/whatsapp`            | Channels     | Assisted WhatsApp sales workflow with pre-formatted order summaries and payment instructions.                                                  |
 | 20  | `/users`               | Control      | Workspace member administration, 6-role RBAC assignment, seat quota tracking, and MFA status visibility.                                       |
 | 21  | `/audit`               | Control      | Tamper-evident SHA-256 hash-chained audit trail with cryptographic integrity verification and signed export.                                   |
@@ -688,7 +688,7 @@ flowchart TB
 
 ## 🔐 Security
 
-Cendaro implements a **7-Layer Defense-in-Depth Security Architecture** audited against OWASP ASVS, SOC 2, and ISO 27001 controls.
+Cendaro implements a **7-Layer Defense-in-Depth Security Architecture**. It has no external certification; the policies below are internal.
 
 ```mermaid
 flowchart TB
@@ -736,7 +736,7 @@ flowchart TB
 | **L3** | **PostgreSQL Restrictive RLS**              | `SET LOCAL ROLE app_user` + `SET LOCAL app.workspace_id` inside every transaction with `restrictive` `pgPolicy`.                                   | Cross-tenant data exposure & direct query bypass.               |
 | **L3** | **Read-Only Query Enforcement**             | `wsReadPermissionProcedure` wraps queries in `SET TRANSACTION READ ONLY`.                                                                          | Accidental state mutation inside read procedures.               |
 | **L4** | **SHA-256 WORM Audit Chain**                | Each `audit_log` row stores `prev_hash` and `chain_hash = SHA256(prev_hash ‖ canonical_payload)`, verified via `verifyAuditChain()`.               | Log tampering, silent record deletion, and repudiation.         |
-| **L4** | **AES-256-GCM Integration Vault**           | External OAuth tokens (Mercado Libre) are encrypted at rest using a dedicated `INTEGRATION_VAULT_KEY`.                                             | Plaintext credential exposure in database backups.              |
+| **L4** | **AES-256-GCM Integration Vault**           | Reserved for external OAuth tokens, encrypted at rest with a dedicated `INTEGRATION_VAULT_KEY`; no integration uses it yet.                        | Plaintext credential exposure in database backups.              |
 | **L5** | **PostgreSQL Composite Rate Limiting**      | `rate_limit_bucket` & `rate_limit_lockout` enforce IP (5/60s) + Username (10/15m) limits and a 15-minute lockout after 8 failures.                 | Distributed brute-force attacks across serverless instances.    |
 | **L6** | **Strict Transport & Redirect Allowlist**   | HSTS preload, `X-Frame-Options: DENY`, CSRF Origin checks on `/api/auth/*`, and strict allowlist validation on `?redirect=`.                       | Clickjacking, SSL stripping, CSRF, and open-redirect phishing.  |
 | **L7** | **Idle Session Timeout & CI Supply Chain**  | 30-minute inactivity auto-logout via `proxy.ts`; CI runs `pnpm audit --prod`, `CodeQL`, and `ecc-agentshield --supply-chain`.                      | Unattended terminal hijacking & malicious dependency injection. |
@@ -871,20 +871,20 @@ Run all commands from the repository root using `pnpm`:
 
 ## 🗺 Roadmap
 
-| Phase  | Architectural Milestone                                                                                                                                                                            |    Status    |
-| :----: | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :----------: |
-| **0**  | Monorepo foundation (`pnpm` + Turborepo), strict TypeScript 5.9, ESLint 10, Tailwind CSS v4.                                                                                                       | ✅ Completed |
-| **1**  | Core identity schema, 6-role RBAC permission matrix, and immutable `audit_log` foundation.                                                                                                         | ✅ Completed |
-| **2**  | Product catalog, multi-warehouse inventory ledger, maritime containers, and 3-tier AI packing list pipeline.                                                                                       | ✅ Completed |
-| **3**  | Multi-currency pricing engine, automated BCV / CNY exchange rate sync, and ≥ 5% deviation holds.                                                                                                   | ✅ Completed |
-| **4**  | Omnichannel sales orders, POS checkout, quotes, delivery notes, internal invoices, and blind cash closures.                                                                                        | ✅ Completed |
-| **5**  | Mercado Libre OAuth integration (AES-256-GCM vault) and assisted WhatsApp commerce workflows.                                                                                                      | ✅ Completed |
-| **6**  | Executive KPI dashboard, row-scoped field vendor portal, commissions, and accounts receivable aging.                                                                                               | ✅ Completed |
-| **7**  | 7-layer security hardening: mandatory MFA (`aal2`), Cloudflare Turnstile, PostgreSQL rate limiting, and CSRF/HSTS guards.                                                                          | ✅ Completed |
-| **8**  | Midday 0-Radius Monochrome Design System overhaul (`Hedvig Letters` + `Geist Mono`) & WCAG AA contrast certification.                                                                              | ✅ Completed |
-| **9**  | Multi-tenancy (`workspace` isolation), Restrictive PostgreSQL RLS, and read-only transaction wrappers.                                                                                             | ✅ Completed |
-| **10** | PRD v2.0 Enterprise Expansion: Credit notes (`credit_note`), SENIAT fiscal engine (`fiscal_document`), multi-branch (`legal_entity` / `branch`), and SHA-256 hash-chained WORM audit verification. | ✅ Completed |
-| **11** | Generative Engine Optimization (GEO): `/llms.txt`, `/llms-full.txt`, connected `@graph` JSON-LD, HiDPI dual-theme media pipeline, and IndexNow automation.                                         | ✅ Completed |
+| Phase  | Architectural Milestone                                                                                                                                                                                                                     |    Status    |
+| :----: | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | :----------: |
+| **0**  | Monorepo foundation (`pnpm` + Turborepo), strict TypeScript 5.9, ESLint 10, Tailwind CSS v4.                                                                                                                                                | ✅ Completed |
+| **1**  | Core identity schema, 6-role RBAC permission matrix, and immutable `audit_log` foundation.                                                                                                                                                  | ✅ Completed |
+| **2**  | Product catalog, multi-warehouse inventory ledger, maritime containers, and 3-tier AI packing list pipeline.                                                                                                                                | ✅ Completed |
+| **3**  | Multi-currency pricing engine, automated BCV / CNY exchange rate sync, and ≥ 5% deviation holds.                                                                                                                                            | ✅ Completed |
+| **4**  | Omnichannel sales orders, POS checkout, quotes, delivery notes, internal invoices, and blind cash closures.                                                                                                                                 | ✅ Completed |
+| **5**  | Assisted WhatsApp commerce workflows and the Mercado Libre data model.                                                                                                                                                                      | ✅ Completed |
+| **6**  | Executive KPI dashboard, row-scoped field vendor portal, commissions, and accounts receivable aging.                                                                                                                                        | ✅ Completed |
+| **7**  | 7-layer security hardening: mandatory MFA (`aal2`), Cloudflare Turnstile, PostgreSQL rate limiting, and CSRF/HSTS guards.                                                                                                                   | ✅ Completed |
+| **8**  | Midday 0-Radius Monochrome Design System overhaul (`Hedvig Letters` + `Geist Mono`) & WCAG AA contrast certification.                                                                                                                       | ✅ Completed |
+| **9**  | Multi-tenancy (`workspace` isolation), Restrictive PostgreSQL RLS, and read-only transaction wrappers.                                                                                                                                      | ✅ Completed |
+| **10** | PRD v2.0 Enterprise Expansion: Credit notes (`credit_note`), SENIAT fiscal engine (`fiscal_document`, off by default pending legal validation), multi-branch (`legal_entity` / `branch`), and SHA-256 hash-chained WORM audit verification. | ✅ Completed |
+| **11** | Generative Engine Optimization (GEO): `/llms.txt`, `/llms-full.txt`, connected `@graph` JSON-LD, HiDPI dual-theme media pipeline, and IndexNow automation.                                                                                  | ✅ Completed |
 
 <p align="right"><a href="#top">↑ Back to top</a></p>
 
@@ -912,7 +912,7 @@ Run all commands from the repository root using `pnpm`:
 | **ADR-001 — ERP v1.0 Source of Truth**       | [`docs/adr/001-erp-v1-source-of-truth.md`](docs/adr/001-erp-v1-source-of-truth.md)                                   | ✅ Accepted |
 | **ADR-002 — PRD v2.0 Production Roadmap**    | [`docs/adr/002-prd-v2-production-roadmap.md`](docs/adr/002-prd-v2-production-roadmap.md)                             | ✅ Accepted |
 
-### Security Runbooks & Compliance Policies (SOC 2 / ISO 27001 Alignment)
+### Security Runbooks & Internal Policies
 
 | Document                                          | Path                                                                                                                                 |  Status   |
 | :------------------------------------------------ | :----------------------------------------------------------------------------------------------------------------------------------- | :-------: |
@@ -923,7 +923,6 @@ Run all commands from the repository root using `pnpm`:
 | **05 · Data Classification, Retention & Privacy** | [`docs/compliance/05-DATA-CLASSIFICATION-RETENTION-PRIVACY.md`](docs/compliance/05-DATA-CLASSIFICATION-RETENTION-PRIVACY.md)         | ✅ Active |
 | **06 · Secure SDLC & Change Management**          | [`docs/compliance/06-SECURE-SDLC-AND-CHANGE-MANAGEMENT.md`](docs/compliance/06-SECURE-SDLC-AND-CHANGE-MANAGEMENT.md)                 | ✅ Active |
 | **Incident Response Runbook**                     | [`docs/security/INCIDENT_RESPONSE.md`](docs/security/INCIDENT_RESPONSE.md)                                                           | ✅ Active |
-| **WAF & Secrets Rotation Runbook**                | [`docs/security/waf-and-secrets-runbook.md`](docs/security/waf-and-secrets-runbook.md)                                               | ✅ Active |
 
 ---
 

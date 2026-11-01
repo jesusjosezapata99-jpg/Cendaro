@@ -15,6 +15,7 @@ paths:
 ## Migrations
 
 - Migrations are hand-written, numbered SQL files in `packages/db/migrations/` (`NNN_name.sql`), each with a matching `NNN_name.rollback.sql`.
+- `packages/db/baseline/production-022.sql` is the real schema of production up to migration 022; `scripts/db/apply-migrations.mjs` builds a disposable database from it. `integration.schema-drift.test.ts` compares the Drizzle schema with the result, so give a column an explicit name when Drizzle's casing would not produce the migration's (`iva_16_usd`).
 - They reach production only as an approved write (see AGENTS.md and the `supabase-write` skill). Never use `pnpm db:push` against production.
 
 ## RLS and functions
