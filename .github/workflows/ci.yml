@@ -77,11 +77,11 @@ jobs:
       - name: Format
         run: pnpm format
 
-      - name: Build
-        run: pnpm build
-
       - name: Test
         run: pnpm test
+
+      - name: Build
+        run: pnpm build
 
       - name: Notify Search & AI Engines (Google WebSub + IndexNow + GSC)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -89,6 +89,54 @@ jobs:
           NEXT_PUBLIC_SITE_URL: ${{ vars.NEXT_PUBLIC_SITE_URL }}
           GSC_SERVICE_ACCOUNT_KEY: ${{ secrets.GSC_SERVICE_ACCOUNT_KEY }}
         run: node scripts/seo/ping-indexnow.mjs --wait-deploy
+
+  db-integration:
+    name: DB Integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      TEST_DATABASE_URL: postgres://postgres@localhost:5432/postgres
+      DATABASE_URL: postgres://postgres@localhost:5432/postgres
+      REQUIRE_TEST_DATABASE: "true"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Same order as production: 023 unlocks orders, so it ships after the code.
+      - name: Apply baseline and migrations
+        run: node scripts/db/apply-migrations.mjs --order 024,025,026,027,028,029,023
+
+      - name: Integration tests
+        run: pnpm -F @cendaro/api test:integration
 
   agentshield:
     name: AgentShield (AI agent configuration)

@@ -12,6 +12,11 @@ updates:
       time: "09:00"
       timezone: "America/Caracas"
     open-pull-requests-limit: 10
+    groups:
+      npm-minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
     labels:
       - "dependencies"
       - "security"
@@ -24,6 +29,10 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    groups:
+      codeql-action:
+        patterns:
+          - "github/codeql-action*"
     labels:
       - "ci"
       - "security"
