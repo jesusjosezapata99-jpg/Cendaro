@@ -21,16 +21,14 @@ async function WorkspaceLoader({ children }: { children: React.ReactNode }) {
 
   // Defense-in-depth server-side session verification before
   // rendering the authenticated AppShell (independent of proxy.ts).
-  if (env.NEXT_PUBLIC_SUPABASE_URL && env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-    const supabase = createSupabaseServerClient(
-      cookieStore,
-      env.NEXT_PUBLIC_SUPABASE_URL,
-      env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    );
-    const { data } = await supabase.auth.getClaims();
-    if (!data?.claims.sub) {
-      redirect("/login");
-    }
+  const supabase = createSupabaseServerClient(
+    cookieStore,
+    env.NEXT_PUBLIC_SUPABASE_URL,
+    env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+  );
+  const { data } = await supabase.auth.getClaims();
+  if (!data?.claims.sub) {
+    redirect("/login");
   }
 
   // SSR prefetch shell data so the rail + header + rates render instantly

@@ -4,6 +4,8 @@ import { useId, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
+import { allowedOrderTransitions } from "@cendaro/validators";
+
 import { Dialog } from "~/components/dialog";
 import { useTRPC } from "~/trpc/client";
 
@@ -73,6 +75,10 @@ export function UpdateOrderStatusDialog({
   );
 
   const isEntryState = !TRANSITIONS.some((s) => s.value === currentStatus);
+  const allowed = allowedOrderTransitions(currentStatus);
+  const options = TRANSITIONS.filter(
+    (s) => s.value === currentStatus || allowed.includes(s.value),
+  );
 
   return (
     <Dialog open={open} onClose={onClose} title="Cambiar Estado del Pedido">
@@ -103,12 +109,19 @@ export function UpdateOrderStatusDialog({
                 {ENTRY_LABELS[currentStatus] ?? currentStatus} (actual)
               </option>
             )}
-            {TRANSITIONS.map((s) => (
+            {options.map((s) => (
               <option key={s.value} value={s.value}>
                 {s.label}
               </option>
             ))}
           </select>
+          {allowed.length === 0 ? (
+            <p className="text-muted-foreground mt-2 text-xs">
+              {currentStatus === "pending_confirmation"
+                ? "Este pedido espera una aprobación de gerencia."
+                : "Este pedido está en un estado final."}
+            </p>
+          ) : null}
         </div>
 
         <div className="flex justify-end gap-2 pt-2">

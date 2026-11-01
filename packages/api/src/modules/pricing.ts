@@ -71,7 +71,7 @@ export const pricingRouter = createTRPCRouter({
   }),
 
   /** Manually register a fallback exchange rate (owner/admin only) */
-  setManualRate: wsPermissionProcedure("rates", "update")
+  setManualRate: wsPermissionProcedure("pricing", "approve")
     .input(
       z.object({
         rateType: z.enum(rateTypeEnum.enumValues),
@@ -80,14 +80,6 @@ export const pricingRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      if (!["owner", "admin"].includes(ctx.workspace.role)) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message:
-            "Solo propietarios y administradores pueden registrar tasas manuales",
-        });
-      }
-
       const [inserted] = await ctx.db
         .insert(ExchangeRate)
         .values({
@@ -328,14 +320,6 @@ export const pricingRouter = createTRPCRouter({
   approveRepricing: wsPermissionProcedure("pricing", "approve")
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
-      if (!["owner", "admin"].includes(ctx.workspace.role)) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message:
-            "Solo propietarios y administradores pueden aprobar eventos de repricing",
-        });
-      }
-
       const [existingEvent] = await ctx.db
         .select()
         .from(RepricingEvent)

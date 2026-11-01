@@ -89,6 +89,7 @@ describe("Phase 11 — SENIAT Fiscal Engine, AES-256-GCM Vault, ML DLQ & Contain
       [];
 
     let lastTable = "";
+    let retentionAppliedUsd = 0;
     const resolveSelect = () => {
       if (lastTable === "workspace") {
         return [{ id: WORKSPACE_ID, plan: "enterprise", status: "active" }];
@@ -131,6 +132,7 @@ describe("Phase 11 — SENIAT Fiscal Engine, AES-256-GCM Vault, ML DLQ & Contain
             ivaRetentionVes: 0,
             islrRetentionPct: 0,
             islrRetentionUsd: 0,
+            retentionAppliedUsd,
             issuedAt: new Date("2026-10-20T12:00:00Z"),
           },
         ];
@@ -200,6 +202,7 @@ describe("Phase 11 — SENIAT Fiscal Engine, AES-256-GCM Vault, ML DLQ & Contain
       orderBy: vi.fn(() => chain),
       limit: vi.fn(() => chain),
       offset: vi.fn(() => chain),
+      for: vi.fn(() => chain),
       values: vi.fn(() => chain),
       onConflictDoUpdate: vi.fn(() => chain),
       onConflictDoNothing: vi.fn(() => chain),
@@ -274,6 +277,19 @@ describe("Phase 11 — SENIAT Fiscal Engine, AES-256-GCM Vault, ML DLQ & Contain
       balance: 104,
       status: "partial",
     });
+
+    // Repeating the same retention must not discount the receivable again.
+    retentionAppliedUsd = 12;
+    updatedTables.length = 0;
+    await caller.fiscal.recordRetention({
+      fiscalDocumentId: FISCAL_DOC_ID,
+      ivaRetentionPct: 75,
+      ivaRetentionVoucher: "RET-202610-001",
+      islrRetentionPct: 0,
+    });
+    expect(
+      updatedTables.filter((u) => u.table === "account_receivable"),
+    ).toEqual([]);
 
     // 2. Ingest ML Webhook with simulated failure -> queues into IntegrationFailure DLQ
     const dlqRes = await caller.integrations.ingestOrderWebhook({

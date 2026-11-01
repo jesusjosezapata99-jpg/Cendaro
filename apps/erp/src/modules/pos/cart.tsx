@@ -15,6 +15,7 @@ import { formatDualCurrency } from "~/lib/format-currency";
 interface PosCartProps {
   cart: CartLine[];
   bcvRate: number;
+  stockMap?: Map<string, number>;
   selectedCustomer: CustomerInfo | null;
   onSelectCustomer: (customer: CustomerInfo | null) => void;
   onCreateCustomer: () => void;
@@ -33,6 +34,7 @@ interface PosCartProps {
 export function PosCart({
   cart,
   bcvRate,
+  stockMap,
   selectedCustomer,
   onSelectCustomer,
   onCreateCustomer,
@@ -244,25 +246,34 @@ export function PosCart({
         ) : (
           cart.map((line) => {
             const lineDual = formatDualCurrency(line.lineTotal, bcvRate);
+            const maxStock = stockMap?.get(line.id);
+            const atMaxStock =
+              typeof maxStock === "number" && line.quantity >= maxStock;
             return (
               <div
                 key={line.id}
-                className="flex items-center justify-between py-2.5 text-xs"
+                className="flex items-center justify-between gap-2 py-2.5 text-xs"
               >
-                <div className="min-w-0 flex-1 pr-2">
+                <div className="min-w-0 flex-1 pr-1">
                   <p className="text-foreground line-clamp-1 leading-tight font-medium">
                     {line.name}
                   </p>
-                  <div className="text-muted-foreground mt-0.5 flex items-center gap-1.5 font-mono text-[10px]">
+                  <div className="text-muted-foreground mt-1 flex flex-wrap items-center gap-1.5 font-mono text-[10px]">
                     <span className="truncate">{line.sku}</span>
+                    {typeof maxStock === "number" && (
+                      <>
+                        <span>·</span>
+                        <span className="tabular-nums">Disp: {maxStock}</span>
+                      </>
+                    )}
                     <span>·</span>
-                    <span className="shrink-0">
+                    <span className="inline-flex shrink-0 items-center gap-0.5">
                       $
                       <input
                         id={`pos-unit-price-${line.id}`}
                         name={`pos-unit-price-${line.id}`}
                         type="number"
-                        step="0.5"
+                        step="0.01"
                         min="0"
                         aria-label={`Precio unitario para ${line.name}`}
                         value={line.unitPrice}
@@ -272,7 +283,7 @@ export function PosCart({
                             parseFloat(e.target.value) || 0,
                           )
                         }
-                        className="border-border bg-secondary text-foreground w-12 border px-1 py-0.5 font-mono text-[10px] tabular-nums"
+                        className="border-border bg-secondary text-foreground w-20 border px-1.5 py-0.5 font-mono text-[11px] tabular-nums focus:outline-none"
                       />
                     </span>
                   </div>
@@ -293,9 +304,15 @@ export function PosCart({
                   </span>
                   <button
                     type="button"
+                    disabled={atMaxStock}
                     onClick={() => onUpdateQuantity(line.id, 1)}
-                    className="border-border bg-secondary text-foreground hover:bg-accent flex min-h-9 min-w-9 items-center justify-center border font-medium active:scale-95"
+                    className="border-border bg-secondary text-foreground hover:bg-accent flex min-h-9 min-w-9 items-center justify-center border font-medium active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
                     aria-label="Aumentar cantidad"
+                    title={
+                      atMaxStock
+                        ? `Stock máximo disponible (${maxStock} un.)`
+                        : "Aumentar cantidad"
+                    }
                   >
                     +
                   </button>

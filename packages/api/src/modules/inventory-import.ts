@@ -19,6 +19,7 @@ import {
   StockMovement,
   Warehouse,
 } from "@cendaro/db/schema";
+import { can } from "@cendaro/validators";
 
 import type { createTRPCContext, UserRole } from "../trpc";
 import type { LedgerSnapshot } from "./inventory-import-plan";
@@ -203,7 +204,6 @@ const IMPORT_AUDIT_ENTITY = "inventory_import";
 const WRITE_CHUNK_SIZE = 500;
 
 /** Overwriting locked stock or resetting a warehouse needs one of these roles. */
-const STOCK_OVERRIDE_ROLES: readonly UserRole[] = ["owner", "admin"];
 
 function chunk<T>(items: readonly T[], size: number): T[][] {
   const chunks: T[][] = [];
@@ -220,7 +220,8 @@ function asRecord(value: unknown): Record<string, unknown> {
 }
 
 function assertStockOverrideRole(role: UserRole, message: string): void {
-  if (!STOCK_OVERRIDE_ROLES.includes(role)) {
+  // Overwriting recorded stock destroys data, the same authority as deleting it.
+  if (!can(role, "inventory", "delete")) {
     throw new TRPCError({ code: "FORBIDDEN", message });
   }
 }

@@ -14,6 +14,18 @@ Fixes # (issue)
 - [ ] Database Schema Migration
 - [ ] Documentation Update
 
+## Risk and rollback
+
+What can break, how you verified it did not, and how to undo it.
+
+## Migrations
+
+Files, production order and rollback. Migrations reach production before the code that needs them.
+
+## Evidence
+
+Commands run and their result. Anything that handles money or stock is verified against a real database.
+
 ## Checklist:
 
 - [ ] I have read the `CONTRIBUTING.md` guidelines.

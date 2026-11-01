@@ -27,6 +27,7 @@ import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@cendaro/auth/server";
 
 import { env } from "~/env";
+import { getClientIp } from "~/lib/client-ip";
 import { rateLimit } from "~/lib/rate-limit";
 import { isTrustedOrigin } from "~/lib/trusted-origin";
 
@@ -52,8 +53,7 @@ export async function POST(request: Request) {
   }
 
   // ── Step 2: Rate limit (logout-flood DoS protection) ────────────────────
-  const rawIp = request.headers.get("x-forwarded-for") ?? "";
-  const ip = rawIp.split(",")[0]?.trim() ?? "unknown";
+  const ip = getClientIp(request.headers);
 
   const { success: allowed, reset } = await rateLimit(`logout:ip:${ip}`, {
     window: 60_000,

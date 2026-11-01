@@ -76,6 +76,8 @@ export default function InvoicesClient() {
   );
 
   const [showEmitFiscalForm, setShowEmitFiscalForm] = useState(false);
+  const [fiscalInvoiceNumber, setFiscalInvoiceNumber] = useState("");
+  const [fiscalControlNumber, setFiscalControlNumber] = useState("");
   const [fiscalBuyerRif, setFiscalBuyerRif] = useState("");
   const [fiscalBuyerName, setFiscalBuyerName] = useState("");
   const [fiscalBase16, setFiscalBase16] = useState("100");
@@ -90,6 +92,8 @@ export default function InvoicesClient() {
           `Documento fiscal ${doc?.fiscalInvoiceNumber ?? ""} (${doc?.controlNumber ?? ""}) emitido`,
         );
         setShowEmitFiscalForm(false);
+        setFiscalInvoiceNumber("");
+        setFiscalControlNumber("");
         setFiscalBuyerRif("");
         setFiscalBuyerName("");
         void refetchSalesBook();
@@ -536,7 +540,7 @@ export default function InvoicesClient() {
               className={`flex min-h-8 items-center border px-3 py-1 text-xs font-medium whitespace-nowrap transition-colors ${
                 filter === f.key
                   ? "border-primary bg-primary text-primary-foreground"
-                  : "bg-card text-muted-foreground hover:bg-secondary hover:text-foreground border-[--line] hover:border-[--line-hover]"
+                  : "bg-card text-muted-foreground hover:bg-secondary hover:text-foreground border-(--line) hover:border-(--line-hover)"
               }`}
             >
               {f.label}
@@ -751,15 +755,52 @@ export default function InvoicesClient() {
                 return;
               }
               emitFiscalDoc.mutate({
+                fiscalInvoiceNumber: fiscalInvoiceNumber.trim(),
+                controlNumber: fiscalControlNumber.trim(),
                 buyerRif: fiscalBuyerRif,
                 buyerLegalName: fiscalBuyerName,
-                exchangeRateBcv: bcv.rate > 0 ? bcv.rate : 1,
                 igtfBaseUsd: Number(fiscalIgtfBase) || 0,
                 lines,
               });
             }}
             className="border-border bg-background grid gap-3 border p-4 sm:grid-cols-6"
           >
+            <div className="sm:col-span-3">
+              <label
+                htmlFor="fiscal-invoice-number"
+                className="text-muted-foreground mb-1 block text-[11px]"
+              >
+                N.º de factura (emisor autorizado)
+              </label>
+              <input
+                id="fiscal-invoice-number"
+                name="fiscalInvoiceNumber"
+                type="text"
+                required
+                maxLength={64}
+                value={fiscalInvoiceNumber}
+                onChange={(e) => setFiscalInvoiceNumber(e.target.value)}
+                className="border-border bg-background text-foreground w-full border px-2.5 py-1.5 font-mono text-xs uppercase"
+              />
+            </div>
+            <div className="sm:col-span-3">
+              <label
+                htmlFor="fiscal-control-number"
+                className="text-muted-foreground mb-1 block text-[11px]"
+              >
+                N.º de control (emisor autorizado)
+              </label>
+              <input
+                id="fiscal-control-number"
+                name="fiscalControlNumber"
+                type="text"
+                required
+                maxLength={64}
+                value={fiscalControlNumber}
+                onChange={(e) => setFiscalControlNumber(e.target.value)}
+                className="border-border bg-background text-foreground w-full border px-2.5 py-1.5 font-mono text-xs uppercase"
+              />
+            </div>
             <div className="sm:col-span-2">
               <label
                 htmlFor="fiscal-buyer-rif"

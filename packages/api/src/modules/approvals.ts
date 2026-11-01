@@ -25,12 +25,17 @@ import {
   InventoryCount,
   InventoryDiscrepancy,
   RepricingEvent,
-  SalesOrder,
   Signature,
   StockLedger,
 } from "@cendaro/db/schema";
+import { can } from "@cendaro/validators";
 
-import type { createTRPCContext, UserRole, WorkspaceActor } from "../trpc";
+import type { createTRPCContext, WorkspaceActor } from "../trpc";
+import {
+  applyCreditNote,
+  cancelPendingCreditNote,
+} from "../services/credit-note-application";
+import { applyOrderApprovalDecision } from "../services/order-lifecycle";
 import {
   createTRPCRouter,
   wsPermissionProcedure,
@@ -52,19 +57,17 @@ type ApprovalRow = typeof Approval.$inferSelect;
 /** Entity types whose requests only the server opens. */
 const RESERVED_ENTITY_TYPES: readonly string[] = [HELD_RATE_ENTITY];
 
-const RESOLVER_ROLES: readonly UserRole[] = ["owner", "admin", "supervisor"];
+/** Only creating an order opens these: their approval moves that order. */
+const RESERVED_APPROVAL_TYPES: readonly string[] = [
+  "credit_sale",
+  "price_override",
+];
 
 const RESOLVED_STATUS_TEXT: Record<string, string> = {
   approved: "fue aprobada",
   rejected: "fue rechazada",
   expired: "expiró",
 };
-
-function assertResolverRole(role: UserRole, message: string): void {
-  if (!RESOLVER_ROLES.includes(role)) {
-    throw new TRPCError({ code: "FORBIDDEN", message });
-  }
-}
 
 /** Not past its expiry (requests without expiry never expire). */
 function isLive(now: Date) {
@@ -294,24 +297,42 @@ async function dispatchApprovalSideEffects(
       }
       break;
     }
-    case "credit_sale": {
-      await db
-        .update(SalesOrder)
-        .set({
-          status: decision === "approved" ? "confirmed" : "cancelled",
-        })
-        .where(
-          and(
-            eq(SalesOrder.id, approval.entityId),
-            eq(SalesOrder.workspaceId, workspaceId),
-          ),
-        );
+    case "credit_sale":
+    case "price_override": {
+      await applyOrderApprovalDecision(
+        db,
+        approval.requestedBy,
+        workspaceId,
+        approval,
+        decision,
+      );
       break;
     }
-    case "channel_stock_move":
     case "edit_post_issue_document": {
-      const now = new Date();
-      await dismissApprovalAlerts(db, workspaceId, [approval.id], user, now);
+      if (approval.entityType === "credit_note") {
+        if (decision === "approved") {
+          await applyCreditNote(db, user.id, workspaceId, approval.entityId);
+        } else {
+          await cancelPendingCreditNote(db, workspaceId, approval.entityId);
+        }
+      }
+      await dismissApprovalAlerts(
+        db,
+        workspaceId,
+        [approval.id],
+        user,
+        new Date(),
+      );
+      break;
+    }
+    case "channel_stock_move": {
+      await dismissApprovalAlerts(
+        db,
+        workspaceId,
+        [approval.id],
+        user,
+        new Date(),
+      );
       break;
     }
   }
@@ -433,7 +454,10 @@ export const approvalsRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      if (RESERVED_ENTITY_TYPES.includes(input.entityType)) {
+      if (
+        RESERVED_ENTITY_TYPES.includes(input.entityType) ||
+        RESERVED_APPROVAL_TYPES.includes(input.approvalType)
+      ) {
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: "Este tipo de solicitud solo lo genera el sistema",
@@ -485,10 +509,6 @@ export const approvalsRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      assertResolverRole(
-        ctx.workspace.role,
-        "Solo supervisores, administradores o propietarios pueden aprobar solicitudes",
-      );
       const workspaceId = ctx.workspace.workspaceId;
 
       // Same lock order as the rate sync (rate type, then approval row).
@@ -500,6 +520,16 @@ export const approvalsRouter = createTRPCRouter({
         ctx.user.id,
         "Separación de funciones: no puedes auto-aprobar tu propia solicitud",
       );
+      if (
+        approval.approvalType === "price_override" &&
+        !can(ctx.workspace.role, "pricing", "approve")
+      ) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message:
+            "Solo administradores pueden autorizar precios por debajo del mínimo",
+        });
+      }
       const heldRate = parseHeldRate(approval);
       if (approval.entityType === HELD_RATE_ENTITY && !heldRate) {
         throw new TRPCError({
@@ -553,10 +583,6 @@ export const approvalsRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      assertResolverRole(
-        ctx.workspace.role,
-        "Solo supervisores, administradores o propietarios pueden rechazar solicitudes",
-      );
       const workspaceId = ctx.workspace.workspaceId;
 
       // Same lock order as the rate sync (rate type, then approval row).

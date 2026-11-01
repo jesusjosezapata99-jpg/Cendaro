@@ -5,10 +5,11 @@
  * PRD §19: Payment processing, validation, and cash closure.
  */
 import { TRPCError } from "@trpc/server";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, ne, sql } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import type { getDb } from "@cendaro/db/client";
+import type { UserRole } from "@cendaro/validators";
 import {
   AccountReceivable,
   CashClosure,
@@ -17,6 +18,7 @@ import {
   paymentMethodEnum,
   SalesOrder,
 } from "@cendaro/db/schema";
+import { can, MONEY_EPSILON } from "@cendaro/validators";
 
 import {
   createTRPCRouter,
@@ -38,6 +40,7 @@ export const addPaymentInputSchema = z.object({
   evidenceUrl: z.string().url().max(2048).optional(),
   evidenceType: z.enum(["image", "pdf", "voucher"]).default("image").optional(),
   notes: z.string().optional(),
+  idempotencyKey: z.string().uuid().optional(),
 });
 
 export const openShiftInputSchema = z.object({
@@ -111,42 +114,166 @@ export async function executeListPayments(
     .limit(input.limit);
 }
 
-export async function executeAddPayment(
-  db: DbClient,
-  user: { id: string; email?: string | null },
-  workspaceId: string,
-  input: z.infer<typeof addPaymentInputSchema>,
-) {
-  if (input.reference) {
-    await db.execute(
-      sql`SELECT pg_advisory_xact_lock(hashtextextended(${`payment_ref:${workspaceId}:${input.orderId}:${input.reference}`}, 0))`,
-    );
-  }
+const NON_PAYABLE_ORDER_STATUSES: readonly string[] = [
+  "draft",
+  "pending_confirmation",
+  "cancelled",
+  "returned",
+];
 
+type OrderRow = typeof SalesOrder.$inferSelect;
+
+async function lockPayableOrder(
+  db: DbClient,
+  workspaceId: string,
+  orderId: string,
+): Promise<OrderRow> {
   const [order] = await db
     .select()
     .from(SalesOrder)
     .where(
-      and(
-        eq(SalesOrder.id, input.orderId),
-        eq(SalesOrder.workspaceId, workspaceId),
-      ),
+      and(eq(SalesOrder.id, orderId), eq(SalesOrder.workspaceId, workspaceId)),
     )
-    .limit(1);
-
+    .limit(1)
+    .for("update");
   if (!order) {
     throw new TRPCError({
       code: "NOT_FOUND",
       message: "Order not found in this workspace",
     });
   }
+  if (NON_PAYABLE_ORDER_STATUSES.includes(order.status)) {
+    throw new TRPCError({
+      code: "CONFLICT",
+      message: `No se pueden registrar pagos en un pedido en estado "${order.status}"`,
+    });
+  }
+  return order;
+}
 
+/** What is still owed: the order's receivable if it has one, otherwise the order. */
+async function outstandingAmount(
+  db: DbClient,
+  workspaceId: string,
+  order: OrderRow,
+): Promise<number> {
+  const [receivable] = await db
+    .select({ balance: AccountReceivable.balance })
+    .from(AccountReceivable)
+    .where(
+      and(
+        eq(AccountReceivable.orderId, order.id),
+        eq(AccountReceivable.workspaceId, workspaceId),
+        // A receivable closed by a credit note or a retention owes nothing, even
+        // though the order's totalPaid never reached its total.
+        ne(AccountReceivable.status, "written_off"),
+      ),
+    )
+    .limit(1)
+    .for("update");
+  return receivable
+    ? Number(receivable.balance)
+    : Math.max(0, Number(order.total) - Number(order.totalPaid ?? 0));
+}
+
+function assertWithinOutstanding(amount: number, outstanding: number): void {
+  if (amount > outstanding + MONEY_EPSILON) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: `El pago ($${amount.toFixed(2)}) supera lo pendiente ($${outstanding.toFixed(2)})`,
+    });
+  }
+}
+
+async function addToOrderTotalPaid(
+  db: DbClient,
+  workspaceId: string,
+  orderId: string,
+  amount: number,
+): Promise<void> {
+  await db
+    .update(SalesOrder)
+    .set({
+      totalPaid: sql`COALESCE(${SalesOrder.totalPaid}, 0) + ${amount}`,
+    })
+    .where(
+      and(eq(SalesOrder.id, orderId), eq(SalesOrder.workspaceId, workspaceId)),
+    );
+}
+
+/**
+ * Records a payment on an order. Whoever can approve payments validates it at
+ * once; otherwise it waits, and it only reaches the receivable (through
+ * trg_ar_payment) and the order's totalPaid when it is validated.
+ */
+export async function executeAddPayment(
+  db: DbClient,
+  user: { id: string; email?: string | null },
+  workspaceId: string,
+  role: UserRole,
+  input: z.infer<typeof addPaymentInputSchema>,
+) {
+  const order = await lockPayableOrder(db, workspaceId, input.orderId);
+
+  if (input.idempotencyKey) {
+    const [previous] = await db
+      .select()
+      .from(Payment)
+      .where(
+        and(
+          eq(Payment.workspaceId, workspaceId),
+          eq(Payment.idempotencyKey, input.idempotencyKey),
+        ),
+      )
+      .limit(1);
+    if (previous) return previous;
+  }
+
+  if (input.reference) {
+    const [duplicate] = await db
+      .select({ id: Payment.id })
+      .from(Payment)
+      .where(
+        and(
+          eq(Payment.workspaceId, workspaceId),
+          eq(Payment.orderId, input.orderId),
+          eq(Payment.reference, input.reference),
+        ),
+      )
+      .limit(1);
+    if (duplicate) {
+      throw new TRPCError({
+        code: "CONFLICT",
+        message: `La referencia ${input.reference} ya está registrada en este pedido`,
+      });
+    }
+  }
+
+  const [pending] = await db
+    .select({ total: sql<string>`COALESCE(SUM(${Payment.amount}), 0)` })
+    .from(Payment)
+    .where(
+      and(
+        eq(Payment.workspaceId, workspaceId),
+        eq(Payment.orderId, input.orderId),
+        eq(Payment.isValidated, false),
+      ),
+    );
+  const outstanding = await outstandingAmount(db, workspaceId, order);
+  assertWithinOutstanding(
+    input.amount,
+    outstanding - Number(pending?.total ?? 0),
+  );
+
+  const validated = can(role, "payments", "approve");
   const { evidenceType, ...paymentValues } = input;
   const [payment] = await db
     .insert(Payment)
     .values({
       ...paymentValues,
       workspaceId,
+      isValidated: validated,
+      validatedBy: validated ? user.id : undefined,
     })
     .returning();
 
@@ -160,49 +287,8 @@ export async function executeAddPayment(
     });
   }
 
-  await db
-    .update(SalesOrder)
-    .set({
-      totalPaid: sql`COALESCE(${SalesOrder.totalPaid}, 0) + ${input.amount}`,
-    })
-    .where(
-      and(
-        eq(SalesOrder.id, input.orderId),
-        eq(SalesOrder.workspaceId, workspaceId),
-      ),
-    );
-
-  // Synchronize linked AccountReceivable balance when present
-  const [ar] = await db
-    .select()
-    .from(AccountReceivable)
-    .where(
-      and(
-        eq(AccountReceivable.orderId, input.orderId),
-        eq(AccountReceivable.workspaceId, workspaceId),
-      ),
-    )
-    .limit(1);
-
-  if (ar && typeof ar.balance === "number" && ar.balance > 0) {
-    const newPaid = Number((ar.paidAmount + input.amount).toFixed(2));
-    const newBalance = Math.max(
-      0,
-      Number((ar.balance - input.amount).toFixed(2)),
-    );
-    await db
-      .update(AccountReceivable)
-      .set({
-        paidAmount: newPaid,
-        balance: newBalance,
-        status: newBalance <= 0.009 ? "paid" : "partial",
-      })
-      .where(
-        and(
-          eq(AccountReceivable.id, ar.id),
-          eq(AccountReceivable.workspaceId, workspaceId),
-        ),
-      );
+  if (validated) {
+    await addToOrderTotalPaid(db, workspaceId, input.orderId, input.amount);
   }
 
   await logAudit(db, user, {
@@ -213,6 +299,7 @@ export async function executeAddPayment(
     newValue: {
       method: input.method,
       amount: input.amount,
+      validated,
       hasEvidence: Boolean(input.evidenceUrl),
     },
   });
@@ -224,28 +311,46 @@ export async function executeValidatePayment(
   db: DbClient,
   user: { id: string; email?: string | null },
   workspaceId: string,
-  role: string,
   id: string,
 ) {
-  if (!["owner", "admin", "supervisor"].includes(role)) {
+  const [target] = await db
+    .select({ orderId: Payment.orderId })
+    .from(Payment)
+    .where(and(eq(Payment.id, id), eq(Payment.workspaceId, workspaceId)))
+    .limit(1);
+  if (!target) {
     throw new TRPCError({
-      code: "FORBIDDEN",
-      message: "Insufficient permissions to validate payments",
+      code: "NOT_FOUND",
+      message: "Payment not found in this workspace",
     });
   }
+
+  const order = await lockPayableOrder(db, workspaceId, target.orderId);
+  const [payment] = await db
+    .select()
+    .from(Payment)
+    .where(and(eq(Payment.id, id), eq(Payment.workspaceId, workspaceId)))
+    .limit(1)
+    .for("update");
+  if (!payment) {
+    throw new TRPCError({
+      code: "NOT_FOUND",
+      message: "Payment not found in this workspace",
+    });
+  }
+  if (payment.isValidated) return payment;
+
+  assertWithinOutstanding(
+    payment.amount,
+    await outstandingAmount(db, workspaceId, order),
+  );
 
   const [updated] = await db
     .update(Payment)
     .set({ isValidated: true, validatedBy: user.id })
     .where(and(eq(Payment.id, id), eq(Payment.workspaceId, workspaceId)))
     .returning();
-
-  if (!updated) {
-    throw new TRPCError({
-      code: "NOT_FOUND",
-      message: "Payment not found in this workspace",
-    });
-  }
+  await addToOrderTotalPaid(db, workspaceId, payment.orderId, payment.amount);
 
   await logAudit(db, user, {
     workspaceId,
@@ -473,16 +578,8 @@ export async function executeReviewClosure(
   db: DbClient,
   user: { id: string; email?: string | null },
   workspaceId: string,
-  role: string,
   id: string,
 ) {
-  if (!["owner", "admin", "supervisor"].includes(role)) {
-    throw new TRPCError({
-      code: "FORBIDDEN",
-      message: "Insufficient permissions to review cash closures",
-    });
-  }
-
   const [updated] = await db
     .update(CashClosure)
     .set({
@@ -528,7 +625,13 @@ export const paymentsRouter = createTRPCRouter({
   add: wsPermissionProcedure("payments", "create")
     .input(addPaymentInputSchema)
     .mutation(({ ctx, input }) =>
-      executeAddPayment(ctx.db, ctx.user, ctx.workspace.workspaceId, input),
+      executeAddPayment(
+        ctx.db,
+        ctx.user,
+        ctx.workspace.workspaceId,
+        ctx.workspace.role,
+        input,
+      ),
     ),
 
   validate: wsPermissionProcedure("payments", "approve")
@@ -538,7 +641,6 @@ export const paymentsRouter = createTRPCRouter({
         ctx.db,
         ctx.user,
         ctx.workspace.workspaceId,
-        ctx.workspace.role,
         input.id,
       ),
     ),
@@ -556,7 +658,7 @@ export const paymentsRouter = createTRPCRouter({
     ),
 
   dailyClosurePreview: wsReadPermissionProcedure("cash_closure", "read")
-    .input(z.object({ closureDate: z.string().min(1) }))
+    .input(z.object({ closureDate: z.string().date() }))
     .query(({ ctx, input }) =>
       executeComputeDailyClosureTotals(
         ctx.db,
@@ -578,7 +680,6 @@ export const paymentsRouter = createTRPCRouter({
         ctx.db,
         ctx.user,
         ctx.workspace.workspaceId,
-        ctx.workspace.role,
         input.id,
       ),
     ),

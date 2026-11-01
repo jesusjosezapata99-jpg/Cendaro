@@ -34,6 +34,8 @@ interface MockOptions {
   orderItems?: Record<string, unknown>[];
   warehouseId?: string;
   auditRow?: Record<string, unknown>;
+  catalogPrice?: number;
+  stockQty?: number;
 }
 
 function createMockCaller(opts: MockOptions = {}) {
@@ -43,6 +45,7 @@ function createMockCaller(opts: MockOptions = {}) {
 
   const chain = (kind: "select" | "insert" | "update") => {
     let lastWhere = "";
+    let lastParams: unknown[] = [];
     let values: Record<string, unknown> | Record<string, unknown>[] = {};
     const self: Record<string, unknown> = {};
     for (const method of [
@@ -70,6 +73,7 @@ function createMockCaller(opts: MockOptions = {}) {
       if (condition) {
         const rendered = dialect.sqlToQuery(condition);
         lastWhere = rendered.sql;
+        lastParams = rendered.params;
         wheres.push({ sql: rendered.sql, params: rendered.params });
       }
       return self;
@@ -93,7 +97,7 @@ function createMockCaller(opts: MockOptions = {}) {
           onRejected,
         );
       }
-      return Promise.resolve(resolveSelect(lastWhere)).then(
+      return Promise.resolve(resolveSelect(lastWhere, lastParams)).then(
         onFulfilled,
         onRejected,
       );
@@ -101,12 +105,28 @@ function createMockCaller(opts: MockOptions = {}) {
     return self;
   };
 
-  const resolveSelect = (where: string): unknown[] => {
+  const resolveSelect = (where: string, params: unknown[]): unknown[] => {
     if (where.includes(`"product"."id" in (`)) {
       return opts.productRows ?? [];
     }
+    if (where.includes(`"product_price"."productId" in (`)) {
+      // Params: workspace id first, then the requested product ids.
+      return params.slice(1).map((id) => ({
+        productId: id,
+        priceType: "store",
+        amountUsd: opts.catalogPrice ?? 20,
+      }));
+    }
     if (where.includes(`"stock_ledger"."isLocked" = $`)) {
       return opts.lockedRows ?? [];
+    }
+    if (where.includes(`"stock_ledger"."productId" in (`)) {
+      return params.slice(1).map((id) => ({
+        productId: id,
+        warehouseId: opts.warehouseId,
+        quantity: opts.stockQty ?? 100,
+        isLocked: false,
+      }));
     }
     if (where.includes(`"customer"."id" = $`)) {
       return opts.customerRow ? [opts.customerRow] : [];
@@ -207,7 +227,7 @@ describe("Phase 5 — Commercial Cycle (F5.2 - F5.5)", () => {
     );
   });
 
-  it("F5.3: sales.createOrder enforces customer creditLimit and generates AccountReceivable", async () => {
+  it("F5.3: a credit sale over the limit waits for approval and generates AccountReceivable only when covered", async () => {
     const overLimit = createMockCaller({
       productRows: [{ id: productId, status: "active" }],
       customerRow: {
@@ -217,15 +237,20 @@ describe("Phase 5 — Commercial Cycle (F5.2 - F5.5)", () => {
         balance: 80,
       },
     });
-    await expect(
-      overLimit.caller.sales.createOrder({
-        customerId,
-        channel: "vendors",
-        items: [{ productId, quantity: 2, unitPrice: 25, discount: 0 }],
-      }),
-    ).rejects.toThrowError(
-      expect.objectContaining({ code: "PRECONDITION_FAILED" }) as Error,
-    );
+    await overLimit.caller.sales.createOrder({
+      customerId,
+      channel: "vendors",
+      paymentTerms: "credit",
+      items: [{ productId, quantity: 2, unitPrice: 25, discount: 0 }],
+    });
+    expect(overLimit.inserted.find((r) => "subtotal" in r)).toMatchObject({
+      status: "pending_confirmation",
+    });
+    expect(overLimit.inserted.find((r) => "approvalType" in r)).toMatchObject({
+      approvalType: "credit_sale",
+      status: "pending",
+    });
+    expect(overLimit.inserted.some((r) => "dueDate" in r)).toBe(false);
 
     const withinLimit = createMockCaller({
       productRows: [{ id: productId, status: "active" }],
@@ -239,6 +264,7 @@ describe("Phase 5 — Commercial Cycle (F5.2 - F5.5)", () => {
     await withinLimit.caller.sales.createOrder({
       customerId,
       channel: "vendors",
+      paymentTerms: "credit",
       items: [{ productId, quantity: 2, unitPrice: 25, discount: 0 }],
     });
 
@@ -252,6 +278,28 @@ describe("Phase 5 — Commercial Cycle (F5.2 - F5.5)", () => {
       balance: 50,
       status: "pending",
     });
+  });
+
+  it("F5.3: an order paid in cash generates no AccountReceivable", async () => {
+    const { caller, inserted } = createMockCaller({
+      productRows: [{ id: productId, status: "active" }],
+      customerRow: {
+        id: customerId,
+        creditLimit: 0,
+        creditDays: 0,
+        balance: 0,
+      },
+    });
+    await caller.sales.createOrder({
+      customerId,
+      channel: "store",
+      items: [{ productId, quantity: 1, unitPrice: 20, discount: 0 }],
+    });
+    expect(inserted.find((r) => "subtotal" in r)).toMatchObject({
+      status: "pending",
+    });
+    expect(inserted.some((r) => "dueDate" in r)).toBe(false);
+    expect(inserted.some((r) => "approvalType" in r)).toBe(false);
   });
 
   it("F5.4: quotes.convertToOrder blocks already-converted and expired quotes", async () => {
@@ -342,6 +390,34 @@ describe("Phase 5 — Commercial Cycle (F5.2 - F5.5)", () => {
       warehouseId,
       fromChannel: "store",
     });
+
+    // A negative upsert would break ck_stock_ledger_quantity_non_negative.
+    expect(
+      inserted.filter((r) => !("movementType" in r) && Number(r.quantity) < 0),
+    ).toEqual([]);
+  });
+
+  it("F5.2: closing an order without enough stock deducts nothing", async () => {
+    const orderId = nextId();
+    const { caller, inserted, updated } = createMockCaller({
+      orderRow: {
+        id: orderId,
+        customerId: null,
+        channel: "store",
+        status: "dispatched",
+        stockDeducted: false,
+      },
+      orderItems: [{ orderId, productId, quantity: 3 }],
+      warehouseId: nextId(),
+      stockQty: 2,
+    });
+    await expect(
+      caller.sales.updateOrderStatus({ id: orderId, status: "delivered" }),
+    ).rejects.toThrowError(
+      expect.objectContaining({ code: "CONFLICT" }) as Error,
+    );
+    expect(inserted.some((r) => "movementType" in r)).toBe(false);
+    expect(updated.some((r) => "quantity" in r)).toBe(false);
   });
 
   it("F5.5: createDeliveryNote and createInternalInvoice insert line items", async () => {
@@ -486,19 +562,21 @@ describe("Phase 5 — Commercial Cycle (F5.2 - F5.5)", () => {
     expect(movements).toHaveLength(2);
   });
 
-  it("enforces minimum costAvg margin for non-management and blocks zero-credit orders", async () => {
+  it("sends prices below cost and uncovered credit to approval instead of confirming them", async () => {
     const employeeCaller = createMockCaller({
       role: "employee",
       productRows: [{ id: productId, status: "active", costAvg: 50 }],
     });
-    await expect(
-      employeeCaller.caller.sales.createOrder({
-        channel: "store",
-        items: [{ productId, quantity: 1, unitPrice: 10, discount: 0 }],
-      }),
-    ).rejects.toThrowError(
-      expect.objectContaining({ code: "FORBIDDEN" }) as Error,
-    );
+    await employeeCaller.caller.sales.createOrder({
+      channel: "store",
+      items: [{ productId, quantity: 1, unitPrice: 10, discount: 0 }],
+    });
+    expect(employeeCaller.inserted.find((r) => "subtotal" in r)).toMatchObject({
+      status: "pending_confirmation",
+    });
+    expect(
+      employeeCaller.inserted.find((r) => "approvalType" in r),
+    ).toMatchObject({ approvalType: "price_override" });
 
     const zeroCreditCaller = createMockCaller({
       productRows: [{ id: productId, status: "active" }],
@@ -509,15 +587,16 @@ describe("Phase 5 — Commercial Cycle (F5.2 - F5.5)", () => {
         balance: 0,
       },
     });
-    await expect(
-      zeroCreditCaller.caller.sales.createOrder({
-        customerId,
-        channel: "store",
-        items: [{ productId, quantity: 1, unitPrice: 50, discount: 0 }],
-      }),
-    ).rejects.toThrowError(
-      expect.objectContaining({ code: "PRECONDITION_FAILED" }) as Error,
-    );
+    await zeroCreditCaller.caller.sales.createOrder({
+      customerId,
+      channel: "store",
+      paymentTerms: "credit",
+      items: [{ productId, quantity: 1, unitPrice: 50, discount: 0 }],
+    });
+    expect(
+      zeroCreditCaller.inserted.find((r) => "approvalType" in r),
+    ).toMatchObject({ approvalType: "credit_sale" });
+    expect(zeroCreditCaller.inserted.some((r) => "dueDate" in r)).toBe(false);
   });
 
   it("blocks inverted quote discounts, negative quote conversions, and draft->delivered jumps", async () => {

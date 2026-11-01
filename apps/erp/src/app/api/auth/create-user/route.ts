@@ -8,6 +8,7 @@ import { createSupabaseServerClient } from "@cendaro/auth/server";
 import { createUserSchema } from "@cendaro/validators";
 
 import { env } from "~/env";
+import { getClientIp } from "~/lib/client-ip";
 import { rateLimit } from "~/lib/rate-limit";
 import { isTrustedOrigin } from "~/lib/trusted-origin";
 
@@ -81,8 +82,7 @@ async function rollbackCreatedUser(admin: SupabaseClient, userId: string) {
 
 export async function POST(request: Request) {
   // ── Rate limiting (3 attempts per 60s per IP) ──
-  const ip =
-    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  const ip = getClientIp(request.headers);
   const { success: allowed, reset } = await rateLimit(`create-user:${ip}`, {
     window: 60_000,
     max: 3,

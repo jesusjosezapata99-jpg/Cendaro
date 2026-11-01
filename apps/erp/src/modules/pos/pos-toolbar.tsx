@@ -6,7 +6,6 @@ import { StatusPill } from "@cendaro/ui/status-pill";
 
 import type { TodayStats } from "./types";
 import type { useBcvRate } from "~/hooks/use-bcv-rate";
-import { PageHeader } from "~/components/page-header";
 
 interface PosToolbarProps {
   bcv: ReturnType<typeof useBcvRate>;
@@ -30,107 +29,102 @@ export function PosToolbar({
   isRegisterClosedToday = false,
 }: PosToolbarProps) {
   return (
-    <div className="space-y-3">
-      {/* Top Header */}
-      <PageHeader
-        title="Terminal Punto de Venta (POS)"
-        description="Mostrador de alta velocidad, lector de código de barras y cobro dual con tasa oficial BCV"
-        actions={
-          <div className="flex flex-wrap items-center gap-2">
-            {/* Text-only per §5.3 — StatusPill truncates its children, so an
-                inline icon overlaps the label instead of sitting beside it. */}
-            <StatusPill tone={isRegisterClosedToday ? "warning" : "success"}>
-              {isRegisterClosedToday ? "Caja Cerrada Hoy" : "Caja Abierta"}
-            </StatusPill>
-
-            {/* BCV Official Rate Badge with Live Sync Button */}
-            <div className="border-border bg-secondary/80 flex min-h-11 items-center gap-2 border px-3 py-1.5 text-xs font-medium shadow-xs">
-              <Icons.Verified className="text-primary size-4" />
-              <span className="text-muted-foreground hidden sm:inline">
-                BCV Oficial:
-              </span>
-              <span className="text-foreground font-mono font-medium tabular-nums">
-                {bcv.isLoading
-                  ? "Cargando..."
-                  : `Bs ${bcv.rate.toLocaleString("es-VE", {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 4,
-                    })}`}
-              </span>
-              <button
-                type="button"
-                onClick={() => void bcv.syncRate()}
-                disabled={bcv.isSyncing}
-                title="Actualizar tasa oficial directamente desde bcv.org.ve"
-                className="text-muted-foreground hover:text-primary ml-0.5 flex min-h-8 min-w-8 items-center justify-center p-1 transition-colors disabled:opacity-50"
-              >
-                <Icons.Sync
-                  className={`size-3.5 ${bcv.isSyncing ? "animate-spin" : ""}`}
-                />
-              </button>
-            </div>
-
-            {cartLength > 0 && (
-              <Button
-                variant="outline"
-                onClick={onClearCart}
-                className="min-h-11 text-xs"
-              >
-                <Icons.RestartAlt className="size-3.5" />
-                Limpiar Carrito
-              </Button>
-            )}
+    <div className="border-border bg-card flex flex-wrap items-center justify-between gap-3 border px-4 py-2.5 shadow-xs">
+      {/* Left: Terminal Identity + Register Status + Operational Metrics */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-2.5">
+          <div className="bg-primary/10 text-primary border-primary/20 flex size-8 items-center justify-center border">
+            <Icons.BarcodeScanner className="size-4" />
           </div>
-        }
-      />
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-foreground text-sm font-medium tracking-tight">
+                Terminal POS
+              </h1>
+              <StatusPill tone={isRegisterClosedToday ? "warning" : "success"}>
+                {isRegisterClosedToday ? "Caja Cerrada Hoy" : "Caja Abierta"}
+              </StatusPill>
+            </div>
+            <p className="text-muted-foreground hidden text-[11px] xl:block">
+              Facturación rápida de mostrador · Multimoneda BCV
+            </p>
+          </div>
+        </div>
 
-      {/* Compact Operational Stats Toolbar (Saves vertical space for cashier) */}
-      <div className="border-border bg-card/60 flex flex-wrap items-center justify-between gap-3 border px-4 py-2.5 shadow-xs">
-        <div className="flex flex-wrap items-center gap-4 text-xs">
-          <div className="flex items-center gap-1.5">
-            <Icons.ReceiptLong className="text-primary size-4" />
-            <span className="text-muted-foreground">Ventas Turno:</span>
+        <div className="bg-border hidden h-6 w-px sm:block" />
+
+        {/* Live Shift Metrics */}
+        <div className="hidden flex-wrap items-center gap-3 text-xs md:flex">
+          <div className="bg-secondary/50 border-border flex items-center gap-1.5 border px-2.5 py-1">
+            <Icons.ReceiptLong className="text-primary size-3.5" />
+            <span className="text-muted-foreground">Turno:</span>
             <span className="text-foreground font-mono font-medium tabular-nums">
               {todayStats.count} ({revenueDual.usd})
             </span>
           </div>
 
-          <div className="text-border hidden sm:inline-block">|</div>
-
-          <div className="hidden items-center gap-1.5 sm:flex">
-            <Icons.Analytics className="text-muted-foreground size-4" />
-            <span className="text-muted-foreground">Ticket Promedio:</span>
+          <div className="bg-secondary/50 border-border hidden items-center gap-1.5 border px-2.5 py-1 lg:flex">
+            <Icons.Analytics className="text-muted-foreground size-3.5" />
+            <span className="text-muted-foreground">Promedio:</span>
             <span className="text-foreground font-mono font-medium tabular-nums">
               {avgDual.usd}
             </span>
           </div>
+        </div>
+      </div>
 
-          <div className="text-border hidden md:inline-block">|</div>
-
-          <div className="hidden items-center gap-1.5 md:flex">
-            <Icons.CalendarToday className="text-muted-foreground size-4" />
-            <span className="text-muted-foreground">Fecha Valor:</span>
-            <span className="text-foreground font-mono text-[11px] font-medium">
-              {bcv.dateText ?? bcv.date}
-            </span>
-          </div>
+      {/* Right: Official BCV Rate + Active Ticket Counter + Clear Action */}
+      <div className="flex flex-wrap items-center gap-2">
+        {/* BCV Official Rate Badge with Live Sync Button */}
+        <div className="border-border bg-secondary/70 flex min-h-9 items-center gap-2 border px-2.5 py-1 text-xs font-medium">
+          <Icons.Verified className="text-primary size-3.5" />
+          <span className="text-muted-foreground hidden sm:inline">BCV:</span>
+          <span className="text-foreground font-mono font-medium tabular-nums">
+            {bcv.isLoading
+              ? "Cargando..."
+              : `Bs ${bcv.rate.toLocaleString("es-VE", {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 4,
+                })}`}
+          </span>
+          <button
+            type="button"
+            onClick={() => void bcv.syncRate()}
+            disabled={bcv.isSyncing}
+            title="Actualizar tasa oficial directamente desde bcv.org.ve"
+            aria-label="Sincronizar tasa oficial BCV"
+            className="text-muted-foreground hover:text-primary flex size-6 items-center justify-center transition-colors disabled:opacity-50"
+          >
+            <Icons.Sync
+              className={`size-3.5 ${bcv.isSyncing ? "animate-spin" : ""}`}
+            />
+          </button>
         </div>
 
         {/* Active Cart Counter Chip */}
-        <div className="flex items-center gap-2">
-          <div
-            className={`flex items-center gap-1.5 border px-2.5 py-1 text-xs font-medium transition-colors ${
-              cartLength > 0
-                ? "border-amber-500/30 bg-amber-500/15 text-amber-600 dark:text-amber-400"
-                : "border-border bg-secondary text-muted-foreground"
-            }`}
-          >
-            <Icons.ShoppingCart className="size-3.5" />
-            <span>
-              {totalCartUnits} un. ({cartLength} ítems)
-            </span>
-          </div>
+        <div
+          className={`flex min-h-9 items-center gap-1.5 border px-2.5 py-1 font-mono text-xs font-medium tabular-nums transition-colors ${
+            cartLength > 0
+              ? "border-primary/40 bg-primary/10 text-primary"
+              : "border-border bg-secondary text-muted-foreground"
+          }`}
+        >
+          <Icons.ShoppingCart className="size-3.5" />
+          <span>
+            {totalCartUnits} un. · {cartLength} líns.
+          </span>
         </div>
+
+        {cartLength > 0 && (
+          <Button
+            variant="outline"
+            onClick={onClearCart}
+            className="min-h-9 px-2.5 text-xs"
+          >
+            <Icons.RestartAlt className="size-3.5" />
+            Vaciar
+          </Button>
+        )}
       </div>
     </div>
   );

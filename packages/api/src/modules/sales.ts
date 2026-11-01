@@ -22,9 +22,7 @@ import { z } from "zod/v4";
 
 import type { getDb } from "@cendaro/db/client";
 import {
-  AccountReceivable,
   AuditLog,
-  ChannelAllocation,
   Customer,
   CustomerAddress,
   customerTypeEnum,
@@ -37,23 +35,29 @@ import {
   Payment,
   paymentMethodEnum,
   Product,
-  ProductPrice,
   salesChannelEnum,
   SalesOrder,
-  StockLedger,
-  StockMovement,
-  Warehouse,
 } from "@cendaro/db/schema";
 import {
   can,
   createCustomerSchema,
   fiscalPersonKey,
   isFiscalInvoiceReady,
+  MONEY_EPSILON,
   normalizeFiscalId,
+  PAYMENT_TERMS,
   updateCustomerSchema,
 } from "@cendaro/validators";
 
 import type { WorkspaceMembership } from "../trpc";
+import {
+  applyStockLifecycle,
+  assertOrderTransition,
+  createCommercialOrder,
+  isRevertingStatus,
+  settleReceivableOnReversal,
+} from "../services/order-lifecycle";
+import { isOrderPricingWithinPolicy } from "../services/pricing-policy";
 import {
   createTRPCRouter,
   wsPermissionProcedure,
@@ -75,7 +79,11 @@ import {
   openShiftInputSchema,
 } from "./payments";
 import { escapeLike } from "./search";
-import { assertVendorCustomer, vendorScopeId } from "./vendor-scope";
+import {
+  assertVendorCustomer,
+  createdByVendor,
+  vendorScopeId,
+} from "./vendor-scope";
 
 type SalesDb = ReturnType<typeof getDb>;
 
@@ -145,9 +153,6 @@ interface SalesWriteContext {
 
 type SalesOrderRow = typeof SalesOrder.$inferSelect;
 
-/** Tolerance for comparing USD amounts computed in floating point. */
-const MONEY_EPSILON = 0.005;
-
 /**
  * SENIAT: an invoice issued to a registered buyer must carry their name, a
  * valid RIF / cédula / passport and domicilio fiscal. Orders without a
@@ -183,327 +188,6 @@ async function assertInvoiceReadyBuyer(
     });
   }
   return buyer;
-}
-
-const CLOSING_STATUSES: readonly string[] = ["delivered", "invoiced"];
-const REVERT_STATUSES: readonly string[] = ["returned", "cancelled"];
-
-/**
- * Validates that client-supplied line prices and
- * discounts respect authoritative ProductPrice entries and Product.costAvg
- * minimum margins unless the caller has management pricing authority.
- */
-async function assertCatalogPricingAndMargin(
-  ctx: SalesWriteContext,
-  channel: SalesOrderRow["channel"],
-  items: readonly {
-    productId: string;
-    quantity: number;
-    unitPrice: number;
-    discount: number;
-  }[],
-  foundProducts: readonly {
-    id: string;
-    status?: string | null;
-    costAvg?: number | string | null;
-  }[],
-): Promise<void> {
-  if (items.length === 0) return;
-
-  const isManagement = ["owner", "admin", "supervisor"].includes(
-    ctx.workspace.role,
-  );
-  const productIds = [...new Set(items.map((i) => i.productId))];
-
-  const priceRows = await ctx.db
-    .select({
-      productId: ProductPrice.productId,
-      priceType: ProductPrice.priceType,
-      amountUsd: ProductPrice.amountUsd,
-    })
-    .from(ProductPrice)
-    .where(
-      and(
-        eq(ProductPrice.workspaceId, ctx.workspace.workspaceId),
-        inArray(ProductPrice.productId, productIds),
-      ),
-    );
-
-  const validPriceRows = priceRows.filter(
-    (r) =>
-      typeof r.productId === "string" &&
-      typeof r.amountUsd === "number" &&
-      r.amountUsd > 0,
-  );
-
-  const pricesByProduct = new Map<
-    string,
-    { priceType: string; amountUsd: number }[]
-  >();
-  for (const row of validPriceRows) {
-    const list = pricesByProduct.get(row.productId) ?? [];
-    list.push({ priceType: String(row.priceType), amountUsd: row.amountUsd });
-    pricesByProduct.set(row.productId, list);
-  }
-
-  const costByProduct = new Map<string, number>();
-  for (const prod of foundProducts) {
-    const numericCost = Number(prod.costAvg ?? 0);
-    if (Number.isFinite(numericCost) && numericCost > 0) {
-      costByProduct.set(prod.id, numericCost);
-    }
-  }
-
-  const targetPriceType = channel === "vendors" ? "vendor" : "store";
-
-  for (const item of items) {
-    if (item.unitPrice <= 0) {
-      throw new TRPCError({
-        code: "BAD_REQUEST",
-        message: "El precio unitario de cada artículo debe ser mayor a cero",
-      });
-    }
-    const netUnit = item.unitPrice - item.discount;
-    if (netUnit <= 0) {
-      throw new TRPCError({
-        code: "BAD_REQUEST",
-        message:
-          "El precio neto unitario después de descuento debe ser mayor a cero",
-      });
-    }
-
-    const costAvg = costByProduct.get(item.productId);
-    if (
-      costAvg !== undefined &&
-      !isManagement &&
-      netUnit < costAvg - MONEY_EPSILON
-    ) {
-      throw new TRPCError({
-        code: "FORBIDDEN",
-        message:
-          "No tienes autorización para vender por debajo del costo promedio sin aprobación de gerencia",
-      });
-    }
-
-    const catalogPrices = pricesByProduct.get(item.productId);
-    if (catalogPrices && catalogPrices.length > 0) {
-      const channelMatch = catalogPrices.find(
-        (p) => p.priceType === targetPriceType,
-      );
-      const minCatalogPrice = Math.min(
-        ...catalogPrices.map((p) => p.amountUsd),
-      );
-      const referencePrice = channelMatch?.amountUsd ?? minCatalogPrice;
-
-      // Non-management roles may apply at most a 10% discretionary discount below catalog price
-      const minAllowed = isManagement
-        ? minCatalogPrice * 0.5
-        : referencePrice * 0.9;
-      if (netUnit < minAllowed - MONEY_EPSILON) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message:
-            "El precio unitario o descuento excede el margen permitido en el catálogo; requiere autorización de gerencia",
-        });
-      }
-    }
-  }
-}
-
-/**
- * Stock lifecycle of an order moving to `status`: deducts its items from the
- * sales channel when it closes (delivered / invoiced) and restores them when
- * a deducted order is returned or cancelled. Each change is logged in
- * stock_movement and the order's stockDeducted flag is kept in step.
- *
- * Uses set-based batch updates (CASE + IN) and a single multi-row INSERT on
- * stock_movement to eliminate the N+1 query waterfall on high-latency links.
- */
-async function applyStockLifecycle(
-  ctx: SalesWriteContext,
-  order: Pick<SalesOrderRow, "id" | "channel" | "stockDeducted">,
-  status: SalesOrderRow["status"],
-  preloadedItems?: readonly { productId: string; quantity: number }[],
-): Promise<{ isClosing: boolean; isReverting: boolean }> {
-  const isClosing = CLOSING_STATUSES.includes(status) && !order.stockDeducted;
-  const isReverting =
-    REVERT_STATUSES.includes(status) && Boolean(order.stockDeducted);
-  if (!isClosing && !isReverting) return { isClosing, isReverting };
-
-  const [items, warehouseRows] = await Promise.all([
-    preloadedItems
-      ? Promise.resolve(preloadedItems)
-      : ctx.db
-          .select({
-            productId: OrderItem.productId,
-            quantity: OrderItem.quantity,
-          })
-          .from(OrderItem)
-          .where(
-            and(
-              eq(OrderItem.orderId, order.id),
-              eq(OrderItem.workspaceId, ctx.workspace.workspaceId),
-            ),
-          ),
-    ctx.db
-      .select({ id: Warehouse.id })
-      .from(Warehouse)
-      .where(
-        and(
-          eq(Warehouse.workspaceId, ctx.workspace.workspaceId),
-          eq(Warehouse.isActive, true),
-        ),
-      )
-      .orderBy(
-        sql`CASE WHEN ${Warehouse.type} = 'showroom' THEN 0 WHEN ${Warehouse.type} = 'warehouse' THEN 1 ELSE 2 END`,
-        asc(Warehouse.createdAt),
-      )
-      .limit(1),
-  ]);
-
-  const primaryWarehouseId = warehouseRows[0]?.id;
-  const effectiveChannel =
-    order.channel === "whatsapp" || order.channel === "instagram"
-      ? "store"
-      : order.channel;
-  const sign = isClosing ? -1 : 1;
-
-  if (items.length > 0) {
-    // Aggregate net delta per productId so duplicate lines in the same order
-    // are applied atomically in one statement.
-    const deltaByProduct = new Map<string, number>();
-    for (const item of items) {
-      deltaByProduct.set(
-        item.productId,
-        (deltaByProduct.get(item.productId) ?? 0) + sign * item.quantity,
-      );
-    }
-    const entries = [...deltaByProduct.entries()];
-    const productIds = entries.map(([productId]) => productId);
-
-    const buildDeltaCaseExpr = (
-      col: typeof ChannelAllocation.quantity | typeof StockLedger.quantity,
-      prodCol:
-        typeof ChannelAllocation.productId | typeof StockLedger.productId,
-    ) => {
-      if (entries.length === 1 && entries[0]) {
-        return sql`GREATEST(${col} + ${entries[0][1]}, 0)`;
-      }
-      const chunks = entries.map(
-        ([pid, delta]) => sql`WHEN ${prodCol} = ${pid} THEN ${delta}`,
-      );
-      return sql`GREATEST(${col} + (CASE ${sql.join(chunks, sql` `)} ELSE 0 END), 0)`;
-    };
-
-    const productFilter = (
-      prodCol:
-        typeof ChannelAllocation.productId | typeof StockLedger.productId,
-    ) =>
-      productIds.length === 1 && productIds[0]
-        ? eq(prodCol, productIds[0])
-        : inArray(prodCol, productIds);
-
-    // Acquire row-level lock (FOR UPDATE) on stock rows during
-    // closing deduction and verify available stock when ledger rows exist.
-    if (isClosing && primaryWarehouseId) {
-      const lockQuery = ctx.db
-        .select({
-          productId: StockLedger.productId,
-          quantity: StockLedger.quantity,
-        })
-        .from(StockLedger)
-        .where(
-          and(
-            eq(StockLedger.workspaceId, ctx.workspace.workspaceId),
-            productFilter(StockLedger.productId),
-            eq(StockLedger.warehouseId, primaryWarehouseId),
-          ),
-        );
-      const lockedStockRows =
-        typeof (lockQuery as unknown as { for?: unknown }).for === "function"
-          ? await lockQuery.for("update")
-          : await lockQuery;
-
-      for (const row of lockedStockRows) {
-        if (
-          typeof row.productId === "string" &&
-          typeof row.quantity === "number"
-        ) {
-          const delta = deltaByProduct.get(row.productId) ?? 0;
-          if (delta < 0 && row.quantity + delta < 0) {
-            throw new TRPCError({
-              code: "CONFLICT",
-              message: "Stock insuficiente en almacén para despachar el pedido",
-            });
-          }
-        }
-      }
-    }
-
-    await ctx.db
-      .update(ChannelAllocation)
-      .set({
-        quantity: buildDeltaCaseExpr(
-          ChannelAllocation.quantity,
-          ChannelAllocation.productId,
-        ),
-        updatedAt: new Date(),
-      })
-      .where(
-        and(
-          eq(ChannelAllocation.workspaceId, ctx.workspace.workspaceId),
-          productFilter(ChannelAllocation.productId),
-          eq(ChannelAllocation.channel, effectiveChannel),
-        ),
-      );
-
-    if (primaryWarehouseId) {
-      await ctx.db
-        .update(StockLedger)
-        .set({
-          quantity: buildDeltaCaseExpr(
-            StockLedger.quantity,
-            StockLedger.productId,
-          ),
-          updatedAt: new Date(),
-        })
-        .where(
-          and(
-            eq(StockLedger.workspaceId, ctx.workspace.workspaceId),
-            productFilter(StockLedger.productId),
-            eq(StockLedger.warehouseId, primaryWarehouseId),
-          ),
-        );
-    }
-
-    const movementType: "sale" | "return" = isClosing ? "sale" : "return";
-    await ctx.db.insert(StockMovement).values(
-      items.map((item) => ({
-        workspaceId: ctx.workspace.workspaceId,
-        productId: item.productId,
-        warehouseId: primaryWarehouseId,
-        movementType,
-        quantity: sign * item.quantity,
-        fromChannel: isClosing ? effectiveChannel : undefined,
-        toChannel: isReverting ? effectiveChannel : undefined,
-        createdBy: ctx.user.id,
-        referenceId: order.id,
-        referenceType: "sales_order",
-      })),
-    );
-  }
-
-  await ctx.db
-    .update(SalesOrder)
-    .set({ stockDeducted: isClosing })
-    .where(
-      and(
-        eq(SalesOrder.id, order.id),
-        eq(SalesOrder.workspaceId, ctx.workspace.workspaceId),
-      ),
-    );
-
-  return { isClosing, isReverting };
 }
 
 /**
@@ -1193,206 +877,39 @@ export const salesRouter = createTRPCRouter({
         customerId: z.string().uuid().optional(),
         channel: z.enum(salesChannelEnum.enumValues),
         notes: z.string().optional(),
-        items: z.array(
-          z.object({
-            productId: z.string().uuid(),
-            quantity: z.number().int().positive(),
-            unitPrice: z.number().nonnegative(),
-            discount: z.number().nonnegative().default(0),
-          }),
-        ),
+        paymentTerms: z.enum(PAYMENT_TERMS).default("cash"),
+        items: z
+          .array(
+            z.object({
+              productId: z.string().uuid(),
+              quantity: z.number().int().positive(),
+              unitPrice: z.number().positive(),
+              discount: z.number().nonnegative().default(0),
+            }),
+          )
+          .min(1)
+          .max(200),
       }),
     )
     .mutation(async ({ ctx, input }) => {
       await assertVendorCustomer(ctx, input.customerId);
-
-      if (input.items.some((i) => i.discount > i.unitPrice)) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "El descuento de un artículo no puede superar su precio",
-        });
-      }
-
-      const productIds = [...new Set(input.items.map((i) => i.productId))];
-      if (productIds.length > 0) {
-        const found = await ctx.db
-          .select({
-            id: Product.id,
-            status: Product.status,
-            costAvg: Product.costAvg,
-          })
-          .from(Product)
-          .where(
-            and(
-              eq(Product.workspaceId, ctx.workspace.workspaceId),
-              inArray(Product.id, productIds),
-            ),
-          );
-        if (found.length !== productIds.length) {
-          throw new TRPCError({
-            code: "BAD_REQUEST",
-            message:
-              "Uno o más productos no pertenecen al catálogo de este negocio",
-          });
-        }
-        if (
-          found.some((p) => p.status === "draft" || p.status === "discontinued")
-        ) {
-          throw new TRPCError({
-            code: "BAD_REQUEST",
-            message:
-              "No se pueden vender productos en estado borrador o descontinuado",
-          });
-        }
-
-        await assertCatalogPricingAndMargin(
-          ctx,
-          input.channel,
-          input.items,
-          found,
-        );
-
-        const lockedRows = await ctx.db
-          .select({
-            productId: StockLedger.productId,
-            isLocked: StockLedger.isLocked,
-          })
-          .from(StockLedger)
-          .where(
-            and(
-              eq(StockLedger.workspaceId, ctx.workspace.workspaceId),
-              inArray(StockLedger.productId, productIds),
-              eq(StockLedger.isLocked, true),
-            ),
-          );
-        if (lockedRows.some((r) => r.isLocked === true)) {
-          throw new TRPCError({
-            code: "CONFLICT",
-            message:
-              "Uno o más productos están bloqueados por conteo físico de inventario",
-          });
-        }
-      }
-
-      const subtotal = input.items.reduce(
-        (sum, i) => sum + i.unitPrice * i.quantity,
-        0,
-      );
-      const totalDiscount = input.items.reduce(
-        (sum, i) => sum + i.discount * i.quantity,
-        0,
-      );
-      const total = subtotal - totalDiscount;
-
-      let customerRow:
-        | {
-            id: string;
-            creditLimit: number | null;
-            creditDays: number | null;
-            balance: number | null;
-          }
-        | undefined;
-      if (input.customerId && total > 0) {
-        [customerRow] = await ctx.db
-          .select({
-            id: Customer.id,
-            creditLimit: Customer.creditLimit,
-            creditDays: Customer.creditDays,
-            balance: Customer.balance,
-          })
-          .from(Customer)
-          .where(
-            and(
-              eq(Customer.id, input.customerId),
-              eq(Customer.workspaceId, ctx.workspace.workspaceId),
-            ),
-          )
-          .limit(1);
-
-        if (
-          customerRow &&
-          typeof customerRow.creditLimit === "number" &&
-          customerRow.creditLimit >= 0 &&
-          (customerRow.balance ?? 0) + total >
-            customerRow.creditLimit + MONEY_EPSILON
-        ) {
-          throw new TRPCError({
-            code: "PRECONDITION_FAILED",
-            message:
-              "El monto del pedido excede el límite de crédito disponible del cliente",
-          });
-        }
-      }
-
-      const [order] = await ctx.db
-        .insert(SalesOrder)
-        .values({
-          workspaceId: ctx.workspace.workspaceId,
-          // Trigger trg_order_number assigns the next sequential number
-          orderNumber: "",
-          customerId: input.customerId,
-          channel: input.channel,
-          subtotal,
-          discount: totalDiscount,
-          total,
-          notes: input.notes,
-          createdBy: ctx.user.id,
-        })
-        .returning();
-
-      const effectiveOrderNumber =
-        order?.orderNumber && order.orderNumber.length > 0
-          ? order.orderNumber
-          : `ORD-${Date.now().toString(36).toUpperCase()}`;
-
-      if (order && input.items.length > 0) {
-        await ctx.db.insert(OrderItem).values(
-          input.items.map((item) => ({
-            workspaceId: ctx.workspace.workspaceId,
-            orderId: order.id,
-            productId: item.productId,
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
-            discount: item.discount,
-            lineTotal: (item.unitPrice - item.discount) * item.quantity,
-          })),
-        );
-      }
-
-      if (order && input.customerId && total > 0) {
-        const creditDays =
-          typeof customerRow?.creditDays === "number" &&
-          customerRow.creditDays > 0
-            ? customerRow.creditDays
-            : 30;
-        const dueDate = new Date(Date.now() + creditDays * 86_400_000);
-        await ctx.db.insert(AccountReceivable).values({
-          workspaceId: ctx.workspace.workspaceId,
-          customerId: input.customerId,
-          orderId: order.id,
-          totalAmount: total,
-          paidAmount: 0,
-          balance: total,
-          status: "pending",
-          dueDate,
-          notes: `Generado por pedido ${effectiveOrderNumber}`,
-          createdBy: ctx.user.id,
-        });
-      }
+      const order = await createCommercialOrder(ctx, input);
 
       await logAudit(ctx.db, ctx.user, {
         workspaceId: ctx.workspace.workspaceId,
         action: "order.create",
         entity: "sales_order",
-        entityId: order?.id,
+        entityId: order.id,
         newValue: {
-          orderNumber: effectiveOrderNumber,
+          orderNumber: order.orderNumber,
           channel: input.channel,
-          total,
+          status: order.status,
+          paymentTerms: input.paymentTerms,
+          total: order.total,
         },
       });
 
-      return order ? { ...order, orderNumber: effectiveOrderNumber } : order;
+      return order;
     }),
 
   updateOrderStatus: wsPermissionProcedure("orders", "update")
@@ -1413,7 +930,8 @@ export const salesRouter = createTRPCRouter({
             eq(SalesOrder.workspaceId, ctx.workspace.workspaceId),
           ),
         )
-        .limit(1);
+        .limit(1)
+        .for("update");
 
       if (!currentOrder) {
         throw new TRPCError({
@@ -1422,21 +940,14 @@ export const salesRouter = createTRPCRouter({
         });
       }
 
-      // Prevent invalid state transitions (e.g. draft -> delivered or cancelled -> delivered)
-      if (
-        (currentOrder.status === "draft" ||
-          currentOrder.status === "cancelled" ||
-          currentOrder.status === "returned") &&
-        (input.status === "delivered" || input.status === "invoiced")
-      ) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: `No se puede pasar directamente un pedido en estado "${currentOrder.status}" a "${input.status}"`,
-        });
-      }
+      assertOrderTransition(currentOrder.status, input.status);
 
       if (input.status === "invoiced" && currentOrder.customerId) {
         await assertInvoiceReadyBuyer(ctx, currentOrder.customerId);
+      }
+
+      if (isRevertingStatus(input.status)) {
+        await settleReceivableOnReversal(ctx, currentOrder);
       }
 
       const [updated] = await ctx.db
@@ -1465,8 +976,7 @@ export const salesRouter = createTRPCRouter({
           status: input.status,
           stockDeducted:
             isClosing ||
-            (currentOrder.stockDeducted &&
-              !REVERT_STATUSES.includes(input.status)),
+            (currentOrder.stockDeducted && !isRevertingStatus(input.status)),
         },
       });
 
@@ -1527,36 +1037,18 @@ export const salesRouter = createTRPCRouter({
         ? await assertInvoiceReadyBuyer(ctx, input.customerId)
         : undefined;
 
-      const productIds = [...new Set(input.items.map((i) => i.productId))];
-      const found = await ctx.db
-        .select({
-          id: Product.id,
-          status: Product.status,
-          costAvg: Product.costAvg,
-        })
-        .from(Product)
-        .where(
-          and(
-            eq(Product.workspaceId, ctx.workspace.workspaceId),
-            inArray(Product.id, productIds),
-          ),
-        );
-      if (found.length !== productIds.length) {
+      const withinPolicy = await isOrderPricingWithinPolicy(
+        ctx,
+        "store",
+        input.items,
+      );
+      if (!withinPolicy) {
         throw new TRPCError({
-          code: "BAD_REQUEST",
+          code: "FORBIDDEN",
           message:
-            "Hay productos en el ticket que no existen en el catálogo de este negocio. Quítalos y vuelve a intentarlo.",
+            "Hay un precio por debajo del mínimo permitido: corrígelo o crea un pedido para que lo apruebe gerencia",
         });
       }
-
-      if (input.items.some((i) => i.discount > i.unitPrice)) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "El descuento de un artículo no puede superar su precio",
-        });
-      }
-
-      await assertCatalogPricingAndMargin(ctx, "store", input.items, found);
 
       const subtotal = input.items.reduce(
         (sum, i) => sum + i.unitPrice * i.quantity,
@@ -1615,12 +1107,25 @@ export const salesRouter = createTRPCRouter({
 
       // A zero-total sale (fully discounted) keeps no money: nothing to store.
       if (recorded.length > 0) {
+        const references = recorded.flatMap(
+          (p) => blankToNull(p.reference) ?? [],
+        );
+        if (new Set(references).size !== references.length) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "Dos pagos de la venta tienen la misma referencia",
+          });
+        }
+        // The sale closes here and totalPaid already counts these payments, so
+        // there is nothing left to validate later; the cash closure reconciles them.
         await ctx.db.insert(Payment).values(
           recorded.map((p) => ({
             workspaceId: ctx.workspace.workspaceId,
             orderId: order.id,
             method: p.method,
             amount: p.amount,
+            isValidated: true,
+            validatedBy: ctx.user.id,
             reference: blankToNull(p.reference),
             bankName: blankToNull(p.bankName),
             payerName: buyer?.name ?? "Consumidor Final",
@@ -1694,7 +1199,13 @@ export const salesRouter = createTRPCRouter({
   addPayment: wsPermissionProcedure("payments", "create")
     .input(addPaymentInputSchema)
     .mutation(({ ctx, input }) =>
-      executeAddPayment(ctx.db, ctx.user, ctx.workspace.workspaceId, input),
+      executeAddPayment(
+        ctx.db,
+        ctx.user,
+        ctx.workspace.workspaceId,
+        ctx.workspace.role,
+        input,
+      ),
     ),
 
   validatePayment: wsPermissionProcedure("payments", "approve")
@@ -1704,7 +1215,6 @@ export const salesRouter = createTRPCRouter({
         ctx.db,
         ctx.user,
         ctx.workspace.workspaceId,
-        ctx.workspace.role,
         input.id,
       ),
     ),
@@ -1722,7 +1232,7 @@ export const salesRouter = createTRPCRouter({
     ),
 
   dailyClosurePreview: wsReadPermissionProcedure("cash_closure", "read")
-    .input(z.object({ closureDate: z.string().min(1) }))
+    .input(z.object({ closureDate: z.string().date() }))
     .query(({ ctx, input }) =>
       executeComputeDailyClosureTotals(
         ctx.db,
@@ -1744,7 +1254,6 @@ export const salesRouter = createTRPCRouter({
         ctx.db,
         ctx.user,
         ctx.workspace.workspaceId,
-        ctx.workspace.role,
         input.id,
       ),
     ),
@@ -1764,7 +1273,7 @@ export const salesRouter = createTRPCRouter({
         eq(DeliveryNote.workspaceId, ctx.workspace.workspaceId),
       ];
       if (vendorId) {
-        conditions.push(eq(DeliveryNote.createdBy, vendorId));
+        conditions.push(createdByVendor(DeliveryNote.orderId, vendorId));
       }
       if (input.orderId) {
         conditions.push(eq(DeliveryNote.orderId, input.orderId));
@@ -1824,6 +1333,9 @@ export const salesRouter = createTRPCRouter({
           and(
             eq(SalesOrder.id, input.orderId),
             eq(SalesOrder.workspaceId, ctx.workspace.workspaceId),
+            vendorScopeId(ctx)
+              ? eq(SalesOrder.createdBy, ctx.user.id)
+              : undefined,
           ),
         )
         .limit(1);
@@ -1937,7 +1449,7 @@ export const salesRouter = createTRPCRouter({
         eq(InternalInvoice.workspaceId, ctx.workspace.workspaceId),
       ];
       if (vendorId) {
-        conditions.push(eq(InternalInvoice.createdBy, vendorId));
+        conditions.push(createdByVendor(InternalInvoice.orderId, vendorId));
       }
       if (input.orderId) {
         conditions.push(eq(InternalInvoice.orderId, input.orderId));
@@ -1996,6 +1508,9 @@ export const salesRouter = createTRPCRouter({
           and(
             eq(SalesOrder.id, input.orderId),
             eq(SalesOrder.workspaceId, ctx.workspace.workspaceId),
+            vendorScopeId(ctx)
+              ? eq(SalesOrder.createdBy, ctx.user.id)
+              : undefined,
           ),
         )
         .limit(1);

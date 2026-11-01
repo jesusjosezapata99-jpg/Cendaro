@@ -38,6 +38,14 @@ const ALL_CLAIMS = [...CLAIMS, ...FEATURE_CLAIMS];
  */
 const FORBIDDEN: readonly { pattern: RegExp; why: string }[] = [
   { pattern: /SOC ?2/i, why: "no SOC 2 certification exists" },
+  {
+    pattern: /sincroniz[^.\n]*Mercado Libre|Mercado Libre[^.\n]*sincroniz/i,
+    why: "there is no live Mercado Libre connection",
+  },
+  {
+    pattern: /punto de venta\s+fiscal/i,
+    why: "fiscal emission stays off until validated by an accountant",
+  },
   { pattern: /GDPR/i, why: "not a GDPR-scoped product; no compliance seal" },
   { pattern: /España|🇪🇸/i, why: "the company and market are Venezuelan" },
   { pattern: /horario europeo/i, why: "no European support team" },

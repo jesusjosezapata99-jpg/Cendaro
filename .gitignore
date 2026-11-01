@@ -21,7 +21,10 @@ docs/compliance/
 .claude/skills/*
 !.claude/skills/supabase-write/
 !.claude/skills/troubleshooting/
+.claude/agent-memory/
 .claude/agent-memory-local/
+.agents/teamwork/
+.agents/skills/omni-epistemic-memory/error-log.md
 .codex/config.toml
 .codex/history/
 

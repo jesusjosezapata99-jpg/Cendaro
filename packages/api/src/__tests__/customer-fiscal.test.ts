@@ -12,7 +12,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { SQL } from "drizzle-orm";
 import { PgDialect } from "drizzle-orm/pg-core";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { CUSTOMER_PERSON_KEY_SQL, customerTypeEnum } from "@cendaro/db/schema";
 import {
@@ -311,7 +311,11 @@ interface FakeOptions {
   insertError?: Error;
   /** Product lookups find none of the requested ids. */
   missingProducts?: boolean;
+  /** Store price of every product in the catalog. */
+  catalogPrice?: number;
 }
+
+const FAKE_WAREHOUSE_ID = "00000000-0000-4000-8000-0000000000ee";
 
 function fakeDb(opts: FakeOptions) {
   const wheres: { sql: string; params: unknown[] }[] = [];
@@ -326,11 +330,13 @@ function fakeDb(opts: FakeOptions) {
     for (const method of [
       "from",
       "leftJoin",
+      "innerJoin",
       "orderBy",
       "groupBy",
       "limit",
       "offset",
       "returning",
+      "for",
     ]) {
       self[method] = () => self;
     }
@@ -377,6 +383,30 @@ function fakeDb(opts: FakeOptions) {
     if (where.includes(`"product"."id" in (`)) {
       // Params: workspace id first, then the requested product ids.
       return opts.missingProducts ? [] : params.slice(1).map((id) => ({ id }));
+    }
+    if (where.includes(`"product_price"."productId" in (`)) {
+      return params.slice(1).map((id) => ({
+        productId: id,
+        priceType: "store",
+        amountUsd: opts.catalogPrice ?? 5,
+      }));
+    }
+    if (where.includes(`"warehouse"."isActive" = $`)) {
+      return [{ id: FAKE_WAREHOUSE_ID }];
+    }
+    if (where.includes(`"stock_ledger"."productId" in (`)) {
+      return params.slice(1).map((id) => ({
+        productId: id,
+        warehouseId: FAKE_WAREHOUSE_ID,
+        quantity: 100,
+        isLocked: false,
+      }));
+    }
+    if (
+      where.includes(`"account_receivable"`) ||
+      where.includes(`"stock_movement"`)
+    ) {
+      return [];
     }
     if (where.includes(`"customer"."personKey" = $`)) {
       return opts.existing ?? [];
@@ -790,6 +820,26 @@ describe("sales.updateOrderStatus — SENIAT buyer data", () => {
   });
 });
 
+describe("fiscal.emitDocument", () => {
+  it("stays off until an authorized numbering is enabled", async () => {
+    vi.stubEnv("FISCAL_EMISSION_ENABLED", "");
+    const { caller, inserted } = callerFor({ role: "owner" });
+    await expect(
+      caller.fiscal.emitDocument({
+        buyerRif: "J-12345678-9",
+        buyerLegalName: "Cliente C.A.",
+        fiscalInvoiceNumber: "A-1",
+        controlNumber: "00-1",
+        lines: [{ subtotalUsd: 100 }],
+      }),
+    ).rejects.toThrowError(
+      expect.objectContaining({ code: "PRECONDITION_FAILED" }) as Error,
+    );
+    expect(inserted).toEqual([]);
+    vi.unstubAllEnvs();
+  });
+});
+
 describe("sales.checkoutPos — atomic POS sale", () => {
   const productA = "00000000-0000-4000-8000-0000000000a1";
   const productB = "00000000-0000-4000-8000-0000000000b2";
@@ -977,8 +1027,33 @@ describe("sales.checkoutPos — atomic POS sale", () => {
     await expect(caller.sales.checkoutPos(sale)).rejects.toThrowError(
       expect.objectContaining({
         code: "BAD_REQUEST",
-        message: expect.stringContaining("no existen en el catálogo") as string,
+        message: expect.stringContaining("no pertenecen al catálogo") as string,
       }) as Error,
+    );
+    expect(rowsWith(inserted, "channel")).toEqual([]);
+  });
+
+  it("writes nothing when a product has no catalog price", async () => {
+    const { caller, inserted } = callerFor({
+      role: "employee",
+      catalogPrice: 0,
+    });
+    await expect(caller.sales.checkoutPos(sale)).rejects.toThrowError(
+      expect.objectContaining({
+        code: "BAD_REQUEST",
+        message: expect.stringContaining("sin precio de catálogo") as string,
+      }) as Error,
+    );
+    expect(rowsWith(inserted, "channel")).toEqual([]);
+  });
+
+  it("rejects a sale below the allowed price", async () => {
+    const { caller, inserted } = callerFor({
+      role: "employee",
+      catalogPrice: 100,
+    });
+    await expect(caller.sales.checkoutPos(sale)).rejects.toThrowError(
+      expect.objectContaining({ code: "FORBIDDEN" }) as Error,
     );
     expect(rowsWith(inserted, "channel")).toEqual([]);
   });

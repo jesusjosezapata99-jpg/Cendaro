@@ -9,7 +9,7 @@
  * through the real router and driver and fails on exactly those.
  *
  * It only READS. It discovers an active owner membership in the target
- * database (no seeding), so run it against a database that already has one.
+ * database; a local database without one gets a seeded workspace first.
  * Each procedure is called with the smallest input its Zod schema accepts
  * (required fields only; ids that match no row answer NOT_FOUND or empty,
  * which still runs the SQL). Input validation (BAD_REQUEST) is counted as
@@ -31,6 +31,7 @@ import * as schema from "@cendaro/db/schema";
 import { logger } from "../logger";
 import { appRouter } from "../root";
 import { createCallerFactory } from "../trpc";
+import { isLocalDatabase, seedFixture } from "./helpers/real-db";
 import { sampleInput } from "./helpers/sample-input";
 
 const TEST_URL = process.env.TEST_DATABASE_URL;
@@ -99,17 +100,24 @@ describe.skipIf(!TEST_URL)(
       // does not have, and every query fails for a reason unrelated to F9.2.
       db = drizzle(pool, { schema, casing: "snake_case" });
 
-      const found = await pool.query<{
-        user_id: string;
-        workspace_id: string;
-      }>(
-        `SELECT m.user_id, m.workspace_id
-         FROM workspace_member m
-         JOIN user_profile p ON p.id = m.user_id AND p.status = 'active'
-         JOIN workspace w ON w.id = m.workspace_id AND w.status = 'active'
-        WHERE m.status = 'active' AND m.role = 'owner'
-        LIMIT 1`,
-      );
+      const connected = pool;
+      const findOwner = () =>
+        connected.query<{
+          user_id: string;
+          workspace_id: string;
+        }>(
+          `SELECT m.user_id, m.workspace_id
+           FROM workspace_member m
+           JOIN user_profile p ON p.id = m.user_id AND p.status = 'active'
+           JOIN workspace w ON w.id = m.workspace_id AND w.status = 'active'
+          WHERE m.status = 'active' AND m.role = 'owner'
+          LIMIT 1`,
+        );
+      let found = await findOwner();
+      if (found.rowCount === 0 && isLocalDatabase()) {
+        await seedFixture({ pool: connected, db });
+        found = await findOwner();
+      }
       const row = found.rows[0];
       if (row) owner = { userId: row.user_id, workspaceId: row.workspace_id };
     });

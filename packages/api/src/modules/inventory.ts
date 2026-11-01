@@ -9,6 +9,7 @@ import { and, desc, eq, inArray, sql, sum } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import {
+  AuditLog,
   ChannelAllocation,
   InventoryCount,
   InventoryCountItem,
@@ -18,10 +19,15 @@ import {
   salesChannelEnum,
   StockLedger,
   StockMovement,
+  Supplier,
   Warehouse,
   warehouseTypeEnum,
 } from "@cendaro/db/schema";
 
+import {
+  assertAllInWorkspace,
+  assertInWorkspace,
+} from "../services/workspace-guard";
 import {
   createTRPCRouter,
   wsPermissionProcedure,
@@ -617,13 +623,6 @@ export const inventoryRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      if (!["owner", "admin", "supervisor"].includes(ctx.workspace.role)) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "Insufficient permissions to adjust stock quantity",
-        });
-      }
-
       // Lock and read current stock_ledger row
       const [current] = await ctx.db
         .select({
@@ -768,13 +767,6 @@ export const inventoryRouter = createTRPCRouter({
   approveCount: wsPermissionProcedure("inventory", "approve")
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
-      if (!["owner", "admin", "supervisor"].includes(ctx.workspace.role)) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "Insufficient permissions to approve inventory counts",
-        });
-      }
-
       const [countRecord] = await ctx.db
         .select()
         .from(InventoryCount)
@@ -952,6 +944,13 @@ export const inventoryRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      await assertAllInWorkspace(
+        ctx.db,
+        Product,
+        input.productIds,
+        ctx.workspace.workspaceId,
+        "Producto",
+      );
       // Get current system quantities from stock_ledger for the count's warehouse
       const [countRecord] = await ctx.db
         .select({ warehouseId: InventoryCount.warehouseId })
@@ -1183,6 +1182,20 @@ export const inventoryRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      await assertInWorkspace(
+        ctx.db,
+        Supplier,
+        input.supplierId,
+        ctx.workspace.workspaceId,
+        "Proveedor",
+      );
+      await assertAllInWorkspace(
+        ctx.db,
+        Product,
+        input.items.map((item) => item.productId),
+        ctx.workspace.workspaceId,
+        "Producto",
+      );
       const [wh] = await ctx.db
         .select({ id: Warehouse.id })
         .from(Warehouse)
@@ -1198,6 +1211,28 @@ export const inventoryRouter = createTRPCRouter({
         throw new TRPCError({
           code: "NOT_FOUND",
           message: "Almacén de destino no encontrado en este workspace",
+        });
+      }
+
+      const invoiceKey = `${input.supplierId ?? "none"}:${input.invoiceNumber.trim().toLowerCase()}`;
+      await ctx.db.execute(
+        sql`SELECT pg_advisory_xact_lock(hashtextextended(${`purchase_invoice:${ctx.workspace.workspaceId}:${invoiceKey}`}, 0))`,
+      );
+      const [alreadyReceived] = await ctx.db
+        .select({ id: AuditLog.id })
+        .from(AuditLog)
+        .where(
+          and(
+            eq(AuditLog.workspaceId, ctx.workspace.workspaceId),
+            eq(AuditLog.action, "inventory.receive_purchase"),
+            sql`${AuditLog.newValue} ->> 'invoiceKey' = ${invoiceKey}`,
+          ),
+        )
+        .limit(1);
+      if (alreadyReceived) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: `La factura ${input.invoiceNumber} de este proveedor ya fue recibida`,
         });
       }
 
@@ -1326,6 +1361,7 @@ export const inventoryRouter = createTRPCRouter({
           warehouseId: input.warehouseId,
           supplierId: input.supplierId,
           invoiceNumber: input.invoiceNumber,
+          invoiceKey,
           itemsCount: input.items.length,
           totalUnits,
           totalCostUsd: Number(totalCostUsd.toFixed(2)),

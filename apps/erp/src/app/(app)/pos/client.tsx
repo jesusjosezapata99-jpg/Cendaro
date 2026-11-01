@@ -8,6 +8,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
+import { TRPCClientError } from "@trpc/client";
 import { toast } from "sonner";
 
 import { Button } from "@cendaro/ui";
@@ -66,6 +67,11 @@ const CreateCustomerDialog = dynamic(
   { ssr: false },
 );
 
+/** The business day in Venezuela, whatever the timezone of the browser. */
+function caracasDay(date: Date): string {
+  return date.toLocaleDateString("en-CA", { timeZone: "America/Caracas" });
+}
+
 export default function PosClient() {
   const trpc = useTRPC();
   const qc = useQueryClient();
@@ -79,7 +85,7 @@ export default function PosClient() {
   // Queries
   const { data: productsData, isLoading: isLoadingProducts } = useQuery({
     ...trpc.catalog.listProducts.queryOptions({
-      limit: 100,
+      limit: 48,
       status: "active",
       search: debouncedProductSearch || undefined,
       categoryId: selectedCategory !== "all" ? selectedCategory : undefined,
@@ -110,9 +116,6 @@ export default function PosClient() {
   const { data: closuresData } = useQuery(
     trpc.sales.listClosures.queryOptions(),
   );
-  const { data: stockData } = useQuery(
-    trpc.inventory.stockOverview.queryOptions({}),
-  );
 
   const [cachedCatalog, setCachedCatalog] = useState<ProductItem[]>([]);
   const [cachedStock, setCachedStock] = useState<
@@ -136,21 +139,39 @@ export default function PosClient() {
     }
     setIsSyncingOffline(true);
     let syncedCount = 0;
+    let rejectedCount = 0;
     try {
       for (const queuedSale of queue) {
-        await checkoutReplay.mutateAsync({
-          idempotencyKey: queuedSale.idempotencyKey,
-          customerId: queuedSale.customerId,
-          items: queuedSale.items.map((i) => ({
-            productId: i.productId,
-            quantity: i.quantity,
-            unitPrice: i.unitPrice,
-            discount: i.discount,
-          })),
-          payments: queuedSale.payments,
-        });
+        try {
+          await checkoutReplay.mutateAsync({
+            idempotencyKey: queuedSale.idempotencyKey,
+            customerId: queuedSale.customerId,
+            items: queuedSale.items.map((i) => ({
+              productId: i.productId,
+              quantity: i.quantity,
+              unitPrice: i.unitPrice,
+              discount: i.discount,
+            })),
+            payments: queuedSale.payments,
+          });
+        } catch (error) {
+          // The server answered: retrying alone will not change the outcome,
+          // and it must not hold back the rest of the queue. The sale stays
+          // queued because money was collected for it.
+          const answered =
+            error instanceof TRPCClientError &&
+            (error.data as { code?: string } | undefined)?.code !== undefined;
+          if (!answered) throw error;
+          rejectedCount += 1;
+          continue;
+        }
         await removeOfflinePosSale(queuedSale.idempotencyKey);
         syncedCount += 1;
+      }
+      if (rejectedCount > 0) {
+        toast.error(
+          `${rejectedCount} venta(s) offline fueron rechazadas por el servidor y requieren revisión de gerencia`,
+        );
       }
       if (syncedCount > 0) {
         toast.success(
@@ -202,14 +223,13 @@ export default function PosClient() {
       productsData.items.length > 0
     ) {
       void syncPosCatalogCache(productsData.items);
+      const stockEntries = productsData.items.map((item) => ({
+        id: item.id,
+        storeStock: item.storeStock ?? 0,
+      }));
+      void syncPosStockCache(stockEntries);
     }
   }, [productsData]);
-
-  useEffect(() => {
-    if (stockData && stockData.length > 0) {
-      void syncPosStockCache(stockData);
-    }
-  }, [stockData]);
 
   const productList: ProductItem[] = useMemo(() => {
     if (productsData && "items" in productsData) {
@@ -235,23 +255,28 @@ export default function PosClient() {
   }, [customersData]);
 
   const isRegisterClosedToday = useMemo(() => {
-    const todayStr = new Date().toISOString().slice(0, 10);
+    const todayStr = caracasDay(new Date());
     return (closuresData ?? []).some(
       (c) =>
-        new Date(c.closureDate).toISOString().slice(0, 10) === todayStr &&
+        caracasDay(new Date(c.closureDate)) === todayStr &&
         (c.status === "closed" || c.status === "reviewed"),
     );
   }, [closuresData]);
 
-  // Stock Map for instant lookup (falls back to IndexedDB snapshot during micro-outages)
+  // Stock Map for instant lookup (combines live product stock with IndexedDB snapshot during micro-outages)
   const stockMap = useMemo(() => {
     const map = new Map<string, number>();
-    const source = stockData ?? cachedStock;
-    for (const row of source) {
+    for (const row of cachedStock) {
       map.set(row.id, row.storeStock);
     }
+    for (const prod of productList) {
+      const effectiveStock = prod.storeStock ?? prod.stockCount;
+      if (typeof effectiveStock === "number") {
+        map.set(prod.id, effectiveStock);
+      }
+    }
     return map;
-  }, [stockData, cachedStock]);
+  }, [productList, cachedStock]);
 
   const [cart, setCart] = useState<CartLine[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerInfo | null>(
@@ -358,9 +383,9 @@ export default function PosClient() {
   // Shift / Today Stats for Compact Header Bar
   const todayStats = useMemo(() => {
     const orders = storeOrdersData ?? [];
-    const todayStr = new Date().toISOString().slice(0, 10);
+    const todayStr = caracasDay(new Date());
     const todayOrders = orders.filter(
-      (o) => new Date(o.createdAt).toISOString().slice(0, 10) === todayStr,
+      (o) => caracasDay(new Date(o.createdAt)) === todayStr,
     );
     const count = todayOrders.length;
     const revenue = todayOrders.reduce(
@@ -385,7 +410,11 @@ export default function PosClient() {
     (product: ProductItem, overridePrice?: number) => {
       const unitPrice =
         overridePrice ?? product.posPriceUsd ?? product.basePriceUsd ?? 0;
-      const availableStock = stockMap.get(product.id) ?? 0;
+      const availableStock =
+        stockMap.get(product.id) ??
+        product.storeStock ??
+        product.stockCount ??
+        0;
       if (unitPrice <= 0 || availableStock <= 0) {
         return;
       }
@@ -396,6 +425,12 @@ export default function PosClient() {
           const updated = [...prev];
           const curr = updated[existingIdx];
           if (curr) {
+            if (curr.quantity >= availableStock) {
+              toast.warning(
+                `Stock máximo alcanzado para ${product.sku} (${availableStock} un.)`,
+              );
+              return prev;
+            }
             const newQty = curr.quantity + 1;
             updated[existingIdx] = {
               ...curr,
@@ -460,22 +495,54 @@ export default function PosClient() {
         return;
       }
 
-      // 2. Instant IndexedDB barcode/SKU index lookup (<2ms) for products outside the initial 100 slice
-      void lookupPosProductByCode(code).then((cachedMatch) => {
-        if (cachedMatch) {
-          addToCart(cachedMatch);
-          setSearchQuery("");
-        }
-      });
+      // 2. Products outside the current page: local index first, then the
+      // server. A scanner sends Enter at once, before the debounced search runs.
+      void lookupPosProductByCode(code)
+        .then(async (cachedMatch) => {
+          if (cachedMatch) return cachedMatch;
+          const found = await qc.fetchQuery(
+            trpc.catalog.listProducts.queryOptions({
+              limit: 5,
+              status: "active",
+              search: code,
+            }),
+          );
+          return (
+            found.items.find(
+              (p) =>
+                p.sku.toLowerCase() === code ||
+                p.barcode?.toLowerCase() === code,
+            ) ?? null
+          );
+        })
+        .then((match) => {
+          if (match) {
+            addToCart(match);
+            setSearchQuery("");
+          } else {
+            toast.warning(
+              `No se encontró ningún producto con el código ${code}`,
+            );
+          }
+        })
+        .catch(() => {
+          toast.error("No se pudo buscar el código: revisa la conexión");
+        });
     }
   };
 
   const updateQuantity = (id: string, delta: number) => {
+    const maxStock = stockMap.get(id);
     setCart((prev) =>
       prev
         .map((line) => {
           if (line.id !== id) return line;
-          const newQty = Math.max(0, line.quantity + delta);
+          const unclamped = Math.max(0, line.quantity + delta);
+          // Stock never grows a line, but a line above it is not cut on its own.
+          const newQty =
+            delta > 0 && typeof maxStock === "number"
+              ? Math.min(unclamped, Math.max(maxStock, line.quantity))
+              : unclamped;
           return {
             ...line,
             quantity: newQty,
@@ -588,6 +655,7 @@ export default function PosClient() {
             <PosCart
               cart={cart}
               bcvRate={bcv.rate}
+              stockMap={stockMap}
               selectedCustomer={selectedCustomer}
               onSelectCustomer={(cust) => {
                 setSelectedCustomer(cust);

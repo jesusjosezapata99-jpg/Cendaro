@@ -35,6 +35,7 @@ interface MockFinancialState {
   ledgerSalesTotal?: number;
   ledgerPaymentsTotal?: number;
   ledgerArBalance?: number;
+  purchaseAlreadyReceived?: boolean;
 }
 
 function createFinancialCaller(state: MockFinancialState = {}) {
@@ -68,6 +69,26 @@ function createFinancialCaller(state: MockFinancialState = {}) {
               totalPaid: 0,
             },
           ];
+    }
+    if (lastWhere.includes('"payment"."reference"')) {
+      return [];
+    }
+    if (lastWhere.includes('"ar_installment"."id"')) {
+      return [
+        state.installmentRow ?? {
+          receivableId: "22222222-2222-4222-8222-222222222222",
+          amount: 40,
+          paidAmount: 0,
+        },
+      ];
+    }
+    if (lastWhere.includes('"ar_installment"')) {
+      return [];
+    }
+    if (lastWhere.includes('"audit_log"')) {
+      return state.purchaseAlreadyReceived
+        ? [{ id: "77777777-7777-4777-8777-777777777777" }]
+        : [];
     }
     if (lastWhere.includes('"payment"')) {
       if (lastWhere.includes("createdAt") || lastWhere.includes("created_at")) {
@@ -296,7 +317,17 @@ describe("Phase 6 — Financial Cycle & Ledger Reconciliation (F6.1–F6.6)", ()
   });
 
   it("F6.3: vendor.recordPayment and receivables.markPaid create Payment, PaymentAllocation and update SalesOrder.totalPaid", async () => {
-    const { caller, inserted, updated } = createFinancialCaller();
+    const { caller, inserted, updated } = createFinancialCaller({
+      arRow: {
+        id: "22222222-2222-4222-8222-222222222222",
+        customerId: "33333333-3333-4333-8333-333333333333",
+        orderId: "11111111-1111-4111-8111-111111111111",
+        totalAmount: 100,
+        paidAmount: 0,
+        balance: 100,
+        status: "pending",
+      },
+    });
 
     await caller.vendor.recordPayment({
       id: "22222222-2222-4222-8222-222222222222",
@@ -414,5 +445,27 @@ describe("Phase 6 — Financial Cycle & Ledger Reconciliation (F6.1–F6.6)", ()
       (row) => row.movementType === "purchase" && row.quantity === 10,
     );
     expect(movementInsert).toBeDefined();
+  });
+
+  it("inventory.receivePurchase does not receive the same invoice twice", async () => {
+    const { caller, inserted } = createFinancialCaller({
+      purchaseAlreadyReceived: true,
+    });
+    await expect(
+      caller.inventory.receivePurchase({
+        warehouseId: "55555555-5555-4555-8555-555555555555",
+        invoiceNumber: "FAC-NAC-001",
+        items: [
+          {
+            productId: "66666666-6666-4666-8666-666666666666",
+            quantity: 10,
+            unitCostUsd: 20,
+          },
+        ],
+      }),
+    ).rejects.toThrowError(
+      expect.objectContaining({ code: "CONFLICT" }) as Error,
+    );
+    expect(inserted.some((row) => row.movementType === "purchase")).toBe(false);
   });
 });

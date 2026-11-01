@@ -20,6 +20,7 @@ import {
 import { can } from "@cendaro/validators";
 
 import { env } from "~/env";
+import { isTrustedOrigin } from "~/lib/trusted-origin";
 
 // ── Types ──────────────────────────────────────────────
 // AI-generated output is untrusted input (F8.4): validated with Zod right
@@ -797,6 +798,13 @@ function isOwnedStorageUrl(url: string, workspaceId: string): boolean {
 }
 
 export async function POST(request: NextRequest) {
+  if (!isTrustedOrigin(request.headers, request.url)) {
+    return NextResponse.json(
+      { error: "Origen de solicitud no autorizado" },
+      { status: 403 },
+    );
+  }
+
   if (!env.GROQ_API_KEY) {
     return NextResponse.json(
       { error: "GROQ_API_KEY no configurada" },

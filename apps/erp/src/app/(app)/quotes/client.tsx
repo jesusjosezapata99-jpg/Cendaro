@@ -275,7 +275,7 @@ export default function QuotesClient() {
       </div>
 
       {/* Filter tabs — Clean sharp style */}
-      <div className="mobile-scroll-x flex items-center gap-1.5 border-b border-[--line] pb-2">
+      <div className="mobile-scroll-x flex items-center gap-1.5 border-b border-(--line) pb-2">
         {FILTER_STATUSES.map((s) => {
           const isSelected = statusFilter === s;
           const statusInfo = s === "all" ? null : getStatus("quote", s);
@@ -287,7 +287,7 @@ export default function QuotesClient() {
               className={`flex min-h-8 items-center border px-3 py-1 text-xs font-medium whitespace-nowrap transition-colors ${
                 isSelected
                   ? "border-primary bg-primary text-primary-foreground"
-                  : "bg-card text-muted-foreground hover:bg-secondary hover:text-foreground border-[--line] hover:border-[--line-hover]"
+                  : "bg-card text-muted-foreground hover:bg-secondary hover:text-foreground border-(--line) hover:border-(--line-hover)"
               }`}
             >
               {s === "all" ? "Todas" : statusInfo?.label}

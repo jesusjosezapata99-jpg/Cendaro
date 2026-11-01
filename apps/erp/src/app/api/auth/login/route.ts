@@ -40,6 +40,7 @@ import { z } from "zod/v4";
 import { createSupabaseServerClient } from "@cendaro/auth/server";
 
 import { env } from "~/env";
+import { getClientIp } from "~/lib/client-ip";
 import {
   applyLockout,
   getFailureCount,
@@ -184,8 +185,7 @@ export async function POST(request: Request) {
 
   // ── Step 3: Extract IP ──────────────────────────────────────────────────
   // x-forwarded-for is set by Vercel. Take only the first (client) IP.
-  const rawIp = request.headers.get("x-forwarded-for") ?? "";
-  const ip = rawIp.split(",")[0]?.trim() ?? "unknown";
+  const ip = getClientIp(request.headers);
 
   // ── Step 4: Parse and validate body ────────────────────────────────────
   let rawBody: unknown;

@@ -334,14 +334,6 @@ export const workspaceRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       const ws = ctx.workspace;
 
-      if (!["owner", "admin"].includes(ws.role)) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message:
-            "Solo propietarios o administradores pueden editar el workspace",
-        });
-      }
-
       if (
         !input.name &&
         input.legalName === undefined &&
@@ -605,14 +597,6 @@ export const workspaceRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       const ws = ctx.workspace;
 
-      if (!["owner", "admin"].includes(ws.role)) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message:
-            "Solo propietarios o administradores pueden invitar miembros",
-        });
-      }
-
       if (input.role === "admin" && ws.role !== "owner") {
         throw new TRPCError({
           code: "FORBIDDEN",
@@ -801,14 +785,6 @@ export const workspaceRouter = createTRPCRouter({
     .input(z.object({ memberId: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       const ws = ctx.workspace;
-
-      if (!["owner", "admin"].includes(ws.role)) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message:
-            "Solo propietarios o administradores pueden eliminar miembros",
-        });
-      }
 
       // Can't remove yourself
       if (input.memberId === ws.memberId) {

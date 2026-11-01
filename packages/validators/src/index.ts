@@ -166,6 +166,7 @@ export const NAV_ROLE_RULES = {
 export type NavRoleRuleKey = keyof typeof NAV_ROLE_RULES;
 
 export * from "./authz";
+export * from "./commerce";
 export * from "./fiscal";
 export * from "./money";
 export * from "./rates";

@@ -26,6 +26,7 @@ const APPROVAL_TYPE_LABELS: Record<string, string> = {
   credit_sale: "Venta a Crédito",
   channel_stock_move: "Movimiento de Stock entre Canales",
   edit_post_issue_document: "Edición de Documento Emitido",
+  price_override: "Precio bajo el Mínimo",
 };
 
 const TYPE_CONFIG: Record<

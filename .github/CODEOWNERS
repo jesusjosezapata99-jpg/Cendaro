@@ -1,15 +1,12 @@
 # ──────────────────────────────────────────────────────────────
 # CODEOWNERS — Cendaro ERP
 #
-# Defines REQUIRED reviewers for pull requests.
-# GitHub enforces that all matching CODEOWNERS must approve
-# before a PR can be merged into protected branches.
-#
-# Since this is the primary maintainer's repository, ALL code
-# changes require explicit approval from the repository owner.
+# Requests review from the maintainer on every pull request.
+# With a single maintainer, approval is not enforced: main is protected by
+# required pull requests and required status checks instead.
 #
 # Docs: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
 # ──────────────────────────────────────────────────────────────
 
-# Global rule: ALL files require owner approval
+# Global rule: the maintainer reviews every file
 * @jesusjosezapata99-jpg

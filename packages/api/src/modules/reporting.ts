@@ -4,7 +4,6 @@
  * PRD §22: Report generation for sales, inventory, and financial data.
  * @see docs/architecture/module_api_blueprint_v1.md — Reporting & Exports
  */
-import { TRPCError } from "@trpc/server";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod/v4";
 
@@ -21,8 +20,8 @@ import {
 import { createTRPCRouter, wsReadPermissionProcedure } from "../trpc";
 
 const dateRangeInput = z.object({
-  from: z.string().min(1),
-  to: z.string().min(1),
+  from: z.string().datetime(),
+  to: z.string().datetime(),
 });
 
 export const reportingRouter = createTRPCRouter({
@@ -124,8 +123,8 @@ export const reportingRouter = createTRPCRouter({
   topProducts: wsReadPermissionProcedure("dashboard", "export")
     .input(
       z.object({
-        from: z.string().min(1),
-        to: z.string().min(1),
+        from: z.string().datetime(),
+        to: z.string().datetime(),
         limit: z.number().int().min(1).max(50).default(10),
       }),
     )
@@ -182,14 +181,6 @@ export const reportingRouter = createTRPCRouter({
     "dashboard",
     "export",
   ).query(async ({ ctx }) => {
-    if (!["owner", "admin", "supervisor"].includes(ctx.workspace.role)) {
-      throw new TRPCError({
-        code: "FORBIDDEN",
-        message:
-          "Solo supervisores y administradores pueden ejecutar la conciliación financiera",
-      });
-    }
-
     // 1. Total sales revenue from confirmed orders (excluding cancelled)
     const [salesRow] = await ctx.db
       .select({
@@ -262,7 +253,6 @@ export const reportingRouter = createTRPCRouter({
     return {
       reconciledAt: new Date().toISOString(),
       workspaceId: ctx.workspace.workspaceId,
-      complianceStandard: "SOC 1 / SSAE 18 ICFR",
       status: complianceStatus,
       financials: {
         totalSalesRevenue: totalSales,

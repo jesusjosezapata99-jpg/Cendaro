@@ -409,7 +409,7 @@ export default function AccountsReceivableClient() {
       {/* Filter Tabs — Clean sharp style */}
       <div className="flex flex-col gap-2">
         {/* Status Filter */}
-        <div className="mobile-scroll-x flex items-center gap-1.5 border-b border-[--line] pb-2">
+        <div className="mobile-scroll-x flex items-center gap-1.5 border-b border-(--line) pb-2">
           {[
             { key: "all", label: "Todas" },
             { key: "pending", label: "Pendientes" },
@@ -426,7 +426,7 @@ export default function AccountsReceivableClient() {
                 className={`flex min-h-8 items-center border px-3 py-1 text-xs font-medium whitespace-nowrap transition-colors ${
                   isActive
                     ? "border-primary bg-primary text-primary-foreground"
-                    : "bg-card text-muted-foreground hover:bg-secondary hover:text-foreground border-[--line] hover:border-[--line-hover]"
+                    : "bg-card text-muted-foreground hover:bg-secondary hover:text-foreground border-(--line) hover:border-(--line-hover)"
                 }`}
               >
                 {tab.label}

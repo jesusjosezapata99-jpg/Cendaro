@@ -4,7 +4,6 @@
  * Read-only access to audit log entries and WORM cryptographic chain verification.
  * Admin/owner only.
  */
-import { TRPCError } from "@trpc/server";
 import { and, asc, desc, eq, gte, lte } from "drizzle-orm";
 import { z } from "zod/v4";
 
@@ -28,14 +27,6 @@ export const auditRouter = createTRPCRouter({
       }),
     )
     .query(async ({ ctx, input }) => {
-      if (!["owner", "admin"].includes(ctx.workspace.role)) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message:
-            "Requiere rol de Administrador o Propietario para consultar la bitácora de auditoría",
-        });
-      }
-
       const conditions = [eq(AuditLog.workspaceId, ctx.workspace.workspaceId)];
 
       if (input.entity) conditions.push(eq(AuditLog.entity, input.entity));
@@ -59,14 +50,6 @@ export const auditRouter = createTRPCRouter({
   byId: wsReadPermissionProcedure("audit", "read")
     .input(z.object({ id: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
-      if (!["owner", "admin"].includes(ctx.workspace.role)) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message:
-            "Requiere rol de Administrador o Propietario para consultar la bitácora de auditoría",
-        });
-      }
-
       const [entry] = await ctx.db
         .select()
         .from(AuditLog)
@@ -95,14 +78,6 @@ export const auditRouter = createTRPCRouter({
         .optional(),
     )
     .query(async ({ ctx, input }) => {
-      if (!["owner", "admin"].includes(ctx.workspace.role)) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message:
-            "Requiere rol de Administrador o Propietario para verificar la cadena criptográfica de auditoría",
-        });
-      }
-
       const conditions = [eq(AuditLog.workspaceId, ctx.workspace.workspaceId)];
       if (input?.from) conditions.push(gte(AuditLog.createdAt, input.from));
       if (input?.to) conditions.push(lte(AuditLog.createdAt, input.to));
@@ -111,7 +86,7 @@ export const auditRouter = createTRPCRouter({
         .select()
         .from(AuditLog)
         .where(and(...conditions))
-        .orderBy(asc(AuditLog.createdAt))
+        .orderBy(asc(AuditLog.seq))
         .limit(input?.limit ?? 500);
 
       const normalizedRows = rows.map((r) => ({

@@ -46,7 +46,7 @@
 | Document                                          | Path                                                                                                                       |  Status   |
 | :------------------------------------------------ | :------------------------------------------------------------------------------------------------------------------------- | :-------: |
 | **Incident Response Runbook**                     | [`security/INCIDENT_RESPONSE.md`](security/INCIDENT_RESPONSE.md)                                                           | ✅ Active |
-| **WAF & Secrets Rotation Runbook**                | [`security/waf-and-secrets-runbook.md`](security/waf-and-secrets-runbook.md)                                               | ✅ Active |
+| **Personal Data Inventory**                       | [`security/data-inventory.md`](security/data-inventory.md)                                                                 | ✅ Active |
 | **01 · Information Security Policy**              | [`compliance/01-INFORMATION-SECURITY-POLICY.md`](compliance/01-INFORMATION-SECURITY-POLICY.md)                             | ✅ Active |
 | **02 · Access Control & MFA Policy**              | [`compliance/02-ACCESS-CONTROL-AND-MFA-POLICY.md`](compliance/02-ACCESS-CONTROL-AND-MFA-POLICY.md)                         | ✅ Active |
 | **03 · Incident Management & Response**           | [`compliance/03-INCIDENT-MANAGEMENT-AND-RESPONSE.md`](compliance/03-INCIDENT-MANAGEMENT-AND-RESPONSE.md)                   | ✅ Active |

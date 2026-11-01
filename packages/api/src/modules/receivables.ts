@@ -5,19 +5,19 @@
  * @see docs/architecture/module_api_blueprint_v1.md — Accounts Receivable
  */
 import { TRPCError } from "@trpc/server";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ne, sql } from "drizzle-orm";
 import { z } from "zod/v4";
 
 import type { getDb } from "@cendaro/db/client";
 import {
   AccountReceivable,
   ArInstallment,
-  Customer,
   Payment,
   PaymentAllocation,
   paymentMethodEnum,
   SalesOrder,
 } from "@cendaro/db/schema";
+import { MONEY_EPSILON, roundMoney2 } from "@cendaro/validators";
 
 import {
   createTRPCRouter,
@@ -28,6 +28,12 @@ import { logAudit } from "./audit";
 
 type DbClient = ReturnType<typeof getDb>;
 
+const OPEN_RECEIVABLE_STATUSES: readonly string[] = [
+  "pending",
+  "partial",
+  "overdue",
+];
+
 export const recordArPaymentInputSchema = z.object({
   id: z.string().uuid(),
   amount: z.number().positive(),
@@ -36,79 +42,152 @@ export const recordArPaymentInputSchema = z.object({
   notes: z.string().optional(),
 });
 
+/** Spreads an amount over the receivable's unpaid installments, oldest first. */
+async function applyToInstallments(
+  db: DbClient,
+  workspaceId: string,
+  receivableId: string,
+  amount: number,
+): Promise<void> {
+  const installments = await db
+    .select()
+    .from(ArInstallment)
+    .where(
+      and(
+        eq(ArInstallment.receivableId, receivableId),
+        eq(ArInstallment.workspaceId, workspaceId),
+        ne(ArInstallment.status, "paid"),
+      ),
+    )
+    .orderBy(asc(ArInstallment.dueDate), asc(ArInstallment.installmentNumber))
+    .for("update");
+
+  let remaining = amount;
+  for (const installment of installments) {
+    if (remaining <= MONEY_EPSILON) break;
+    const owed = roundMoney2(
+      Number(installment.amount) - Number(installment.paidAmount ?? 0),
+    );
+    const applied = Math.min(owed, remaining);
+    const isPaid = applied >= owed - MONEY_EPSILON;
+    await db
+      .update(ArInstallment)
+      .set({
+        paidAmount: roundMoney2(Number(installment.paidAmount ?? 0) + applied),
+        status: isPaid ? "paid" : "partially_paid",
+        paidAt: isPaid ? new Date() : installment.paidAt,
+      })
+      .where(
+        and(
+          eq(ArInstallment.id, installment.id),
+          eq(ArInstallment.workspaceId, workspaceId),
+        ),
+      );
+    remaining = roundMoney2(remaining - applied);
+  }
+}
+
+/**
+ * Records a payment against a receivable. With an order, the payment row moves
+ * the balance through trg_ar_payment, the single writer of that movement; a
+ * receivable without an order has no payment row, so it is updated here.
+ */
+/**
+ * Order first, then receivable: the same order as payments on an order, so the
+ * two paths cannot deadlock.
+ */
+async function lockReceivable(db: DbClient, workspaceId: string, id: string) {
+  const [reference] = await db
+    .select({ orderId: AccountReceivable.orderId })
+    .from(AccountReceivable)
+    .where(
+      and(
+        eq(AccountReceivable.id, id),
+        eq(AccountReceivable.workspaceId, workspaceId),
+      ),
+    )
+    .limit(1);
+  if (reference?.orderId) {
+    await db
+      .select({ id: SalesOrder.id })
+      .from(SalesOrder)
+      .where(
+        and(
+          eq(SalesOrder.id, reference.orderId),
+          eq(SalesOrder.workspaceId, workspaceId),
+        ),
+      )
+      .limit(1)
+      .for("update");
+  }
+  const [receivable] = await db
+    .select()
+    .from(AccountReceivable)
+    .where(
+      and(
+        eq(AccountReceivable.id, id),
+        eq(AccountReceivable.workspaceId, workspaceId),
+      ),
+    )
+    .limit(1)
+    .for("update");
+  return receivable;
+}
+
 export async function executeRecordArPayment(
   db: DbClient,
   user: { id: string; email?: string | null },
   workspaceId: string,
   input: z.infer<typeof recordArPaymentInputSchema>,
+  options: { applyToInstallments?: boolean } = {},
 ) {
-  const [updated] = await db
-    .update(AccountReceivable)
-    .set({
-      paidAmount: sql`${AccountReceivable.paidAmount} + ${input.amount}`,
-      balance: sql`GREATEST(0, ${AccountReceivable.balance} - ${input.amount})`,
-    })
-    .where(
-      and(
-        eq(AccountReceivable.id, input.id),
-        eq(AccountReceivable.workspaceId, workspaceId),
-      ),
-    )
-    .returning();
+  const receivable = await lockReceivable(db, workspaceId, input.id);
 
-  if (!updated) {
+  if (!receivable) {
     throw new TRPCError({
       code: "NOT_FOUND",
       message: "Cuenta por cobrar no encontrada",
     });
   }
-
-  // Auto-update status based on balance
-  if (Number(updated.balance) <= 0) {
-    await db
-      .update(AccountReceivable)
-      .set({ status: "paid", balance: 0 })
-      .where(
-        and(
-          eq(AccountReceivable.id, input.id),
-          eq(AccountReceivable.workspaceId, workspaceId),
-        ),
-      );
-    updated.status = "paid";
-    updated.balance = 0;
-  } else if (Number(updated.paidAmount) > 0) {
-    await db
-      .update(AccountReceivable)
-      .set({ status: "partial" })
-      .where(
-        and(
-          eq(AccountReceivable.id, input.id),
-          eq(AccountReceivable.workspaceId, workspaceId),
-        ),
-      );
-    updated.status = "partial";
+  if (!OPEN_RECEIVABLE_STATUSES.includes(receivable.status)) {
+    throw new TRPCError({
+      code: "CONFLICT",
+      message: "Esta cuenta por cobrar ya no tiene saldo abierto",
+    });
+  }
+  if (input.amount > Number(receivable.balance) + MONEY_EPSILON) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: `El abono ($${input.amount.toFixed(2)}) supera el saldo ($${Number(receivable.balance).toFixed(2)})`,
+    });
   }
 
-  if (updated.customerId) {
-    await db
-      .update(Customer)
-      .set({
-        balance: sql`GREATEST(0, COALESCE(${Customer.balance}, 0) - ${input.amount})`,
-      })
-      .where(
-        and(
-          eq(Customer.id, updated.customerId),
-          eq(Customer.workspaceId, workspaceId),
-        ),
-      );
-  }
+  if (receivable.orderId) {
+    if (input.reference) {
+      const [duplicate] = await db
+        .select({ id: Payment.id })
+        .from(Payment)
+        .where(
+          and(
+            eq(Payment.workspaceId, workspaceId),
+            eq(Payment.orderId, receivable.orderId),
+            eq(Payment.reference, input.reference),
+          ),
+        )
+        .limit(1);
+      if (duplicate) {
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: `La referencia ${input.reference} ya está registrada en este pedido`,
+        });
+      }
+    }
 
-  if (updated.orderId) {
     const [payment] = await db
       .insert(Payment)
       .values({
         workspaceId,
-        orderId: updated.orderId,
+        orderId: receivable.orderId,
         method: input.method ?? "transfer",
         amount: input.amount,
         reference: input.reference,
@@ -122,7 +201,7 @@ export async function executeRecordArPayment(
       await db.insert(PaymentAllocation).values({
         workspaceId,
         paymentId: payment.id,
-        receivableId: updated.id,
+        receivableId: receivable.id,
         amount: input.amount,
       });
     }
@@ -134,10 +213,29 @@ export async function executeRecordArPayment(
       })
       .where(
         and(
-          eq(SalesOrder.id, updated.orderId),
+          eq(SalesOrder.id, receivable.orderId),
           eq(SalesOrder.workspaceId, workspaceId),
         ),
       );
+  } else {
+    const balance = roundMoney2(Number(receivable.balance) - input.amount);
+    await db
+      .update(AccountReceivable)
+      .set({
+        paidAmount: roundMoney2(Number(receivable.paidAmount) + input.amount),
+        balance: balance <= MONEY_EPSILON ? 0 : balance,
+        status: balance <= MONEY_EPSILON ? "paid" : "partial",
+      })
+      .where(
+        and(
+          eq(AccountReceivable.id, receivable.id),
+          eq(AccountReceivable.workspaceId, workspaceId),
+        ),
+      );
+  }
+
+  if (options.applyToInstallments !== false) {
+    await applyToInstallments(db, workspaceId, receivable.id, input.amount);
   }
 
   await logAudit(db, user, {
@@ -145,10 +243,20 @@ export async function executeRecordArPayment(
     action: "ar.payment",
     entity: "account_receivable",
     entityId: input.id,
-    newValue: { amount: input.amount, orderId: updated.orderId },
+    newValue: { amount: input.amount, orderId: receivable.orderId },
   });
 
-  return updated;
+  const [updated] = await db
+    .select()
+    .from(AccountReceivable)
+    .where(
+      and(
+        eq(AccountReceivable.id, input.id),
+        eq(AccountReceivable.workspaceId, workspaceId),
+      ),
+    )
+    .limit(1);
+  return updated ?? receivable;
 }
 
 export const receivablesRouter = createTRPCRouter({
@@ -299,10 +407,41 @@ export const receivablesRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
-      if (!["owner", "admin", "supervisor"].includes(ctx.workspace.role)) {
+      const workspaceId = ctx.workspace.workspaceId;
+      const [reference] = await ctx.db
+        .select({ receivableId: ArInstallment.receivableId })
+        .from(ArInstallment)
+        .where(
+          and(
+            eq(ArInstallment.id, input.installmentId),
+            eq(ArInstallment.workspaceId, workspaceId),
+          ),
+        )
+        .limit(1);
+      if (reference?.receivableId) {
+        await lockReceivable(ctx.db, workspaceId, reference.receivableId);
+      }
+
+      const [current] = await ctx.db
+        .select({
+          amount: ArInstallment.amount,
+          paidAmount: ArInstallment.paidAmount,
+        })
+        .from(ArInstallment)
+        .where(
+          and(
+            eq(ArInstallment.id, input.installmentId),
+            eq(ArInstallment.workspaceId, workspaceId),
+            ne(ArInstallment.status, "paid"),
+          ),
+        )
+        .limit(1)
+        .for("update");
+
+      if (!current) {
         throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "Insufficient permissions to mark installments as paid",
+          code: "NOT_FOUND",
+          message: "Cuota no encontrada o ya pagada",
         });
       }
 
@@ -316,7 +455,7 @@ export const receivablesRouter = createTRPCRouter({
         .where(
           and(
             eq(ArInstallment.id, input.installmentId),
-            eq(ArInstallment.workspaceId, ctx.workspace.workspaceId),
+            eq(ArInstallment.workspaceId, workspaceId),
           ),
         )
         .returning();
@@ -324,20 +463,25 @@ export const receivablesRouter = createTRPCRouter({
       if (!updated) {
         throw new TRPCError({
           code: "NOT_FOUND",
-          message: "Installment not found in this workspace",
+          message: "Cuota no encontrada o ya pagada",
         });
       }
 
-      if (updated.receivableId && Number(updated.amount) > 0) {
+      // Only what the installment still owes: earlier partial payments count.
+      const owed = roundMoney2(
+        Number(current.amount) - Number(current.paidAmount ?? 0),
+      );
+      if (updated.receivableId && owed > 0) {
         await executeRecordArPayment(
           ctx.db,
           ctx.user,
-          ctx.workspace.workspaceId,
+          workspaceId,
           {
             id: updated.receivableId,
-            amount: Number(updated.amount),
+            amount: owed,
             notes: `Cuota #${updated.installmentNumber} liquidada`,
           },
+          { applyToInstallments: false },
         );
       }
 

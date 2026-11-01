@@ -165,4 +165,44 @@ CREATE POLICY fiscal_document_workspace_isolation ON public.fiscal_document
   USING (workspace_id = (select current_setting('app.workspace_id', true))::uuid)
   WITH CHECK (workspace_id = (select current_setting('app.workspace_id', true))::uuid);
 
-GRANT SELECT, INSERT, UPDATE ON public.fiscal_document TO app_user;
+REVOKE ALL ON public.legal_entity, public.branch, public.fiscal_document FROM app_user;
+GRANT SELECT, INSERT, UPDATE ON public.legal_entity, public.branch, public.fiscal_document TO app_user;
+
+-- 4. Fiscal documents are immutable: only retention data may change afterwards,
+-- and corrections go through a credit or debit note.
+ALTER TABLE public.fiscal_document
+  ADD COLUMN IF NOT EXISTS retention_applied_usd double precision NOT NULL DEFAULT 0;
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_fiscal_document_invoice_number
+  ON public.fiscal_document (workspace_id, legal_entity_id, fiscal_invoice_number);
+
+CREATE OR REPLACE FUNCTION public.protect_fiscal_document()
+  RETURNS trigger
+  LANGUAGE plpgsql
+  SET search_path TO 'public'
+AS $function$
+DECLARE
+  retention_columns text[] := ARRAY[
+    'iva_retention_pct', 'iva_retention_voucher', 'iva_retention_usd',
+    'iva_retention_ves', 'islr_retention_pct', 'islr_retention_voucher',
+    'islr_retention_usd', 'retention_applied_usd'
+  ];
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    RAISE EXCEPTION 'fiscal documents cannot be deleted';
+  END IF;
+  IF (to_jsonb(NEW) - retention_columns) IS DISTINCT FROM (to_jsonb(OLD) - retention_columns) THEN
+    RAISE EXCEPTION 'fiscal documents are immutable except for retention data';
+  END IF;
+  RETURN NEW;
+END;
+$function$;
+
+REVOKE EXECUTE ON FUNCTION public.protect_fiscal_document()
+  FROM PUBLIC, anon, authenticated, app_user;
+
+DROP TRIGGER IF EXISTS trg_protect_fiscal_document ON public.fiscal_document;
+CREATE TRIGGER trg_protect_fiscal_document
+  BEFORE UPDATE OR DELETE ON public.fiscal_document
+  FOR EACH ROW
+  EXECUTE FUNCTION public.protect_fiscal_document();

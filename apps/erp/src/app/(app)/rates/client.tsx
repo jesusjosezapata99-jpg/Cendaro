@@ -323,14 +323,16 @@ export default function RatesClient() {
         actions={
           <Can module="rates" action="update">
             <div className="flex flex-wrap items-center gap-2">
-              <Button
-                variant="outline"
-                onClick={() => setShowManualModal(true)}
-                className="min-h-11 flex-1 sm:flex-initial"
-              >
-                <Icons.Edit className="size-4.5" />
-                Tasa Manual
-              </Button>
+              <Can module="pricing" action="approve">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowManualModal(true)}
+                  className="min-h-11 flex-1 sm:flex-initial"
+                >
+                  <Icons.Edit className="size-4.5" />
+                  Tasa Manual
+                </Button>
+              </Can>
               <Button
                 onClick={handleManualRefresh}
                 className="min-h-11 flex-1 sm:flex-initial"

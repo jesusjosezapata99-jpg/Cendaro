@@ -34,6 +34,7 @@ interface MockPhase7State {
   stockRow?: Record<string, unknown>;
   approvalRow?: Record<string, unknown>;
   discrepancyRow?: Record<string, unknown>;
+  containerItem?: Record<string, unknown>;
 }
 
 function createPhase7Caller(state: MockPhase7State = {}) {
@@ -49,6 +50,16 @@ function createPhase7Caller(state: MockPhase7State = {}) {
           workspaceId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
           containerNumber: "MSCU-1234567",
           status: "in_transit",
+        },
+      ];
+    }
+    if (lastWhere.includes('"container_item"')) {
+      return [
+        {
+          id: "44444444-4444-4444-8444-444444444444",
+          quantityExpected: 10,
+          quantityReceived: 0,
+          ...state.containerItem,
         },
       ];
     }
@@ -116,6 +127,8 @@ function createPhase7Caller(state: MockPhase7State = {}) {
     if (lastWhere.includes('"sales_order"')) {
       return [
         {
+          // The order a credit_sale approval resolves.
+          status: "pending_confirmation",
           totalOrders: 5,
           totalRevenue: 1250,
           avgOrderValue: 250,
@@ -280,6 +293,70 @@ describe("Phase 7 — Containers, Approvals & Reporting", () => {
       (row) => row.channel === "store" && row.quantity === 10,
     );
     expect(channelAllocInsert).toBeDefined();
+  });
+
+  const receipt = (quantityReceived: number) => ({
+    containerId: "11111111-1111-4111-8111-111111111111",
+    warehouseId: "22222222-2222-4222-8222-222222222222",
+    items: [
+      {
+        containerItemId: "44444444-4444-4444-8444-444444444444",
+        productId: "33333333-3333-4333-8333-333333333333",
+        quantityReceived,
+      },
+    ],
+  });
+
+  it("F7.1: repeating a receipt adds nothing to stock", async () => {
+    const { caller, inserted } = createPhase7Caller({
+      containerItem: { quantityReceived: 10 },
+    });
+    const result = await caller.container.receiveItems(receipt(10));
+    expect(result.totalUnitsReceived).toBe(0);
+    expect(inserted.some((r) => r.movementType === "container_receipt")).toBe(
+      false,
+    );
+  });
+
+  it("F7.1: a partial receipt adds the difference and keeps the container open", async () => {
+    const { caller, inserted, updated } = createPhase7Caller({
+      containerItem: { quantityReceived: 4 },
+    });
+    await caller.container.receiveItems(receipt(7));
+    expect(
+      inserted.find((r) => r.movementType === "container_receipt"),
+    ).toMatchObject({ quantity: 3 });
+    expect(updated.some((r) => r.status === "received")).toBe(false);
+    expect(updated).toContainEqual({ status: "in_transit" });
+  });
+
+  it("F7.1: receiving less than recorded is rejected", async () => {
+    const { caller } = createPhase7Caller({
+      containerItem: { quantityReceived: 8 },
+    });
+    await expect(
+      caller.container.receiveItems(receipt(5)),
+    ).rejects.toThrowError(
+      expect.objectContaining({ code: "BAD_REQUEST" }) as Error,
+    );
+  });
+
+  it("F7.1: receiving above the expected quantity needs containers.approve", async () => {
+    const { caller, inserted } = createPhase7Caller({ role: "employee" });
+    await expect(
+      caller.container.receiveItems(receipt(11)),
+    ).rejects.toThrowError(
+      expect.objectContaining({ code: "FORBIDDEN" }) as Error,
+    );
+    expect(inserted.some((r) => r.movementType === "container_receipt")).toBe(
+      false,
+    );
+
+    const owner = createPhase7Caller({ role: "owner" });
+    await owner.caller.container.receiveItems(receipt(11));
+    expect(
+      owner.inserted.find((r) => r.movementType === "container_receipt"),
+    ).toMatchObject({ quantity: 11 });
   });
 
   it("F7.2: approvals.approve dispatches side effects for container_close, cash_closure, product_unblock, and credit_sale", async () => {

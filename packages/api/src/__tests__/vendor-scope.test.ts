@@ -38,6 +38,7 @@ function fakeDb(opts: { role: string; emptyWhen?: RegExp }) {
 
   const chain = (): Record<string, unknown> => {
     let lastWhere = "";
+    let lastParams: unknown[] = [];
     const self: Record<string, unknown> = {};
     for (const method of [
       "from",
@@ -50,6 +51,7 @@ function fakeDb(opts: { role: string; emptyWhen?: RegExp }) {
       "set",
       "values",
       "returning",
+      "for",
     ]) {
       self[method] = () => self;
     }
@@ -57,6 +59,7 @@ function fakeDb(opts: { role: string; emptyWhen?: RegExp }) {
       if (condition) {
         const rendered = dialect.sqlToQuery(condition);
         lastWhere = rendered.sql;
+        lastParams = rendered.params;
         wheres.push({ sql: rendered.sql, params: rendered.params });
       }
       return self;
@@ -65,8 +68,10 @@ function fakeDb(opts: { role: string; emptyWhen?: RegExp }) {
       onFulfilled: (rows: unknown[]) => unknown,
       onRejected: (reason: unknown) => unknown,
     ) => {
-      const rows =
-        opts.emptyWhen?.test(lastWhere) === true
+      const rows = lastWhere.includes(`"product_price"."productId" in (`)
+        ? [{ productId: lastParams[1], priceType: "store", amountUsd: 10 }]
+        : lastWhere.includes(`"stock_ledger"."isLocked" = $`) ||
+            opts.emptyWhen?.test(lastWhere) === true
           ? []
           : [{ id: nextId(), plan: "pro", fullName: "Caller" }];
       return Promise.resolve(rows).then(onFulfilled, onRejected);
@@ -131,9 +136,6 @@ function filtersBy(
 const ORDER_OWNER = `"sales_order"."createdBy"`;
 const QUOTE_OWNER = `"quote"."createdBy"`;
 const CUSTOMER_VENDOR = `"customer"."assignedVendorId"`;
-const DELIVERY_NOTE_OWNER = `"delivery_note"."createdBy"`;
-const INTERNAL_INVOICE_OWNER = `"internal_invoice"."createdBy"`;
-const FISCAL_DOC_ISSUER = `"fiscal_document"."issuedBy"`;
 const channel = salesChannelEnum.enumValues[0];
 
 describe("vendor reads are scoped to their own rows", () => {
@@ -156,23 +158,13 @@ describe("vendor reads are scoped to their own rows", () => {
     ],
     [
       "sales.listDeliveryNotes",
-      DELIVERY_NOTE_OWNER,
+      ORDER_OWNER,
       (c) => c.sales.listDeliveryNotes({}),
     ],
     [
       "sales.listInternalInvoices",
-      INTERNAL_INVOICE_OWNER,
+      ORDER_OWNER,
       (c) => c.sales.listInternalInvoices({}),
-    ],
-    [
-      "fiscal.listDocuments",
-      FISCAL_DOC_ISSUER,
-      (c) => c.fiscal.listDocuments({}),
-    ],
-    [
-      "fiscal.salesBookReport",
-      FISCAL_DOC_ISSUER,
-      (c) => c.fiscal.salesBookReport({}),
     ],
     ["quotes.list", QUOTE_OWNER, (c) => c.quotes.list({})],
     ["quotes.byId", QUOTE_OWNER, (c) => c.quotes.byId({ id: nextId() })],
@@ -208,14 +200,30 @@ describe("vendor reads are scoped to their own rows", () => {
   }
 });
 
+describe("fiscal documents are outside the vendor role", () => {
+  it("forbids reading them", async () => {
+    const { caller } = callerFor("vendor");
+    await expect(caller.fiscal.listDocuments({})).rejects.toThrowError(
+      expect.objectContaining({ code: "FORBIDDEN" }) as Error,
+    );
+    await expect(caller.fiscal.salesBookReport({})).rejects.toThrowError(
+      expect.objectContaining({ code: "FORBIDDEN" }) as Error,
+    );
+  });
+});
+
 describe("vendor writes are limited to their own customers and quotes", () => {
+  const items = [
+    { productId: nextId(), quantity: 1, unitPrice: 10, discount: 0 },
+  ];
+
   it("rejects an order for a customer not assigned to the vendor", async () => {
     const { caller, inserts } = callerFor(
       "vendor",
       /"customer"\."assignedVendorId"/,
     );
     await expect(
-      caller.sales.createOrder({ customerId: nextId(), channel, items: [] }),
+      caller.sales.createOrder({ customerId: nextId(), channel, items }),
     ).rejects.toThrowError(
       expect.objectContaining({ code: "NOT_FOUND" }) as Error,
     );
@@ -228,9 +236,22 @@ describe("vendor writes are limited to their own customers and quotes", () => {
       /"customer"\."assignedVendorId"/,
     );
     await expect(
-      caller.quotes.create({ customerId: nextId(), channel, items: [] }),
+      caller.quotes.create({ customerId: nextId(), channel, items }),
     ).rejects.toThrowError(
       expect.objectContaining({ code: "NOT_FOUND" }) as Error,
+    );
+    expect(inserts).toEqual([]);
+  });
+
+  it("rejects a vendor's order or quote without a customer", async () => {
+    const { caller, inserts } = callerFor("vendor");
+    await expect(
+      caller.sales.createOrder({ channel, items }),
+    ).rejects.toThrowError(
+      expect.objectContaining({ code: "BAD_REQUEST" }) as Error,
+    );
+    await expect(caller.quotes.create({ channel, items })).rejects.toThrowError(
+      expect.objectContaining({ code: "BAD_REQUEST" }) as Error,
     );
     expect(inserts).toEqual([]);
   });
@@ -247,11 +268,7 @@ describe("vendor writes are limited to their own customers and quotes", () => {
 
   it("lets a vendor order for an assigned customer", async () => {
     const { caller, userId, wheres, inserts } = callerFor("vendor");
-    await caller.sales.createOrder({
-      customerId: nextId(),
-      channel,
-      items: [],
-    });
+    await caller.sales.createOrder({ customerId: nextId(), channel, items });
     expect(filtersBy(wheres, CUSTOMER_VENDOR, userId)).toBe(true);
     expect(inserts.length).toBeGreaterThan(0);
   });

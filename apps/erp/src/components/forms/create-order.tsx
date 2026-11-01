@@ -1,8 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 
+import type { PaymentTerms } from "@cendaro/validators";
 import { Icons } from "@cendaro/ui/icons";
 
 import { Field, Input, Select } from "~/components/dialog";
@@ -12,6 +18,7 @@ import {
   SheetFormActions,
   SheetModal,
 } from "~/components/sheet-modal";
+import { useDebounce } from "~/hooks/use-debounce";
 import { useTRPC } from "~/trpc/client";
 
 interface Props {
@@ -37,12 +44,45 @@ export function CreateOrderDialog({
   const trpc = useTRPC();
   const qc = useQueryClient();
 
-  const { data: customers } = useQuery(
-    trpc.sales.listCustomers.queryOptions({ limit: 100 }),
-  );
-  const { data: productsData } = useQuery(
-    trpc.catalog.listProducts.queryOptions({ limit: 100 }),
-  );
+  const [customerId, setCustomerId] = useState("");
+  const [channel, setChannel] = useState(defaultChannel);
+  const [notes, setNotes] = useState("");
+  const [paymentTerms, setPaymentTerms] = useState<PaymentTerms>("cash");
+  const [lines, setLines] = useState<OrderLine[]>([]);
+
+  // ── Typeahead state ─────────────────────────────
+  const [productSearch, setProductSearch] = useState("");
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [highlightIdx, setHighlightIdx] = useState(0);
+  const [addQuantity, setAddQuantity] = useState("1");
+  const [addPrice, setAddPrice] = useState("");
+  const [addDiscount, setAddDiscount] = useState("0");
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const quantityInputRef = useRef<HTMLInputElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const rawSearchTerm = useMemo(() => {
+    const trimmed = productSearch.trim();
+    if (trimmed.includes(" — ")) {
+      return trimmed.split(" — ")[0]?.trim() ?? "";
+    }
+    return trimmed;
+  }, [productSearch]);
+  const debouncedProductSearch = useDebounce(rawSearchTerm, 200);
+
+  const { data: customers } = useQuery({
+    ...trpc.sales.listCustomers.queryOptions({ limit: 100 }),
+    enabled: open,
+  });
+  const { data: productsData } = useQuery({
+    ...trpc.catalog.listProducts.queryOptions({
+      limit: 30,
+      status: "active",
+      search: debouncedProductSearch || undefined,
+    }),
+    enabled: open,
+    placeholderData: keepPreviousData,
+  });
   const productList = useMemo(
     () => (productsData && "items" in productsData ? productsData.items : []),
     [productsData],
@@ -57,25 +97,9 @@ export function CreateOrderDialog({
     }),
   );
 
-  const [customerId, setCustomerId] = useState("");
-  const [channel, setChannel] = useState(defaultChannel);
-  const [notes, setNotes] = useState("");
-  const [lines, setLines] = useState<OrderLine[]>([]);
-
-  // ── Typeahead state ─────────────────────────────
-  const [productSearch, setProductSearch] = useState("");
-  const [showDropdown, setShowDropdown] = useState(false);
-  const [highlightIdx, setHighlightIdx] = useState(0);
-  const [addQuantity, setAddQuantity] = useState("1");
-  const [addPrice, setAddPrice] = useState("");
-  const [addDiscount, setAddDiscount] = useState("0");
-  const searchInputRef = useRef<HTMLInputElement>(null);
-  const quantityInputRef = useRef<HTMLInputElement>(null);
-  const dropdownRef = useRef<HTMLDivElement>(null);
-
   const filteredProducts = useMemo(() => {
-    if (!productSearch.trim()) return [];
-    const q = productSearch.toLowerCase();
+    if (!rawSearchTerm) return [];
+    const q = rawSearchTerm.toLowerCase();
     return productList
       .filter(
         (p: {
@@ -88,8 +112,8 @@ export function CreateOrderDialog({
           p.name.toLowerCase().includes(q) ||
           p.barcode?.toLowerCase().includes(q),
       )
-      .slice(0, 10);
-  }, [productSearch, productList]);
+      .slice(0, 12);
+  }, [rawSearchTerm, productList]);
 
   // Reset form state when dialog reopens
   useEffect(() => {
@@ -97,6 +121,7 @@ export function CreateOrderDialog({
       setCustomerId("");
       setChannel(defaultChannel);
       setNotes("");
+      setPaymentTerms("cash");
       setLines([]);
       setProductSearch("");
       setShowDropdown(false);
@@ -121,13 +146,28 @@ export function CreateOrderDialog({
   }, []);
 
   const selectProduct = useCallback(
-    (product: { id: string; name: string; sku: string }) => {
+    (product: {
+      id: string;
+      name: string;
+      sku: string;
+      basePriceUsd?: number | null;
+      posPriceUsd?: number | null;
+    }) => {
       setProductSearch(`${product.sku} — ${product.name}`);
+      const suggestedPrice =
+        channel === "store"
+          ? (product.posPriceUsd ?? product.basePriceUsd)
+          : (product.basePriceUsd ?? product.posPriceUsd);
+      setAddPrice(
+        typeof suggestedPrice === "number" && suggestedPrice > 0
+          ? suggestedPrice.toFixed(2)
+          : "",
+      );
       setShowDropdown(false);
       // Focus quantity input after selection
       setTimeout(() => quantityInputRef.current?.focus(), 50);
     },
-    [],
+    [channel],
   );
 
   const getSelectedProduct = useCallback(() => {
@@ -212,6 +252,7 @@ export function CreateOrderDialog({
       channel: channel as
         "store" | "mercadolibre" | "vendors" | "whatsapp" | "instagram",
       notes: notes || undefined,
+      paymentTerms,
       items: lines.map((l) => ({
         productId: l.productId,
         quantity: l.quantity,
@@ -237,7 +278,10 @@ export function CreateOrderDialog({
             <Field label="Cliente">
               <Select
                 value={customerId}
-                onChange={(e) => setCustomerId(e.target.value)}
+                onChange={(e) => {
+                  setCustomerId(e.target.value);
+                  if (!e.target.value) setPaymentTerms("cash");
+                }}
               >
                 <option value="">Cliente de mostrador</option>
                 {(customers ?? []).map((c) => (
@@ -245,6 +289,19 @@ export function CreateOrderDialog({
                     {c.name}
                   </option>
                 ))}
+              </Select>
+            </Field>
+            <Field label="Condición de pago" required>
+              <Select
+                value={paymentTerms}
+                onChange={(e) =>
+                  setPaymentTerms(e.target.value as PaymentTerms)
+                }
+              >
+                <option value="cash">Contado</option>
+                <option value="credit" disabled={!customerId}>
+                  Crédito
+                </option>
               </Select>
             </Field>
             <Field label="Canal" required>
@@ -363,32 +420,46 @@ export function CreateOrderDialog({
                           name: string;
                           sku: string;
                           barcode: string | null;
+                          basePriceUsd?: number | null;
+                          posPriceUsd?: number | null;
+                          stockCount?: number;
                         },
                         idx: number,
-                      ) => (
-                        <button
-                          key={p.id}
-                          type="button"
-                          onClick={() => selectProduct(p)}
-                          className={`flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition-colors ${
-                            idx === highlightIdx
-                              ? "bg-primary/10 text-primary"
-                              : "text-foreground hover:bg-accent"
-                          }`}
-                        >
-                          <span className="text-primary shrink-0 font-mono text-xs font-medium">
-                            {p.sku}
-                          </span>
-                          <span className="min-w-0 flex-1 truncate">
-                            {p.name}
-                          </span>
-                          {p.barcode && (
-                            <span className="text-muted-foreground shrink-0 font-mono text-[10px]">
-                              {p.barcode}
+                      ) => {
+                        const unitPrice =
+                          channel === "store"
+                            ? (p.posPriceUsd ?? p.basePriceUsd)
+                            : (p.basePriceUsd ?? p.posPriceUsd);
+                        return (
+                          <button
+                            key={p.id}
+                            type="button"
+                            onClick={() => selectProduct(p)}
+                            className={`flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition-colors ${
+                              idx === highlightIdx
+                                ? "bg-primary/10 text-primary"
+                                : "text-foreground hover:bg-accent"
+                            }`}
+                          >
+                            <span className="text-primary shrink-0 font-mono text-xs font-medium">
+                              {p.sku}
                             </span>
-                          )}
-                        </button>
-                      ),
+                            <span className="min-w-0 flex-1 truncate">
+                              {p.name}
+                            </span>
+                            {typeof p.stockCount === "number" && (
+                              <span className="text-muted-foreground shrink-0 font-mono text-[10px] tabular-nums">
+                                {p.stockCount} un.
+                              </span>
+                            )}
+                            {typeof unitPrice === "number" && unitPrice > 0 && (
+                              <span className="text-foreground shrink-0 font-mono text-xs font-medium tabular-nums">
+                                ${unitPrice.toFixed(2)}
+                              </span>
+                            )}
+                          </button>
+                        );
+                      },
                     )}
                   </div>
                 )}

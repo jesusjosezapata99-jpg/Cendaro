@@ -18,18 +18,15 @@
  * off Partial Prerendering.
  *
  * @param {boolean} isDev
+ * @param {string} [supabaseUrl] defaults to NEXT_PUBLIC_SUPABASE_URL
  * @returns {string}
  */
 export function buildContentSecurityPolicy(isDev, supabaseUrl) {
-  let supabaseOrigin = "https://ljwoptpaxazqmnhdczsb.supabase.co";
   const rawUrl = supabaseUrl ?? process.env.NEXT_PUBLIC_SUPABASE_URL;
-  if (rawUrl) {
-    try {
-      supabaseOrigin = new URL(rawUrl).origin;
-    } catch {
-      // Fall back to default project origin
-    }
+  if (!rawUrl) {
+    throw new Error("The CSP needs NEXT_PUBLIC_SUPABASE_URL");
   }
+  const supabaseOrigin = new URL(rawUrl).origin;
 
   return [
     "default-src 'self'",

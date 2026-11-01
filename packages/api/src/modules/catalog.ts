@@ -12,11 +12,13 @@ import {
   eq,
   ilike,
   inArray,
+  ne,
   or,
   sql,
 } from "drizzle-orm";
 import { z } from "zod/v4";
 
+import type { getDb } from "@cendaro/db/client";
 import {
   Brand,
   Category,
@@ -34,6 +36,7 @@ import {
 } from "@cendaro/db/schema";
 import { can } from "@cendaro/validators";
 
+import { assertInWorkspace } from "../services/workspace-guard";
 import {
   createTRPCRouter,
   wsPermissionProcedure,
@@ -115,6 +118,35 @@ export const listProductsInputSchema = z.object({
     .optional(),
 });
 export type ListProductsInput = z.infer<typeof listProductsInputSchema>;
+
+/** Brand, category and supplier of a product must be the workspace's own. */
+async function assertProductReferences(
+  ctx: { db: ReturnType<typeof getDb>; workspace: { workspaceId: string } },
+  references: { brandId?: string; categoryId?: string; supplierId?: string },
+): Promise<void> {
+  const { workspaceId } = ctx.workspace;
+  await assertInWorkspace(
+    ctx.db,
+    Brand,
+    references.brandId,
+    workspaceId,
+    "Marca",
+  );
+  await assertInWorkspace(
+    ctx.db,
+    Category,
+    references.categoryId,
+    workspaceId,
+    "Categoría",
+  );
+  await assertInWorkspace(
+    ctx.db,
+    Supplier,
+    references.supplierId,
+    workspaceId,
+    "Proveedor",
+  );
+}
 
 export const catalogRouter = createTRPCRouter({
   // ─── Products ────────────────────────────────
@@ -224,6 +256,9 @@ export const catalogRouter = createTRPCRouter({
         string,
         { basePriceUsd: number | null; posPriceUsd: number | null }
       >();
+      const stockByProduct = new Map<string, number>();
+      const allocatedElsewhere = new Map<string, number>();
+      const canReadStock = can(ctx.workspace.role, "inventory", "read");
 
       if (productIds.length > 0) {
         const prices = await ctx.db
@@ -256,14 +291,62 @@ export const catalogRouter = createTRPCRouter({
           }
           priceMap.set(p.productId, entry);
         }
+
+        if (canReadStock) {
+          const ledgerRows = await ctx.db
+            .select({
+              productId: StockLedger.productId,
+              quantity: StockLedger.quantity,
+            })
+            .from(StockLedger)
+            .where(
+              and(
+                eq(StockLedger.workspaceId, ctx.workspace.workspaceId),
+                inArray(StockLedger.productId, productIds),
+              ),
+            );
+          for (const row of ledgerRows) {
+            stockByProduct.set(
+              row.productId,
+              (stockByProduct.get(row.productId) ?? 0) + row.quantity,
+            );
+          }
+
+          const channelRows = await ctx.db
+            .select({
+              productId: ChannelAllocation.productId,
+              quantity: ChannelAllocation.quantity,
+            })
+            .from(ChannelAllocation)
+            .where(
+              and(
+                eq(ChannelAllocation.workspaceId, ctx.workspace.workspaceId),
+                inArray(ChannelAllocation.productId, productIds),
+                ne(ChannelAllocation.channel, "store"),
+              ),
+            );
+          for (const row of channelRows) {
+            allocatedElsewhere.set(
+              row.productId,
+              (allocatedElsewhere.get(row.productId) ?? 0) + row.quantity,
+            );
+          }
+        }
       }
 
       const items = rows.map((r) => {
         const prices = priceMap.get(r.id);
+        // Stock is free for the store unless reserved for another channel.
+        const stockCount = stockByProduct.get(r.id) ?? 0;
+        const storeStock = Math.max(
+          0,
+          stockCount - (allocatedElsewhere.get(r.id) ?? 0),
+        );
         return {
           ...r,
           basePriceUsd: prices?.basePriceUsd ?? null,
           posPriceUsd: prices?.posPriceUsd ?? null,
+          ...(canReadStock ? { stockCount, storeStock } : {}),
         };
       });
 
@@ -368,6 +451,7 @@ export const catalogRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      await assertProductReferences(ctx, input);
       const [product] = await ctx.db
         .insert(Product)
         .values({ ...input, workspaceId: ctx.workspace.workspaceId })
@@ -408,6 +492,7 @@ export const catalogRouter = createTRPCRouter({
     )
     .mutation(async ({ ctx, input }) => {
       const { id, ...updates } = input;
+      await assertProductReferences(ctx, updates);
 
       const [updated] = await ctx.db
         .update(Product)
@@ -593,6 +678,13 @@ export const catalogRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      await assertInWorkspace(
+        ctx.db,
+        Product,
+        input.productId,
+        ctx.workspace.workspaceId,
+        "Producto",
+      );
       const [existing] = await ctx.db
         .select({
           amountUsd: ProductPrice.amountUsd,
@@ -664,6 +756,13 @@ export const catalogRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      await assertInWorkspace(
+        ctx.db,
+        Product,
+        input.productId,
+        ctx.workspace.workspaceId,
+        "Producto",
+      );
       await ctx.db
         .delete(ProductUomEquivalence)
         .where(
@@ -708,6 +807,20 @@ export const catalogRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      await assertInWorkspace(
+        ctx.db,
+        Product,
+        input.productId,
+        ctx.workspace.workspaceId,
+        "Producto",
+      );
+      await assertInWorkspace(
+        ctx.db,
+        Supplier,
+        input.supplierId,
+        ctx.workspace.workspaceId,
+        "Proveedor",
+      );
       const [row] = await ctx.db
         .insert(ProductSupplier)
         .values({
@@ -764,6 +877,13 @@ export const catalogRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      await assertInWorkspace(
+        ctx.db,
+        Product,
+        input.productId,
+        ctx.workspace.workspaceId,
+        "Producto",
+      );
       // Delete existing and insert new
       await ctx.db
         .delete(ProductAttribute)
