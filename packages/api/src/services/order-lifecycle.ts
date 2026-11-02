@@ -24,7 +24,12 @@ import {
   StockMovement,
   Warehouse,
 } from "@cendaro/db/schema";
-import { canTransitionOrder, MONEY_EPSILON } from "@cendaro/validators";
+import {
+  canTransitionOrder,
+  lineTotal,
+  MONEY_EPSILON,
+  orderTotals,
+} from "@cendaro/validators";
 
 import type { WorkspaceMembership } from "../trpc";
 import type { PricedLine } from "./pricing-policy";
@@ -562,15 +567,7 @@ export async function createCommercialOrder(
     });
   }
 
-  const subtotal = input.items.reduce(
-    (sum, i) => sum + i.unitPrice * i.quantity,
-    0,
-  );
-  const discount = input.items.reduce(
-    (sum, i) => sum + i.discount * i.quantity,
-    0,
-  );
-  const total = subtotal - discount;
+  const { subtotal, discount, total } = orderTotals(input.items);
 
   let creditDays: number | null = null;
   let creditCovers = true;
@@ -633,7 +630,7 @@ export async function createCommercialOrder(
       quantity: item.quantity,
       unitPrice: item.unitPrice,
       discount: item.discount,
-      lineTotal: (item.unitPrice - item.discount) * item.quantity,
+      lineTotal: lineTotal(item),
     })),
   );
 

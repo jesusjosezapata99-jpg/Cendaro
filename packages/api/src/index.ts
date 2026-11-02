@@ -28,6 +28,7 @@ export {
 export { getUsdCnyRate, getVesRates } from "./services/exchange-rate-sources";
 export type { UpstreamRate, VesRates } from "./services/exchange-rate-sources";
 export { runScheduledRateSync } from "./modules/rate-sync";
+export { checkSchemaVersion } from "./services/schema-version";
 export type {
   HeldRate,
   RateSyncResult,

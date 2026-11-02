@@ -7,13 +7,36 @@ import {
   convertUsdToVes,
   convertVesToUsd,
   createQuoteSchema,
+  lineTotal,
   multiplyMoney,
+  orderTotals,
   roundMoney2,
   roundMoney4,
   seniatRifSchema,
   subtractMoney,
   venezolanaCedulaSchema,
 } from "../index";
+
+describe("Document totals (money.ts)", () => {
+  it("adds lines cent by cent, so totals equal the sum of the lines", () => {
+    const lines = [
+      { unitPrice: 0.1, quantity: 3, discount: 0 },
+      { unitPrice: 19.99, quantity: 3, discount: 0.01 },
+      { unitPrice: 0.07, quantity: 7, discount: 0 },
+    ];
+
+    expect(orderTotals(lines)).toEqual({
+      subtotal: 60.76,
+      discount: 0.03,
+      total: 60.73,
+    });
+    expect(lines.map(lineTotal)).toEqual([0.3, 59.94, 0.49]);
+  });
+
+  it("gives zero for an empty document", () => {
+    expect(orderTotals([])).toEqual({ subtotal: 0, discount: 0, total: 0 });
+  });
+});
 
 describe("Deterministic monetary helpers (money.ts)", () => {
   it("eliminates IEEE-754 float drift on addition and subtraction", () => {

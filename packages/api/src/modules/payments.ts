@@ -18,7 +18,13 @@ import {
   paymentMethodEnum,
   SalesOrder,
 } from "@cendaro/db/schema";
-import { can, MONEY_EPSILON } from "@cendaro/validators";
+import {
+  addMoney,
+  can,
+  MONEY_EPSILON,
+  roundMoney2,
+  subtractMoney,
+} from "@cendaro/validators";
 
 import {
   createTRPCRouter,
@@ -389,7 +395,7 @@ export async function executeOpenShift(
   workspaceId: string,
   input: z.infer<typeof openShiftInputSchema>,
 ) {
-  const openingCash = Number(input.openingCashUsd.toFixed(2));
+  const openingCash = roundMoney2(input.openingCashUsd);
   const shiftNotes = input.notes
     ? `[Fondo Inicial: $${openingCash.toFixed(2)}] ${input.notes}`
     : `[Fondo Inicial: $${openingCash.toFixed(2)}]`;
@@ -459,16 +465,12 @@ export async function executeComputeDailyClosureTotals(
       ),
   ]);
 
-  const totalSales = Number(
-    Number(salesAggRows[0]?.totalSales ?? 0).toFixed(2),
+  const totalSales = roundMoney2(Number(salesAggRows[0]?.totalSales ?? 0));
+  const totalCash = roundMoney2(Number(paymentsAggRows[0]?.totalCash ?? 0));
+  const totalDigital = roundMoney2(
+    Number(paymentsAggRows[0]?.totalDigital ?? 0),
   );
-  const totalCash = Number(
-    Number(paymentsAggRows[0]?.totalCash ?? 0).toFixed(2),
-  );
-  const totalDigital = Number(
-    Number(paymentsAggRows[0]?.totalDigital ?? 0).toFixed(2),
-  );
-  const expectedTotal = Number((totalCash + totalDigital).toFixed(2));
+  const expectedTotal = addMoney(totalCash, totalDigital);
 
   return {
     closureDate: dateStr,
@@ -501,7 +503,7 @@ export async function executeCreateClosure(
     : input.totalDigital;
   const expectedTotal =
     computed.expectedTotal > 0 ? computed.expectedTotal : input.expectedTotal;
-  const discrepancy = Number((input.actualTotal - expectedTotal).toFixed(2));
+  const discrepancy = subtractMoney(input.actualTotal, expectedTotal);
 
   if (input.shiftId) {
     const [closedShift] = await db
