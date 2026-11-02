@@ -1,0 +1,48 @@
+name: Production checks
+
+# Read-only, with the monitor_reader role of migration 031: the schema against the
+# catalog and the money invariants. A failure means production needs attention.
+on:
+  schedule:
+    - cron: "0 11 * * *" # Daily, 07:00 in Caracas
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: Schema and invariants
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      PRODUCTION_MONITOR_URL: ${{ secrets.PRODUCTION_MONITOR_URL }}
+      SCHEMA_DRIFT_URL: ${{ secrets.PRODUCTION_MONITOR_URL }}
+    steps:
+      - name: Require the connection secret
+        run: |
+          if [ -z "$PRODUCTION_MONITOR_URL" ]; then
+            echo "::error::Set the PRODUCTION_MONITOR_URL secret; see docs/runbooks/release-and-migrations.md"
+            exit 1
+          fi
+
+      - name: Checkout repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: "22"
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Schema against the catalog
+        run: pnpm -F @cendaro/api exec vitest run src/__tests__/integration.catalog-drift.test.ts
+
+      - name: Money invariants
+        run: node scripts/checks/prod/run-invariants.mjs

@@ -1,8 +1,13 @@
 import { sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
-import { Pool } from "pg";
+import { Pool, types } from "pg";
 
 import * as schema from "./schema";
+
+// numeric arrives as text by default, which would turn every SUM over money into
+// a string behind a sql<number>. Amounts stay within what a JS number represents
+// exactly: numeric(14,2) and numeric(18,6).
+types.setTypeParser(types.builtins.NUMERIC, (value) => Number(value));
 
 const createDb = () => {
   const connectionString = process.env.DATABASE_URL;

@@ -16,6 +16,7 @@ import {
   StockLedger,
   Warehouse,
 } from "@cendaro/db/schema";
+import { addMoney, subtractMoney } from "@cendaro/validators";
 
 import { createTRPCRouter, wsReadPermissionProcedure } from "../trpc";
 
@@ -237,8 +238,9 @@ export const reportingRouter = createTRPCRouter({
 
     // Theoretical balance equation: Total Sales = Total Payments Received + Outstanding Receivables
     // Any discrepancy indicates unrecorded payment, unrecorded receivable, or manual ledger tampering
-    const discrepancy = Number(
-      (totalSales - (totalPayments + totalReceivables)).toFixed(2),
+    const discrepancy = subtractMoney(
+      totalSales,
+      addMoney(totalPayments, totalReceivables),
     );
     const isBalanced = Math.abs(discrepancy) < 0.05; // 5 cents tolerance for floating point rounding
 
