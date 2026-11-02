@@ -45,7 +45,7 @@
     "prettier": "catalog:",
     "sherif": "1.13.0",
     "tsx": "^4.23.13",
-    "turbo": "^2.10.12",
+    "turbo": "^2.11.10",
     "typescript": "catalog:"
   },
   "lint-staged": {
