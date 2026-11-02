@@ -1107,7 +1107,7 @@ export const ProductSupplier = pgTable(
       .notNull()
       .references(() => Supplier.id),
     supplierSku: t.varchar({ length: 128 }),
-    cost: t.doublePrecision(),
+    cost: t.numeric({ precision: 14, scale: 4, mode: "number" }),
     leadTimeDays: t.integer(),
     isPrimary: t.boolean().notNull().default(false),
     createdAt: t
@@ -1142,9 +1142,9 @@ export const ProductPrice = pgTable(
       .notNull()
       .references(() => Product.id, { onDelete: "cascade" }),
     priceType: priceTypeEnum().notNull(),
-    amountUsd: t.doublePrecision().notNull(),
-    amountBs: t.doublePrecision(),
-    rateUsed: t.doublePrecision(),
+    amountUsd: t.numeric({ precision: 14, scale: 4, mode: "number" }).notNull(),
+    amountBs: t.numeric({ precision: 18, scale: 2, mode: "number" }),
+    rateUsed: t.numeric({ precision: 18, scale: 6, mode: "number" }),
     updatedAt: t
       .timestamp({ mode: "date", withTimezone: true })
       .defaultNow()
@@ -1585,7 +1585,7 @@ export const Container = pgTable(
     status: containerStatusEnum().notNull().default("created"),
     departureDate: t.timestamp({ mode: "date", withTimezone: true }),
     arrivalDate: t.timestamp({ mode: "date", withTimezone: true }),
-    costFob: t.doublePrecision(),
+    costFob: t.numeric({ precision: 14, scale: 2, mode: "number" }),
     notes: t.text(),
     closedBy: t.uuid(),
     closedAt: t.timestamp({ mode: "date", withTimezone: true }),
@@ -1625,7 +1625,7 @@ export const ContainerItem = pgTable(
     productId: t.uuid().references(() => Product.id),
     quantityExpected: t.integer().notNull(),
     quantityReceived: t.integer().default(0),
-    unitCost: t.doublePrecision(),
+    unitCost: t.numeric({ precision: 14, scale: 4, mode: "number" }),
     notes: t.text(),
     // AI-parsed packing list fields
     originalName: t.text(),
@@ -1732,7 +1732,7 @@ export const ExchangeRate = pgTable(
       .references(() => Workspace.id)
       .default(sql`current_setting('app.workspace_id')::uuid`),
     rateType: rateTypeEnum().notNull(),
-    rate: t.doublePrecision().notNull(),
+    rate: t.numeric({ precision: 18, scale: 6, mode: "number" }).notNull(),
     source: t.varchar({ length: 128 }),
     notes: t.text(),
     updatedBy: t.uuid(),
@@ -1765,11 +1765,13 @@ export const PriceHistory = pgTable(
       .notNull()
       .references(() => Product.id),
     priceType: priceTypeEnum().notNull(),
-    oldAmountUsd: t.doublePrecision(),
-    newAmountUsd: t.doublePrecision().notNull(),
-    oldAmountBs: t.doublePrecision(),
-    newAmountBs: t.doublePrecision(),
-    rateUsed: t.doublePrecision(),
+    oldAmountUsd: t.numeric({ precision: 14, scale: 4, mode: "number" }),
+    newAmountUsd: t
+      .numeric({ precision: 14, scale: 4, mode: "number" })
+      .notNull(),
+    oldAmountBs: t.numeric({ precision: 18, scale: 2, mode: "number" }),
+    newAmountBs: t.numeric({ precision: 18, scale: 2, mode: "number" }),
+    rateUsed: t.numeric({ precision: 18, scale: 6, mode: "number" }),
     trigger: repricingTriggerEnum().notNull(),
     userId: t.uuid(),
     repricingEventId: t.uuid(),
@@ -1835,8 +1837,8 @@ export const RepricingEvent = pgTable(
       .default(sql`current_setting('app.workspace_id')::uuid`),
     trigger: repricingTriggerEnum().notNull(),
     rateType: rateTypeEnum(),
-    oldRate: t.doublePrecision(),
-    newRate: t.doublePrecision(),
+    oldRate: t.numeric({ precision: 18, scale: 6, mode: "number" }),
+    newRate: t.numeric({ precision: 18, scale: 6, mode: "number" }),
     variationPct: t.doublePrecision(),
     productsAffected: t.integer().notNull().default(0),
     isApproved: t.boolean().default(false),
@@ -1897,9 +1899,11 @@ export const Customer = pgTable(
     email: t.varchar({ length: 256 }),
     address: t.text(),
     assignedVendorId: t.uuid().references(() => UserProfile.id),
-    creditLimit: t.doublePrecision().default(0),
+    creditLimit: t
+      .numeric({ precision: 14, scale: 2, mode: "number" })
+      .default(0),
     creditDays: t.integer().default(0),
-    balance: t.doublePrecision().default(0),
+    balance: t.numeric({ precision: 14, scale: 2, mode: "number" }).default(0),
     notes: t.text(),
     createdAt: t
       .timestamp({ mode: "date", withTimezone: true })
@@ -1970,10 +1974,18 @@ export const SalesOrder = pgTable(
     customerId: t.uuid().references(() => Customer.id),
     channel: salesChannelEnum().notNull().default("store"),
     status: orderStatusEnum().notNull().default("pending"),
-    subtotal: t.doublePrecision().notNull().default(0),
-    discount: t.doublePrecision().default(0),
-    total: t.doublePrecision().notNull().default(0),
-    totalPaid: t.doublePrecision().default(0),
+    subtotal: t
+      .numeric({ precision: 14, scale: 2, mode: "number" })
+      .notNull()
+      .default(0),
+    discount: t.numeric({ precision: 14, scale: 2, mode: "number" }).default(0),
+    total: t
+      .numeric({ precision: 14, scale: 2, mode: "number" })
+      .notNull()
+      .default(0),
+    totalPaid: t
+      .numeric({ precision: 14, scale: 2, mode: "number" })
+      .default(0),
     notes: t.text(),
     stockDeducted: t.boolean().notNull().default(false),
     closedBy: t.uuid().references(() => UserProfile.id),
@@ -2019,9 +2031,9 @@ export const OrderItem = pgTable(
       .notNull()
       .references(() => Product.id),
     quantity: t.integer().notNull(),
-    unitPrice: t.doublePrecision().notNull(),
-    discount: t.doublePrecision().default(0),
-    lineTotal: t.doublePrecision().notNull(),
+    unitPrice: t.numeric({ precision: 14, scale: 4, mode: "number" }).notNull(),
+    discount: t.numeric({ precision: 14, scale: 2, mode: "number" }).default(0),
+    lineTotal: t.numeric({ precision: 14, scale: 2, mode: "number" }).notNull(),
   }),
   (table) => [
     // FK covering indexes (migration 007)
@@ -2047,7 +2059,7 @@ export const Payment = pgTable(
       .notNull()
       .references(() => SalesOrder.id),
     method: paymentMethodEnum().notNull(),
-    amount: t.doublePrecision().notNull(),
+    amount: t.numeric({ precision: 14, scale: 2, mode: "number" }).notNull(),
     reference: t.varchar({ length: 128 }),
     bankName: t.varchar({ length: 128 }),
     payerName: t.varchar({ length: 256 }),
@@ -2120,7 +2132,7 @@ export const PaymentAllocation = pgTable(
       .uuid()
       .notNull()
       .references(() => AccountReceivable.id),
-    amount: t.doublePrecision().notNull(),
+    amount: t.numeric({ precision: 14, scale: 2, mode: "number" }).notNull(),
     createdAt: t
       .timestamp({ mode: "date", withTimezone: true })
       .defaultNow()
@@ -2147,12 +2159,24 @@ export const CashClosure = pgTable(
       .default(sql`current_setting('app.workspace_id')::uuid`),
     closureDate: t.timestamp({ mode: "date", withTimezone: true }).notNull(),
     status: closureStatusEnum().notNull().default("open"),
-    totalSales: t.doublePrecision().default(0),
-    totalCash: t.doublePrecision().default(0),
-    totalDigital: t.doublePrecision().default(0),
-    expectedTotal: t.doublePrecision().default(0),
-    actualTotal: t.doublePrecision().default(0),
-    discrepancy: t.doublePrecision().default(0),
+    totalSales: t
+      .numeric({ precision: 14, scale: 2, mode: "number" })
+      .default(0),
+    totalCash: t
+      .numeric({ precision: 14, scale: 2, mode: "number" })
+      .default(0),
+    totalDigital: t
+      .numeric({ precision: 14, scale: 2, mode: "number" })
+      .default(0),
+    expectedTotal: t
+      .numeric({ precision: 14, scale: 2, mode: "number" })
+      .default(0),
+    actualTotal: t
+      .numeric({ precision: 14, scale: 2, mode: "number" })
+      .default(0),
+    discrepancy: t
+      .numeric({ precision: 14, scale: 2, mode: "number" })
+      .default(0),
     notes: t.text(),
     closedBy: t.uuid(),
     reviewedBy: t.uuid(),
@@ -2188,9 +2212,15 @@ export const Quote = pgTable(
     customerId: t.uuid().references(() => Customer.id),
     status: quoteStatusEnum().notNull().default("draft"),
     channel: salesChannelEnum().notNull().default("store"),
-    subtotal: t.doublePrecision().notNull().default(0),
-    discount: t.doublePrecision().default(0),
-    total: t.doublePrecision().notNull().default(0),
+    subtotal: t
+      .numeric({ precision: 14, scale: 2, mode: "number" })
+      .notNull()
+      .default(0),
+    discount: t.numeric({ precision: 14, scale: 2, mode: "number" }).default(0),
+    total: t
+      .numeric({ precision: 14, scale: 2, mode: "number" })
+      .notNull()
+      .default(0),
     validUntil: t.timestamp({ mode: "date", withTimezone: true }),
     convertedOrderId: t.uuid().references(() => SalesOrder.id),
     notes: t.text(),
@@ -2231,9 +2261,9 @@ export const QuoteItem = pgTable(
       .notNull()
       .references(() => Product.id),
     quantity: t.integer().notNull(),
-    unitPrice: t.doublePrecision().notNull(),
-    discount: t.doublePrecision().default(0),
-    lineTotal: t.doublePrecision().notNull(),
+    unitPrice: t.numeric({ precision: 14, scale: 4, mode: "number" }).notNull(),
+    discount: t.numeric({ precision: 14, scale: 2, mode: "number" }).default(0),
+    lineTotal: t.numeric({ precision: 14, scale: 2, mode: "number" }).notNull(),
   }),
   (table) => [
     // FK covering indexes (migration 007)
@@ -2330,10 +2360,16 @@ export const InternalInvoice = pgTable(
       .references(() => SalesOrder.id),
     customerId: t.uuid().references(() => Customer.id),
     status: documentStatusEnum().notNull().default("draft"),
-    subtotal: t.doublePrecision().notNull().default(0),
-    discount: t.doublePrecision().default(0),
-    tax: t.doublePrecision().default(0),
-    total: t.doublePrecision().notNull().default(0),
+    subtotal: t
+      .numeric({ precision: 14, scale: 2, mode: "number" })
+      .notNull()
+      .default(0),
+    discount: t.numeric({ precision: 14, scale: 2, mode: "number" }).default(0),
+    tax: t.numeric({ precision: 14, scale: 2, mode: "number" }).default(0),
+    total: t
+      .numeric({ precision: 14, scale: 2, mode: "number" })
+      .notNull()
+      .default(0),
     issuedAt: t.timestamp({ mode: "date", withTimezone: true }),
     notes: t.text(),
     createdBy: t.uuid().references(() => UserProfile.id),
@@ -2372,9 +2408,9 @@ export const InternalInvoiceItem = pgTable(
       .notNull()
       .references(() => Product.id),
     quantity: t.integer().notNull(),
-    unitPrice: t.doublePrecision().notNull(),
-    discount: t.doublePrecision().default(0),
-    lineTotal: t.doublePrecision().notNull(),
+    unitPrice: t.numeric({ precision: 14, scale: 4, mode: "number" }).notNull(),
+    discount: t.numeric({ precision: 14, scale: 2, mode: "number" }).default(0),
+    lineTotal: t.numeric({ precision: 14, scale: 2, mode: "number" }).notNull(),
   }),
   (table) => [
     // FK covering indexes (migration 007)
@@ -2406,11 +2442,26 @@ export const CreditNote = pgTable(
     reason: t.text().notNull(),
     returnToStock: t.boolean().notNull().default(true),
     warehouseId: t.uuid().references(() => Warehouse.id),
-    subtotalUsd: t.doublePrecision().notNull().default(0),
-    taxUsd: t.doublePrecision().notNull().default(0),
-    totalUsd: t.doublePrecision().notNull().default(0),
-    exchangeRateBcv: t.doublePrecision().notNull().default(1),
-    totalVes: t.doublePrecision().notNull().default(0),
+    subtotalUsd: t
+      .numeric({ precision: 14, scale: 2, mode: "number" })
+      .notNull()
+      .default(0),
+    taxUsd: t
+      .numeric({ precision: 14, scale: 2, mode: "number" })
+      .notNull()
+      .default(0),
+    totalUsd: t
+      .numeric({ precision: 14, scale: 2, mode: "number" })
+      .notNull()
+      .default(0),
+    exchangeRateBcv: t
+      .numeric({ precision: 18, scale: 6, mode: "number" })
+      .notNull()
+      .default(1),
+    totalVes: t
+      .numeric({ precision: 18, scale: 2, mode: "number" })
+      .notNull()
+      .default(0),
     refundMethod: paymentMethodEnum(),
     externalRefundReference: t.varchar({ length: 128 }),
     requestedBy: t.uuid().references(() => UserProfile.id),
@@ -2458,8 +2509,12 @@ export const CreditNoteItem = pgTable(
       .notNull()
       .references(() => Product.id),
     quantity: t.integer().notNull(),
-    unitPriceUsd: t.doublePrecision().notNull(),
-    subtotalUsd: t.doublePrecision().notNull(),
+    unitPriceUsd: t
+      .numeric({ precision: 14, scale: 4, mode: "number" })
+      .notNull(),
+    subtotalUsd: t
+      .numeric({ precision: 14, scale: 2, mode: "number" })
+      .notNull(),
   }),
   (table) => [
     index("idx_credit_note_item_workspace_id").on(table.workspaceId),
@@ -2570,30 +2625,77 @@ export const FiscalDocument = pgTable(
     buyerRif: t.varchar({ length: 32 }).notNull(),
     buyerLegalName: t.varchar({ length: 256 }).notNull(),
     buyerAddress: t.text(),
-    exchangeRateBcv: t.doublePrecision().notNull().default(1),
-    exemptAmountUsd: t.doublePrecision().notNull().default(0),
+    exchangeRateBcv: t
+      .numeric({ precision: 18, scale: 6, mode: "number" })
+      .notNull()
+      .default(1),
+    exemptAmountUsd: t
+      .numeric({ precision: 14, scale: 2, mode: "number" })
+      .notNull()
+      .default(0),
     taxableBase16Usd: t
-      .doublePrecision("taxable_base_16_usd")
+      .numeric("taxable_base_16_usd", {
+        precision: 14,
+        scale: 2,
+        mode: "number",
+      })
       .notNull()
       .default(0),
-    iva16Usd: t.doublePrecision("iva_16_usd").notNull().default(0),
+    iva16Usd: t
+      .numeric("iva_16_usd", { precision: 14, scale: 2, mode: "number" })
+      .notNull()
+      .default(0),
     taxableBase8Usd: t
-      .doublePrecision("taxable_base_8_usd")
+      .numeric("taxable_base_8_usd", {
+        precision: 14,
+        scale: 2,
+        mode: "number",
+      })
       .notNull()
       .default(0),
-    iva8Usd: t.doublePrecision("iva_8_usd").notNull().default(0),
-    igtfBaseUsd: t.doublePrecision().notNull().default(0),
-    igtf3Usd: t.doublePrecision("igtf_3_usd").notNull().default(0),
-    totalUsd: t.doublePrecision().notNull().default(0),
-    totalVes: t.doublePrecision().notNull().default(0),
+    iva8Usd: t
+      .numeric("iva_8_usd", { precision: 14, scale: 2, mode: "number" })
+      .notNull()
+      .default(0),
+    igtfBaseUsd: t
+      .numeric({ precision: 14, scale: 2, mode: "number" })
+      .notNull()
+      .default(0),
+    igtf3Usd: t
+      .numeric("igtf_3_usd", { precision: 14, scale: 2, mode: "number" })
+      .notNull()
+      .default(0),
+    totalUsd: t
+      .numeric({ precision: 14, scale: 2, mode: "number" })
+      .notNull()
+      .default(0),
+    totalVes: t
+      .numeric({ precision: 18, scale: 2, mode: "number" })
+      .notNull()
+      .default(0),
     ivaRetentionPct: t.integer().notNull().default(0),
     ivaRetentionVoucher: t.varchar({ length: 64 }),
-    ivaRetentionUsd: t.doublePrecision().notNull().default(0),
-    ivaRetentionVes: t.doublePrecision().notNull().default(0),
-    islrRetentionPct: t.doublePrecision().notNull().default(0),
+    ivaRetentionUsd: t
+      .numeric({ precision: 14, scale: 2, mode: "number" })
+      .notNull()
+      .default(0),
+    ivaRetentionVes: t
+      .numeric({ precision: 18, scale: 2, mode: "number" })
+      .notNull()
+      .default(0),
+    islrRetentionPct: t
+      .numeric({ precision: 7, scale: 4, mode: "number" })
+      .notNull()
+      .default(0),
     islrRetentionVoucher: t.varchar({ length: 64 }),
-    islrRetentionUsd: t.doublePrecision().notNull().default(0),
-    retentionAppliedUsd: t.doublePrecision().notNull().default(0),
+    islrRetentionUsd: t
+      .numeric({ precision: 14, scale: 2, mode: "number" })
+      .notNull()
+      .default(0),
+    retentionAppliedUsd: t
+      .numeric({ precision: 14, scale: 2, mode: "number" })
+      .notNull()
+      .default(0),
     issuedBy: t.uuid().references(() => UserProfile.id),
     issuedAt: t
       .timestamp({ mode: "date", withTimezone: true })
@@ -2649,9 +2751,17 @@ export const VendorCommission = pgTable(
       .uuid()
       .notNull()
       .references(() => SalesOrder.id),
-    orderTotal: t.doublePrecision().notNull(),
-    commissionPct: t.doublePrecision().notNull().default(0),
-    commissionAmount: t.doublePrecision().notNull().default(0),
+    orderTotal: t
+      .numeric({ precision: 14, scale: 2, mode: "number" })
+      .notNull(),
+    commissionPct: t
+      .numeric({ precision: 7, scale: 4, mode: "number" })
+      .notNull()
+      .default(0),
+    commissionAmount: t
+      .numeric({ precision: 14, scale: 2, mode: "number" })
+      .notNull()
+      .default(0),
     isPaid: t.boolean().default(false),
     paidAt: t.timestamp({ mode: "date", withTimezone: true }),
     notes: t.text(),
@@ -2685,9 +2795,14 @@ export const AccountReceivable = pgTable(
       .notNull()
       .references(() => Customer.id),
     orderId: t.uuid().references(() => SalesOrder.id),
-    totalAmount: t.doublePrecision().notNull(),
-    paidAmount: t.doublePrecision().notNull().default(0),
-    balance: t.doublePrecision().notNull(),
+    totalAmount: t
+      .numeric({ precision: 14, scale: 2, mode: "number" })
+      .notNull(),
+    paidAmount: t
+      .numeric({ precision: 14, scale: 2, mode: "number" })
+      .notNull()
+      .default(0),
+    balance: t.numeric({ precision: 14, scale: 2, mode: "number" }).notNull(),
     status: arStatusEnum().notNull().default("pending"),
     dueDate: t.timestamp({ mode: "date", withTimezone: true }).notNull(),
     notes: t.text(),
@@ -2725,10 +2840,12 @@ export const ArInstallment = pgTable(
       .notNull()
       .references(() => AccountReceivable.id, { onDelete: "cascade" }),
     installmentNumber: t.integer().notNull(),
-    amount: t.doublePrecision().notNull(),
+    amount: t.numeric({ precision: 14, scale: 2, mode: "number" }).notNull(),
     dueDate: t.timestamp({ mode: "date", withTimezone: true }).notNull(),
     status: installmentStatusEnum().notNull().default("pending"),
-    paidAmount: t.doublePrecision().default(0),
+    paidAmount: t
+      .numeric({ precision: 14, scale: 2, mode: "number" })
+      .default(0),
     paidAt: t.timestamp({ mode: "date", withTimezone: true }),
     notes: t.text(),
     createdAt: t
@@ -2767,7 +2884,7 @@ export const MlListing = pgTable(
     mlItemId: t.varchar({ length: 64 }).notNull(),
     title: t.varchar({ length: 512 }).notNull(),
     status: mlListingStatusEnum().notNull().default("active"),
-    price: t.doublePrecision().notNull(),
+    price: t.numeric({ precision: 14, scale: 4, mode: "number" }).notNull(),
     stockSynced: t.integer().default(0),
     permalink: t.text(),
     lastSyncAt: t.timestamp({ mode: "date", withTimezone: true }),
@@ -2799,7 +2916,7 @@ export const MlOrder = pgTable(
     salesOrderId: t.uuid().references(() => SalesOrder.id),
     buyerNickname: t.varchar({ length: 128 }),
     quantity: t.integer().notNull().default(1),
-    unitPrice: t.doublePrecision().notNull(),
+    unitPrice: t.numeric({ precision: 14, scale: 4, mode: "number" }).notNull(),
     shippingStatus: t.varchar({ length: 64 }),
     trackingNumber: t.varchar({ length: 128 }),
     isImported: t.boolean().default(false),

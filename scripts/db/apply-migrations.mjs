@@ -6,7 +6,7 @@
  *
  *   node scripts/db/apply-migrations.mjs --url <postgres-url>
  *   node scripts/db/apply-migrations.mjs --up-to 022
- *   node scripts/db/apply-migrations.mjs --order 024,025,026,027,028,029,023
+ *   node scripts/db/apply-migrations.mjs --order 024,025,026,027,028,029,023,030
  *
  * `--up-to 022` reproduces today's production. `--order` rehearses a
  * production order that differs from the numeric one.
