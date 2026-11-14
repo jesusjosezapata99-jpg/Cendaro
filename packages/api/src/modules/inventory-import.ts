@@ -25,6 +25,7 @@ import type { createTRPCContext, UserRole } from "../trpc";
 import type { LedgerSnapshot } from "./inventory-import-plan";
 import {
   createTRPCRouter,
+  HEAVY_STATEMENT_TIMEOUT_MS,
   wsPermissionProcedure,
   wsReadPermissionProcedure,
 } from "../trpc";
@@ -518,7 +519,9 @@ export const inventoryImportRouter = createTRPCRouter({
    *
    * RBAC: owner, admin, supervisor (PRD §4)
    */
-  getWarehouseProducts: wsReadPermissionProcedure("inventory", "update")
+  getWarehouseProducts: wsReadPermissionProcedure("inventory", "update", {
+    statementTimeoutMs: HEAVY_STATEMENT_TIMEOUT_MS,
+  })
     .input(z.object({ warehouseId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       const { rows } = await ctx.db.execute<{
@@ -574,7 +577,9 @@ export const inventoryImportRouter = createTRPCRouter({
    * RBAC: inventory.update (owner, admin, supervisor); overwriting locked stock
    * (`forceLocked`) is owner/admin only.
    */
-  commit: wsPermissionProcedure("inventory", "update")
+  commit: wsPermissionProcedure("inventory", "update", {
+    statementTimeoutMs: HEAVY_STATEMENT_TIMEOUT_MS,
+  })
     .input(inventoryImportCommitSchema)
     .mutation(async ({ ctx, input }): Promise<ImportResult> => {
       if (input.forceLocked) {
@@ -706,7 +711,9 @@ export const inventoryImportRouter = createTRPCRouter({
    *
    * RBAC: owner/admin only — a reset is not an ordinary stock update.
    */
-  initializeCommit: wsPermissionProcedure("inventory", "update")
+  initializeCommit: wsPermissionProcedure("inventory", "update", {
+    statementTimeoutMs: HEAVY_STATEMENT_TIMEOUT_MS,
+  })
     .input(initializeCommitSchema)
     .mutation(async ({ ctx, input }): Promise<InitializeResult> => {
       assertStockOverrideRole(

@@ -1,11 +1,16 @@
 import { Suspense } from "react";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { connection } from "next/server";
 import { dehydrate } from "@tanstack/react-query";
 
 import { createSupabaseServerClient } from "@cendaro/auth/server";
 
+import {
+  RootDocumentShell,
+  sharedRootMetadata,
+  sharedRootViewport,
+} from "~/app/_components/root-shell";
 import { ShellSkeleton } from "~/components/skeleton";
 import { env } from "~/env";
 import { WORKSPACE_COOKIE } from "~/hooks/use-workspace";
@@ -13,6 +18,9 @@ import { getQueryClient } from "~/trpc/query-client";
 import { trpc } from "~/trpc/server";
 import { AppShell } from "./app-shell";
 import { Providers } from "./providers";
+
+export const metadata = sharedRootMetadata;
+export const viewport = sharedRootViewport;
 
 async function WorkspaceLoader({ children }: { children: React.ReactNode }) {
   await connection();
@@ -54,10 +62,27 @@ async function WorkspaceLoader({ children }: { children: React.ReactNode }) {
   );
 }
 
+/**
+ * Dynamic per-request document shell for authenticated `/(app)/*` routes.
+ * Wrapped inside `<Suspense>` above `<html>`/`<body>` so Next.js 16
+ * (`cacheComponents: true`) emits an empty static prelude (`hasSuspenseAboveBody`),
+ * stamping the per-request CSP nonce onto 100% of framework and theme scripts.
+ */
+async function DynamicAppDocument({ children }: { children: React.ReactNode }) {
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
+  return (
+    <RootDocumentShell nonce={nonce}>
+      <Suspense fallback={<ShellSkeleton />}>
+        <WorkspaceLoader>{children}</WorkspaceLoader>
+      </Suspense>
+    </RootDocumentShell>
+  );
+}
+
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
-    <Suspense fallback={<ShellSkeleton />}>
-      <WorkspaceLoader>{children}</WorkspaceLoader>
+    <Suspense>
+      <DynamicAppDocument>{children}</DynamicAppDocument>
     </Suspense>
   );
 }

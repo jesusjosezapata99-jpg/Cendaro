@@ -1,23 +1,35 @@
 name: Production checks
 
-# Read-only, with the monitor_reader role of migration 031: the schema against the
-# catalog and the money invariants. A failure means production needs attention.
+# Read-only daily production verification using `monitor_reader` (migrations 031 + 033):
+#   1. Live PostgreSQL catalog vs expected schema drift check
+#   2. Financial invariants (`financial-invariants.sql`) + `audit_log` hash-chain digest check
+#   3. Daily RFC 6962 Merkle-root cryptographic notarization of `audit_log`
+#   4. Native Slack + Sentry Envelope alerting on any drift, chain tamper, or DB outage
 on:
   schedule:
-    - cron: "0 11 * * *" # Daily, 07:00 in Caracas
+    - cron: "0 4 * * *" # Daily 04:00 UTC (audit Merkle checkpoint + off-peak invariant sweep)
+    - cron: "0 11 * * *" # Daily 07:00 America/Caracas (pre-business-open readiness sweep)
   workflow_dispatch:
 
 permissions:
   contents: read
 
+env:
+  NODE_VERSION: "24"
+  PNPM_VERSION: "10.30.3"
+
 jobs:
   checks:
-    name: Schema and invariants
+    name: Schema, invariants and Merkle notarization
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
       PRODUCTION_MONITOR_URL: ${{ secrets.PRODUCTION_MONITOR_URL }}
       SCHEMA_DRIFT_URL: ${{ secrets.PRODUCTION_MONITOR_URL }}
+      SLACK_MONITOR_WEBHOOK_URL: ${{ secrets.SLACK_MONITOR_WEBHOOK_URL }}
+      SENTRY_MONITOR_DSN: ${{ secrets.SENTRY_MONITOR_DSN }}
+      AUDIT_NOTARIZATION_WEBHOOK_URL: ${{ secrets.AUDIT_NOTARIZATION_WEBHOOK_URL }}
+      AUDIT_NOTARY_ED25519_PRIVATE_KEY: ${{ secrets.AUDIT_NOTARY_ED25519_PRIVATE_KEY }}
     steps:
       - name: Require the connection secret
         run: |
@@ -28,21 +40,33 @@ jobs:
 
       - name: Checkout repository
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
 
       - name: Setup pnpm
         uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
+        with:
+          version: ${{ env.PNPM_VERSION }}
 
       - name: Setup Node.js
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
-          node-version: "22"
+          node-version: ${{ env.NODE_VERSION }}
           cache: "pnpm"
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
       - name: Schema against the catalog
+        id: schema_drift
         run: pnpm -F @cendaro/api exec vitest run src/__tests__/integration.catalog-drift.test.ts
 
-      - name: Money invariants
+      - name: Alert on catalog schema drift
+        if: failure() && steps.schema_drift.conclusion == 'failure'
+        run: node scripts/checks/prod/alert-monitor.mjs "catalog-schema-drift" "Desviación detectada entre el esquema de producción y el catálogo esperado"
+
+      - name: Money and audit-chain invariants
         run: node scripts/checks/prod/run-invariants.mjs
+
+      - name: Notarize daily audit_log Merkle root
+        run: node scripts/checks/prod/notarize-audit-merkle.mjs --out artifacts/audit-merkle-checkpoint.json

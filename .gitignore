@@ -6,40 +6,65 @@
 *midday*
 *Midday*
 
-# ── 2. Memoria Operativa Interna, Planes & Reportes de IA ────────────────────
+# ── 2. Documentación Interna, Auditorías, PRDs, ADRs & Planes Locales ────────
+# Se expone públicamente únicamente `docs/assets/` (logos y capturas del README).
+# PRDs, ADRs, arquitectura, runbooks internos, auditorías y planes quedan en local.
+docs/*
+!docs/assets/
+!docs/assets/**
 plans/
+/PRODUCT.md
+/DESIGN.md
+/setup.ps1
+
+# ── 3. Memoria Operativa, Skills, Hooks & Configuraciones de Agentes IA ──────
 .opencode/
 claude_code_implementation_plan
 .gemini/
 .ops/
 graphify-out/
-docs/compliance/
-
-# ── 3. Configuraciones Locales de Agentes (Claude & Codex) ───────────────────
-.claude/settings.local.json
-.claude/mcp.json
-.claude/skills/*
-!.claude/skills/supabase-write/
-!.claude/skills/troubleshooting/
-.claude/agent-memory/
-.claude/agent-memory-local/
-.agents/teamwork/
-.agents/skills/omni-epistemic-memory/error-log.md
-.codex/config.toml
-.codex/history/
+.agents/
+.claude/
+.codex/
+.impeccable/
+apps/erp/.impeccable/
+.cursor/
+.cursorrules
+.windsurfrules
+.claudeignore
+.graphifyignore
+/AGENTS.md
+/CLAUDE.md
+/GEMINI.md
+apps/erp/AGENTS.md
+apps/erp/CLAUDE.md
 
 # ── 4. Almacén Binario de Paquetes & Gestores de Dependencias ────────────────
 .pnpm-store/
 node_modules/
 .pnpm-debug.log*
 
-# ── 5. Entorno & Secretos (Ironclad Fencing) ──────────────────────────────────
-# Ignora absolutamente todo .env excepto la plantilla pública .env.example
+# ── 5. Entorno, Secretos, Llaves, Certificados & Dumps de BD (Ironclad) ──────
+# Ignora absolutamente todo .env, llaves privadas y volcados SQL locales,
+# permitiendo únicamente la plantilla pública `.env.example`.
 .env
 .env.*
 !.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.jks
+*.keystore
+*.dump
+*.bak
+*.sql.gz
+.vercel/
+supabase/.branches/
+supabase/.temp/
 
-# ── 6. Salidas de Compilación, Cachés & Bundles ──────────────────────────────
+# ── 6. Salidas de Compilación, Cachés, Bytecode & Bundles ────────────────────
 dist/
 .next/
 .turbo/
@@ -48,6 +73,10 @@ scripts/landing-media/.cache/
 out/
 design-system/
 *.tsbuildinfo
+__pycache__/
+*.py[cod]
+*$py.class
+.ruff_cache/
 
 # ── 7. Logs, Depuración & Diagnósticos ───────────────────────────────────────
 *.log
@@ -55,31 +84,39 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# ── 8. Cobertura de Pruebas & Resultados ─────────────────────────────────────
+# ── 8. Cobertura de Pruebas, Reportes & Artefactos de Automatización ─────────
 coverage/
 .nyc_output/
 *.lcov
 test-results/
 playwright-report/
 blob-report/
+--full-page
+apps/erp/--full-page
 
-# ── 9. Seguridad & Sentry ────────────────────────────────────────────────────
+# ── 9. Seguridad, Notarización Local & Sentry ────────────────────────────────
 .sentryclirc
+# AgentShield evidence bundles are generated for a specific audit and can
+# contain local paths; the baseline and its README are versioned, they are not.
+.agentshield/evidence/
+agentshield.sarif
+audit-merkle-proof*.json
 
 # ── 10. Service Workers & PWA ────────────────────────────────────────────────
 sw.js
 workbox-*.js
 
-# ── 11. Entorno de Desarrollo (IDEs) & Sistema Operativo ─────────────────────
+# ── 11. Entorno de Desarrollo (IDEs), Temporales & Sistema Operativo ─────────
 .vscode/*
 !.vscode/extensions.json
 !.vscode/launch.json
+!.vscode/settings.json
 .idea/
 *.swp
 *.swo
 *.iml
 
-# OS Metadata
+# OS Metadata & Temp Files
 .DS_Store
 Thumbs.db
 ehthumbs.db
@@ -88,10 +125,8 @@ Desktop.ini
 .Spotlight-V100
 .Trashes
 *~
+*.tmp
+*.temp
 
 # Crash dumps (Git Bash / MSYS2 on Windows)
 *.stackdump
-# AgentShield evidence bundles are generated for a specific audit and can
-# contain local paths; the baseline and its README are versioned, they are not.
-.agentshield/evidence/
-agentshield.sarif

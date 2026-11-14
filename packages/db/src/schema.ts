@@ -23,6 +23,7 @@ import {
   pgTable,
   primaryKey,
   unique,
+  vector,
 } from "drizzle-orm/pg-core";
 
 // ╔══════════════════════════════════════════════╗
@@ -4208,3 +4209,140 @@ export type WorkspaceProfileSelect = typeof WorkspaceProfile.$inferSelect;
 export type WorkspaceProfileInsert = typeof WorkspaceProfile.$inferInsert;
 export type DocumentSequenceSelect = typeof DocumentSequence.$inferSelect;
 export type NotificationBucketSelect = typeof NotificationBucket.$inferSelect;
+
+// ╔══════════════════════════════════════════════╗
+// ║ PHASE 9 — RAG System (pgvector)              ║
+// ╚══════════════════════════════════════════════╝
+
+export const ragDocumentTypeEnum = pgEnum("rag_document_type", [
+  "packing_list",
+  "commercial_invoice",
+  "fiscal_invoice",
+  "delivery_note",
+]);
+
+export const ragDocumentStatusEnum = pgEnum("rag_document_status", [
+  "pending",
+  "processing",
+  "indexed",
+  "failed",
+]);
+
+/**
+ * Master table for ingested commercial documents (packing lists, invoices, etc.)
+ */
+export const ragDocuments = pgTable(
+  "rag_documents",
+  (t) => ({
+    id: t.uuid().notNull().primaryKey().defaultRandom(),
+    workspaceId: t
+      .uuid()
+      .notNull()
+      .references(() => Workspace.id)
+      .default(sql`current_setting('app.workspace_id')::uuid`),
+    documentType: ragDocumentTypeEnum().notNull(),
+    documentNumber: t.varchar({ length: 64 }),
+    title: t.varchar({ length: 256 }).notNull(),
+    fileUrl: t.text(),
+    fileName: t.varchar({ length: 256 }),
+    status: ragDocumentStatusEnum().notNull().default("pending"),
+    metadata: t.jsonb().notNull().default({}),
+    tokenCount: t.integer().notNull().default(0),
+    chunkCount: t.integer().notNull().default(0),
+    errorMessage: t.text(),
+    createdBy: t.uuid().references(() => UserProfile.id),
+    createdAt: t
+      .timestamp({ mode: "date", withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: t
+      .timestamp({ mode: "date", withTimezone: true })
+      .defaultNow()
+      .$onUpdateFn(() => sql`now()`)
+      .notNull(),
+  }),
+  (table) => [
+    index("idx_rag_documents_workspace_id").on(table.workspaceId),
+    index("idx_rag_documents_type").on(table.documentType),
+    index("idx_rag_documents_status").on(table.status),
+    index("idx_rag_documents_created_by").on(table.createdBy),
+    workspacePolicy("rag_documents"),
+  ],
+).enableRLS();
+
+/**
+ * Hierarchical chunks and vector embeddings (1536 dims) for semantic retrieval.
+ */
+export const ragDocumentChunks = pgTable(
+  "rag_document_chunks",
+  (t) => ({
+    id: t.uuid().notNull().primaryKey().defaultRandom(),
+    documentId: t
+      .uuid()
+      .notNull()
+      .references(() => ragDocuments.id, { onDelete: "cascade" }),
+    workspaceId: t
+      .uuid()
+      .notNull()
+      .references(() => Workspace.id)
+      .default(sql`current_setting('app.workspace_id')::uuid`),
+    chunkIndex: t.integer().notNull(),
+    chunkType: t.varchar({ length: 64 }).notNull().default("document_summary"),
+    content: t.text().notNull(),
+    metadata: t.jsonb().notNull().default({}),
+    tokenCount: t.integer(),
+    embedding: vector("embedding", { dimensions: 1536 }).notNull(),
+    createdAt: t
+      .timestamp({ mode: "date", withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: t
+      .timestamp({ mode: "date", withTimezone: true })
+      .defaultNow()
+      .$onUpdateFn(() => sql`now()`)
+      .notNull(),
+  }),
+  (table) => [
+    index("idx_rag_document_chunks_workspace_id").on(table.workspaceId),
+    index("idx_rag_document_chunks_document_id").on(table.documentId),
+    index("idx_rag_document_chunks_metadata").using("gin", table.metadata),
+    index("idx_rag_document_chunks_embedding")
+      .using("hnsw", table.embedding.op("vector_cosine_ops"))
+      .with({ m: 16, ef_construction: 64 }),
+    workspacePolicy("rag_document_chunks"),
+  ],
+).enableRLS();
+
+export const ragDocumentsRelations = relations(
+  ragDocuments,
+  ({ one, many }) => ({
+    workspace: one(Workspace, {
+      fields: [ragDocuments.workspaceId],
+      references: [Workspace.id],
+    }),
+    author: one(UserProfile, {
+      fields: [ragDocuments.createdBy],
+      references: [UserProfile.id],
+    }),
+    chunks: many(ragDocumentChunks),
+  }),
+);
+
+export const ragDocumentChunksRelations = relations(
+  ragDocumentChunks,
+  ({ one }) => ({
+    document: one(ragDocuments, {
+      fields: [ragDocumentChunks.documentId],
+      references: [ragDocuments.id],
+    }),
+    workspace: one(Workspace, {
+      fields: [ragDocumentChunks.workspaceId],
+      references: [Workspace.id],
+    }),
+  }),
+);
+
+export type RagDocumentSelect = typeof ragDocuments.$inferSelect;
+export type RagDocumentInsert = typeof ragDocuments.$inferInsert;
+export type RagDocumentChunkSelect = typeof ragDocumentChunks.$inferSelect;
+export type RagDocumentChunkInsert = typeof ragDocumentChunks.$inferInsert;

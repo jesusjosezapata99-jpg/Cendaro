@@ -1,4 +1,4 @@
-param(
+﻿param(
   [string[]] $Tables = @(
     "user_profile", "workspace", "organization", "permission", "role_permission",
     "product", "customer"
@@ -13,7 +13,8 @@ param(
     "user_membership_count",
     "is_workspace_member",
     "rate_limit_gc",
-    "next_document_number"
+    "next_document_number",
+    "verify_audit_chain_integrity"
   )
 )
 

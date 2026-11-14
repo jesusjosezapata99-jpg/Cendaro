@@ -20,7 +20,11 @@ export default defineConfig(
   {
     // Material Symbols is an icon font not loadable via next/font;
     // root layout applies globally (not a single-page concern).
-    files: ["**/app/layout.tsx"],
+    files: [
+      "**/app/**/layout.tsx",
+      "**/app/_components/root-shell.tsx",
+      "**/app/global-not-found.tsx",
+    ],
     rules: {
       "@next/next/no-page-custom-font": "off",
     },

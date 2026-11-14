@@ -6,6 +6,7 @@ import { createSupabaseMiddlewareClient } from "@cendaro/auth/middleware";
 import { env } from "~/env";
 import { PUBLIC_ROUTES_EXACT, PUBLIC_ROUTES_PREFIX } from "~/lib/public-routes";
 import { REDIRECT_ALLOWLIST_PREFIX } from "~/lib/redirect-allowlist";
+import { buildAppContentSecurityPolicy } from "../csp.mjs";
 
 /**
  * Security headers injected on all /api/auth/* responses.
@@ -90,9 +91,25 @@ export async function proxy(request: NextRequest) {
     requestHeaders.set("x-workspace-id", wsId);
   }
 
+  // Generate per-request 128-bit cryptographic CSP nonce for authenticated
+  // `/(app)/*` routes. Next.js 16 extracts `'nonce-...'` from the request's
+  // `Content-Security-Policy` header to stamp framework scripts, while RSCs
+  // read `x-nonce` for `<ThemeProvider nonce={nonce}>`.
+  const nonceBytes = new Uint8Array(16);
+  crypto.getRandomValues(nonceBytes);
+  const nonce = btoa(String.fromCharCode(...nonceBytes));
+  const appCsp = buildAppContentSecurityPolicy(
+    env.NODE_ENV !== "production",
+    nonce,
+    supabaseUrl,
+  );
+  requestHeaders.set("x-nonce", nonce);
+  requestHeaders.set("Content-Security-Policy", appCsp);
+
   const response = NextResponse.next({
     request: { headers: requestHeaders },
   });
+  response.headers.set("Content-Security-Policy", appCsp);
 
   const supabase = createSupabaseMiddlewareClient(
     {

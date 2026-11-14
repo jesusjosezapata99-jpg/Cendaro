@@ -96,7 +96,7 @@ jobs:
     timeout-minutes: 15
     services:
       postgres:
-        image: postgres:17
+        image: pgvector/pgvector:pg17
         env:
           POSTGRES_HOST_AUTH_METHOD: trust
         ports:
@@ -133,7 +133,7 @@ jobs:
 
       # Same order as production: 023 unlocks orders, so it ships after the code.
       - name: Apply baseline and migrations
-        run: node scripts/db/apply-migrations.mjs --order 024,025,026,027,028,029,023,030,031
+        run: node scripts/db/apply-migrations.mjs --order 024,025,026,027,028,029,023,030,031,032,033
 
       - name: Integration tests
         run: pnpm -F @cendaro/api test:integration

@@ -175,6 +175,7 @@ export * from "./fiscal";
 export * from "./money";
 export * from "./rates";
 export * from "./plans";
+export * from "./rag";
 
 // ──────────────────────────────────────────────
 // Composite form schemas (frontend ↔ backend)

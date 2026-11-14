@@ -12,7 +12,7 @@ import { env } from "~/env";
 import { isIndexableDeployment } from "~/lib/site";
 import { siteUrl } from "~/lib/site-env";
 
-import "./globals.css";
+import "~/app/globals.css";
 
 /**
  * Hedvig Letters Sans + Serif — the Cendaro UI identity (see
@@ -50,10 +50,7 @@ const geistMono = Geist_Mono({
 
 const isIndexable = isIndexableDeployment(env.VERCEL_ENV);
 
-export const metadata: Metadata = {
-  // Canonical origin for OG/Twitter images and canonical links: the public
-  // site URL (NEXT_PUBLIC_SITE_URL, else the production Vercel URL), never a
-  // per-deployment preview URL (PLAN-2026-09-LANDING-REDESIGN T1.3).
+export const sharedRootMetadata: Metadata = {
   metadataBase: siteUrl,
   title: "Cendaro",
   applicationName: "Cendaro",
@@ -97,7 +94,7 @@ export const metadata: Metadata = {
     : {}),
 };
 
-export const viewport: Viewport = {
+export const sharedRootViewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
@@ -107,10 +104,12 @@ export const viewport: Viewport = {
   ],
 };
 
-export default function RootLayout({
+export function RootDocumentShell({
   children,
+  nonce,
 }: {
   children: React.ReactNode;
+  nonce?: string;
 }) {
   return (
     <html lang="es" suppressHydrationWarning data-scroll-behavior="smooth">
@@ -145,7 +144,7 @@ export default function RootLayout({
       <body
         className={`${hedvigSans.variable} ${hedvigSerif.variable} ${geistMono.variable} bg-background text-foreground font-sans antialiased`}
       >
-        <ThemeProvider>
+        <ThemeProvider nonce={nonce}>
           <MotionProvider>{children}</MotionProvider>
         </ThemeProvider>
         <AppToaster />

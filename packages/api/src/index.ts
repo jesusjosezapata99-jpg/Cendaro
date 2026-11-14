@@ -7,8 +7,12 @@ export { appRouter } from "./root";
 export {
   createTRPCContext,
   createCallerFactory,
+  HEAVY_STATEMENT_TIMEOUT_MS,
+  INTERACTIVE_STATEMENT_TIMEOUT_MS,
   isValidUuid,
   mapClaimsToUser,
+  runInWorkspaceRls,
+  runInWorkspaceRlsReadonly,
 } from "./trpc";
 export type { AuthAssuranceLevel, AuthenticatedUser } from "./trpc";
 export { MfaRequiredError } from "./trpc";

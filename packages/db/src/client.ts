@@ -75,9 +75,14 @@ const createDb = () => {
     // Release idle connections quickly — serverless instances sit idle
     // between bursts and should not hold pooler slots while doing so.
     idleTimeoutMillis: 20_000,
+    allowExitOnIdle: true,
 
     // Fail fast instead of leaving the UI on skeletons for 30s: a healthy
     // pooler connects in ~200ms, and React Query retries transient failures.
+    // Interactive per-statement execution caps (5000ms default, 30000ms on bulk
+    // imports/exports) are bound transaction-locally via `set_config('statement_timeout', ..., true)`
+    // in `packages/api/src/trpc.ts` because Supavisor (:6543) transaction mode
+    // rejects startup `options: "-c statement_timeout=..."` parameters.
     connectionTimeoutMillis: 10_000,
 
     // Recycle connections every 5 minutes on Supabase to prevent stale conns

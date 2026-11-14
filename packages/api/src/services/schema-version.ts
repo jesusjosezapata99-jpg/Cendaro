@@ -10,7 +10,7 @@ import type { getDb } from "@cendaro/db/client";
 import { logger } from "../logger";
 
 /** Name of the newest migration in packages/db/migrations; a test keeps it current. */
-export const EXPECTED_MIGRATION = "monitor_role";
+export const EXPECTED_MIGRATION = "monitor_audit_chain";
 
 export interface SchemaVersionStatus {
   expected: string;

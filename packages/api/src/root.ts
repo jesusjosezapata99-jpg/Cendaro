@@ -20,6 +20,7 @@ import { searchRouter } from "./modules/search";
 import { usersRouter } from "./modules/users";
 import { vendorRouter } from "./modules/vendors";
 import { workspaceRouter } from "./modules/workspace";
+import { ragRouter } from "./routers/rag";
 import { createTRPCRouter } from "./trpc";
 
 export const appRouter = createTRPCRouter({
@@ -43,6 +44,7 @@ export const appRouter = createTRPCRouter({
   integrations: integrationsRouter,
   dashboard: dashboardRouter,
   search: searchRouter,
+  rag: ragRouter,
   health: healthRouter,
   workspace: workspaceRouter,
 });
