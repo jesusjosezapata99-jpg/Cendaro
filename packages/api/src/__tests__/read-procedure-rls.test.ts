@@ -29,14 +29,20 @@ function fakeDb() {
   let capturedTxConfig: unknown = null;
   const base = {
     execute: (query: { queryChunks?: unknown[] }) => {
-      const first = (query as { queryChunks?: { value?: unknown }[] })
-        .queryChunks?.[0]?.value;
       const text =
-        typeof first === "string"
-          ? first
-          : Array.isArray(first)
-            ? first.join("")
-            : "";
+        (
+          query as { queryChunks?: ({ value?: unknown } | string)[] }
+        ).queryChunks
+          ?.map((chunk) =>
+            typeof chunk === "string"
+              ? chunk
+              : typeof chunk.value === "string"
+                ? chunk.value
+                : Array.isArray(chunk.value)
+                  ? chunk.value.join("")
+                  : "",
+          )
+          .join("") ?? "";
       executed.push(text);
       return Promise.resolve({ rows: [] });
     },
@@ -134,12 +140,31 @@ describe("F9.2: reads run under RLS as app_user", () => {
     // drizzle folds the mode into BEGIN itself (`begin read only`) — the
     // transaction must be requested READ ONLY, not read-write.
     expect(txConfig()).toEqual({ accessMode: "read only" });
-    // Role and workspace are bound in ONE statement, as on the write path.
+    // Role, workspace, and Supavisor interactive statement_timeout are bound in ONE statement.
     const bind = executed.filter((q) =>
       q.includes("set_config('role', 'app_user', true)"),
     );
     expect(bind).toHaveLength(1);
     expect(bind[0]).toContain("set_config('app.workspace_id'");
+    expect(bind[0]).toContain("set_config('statement_timeout', ");
+    expect(bind[0]).toContain("5000ms");
+  });
+
+  it("supports an elevated statement_timeout override for heavy analytical/bulk operations", async () => {
+    const { pool, executed } = fakeDb();
+
+    await runInWorkspaceRlsReadonly(
+      pool as never,
+      WORKSPACE_ID,
+      () => Promise.resolve("ok"),
+      { statementTimeoutMs: 30_000 },
+    );
+
+    const bind = executed.filter((q) =>
+      q.includes("set_config('role', 'app_user', true)"),
+    );
+    expect(bind).toHaveLength(1);
+    expect(bind[0]).toContain("30000ms");
   });
 
   it("a .mutation() on the read builder keeps the pooled connection", async () => {

@@ -182,6 +182,44 @@ describe("POST /api/ai/parse-packing-list", () => {
       }) as never,
     );
     expect(res.status).toBe(400);
+
+    // Path-traversal / unanchored segment confusion (another workspace's bucket path containing WORKSPACE deeper down)
+    const traversalRes = await POST(
+      jsonRequest({
+        workspace: WORKSPACE,
+        body: {
+          rows: [["item"]],
+          containerId: "c0000000-0000-0000-0000-000000000001",
+          imageUrls: [
+            `https://example.supabase.co/storage/v1/object/public/packing/other-tenant/${WORKSPACE}/img.jpg`,
+          ],
+        },
+      }) as never,
+    );
+    expect(traversalRes.status).toBe(400);
+  });
+
+  it("rejects a FormData upload whose containerId is not a valid UUID with 400", async () => {
+    const form = new FormData();
+    form.append(
+      "file",
+      new Blob(["dummy"], { type: "application/pdf" }),
+      "packing.pdf",
+    );
+    form.append("containerId", "not-a-valid-uuid");
+    const req = new Request(
+      "https://erp.example.com/api/ai/parse-packing-list",
+      {
+        method: "POST",
+        headers: {
+          "x-workspace-id": WORKSPACE,
+          origin: "https://erp.example.com",
+        },
+        body: form,
+      },
+    );
+    const res = await POST(req as never);
+    expect(res.status).toBe(400);
   });
 
   it("fails closed with 500 when GROQ_API_KEY is not configured", async () => {

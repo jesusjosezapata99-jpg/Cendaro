@@ -20,6 +20,7 @@ const config = {
   /** Tree-shake heavy packages for smaller bundles */
   cacheComponents: true,
   experimental: {
+    globalNotFound: true,
     optimizePackageImports: [
       "@cendaro/ui",
       "@dnd-kit/core",

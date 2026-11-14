@@ -26,6 +26,7 @@ import {
 import type { createTRPCContext } from "../trpc";
 import {
   createTRPCRouter,
+  HEAVY_STATEMENT_TIMEOUT_MS,
   wsPermissionProcedure,
   wsReadPermissionProcedure,
 } from "../trpc";
@@ -386,7 +387,9 @@ export const catalogImportRouter = createTRPCRouter({
    *
    * RBAC: owner, admin, supervisor (PRD §4)
    */
-  validate: wsPermissionProcedure("catalog", "create")
+  validate: wsPermissionProcedure("catalog", "create", {
+    statementTimeoutMs: HEAVY_STATEMENT_TIMEOUT_MS,
+  })
     .input(z.object({ sessionId: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       // Load session
@@ -1154,7 +1157,9 @@ export const catalogImportRouter = createTRPCRouter({
    *
    * RBAC: any authenticated user (PRD §4)
    */
-  dryRun: wsReadPermissionProcedure("catalog", "create")
+  dryRun: wsReadPermissionProcedure("catalog", "create", {
+    statementTimeoutMs: HEAVY_STATEMENT_TIMEOUT_MS,
+  })
     .input(z.object({ sessionId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
       const [session] = await ctx.db
@@ -1243,7 +1248,9 @@ export const catalogImportRouter = createTRPCRouter({
    *
    * RBAC: catalog.create (owner, admin, supervisor)
    */
-  commit: wsPermissionProcedure("catalog", "create")
+  commit: wsPermissionProcedure("catalog", "create", {
+    statementTimeoutMs: HEAVY_STATEMENT_TIMEOUT_MS,
+  })
     .input(z.object({ sessionId: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       const [session] = await ctx.db

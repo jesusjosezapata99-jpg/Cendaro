@@ -43,3 +43,8 @@ GRANT USAGE ON SCHEMA auth TO anon, authenticated, service_role, app_user;
 GRANT USAGE ON SCHEMA extensions TO anon, authenticated, service_role, app_user;
 GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role, app_user;
 GRANT app_user TO CURRENT_USER;
+
+-- Match Supabase's default role search_path so extensions-scoped operators
+-- (pg_trgm similarity, pgvector <=>) resolve identically in CI and local tests.
+ALTER ROLE CURRENT_USER SET search_path TO "$user", public, extensions;
+SET search_path TO "$user", public, extensions;

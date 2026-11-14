@@ -7,8 +7,12 @@ export { appRouter } from "./root";
 export {
   createTRPCContext,
   createCallerFactory,
+  HEAVY_STATEMENT_TIMEOUT_MS,
+  INTERACTIVE_STATEMENT_TIMEOUT_MS,
   isValidUuid,
   mapClaimsToUser,
+  runInWorkspaceRls,
+  runInWorkspaceRlsReadonly,
 } from "./trpc";
 export type { AuthAssuranceLevel, AuthenticatedUser } from "./trpc";
 export { MfaRequiredError } from "./trpc";
@@ -28,6 +32,7 @@ export {
 export { getUsdCnyRate, getVesRates } from "./services/exchange-rate-sources";
 export type { UpstreamRate, VesRates } from "./services/exchange-rate-sources";
 export { runScheduledRateSync } from "./modules/rate-sync";
+export { checkSchemaVersion } from "./services/schema-version";
 export type {
   HeldRate,
   RateSyncResult,

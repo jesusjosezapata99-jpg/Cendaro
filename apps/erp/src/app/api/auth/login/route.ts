@@ -48,6 +48,7 @@ import {
   rateLimitComposite,
   recordFailure,
 } from "~/lib/rate-limit";
+import { readBodyWithByteLimit } from "~/lib/request-body-limit";
 import { verifyTurnstileToken } from "~/lib/turnstile";
 
 // ── Constants ────────────────────────────────────────────────────────────────
@@ -171,26 +172,36 @@ export async function POST(request: Request) {
     );
   }
 
-  // ── Step 2: Body size guard ─────────────────────────────────────────────
-  const contentLength = parseInt(
-    request.headers.get("content-length") ?? "0",
-    10,
-  );
-  if (contentLength > MAX_BODY_BYTES) {
-    return NextResponse.json(
-      { error: "Solicitud demasiado grande" },
-      { status: 413, headers: AUTH_SECURITY_HEADERS },
-    );
+  // ── Step 2: Body size guard (Content-Length + streamed body fallback) ───
+  let req: Request = request;
+  const rawContentLength = req.headers.get("content-length");
+  if (rawContentLength) {
+    const contentLength = parseInt(rawContentLength, 10);
+    if (contentLength > MAX_BODY_BYTES) {
+      return NextResponse.json(
+        { error: "Solicitud demasiado grande" },
+        { status: 413, headers: AUTH_SECURITY_HEADERS },
+      );
+    }
+  } else {
+    const limited = await readBodyWithByteLimit(req, MAX_BODY_BYTES);
+    if (!limited.ok) {
+      return NextResponse.json(
+        { error: "Solicitud demasiado grande" },
+        { status: 413, headers: AUTH_SECURITY_HEADERS },
+      );
+    }
+    req = limited.request;
   }
 
   // ── Step 3: Extract IP ──────────────────────────────────────────────────
   // x-forwarded-for is set by Vercel. Take only the first (client) IP.
-  const ip = getClientIp(request.headers);
+  const ip = getClientIp(req.headers);
 
   // ── Step 4: Parse and validate body ────────────────────────────────────
   let rawBody: unknown;
   try {
-    rawBody = await request.json();
+    rawBody = await req.json();
   } catch {
     return authFailureResponse();
   }

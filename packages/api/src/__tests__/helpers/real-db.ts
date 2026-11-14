@@ -8,6 +8,9 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 
 import type { getDb } from "@cendaro/db/client";
+
+import "@cendaro/db/client";
+
 import * as schema from "@cendaro/db/schema";
 
 import { logger } from "../../logger";

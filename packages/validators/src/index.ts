@@ -61,10 +61,14 @@ export const venezolanaCedulaSchema = z
     return res.ok ? res.value : val;
   });
 
+/** The largest amount a numeric(14,2) column holds. */
+const MAX_MONEY = 999_999_999_999.99;
+
 /** Positive monetary amount */
 export const moneySchema = z
   .number()
   .nonnegative("El monto no puede ser negativo")
+  .max(MAX_MONEY, "El monto supera el máximo permitido")
   .multipleOf(0.01, "El monto debe tener máximo 2 decimales");
 
 /** Exchange rate (positive, up to 4 decimals) */
@@ -171,6 +175,7 @@ export * from "./fiscal";
 export * from "./money";
 export * from "./rates";
 export * from "./plans";
+export * from "./rag";
 
 // ──────────────────────────────────────────────
 // Composite form schemas (frontend ↔ backend)

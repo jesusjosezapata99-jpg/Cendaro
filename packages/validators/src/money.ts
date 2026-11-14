@@ -68,6 +68,35 @@ export function multiplyMoney(quantity: number, unitPrice: number): number {
   return roundMoney2(quantity * unitPrice);
 }
 
+export interface PricedLine {
+  unitPrice: number;
+  quantity: number;
+  discount: number;
+}
+
+/** A line's amount after its per-unit discount. */
+export function lineTotal(line: PricedLine): number {
+  return multiplyMoney(line.quantity, line.unitPrice - line.discount);
+}
+
+/**
+ * Totals of a document, added cent by cent so that they always equal the sum of
+ * the line totals stored next to them.
+ */
+export function orderTotals(lines: readonly PricedLine[]): {
+  subtotal: number;
+  discount: number;
+  total: number;
+} {
+  const subtotal = addMoney(
+    ...lines.map((line) => multiplyMoney(line.quantity, line.unitPrice)),
+  );
+  const discount = addMoney(
+    ...lines.map((line) => multiplyMoney(line.quantity, line.discount)),
+  );
+  return { subtotal, discount, total: subtractMoney(subtotal, discount) };
+}
+
 /**
  * Converts a USD amount to VES (Bolívares) using a 4-decimal BCV rate,
  * returning a 2-decimal VES amount.

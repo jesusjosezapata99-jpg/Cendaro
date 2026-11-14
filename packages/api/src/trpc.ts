@@ -211,6 +211,7 @@ export type ProcedureAuthz =
 
 export interface ProcedureMeta {
   authz?: ProcedureAuthz;
+  statementTimeoutMs?: number;
 }
 
 /**
@@ -511,35 +512,74 @@ function toWorkspaceActor(
  * privileged credential pushing through an approval, a role change, a
  * repricing — is a write, so that is where the gate belongs.
  */
-function assertMfaCompliance(actor: WorkspaceActor): void {
+export function assertMfaCompliance(actor: WorkspaceActor): void {
   if (mfaComplianceFor(actor.workspaceRole, actor.aal).blocked) {
     throw new MfaRequiredError();
   }
 }
 
 /**
- * Runs `fn` in a transaction as `app_user` with `app.workspace_id` set, so
- * RLS policies apply — the isolation workspaceProcedure gives every
+ * Default transaction-scoped `statement_timeout` (ms) for interactive ERP
+ * requests over Supavisor `:6543`, preventing runaway queries from starving
+ * the 15-backend shared pool.
+ */
+export const INTERACTIVE_STATEMENT_TIMEOUT_MS = 5_000;
+
+/**
+ * Elevated transaction-scoped `statement_timeout` (ms) for bulk catalog/inventory
+ * imports, workspace-wide repricing, and analytical report exports.
+ */
+export const HEAVY_STATEMENT_TIMEOUT_MS = 30_000;
+
+export interface WorkspaceProcedureOptions {
+  /** Transaction-local `statement_timeout` in milliseconds (defaults to 5000ms). */
+  statementTimeoutMs?: number;
+}
+
+function normalizeStatementTimeoutMs(timeoutMs?: number): number {
+  if (
+    typeof timeoutMs !== "number" ||
+    !Number.isFinite(timeoutMs) ||
+    timeoutMs <= 0
+  ) {
+    return INTERACTIVE_STATEMENT_TIMEOUT_MS;
+  }
+  return Math.min(Math.trunc(timeoutMs), 60_000);
+}
+
+/**
+ * Runs `fn` in a transaction as `app_user` with `app.workspace_id` and a
+ * transaction-local `statement_timeout` set, so RLS policies and pooler
+ * timeout caps apply — the isolation workspaceProcedure gives every
  * mutation. Also used directly by handlers that must finish slow external
- * I/O first (rate sync, scheduled jobs) so a pooled connection is not held
- * open while a third party answers.
+ * I/O first (rate sync, RAG ingestion, scheduled jobs) so a pooled connection
+ * is not held open while a third party answers.
  */
 export function runInWorkspaceRls<T>(
   db: ReturnType<typeof getDb>,
   workspaceId: string,
   fn: (tx: ReturnType<typeof getDb>) => Promise<T>,
+  opts?: WorkspaceProcedureOptions,
 ): Promise<T> {
+  if (!isValidUuid(workspaceId)) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "workspaceId debe ser un UUID válido",
+    });
+  }
+
   return db.transaction(async (tx) => {
-    await bindWorkspaceRls(tx, workspaceId);
+    await bindWorkspaceRls(tx, workspaceId, opts?.statementTimeoutMs);
     return fn(tx as unknown as ReturnType<typeof getDb>);
   });
 }
 
 /**
- * Switches the open transaction to `app_user` and binds `app.workspace_id`,
- * in ONE statement (one network round trip instead of two).
+ * Switches the open transaction to `app_user`, binds `app.workspace_id`, and
+ * enforces a transaction-local `statement_timeout`, in ONE statement (one
+ * network round trip instead of three — Supavisor `:6543` transaction-mode safe).
  *
- * Both settings go through `set_config(..., true)`: the third argument makes
+ * All three settings go through `set_config(..., true)`: the third argument makes
  * it transaction-local, exactly like `SET LOCAL`, and — unlike `SET LOCAL
  * app.workspace_id = ...` — it accepts bind parameters, which the extended
  * query protocol needs (confirmed 2026-09, Cendaro C1 follow-up). Setting the
@@ -555,9 +595,11 @@ export function runInWorkspaceRls<T>(
 async function bindWorkspaceRls(
   tx: Pick<ReturnType<typeof getDb>, "execute">,
   workspaceId: string,
+  statementTimeoutMs?: number,
 ): Promise<void> {
+  const timeoutLiteral = `${normalizeStatementTimeoutMs(statementTimeoutMs)}ms`;
   await tx.execute(
-    sql`SELECT set_config('role', 'app_user', true), set_config('app.workspace_id', ${workspaceId}, true)`,
+    sql`SELECT set_config('role', 'app_user', true), set_config('app.workspace_id', ${workspaceId}, true), set_config('statement_timeout', ${timeoutLiteral}, true)`,
   );
 }
 
@@ -575,7 +617,7 @@ async function bindWorkspaceRls(
  * Cost control (the 2026-09-15 RLS read-latency incident): the driver here
  * is node-postgres via drizzle, and drizzle folds the transaction mode into
  * the `BEGIN` statement itself (`begin read only`), and `bindWorkspaceRls`
- * sets role and workspace in one statement — so the wrapper adds exactly 3
+ * sets role, workspace, and `statement_timeout` in one statement — so the wrapper adds exactly 3
  * round trips to a read (BEGIN, bind, COMMIT). RLS policies use the InitPlan
  * form (`(select current_setting(...))`), so the setting is read once per
  * statement, not once per row. Measured 2026-09-21 on the database itself:
@@ -590,6 +632,7 @@ export function runInWorkspaceRlsReadonly<T>(
   db: ReturnType<typeof getDb>,
   workspaceId: string,
   fn: (tx: ReturnType<typeof getDb>) => Promise<T>,
+  opts?: WorkspaceProcedureOptions,
 ): Promise<T> {
   if (!isValidUuid(workspaceId)) {
     // Belt and suspenders: createTRPCContext already rejects non-UUID
@@ -603,7 +646,7 @@ export function runInWorkspaceRlsReadonly<T>(
 
   return db.transaction(
     async (tx) => {
-      await bindWorkspaceRls(tx, workspaceId);
+      await bindWorkspaceRls(tx, workspaceId, opts?.statementTimeoutMs);
       return fn(tx as unknown as ReturnType<typeof getDb>);
     },
     // drizzle emits `begin read only` — READ ONLY without an extra round
@@ -627,7 +670,7 @@ export function runInWorkspaceRlsReadonly<T>(
  * Use this for mutations (INSERT/UPDATE/DELETE) that need RLS enforcement.
  */
 export const workspaceProcedure = protectedProcedure.use(
-  async ({ ctx, next }) => {
+  async ({ ctx, next, meta }) => {
     const resolved = await resolveWorkspaceMembership(ctx);
     const actor = toWorkspaceActor(ctx.user, resolved);
     assertMfaCompliance(actor);
@@ -639,16 +682,20 @@ export const workspaceProcedure = protectedProcedure.use(
       plan: resolved.workspacePlan,
     };
 
-    // Execute inside transaction with SET LOCAL for RLS enforcement
-    const result = await runInWorkspaceRls(ctx.db, resolved.workspaceId, (tx) =>
-      next({
-        ctx: {
-          ...ctx,
-          db: tx,
-          user: actor,
-          workspace,
-        },
-      }),
+    // Execute inside transaction with SET LOCAL for RLS enforcement + statement_timeout
+    const result = await runInWorkspaceRls(
+      ctx.db,
+      resolved.workspaceId,
+      (tx) =>
+        next({
+          ctx: {
+            ...ctx,
+            db: tx,
+            user: actor,
+            workspace,
+          },
+        }),
+      { statementTimeoutMs: meta?.statementTimeoutMs },
     );
 
     // Post-commit work (F5.2): runs as `postgres` on the pool, only after the
@@ -691,7 +738,7 @@ export const workspaceProcedure = protectedProcedure.use(
  * intact while every actual read gets RLS enforcement.
  */
 export const workspaceReadProcedure = protectedProcedure.use(
-  async ({ ctx, next, type }) => {
+  async ({ ctx, next, type, meta }) => {
     const resolved = await resolveWorkspaceMembership(ctx);
 
     const workspace: WorkspaceMembership = {
@@ -713,15 +760,19 @@ export const workspaceReadProcedure = protectedProcedure.use(
       });
     }
 
-    return runInWorkspaceRlsReadonly(ctx.db, resolved.workspaceId, (tx) =>
-      next({
-        ctx: {
-          ...ctx,
-          db: tx,
-          user: toWorkspaceActor(ctx.user, resolved),
-          workspace,
-        },
-      }),
+    return runInWorkspaceRlsReadonly(
+      ctx.db,
+      resolved.workspaceId,
+      (tx) =>
+        next({
+          ctx: {
+            ...ctx,
+            db: tx,
+            user: toWorkspaceActor(ctx.user, resolved),
+            workspace,
+          },
+        }),
+      { statementTimeoutMs: meta?.statementTimeoutMs },
     );
   },
 );
@@ -798,9 +849,13 @@ function assertPermission(
 export function wsPermissionProcedure(
   module: ErpModule,
   action: PermissionAction,
+  opts?: WorkspaceProcedureOptions,
 ) {
   return workspaceProcedure
-    .meta({ authz: { kind: "permission", module, action } })
+    .meta({
+      authz: { kind: "permission", module, action },
+      statementTimeoutMs: opts?.statementTimeoutMs,
+    })
     .use(async ({ ctx, next }) => {
       assertPermission(ctx.workspace.role, module, action);
       await assertModuleEnabled(ctx, module);
@@ -815,9 +870,13 @@ export function wsPermissionProcedure(
 export function wsReadPermissionProcedure(
   module: ErpModule,
   action: PermissionAction,
+  opts?: WorkspaceProcedureOptions,
 ) {
   return workspaceReadProcedure
-    .meta({ authz: { kind: "permission", module, action, readOnly: true } })
+    .meta({
+      authz: { kind: "permission", module, action, readOnly: true },
+      statementTimeoutMs: opts?.statementTimeoutMs,
+    })
     .use(async ({ ctx, next }) => {
       assertPermission(ctx.workspace.role, module, action);
       await assertModuleEnabled(ctx, module);
