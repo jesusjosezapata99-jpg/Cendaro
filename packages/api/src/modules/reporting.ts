@@ -16,8 +16,15 @@ import {
   StockLedger,
   Warehouse,
 } from "@cendaro/db/schema";
+import { addMoney, subtractMoney } from "@cendaro/validators";
 
-import { createTRPCRouter, wsReadPermissionProcedure } from "../trpc";
+import {
+  createTRPCRouter,
+  HEAVY_STATEMENT_TIMEOUT_MS,
+  wsReadPermissionProcedure,
+} from "../trpc";
+
+const REPORT_TIMEOUT = { statementTimeoutMs: HEAVY_STATEMENT_TIMEOUT_MS };
 
 const dateRangeInput = z.object({
   from: z.string().datetime(),
@@ -26,7 +33,7 @@ const dateRangeInput = z.object({
 
 export const reportingRouter = createTRPCRouter({
   // ─── Sales summary by date range ──────────────
-  salesSummary: wsReadPermissionProcedure("dashboard", "export")
+  salesSummary: wsReadPermissionProcedure("dashboard", "export", REPORT_TIMEOUT)
     .input(dateRangeInput)
     .query(async ({ ctx, input }) => {
       const [result] = await ctx.db
@@ -48,7 +55,11 @@ export const reportingRouter = createTRPCRouter({
     }),
 
   // ─── Sales by channel ─────────────────────────
-  salesByChannel: wsReadPermissionProcedure("dashboard", "export")
+  salesByChannel: wsReadPermissionProcedure(
+    "dashboard",
+    "export",
+    REPORT_TIMEOUT,
+  )
     .input(dateRangeInput)
     .query(async ({ ctx, input }) => {
       return ctx.db
@@ -69,7 +80,11 @@ export const reportingRouter = createTRPCRouter({
     }),
 
   // ─── Payment method breakdown ─────────────────
-  paymentMethods: wsReadPermissionProcedure("dashboard", "export")
+  paymentMethods: wsReadPermissionProcedure(
+    "dashboard",
+    "export",
+    REPORT_TIMEOUT,
+  )
     .input(dateRangeInput)
     .query(async ({ ctx, input }) => {
       return ctx.db
@@ -89,38 +104,40 @@ export const reportingRouter = createTRPCRouter({
     }),
 
   // ─── Inventory valuation ──────────────────────
-  inventoryValuation: wsReadPermissionProcedure("dashboard", "export").query(
-    async ({ ctx }) => {
-      return ctx.db
-        .select({
-          warehouseId: StockLedger.warehouseId,
-          warehouseName: Warehouse.name,
-          totalProducts: sql<number>`count(distinct ${StockLedger.productId})`,
-          totalUnits: sql<number>`coalesce(sum(${StockLedger.quantity}), 0)`,
-          totalCostValueUsd: sql<number>`coalesce(sum(${StockLedger.quantity} * CAST(coalesce(${Product.costAvg}, '0') AS double precision)), 0)`,
-        })
-        .from(StockLedger)
-        .leftJoin(
-          Warehouse,
-          and(
-            eq(StockLedger.warehouseId, Warehouse.id),
-            eq(Warehouse.workspaceId, ctx.workspace.workspaceId),
-          ),
-        )
-        .leftJoin(
-          Product,
-          and(
-            eq(StockLedger.productId, Product.id),
-            eq(Product.workspaceId, ctx.workspace.workspaceId),
-          ),
-        )
-        .where(eq(StockLedger.workspaceId, ctx.workspace.workspaceId))
-        .groupBy(StockLedger.warehouseId, Warehouse.name);
-    },
-  ),
+  inventoryValuation: wsReadPermissionProcedure(
+    "dashboard",
+    "export",
+    REPORT_TIMEOUT,
+  ).query(async ({ ctx }) => {
+    return ctx.db
+      .select({
+        warehouseId: StockLedger.warehouseId,
+        warehouseName: Warehouse.name,
+        totalProducts: sql<number>`count(distinct ${StockLedger.productId})`,
+        totalUnits: sql<number>`coalesce(sum(${StockLedger.quantity}), 0)`,
+        totalCostValueUsd: sql<number>`coalesce(sum(${StockLedger.quantity} * CAST(coalesce(${Product.costAvg}, '0') AS numeric)), 0)`,
+      })
+      .from(StockLedger)
+      .leftJoin(
+        Warehouse,
+        and(
+          eq(StockLedger.warehouseId, Warehouse.id),
+          eq(Warehouse.workspaceId, ctx.workspace.workspaceId),
+        ),
+      )
+      .leftJoin(
+        Product,
+        and(
+          eq(StockLedger.productId, Product.id),
+          eq(Product.workspaceId, ctx.workspace.workspaceId),
+        ),
+      )
+      .where(eq(StockLedger.workspaceId, ctx.workspace.workspaceId))
+      .groupBy(StockLedger.warehouseId, Warehouse.name);
+  }),
 
   // ─── Top selling products ─────────────────────
-  topProducts: wsReadPermissionProcedure("dashboard", "export")
+  topProducts: wsReadPermissionProcedure("dashboard", "export", REPORT_TIMEOUT)
     .input(
       z.object({
         from: z.string().datetime(),
@@ -180,6 +197,7 @@ export const reportingRouter = createTRPCRouter({
   reconcileFinancialLedger: wsReadPermissionProcedure(
     "dashboard",
     "export",
+    REPORT_TIMEOUT,
   ).query(async ({ ctx }) => {
     // 1. Total sales revenue from confirmed orders (excluding cancelled)
     const [salesRow] = await ctx.db
@@ -237,8 +255,9 @@ export const reportingRouter = createTRPCRouter({
 
     // Theoretical balance equation: Total Sales = Total Payments Received + Outstanding Receivables
     // Any discrepancy indicates unrecorded payment, unrecorded receivable, or manual ledger tampering
-    const discrepancy = Number(
-      (totalSales - (totalPayments + totalReceivables)).toFixed(2),
+    const discrepancy = subtractMoney(
+      totalSales,
+      addMoney(totalPayments, totalReceivables),
     );
     const isBalanced = Math.abs(discrepancy) < 0.05; // 5 cents tolerance for floating point rounding
 

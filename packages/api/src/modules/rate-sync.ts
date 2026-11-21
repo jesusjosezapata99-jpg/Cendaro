@@ -868,8 +868,11 @@ export async function runScheduledRateSync(): Promise<ScheduledRateSyncSummary> 
 
   for (const { id } of workspaces) {
     try {
-      const results = await runInWorkspaceRls(db, id, (tx) =>
-        syncAutomaticRates(tx, null, id, candidates),
+      const results = await runInWorkspaceRls(
+        db,
+        id,
+        (tx) => syncAutomaticRates(tx, null, id, candidates),
+        { statementTimeoutMs: 15_000 },
       );
       summary.workspaces.push({
         workspaceId: id,

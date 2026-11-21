@@ -8,7 +8,7 @@ How a change that touches the database reaches production. The rules in `AGENTS.
 2. **Rehearse first.** Build a disposable database from the production baseline and apply the migrations in production order:
 
    ```
-   node scripts/db/apply-migrations.mjs --url <local-url> --order 024,025,026,027,028,029,023
+   node scripts/db/apply-migrations.mjs --url <local-url> --order 024,025,026,027,028,029,023,030,031
    ```
 
    The `DB Integration` CI job does the same on every pull request. The script refuses any host other than localhost.
@@ -28,6 +28,12 @@ How a change that touches the database reaches production. The rules in `AGENTS.
 - `integration.schema-drift.test.ts` passes against a rehearsal of the same order.
 - Security and performance advisors show nothing new.
 - Postgres logs show no `does not exist`, `42703` or `42P10` during smoke tests.
+
+## Production checks
+
+`.github/workflows/production-checks.yml` runs every day with the read-only `monitor_reader` role: the schema against the catalog and `financial-invariants.sql`. It needs the `PRODUCTION_MONITOR_URL` repository secret, a pooler connection string for that role, whose password is set by hand with `ALTER ROLE` and is never stored in this repository.
+
+The daily cron also compares `EXPECTED_MIGRATION` in `packages/api/src/services/schema-version.ts` with the ledger and reports a gap to Sentry. Update that constant with each migration; a test fails otherwise.
 
 ## Rolling back
 

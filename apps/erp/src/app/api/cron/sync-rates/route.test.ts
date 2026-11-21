@@ -10,18 +10,28 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => {
   const env: { CRON_SECRET?: string } = {};
-  return { env, runScheduledRateSync: vi.fn(), loggerError: vi.fn() };
+  return {
+    env,
+    runScheduledRateSync: vi.fn(),
+    checkSchemaVersion: vi.fn(),
+    captureMessage: vi.fn(),
+    loggerError: vi.fn(),
+  };
 });
 
 vi.mock("~/env", () => ({ env: mocks.env }));
 vi.mock("@cendaro/api", () => ({
   runScheduledRateSync: mocks.runScheduledRateSync,
+  checkSchemaVersion: mocks.checkSchemaVersion,
   logger: { error: mocks.loggerError },
 }));
+vi.mock("@cendaro/db/client", () => ({ getDb: () => ({}) }));
+vi.mock("@sentry/nextjs", () => ({ captureMessage: mocks.captureMessage }));
 
 const { GET } = await import("./route");
 
 const SECRET = "s".repeat(40);
+const CURRENT_SCHEMA = { expected: "monitor_role", applied: true };
 
 function request(authorization?: string): Request {
   return new Request("https://erp.example.com/api/cron/sync-rates", {
@@ -37,6 +47,9 @@ describe("GET /api/cron/sync-rates", () => {
       upstream: { ves: true, cny: true },
       workspaces: [],
     });
+    mocks.checkSchemaVersion.mockReset();
+    mocks.checkSchemaVersion.mockResolvedValue(CURRENT_SCHEMA);
+    mocks.captureMessage.mockReset();
     mocks.loggerError.mockReset();
   });
 
@@ -74,8 +87,25 @@ describe("GET /api/cron/sync-rates", () => {
     expect(await res.json()).toEqual({
       upstream: { ves: true, cny: true },
       workspaces: [],
+      schema: CURRENT_SCHEMA,
     });
     expect(mocks.runScheduledRateSync).toHaveBeenCalledTimes(1);
+    expect(mocks.captureMessage).not.toHaveBeenCalled();
+  });
+
+  it("reports to Sentry when production is missing a migration", async () => {
+    mocks.checkSchemaVersion.mockResolvedValue({
+      expected: "monitor_role",
+      applied: false,
+    });
+
+    const res = await GET(request(`Bearer ${SECRET}`));
+
+    expect(res.status).toBe(200);
+    expect(mocks.captureMessage).toHaveBeenCalledWith(
+      "Production is missing migration monitor_role",
+      "error",
+    );
   });
 
   it("reports a failed run as a server error", async () => {

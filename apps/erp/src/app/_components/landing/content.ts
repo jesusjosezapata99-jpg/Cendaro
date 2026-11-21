@@ -433,7 +433,7 @@ export const FAQ: readonly FaqItem[] = [
   {
     q: "¿Funciona en el teléfono?",
     a: "Sí. Cendaro funciona en el navegador del teléfono, la tableta o la computadora; no hay que instalar nada.",
-    source: "apps/erp/src/app/layout.tsx",
+    source: "apps/erp/src/app/_components/root-shell.tsx",
   },
   {
     q: "¿Qué tan seguros están mis datos?",

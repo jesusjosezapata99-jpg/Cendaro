@@ -23,6 +23,8 @@ interface MockState {
     SUPABASE_SERVICE_ROLE_KEY?: string;
   };
   caller: { id: string; user_metadata?: Record<string, unknown> } | null;
+  claims?: Record<string, unknown> | null;
+  mfaBlocked?: boolean;
   cookieWorkspace?: string;
   createClient: ReturnType<typeof vi.fn>;
   loggerError: ReturnType<typeof vi.fn>;
@@ -83,6 +85,11 @@ vi.mock("@cendaro/auth/server", () => ({
   createSupabaseServerClient: vi.fn(() => ({
     auth: {
       getUser: vi.fn(() => Promise.resolve({ data: { user: mocks.caller } })),
+      getClaims: vi.fn(() =>
+        Promise.resolve({
+          data: mocks.claims ? { claims: mocks.claims } : null,
+        }),
+      ),
     },
   })),
 }));
@@ -91,6 +98,20 @@ vi.mock("@cendaro/api", () => ({
   isValidUuid: (v: unknown) =>
     typeof v === "string" &&
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v),
+  mapClaimsToUser: (claims: Record<string, unknown> | null | undefined) =>
+    claims && typeof claims.sub === "string"
+      ? {
+          id: claims.sub,
+          aal:
+            claims.aal === "aal1" || claims.aal === "aal2" ? claims.aal : null,
+        }
+      : null,
+  mfaComplianceFor: (_role: string, aal: string | null | undefined) => ({
+    required: true,
+    enrolled: aal === "aal2",
+    blocked: Boolean(mocks.mfaBlocked) && aal !== "aal2",
+    gracePeriodEndsAt: null,
+  }),
   logger: { error: mocks.loggerError },
   getRateLimitStore: () => rateLimitState.store,
 }));
@@ -247,6 +268,8 @@ describe("POST /api/auth/create-user", () => {
   beforeEach(() => {
     mocks.env.SUPABASE_SERVICE_ROLE_KEY = "service-key";
     mocks.caller = { id: CALLER_ID };
+    mocks.claims = null;
+    mocks.mfaBlocked = false;
     mocks.cookieWorkspace = undefined;
     mocks.createClient.mockReset();
     mocks.loggerError.mockReset();
@@ -559,6 +582,19 @@ describe("POST /api/auth/create-user", () => {
         .filter(([message]) => message === "[create-user] rollback step failed")
         .map(([, context]) => (context as { step: string }).step);
       expect(steps).toEqual(["workspace_member", "auth_user"]);
+    });
+
+    it("blocks owner/admin account creation with 403 + mfaRequired when MFA enforcement is active and session lacks aal2", async () => {
+      const admin = fakeAdmin(scenario({ callerRole: "owner" }));
+      mocks.createClient.mockReturnValue(admin.client);
+      mocks.claims = { sub: CALLER_ID, aal: "aal1" };
+      mocks.mfaBlocked = true;
+
+      const res = await POST(createUserRequest());
+
+      expect(res.status).toBe(403);
+      await expect(res.json()).resolves.toMatchObject({ mfaRequired: true });
+      expect(admin.auth.admin.createUser).not.toHaveBeenCalled();
     });
   });
 });

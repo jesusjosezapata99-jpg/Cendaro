@@ -10,8 +10,9 @@
  *
  * Usage: node scripts/checks/design-guard.mjs --phase F1
  */
-import { readFile } from "node:fs/promises";
 import { execSync } from "node:child_process";
+import { existsSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import path from "node:path";
 
 const REPO_ROOT = path.resolve(import.meta.dirname, "../..");
@@ -38,7 +39,9 @@ const SHADOW_WHITELIST = new Set(["shadow-xs", "shadow-md"]);
 // (PLAN-2026-09-DESIGN-SYSTEM §F9: T9.1 & T9.2).
 const IS_F9_FILE = (filePath) => {
   const norm = filePath.replace(/\\/g, "/");
-  return norm.includes("app/_components/landing/") || norm.includes("app/login/");
+  return (
+    norm.includes("app/_components/landing/") || norm.includes("app/login/")
+  );
 };
 
 const PATTERNS = [
@@ -106,14 +109,19 @@ const PATTERNS = [
 function listFiles(dir) {
   try {
     const out = execSync(
-      `git -C "${REPO_ROOT}" ls-files -- "${dir}/*.ts" "${dir}/*.tsx" "${dir}/*.css"`,
+      `git -C "${REPO_ROOT}" ls-files --cached --others --exclude-standard -- "${dir}/*.ts" "${dir}/*.tsx" "${dir}/*.css"`,
       { encoding: "utf8", maxBuffer: 1024 * 1024 * 32 },
     );
-    return out
-      .split("\n")
-      .map((l) => l.trim())
-      .filter(Boolean)
-      .map((l) => path.join(REPO_ROOT, l));
+    return [
+      ...new Set(
+        out
+          .split("\n")
+          .map((l) => l.trim())
+          .filter(Boolean)
+          .map((l) => path.join(REPO_ROOT, l))
+          .filter((f) => existsSync(f)),
+      ),
+    ];
   } catch {
     return [];
   }
@@ -134,7 +142,10 @@ async function countPattern(pattern) {
       : matches;
     if (filtered.length > 0) {
       count += filtered.length;
-      hits.push({ file: path.relative(REPO_ROOT, file), count: filtered.length });
+      hits.push({
+        file: path.relative(REPO_ROOT, file),
+        count: filtered.length,
+      });
     }
   }
   return { count, hits };

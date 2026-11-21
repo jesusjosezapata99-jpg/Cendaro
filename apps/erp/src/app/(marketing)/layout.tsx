@@ -1,6 +1,14 @@
 import { Footer } from "../_components/landing/footer";
 import { Navbar } from "../_components/landing/nav/navbar";
 import { RevealObserver } from "../_components/landing/primitives/reveal-observer";
+import {
+  RootDocumentShell,
+  sharedRootMetadata,
+  sharedRootViewport,
+} from "../_components/root-shell";
+
+export const metadata = sharedRootMetadata;
+export const viewport = sharedRootViewport;
 
 /**
  * Runs before the sections below are parsed, so `<Reveal>` content starts
@@ -14,8 +22,10 @@ const REVEAL_BOOTSTRAP =
   "if(!/bot|crawl|spider|google|bing|perplexity|claude|gpt|lighthouse/i.test(navigator.userAgent))document.documentElement.classList.add('js-reveal')";
 
 /**
- * Shared shell of the public marketing site: `/` and `/funciones/*`
- * (PLAN-2026-09-LANDING-REDESIGN §4.2). The route group does not change URLs.
+ * Root shell of the public marketing site: `/` and `/funciones/*`
+ * (PLAN-2026-09-LANDING-REDESIGN §4.2). Synchronous root layout keeps Partial
+ * Prerendering (`cacheComponents: true`) 100% static while separating the
+ * document boundary from authenticated `/(app)/*` nonce-enforced routes.
  */
 export default function MarketingLayout({
   children,
@@ -23,7 +33,7 @@ export default function MarketingLayout({
   children: React.ReactNode;
 }) {
   return (
-    <>
+    <RootDocumentShell>
       <script dangerouslySetInnerHTML={{ __html: REVEAL_BOOTSTRAP }} />
       <RevealObserver />
       <a
@@ -37,6 +47,6 @@ export default function MarketingLayout({
         {children}
       </main>
       <Footer />
-    </>
+    </RootDocumentShell>
   );
 }

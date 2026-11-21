@@ -39,13 +39,17 @@ import {
   SalesOrder,
 } from "@cendaro/db/schema";
 import {
+  addMoney,
   can,
   createCustomerSchema,
   fiscalPersonKey,
   isFiscalInvoiceReady,
+  lineTotal,
   MONEY_EPSILON,
   normalizeFiscalId,
+  orderTotals,
   PAYMENT_TERMS,
+  subtractMoney,
   updateCustomerSchema,
 } from "@cendaro/validators";
 
@@ -247,9 +251,9 @@ function settleChange(
   let change = Math.max(0, overpaid);
   if (change <= MONEY_EPSILON) return recorded;
 
-  const cashReceived = recorded
-    .filter((p) => p.method === "cash")
-    .reduce((sum, p) => sum + p.amount, 0);
+  const cashReceived = addMoney(
+    ...recorded.filter((p) => p.method === "cash").map((p) => p.amount),
+  );
   if (change > cashReceived + MONEY_EPSILON) {
     throw new TRPCError({
       code: "BAD_REQUEST",
@@ -1050,24 +1054,19 @@ export const salesRouter = createTRPCRouter({
         });
       }
 
-      const subtotal = input.items.reduce(
-        (sum, i) => sum + i.unitPrice * i.quantity,
-        0,
-      );
-      const discount = input.items.reduce(
-        (sum, i) => sum + i.discount * i.quantity,
-        0,
-      );
-      const total = subtotal - discount;
-      const received = input.payments.reduce((sum, p) => sum + p.amount, 0);
+      const { subtotal, discount, total } = orderTotals(input.items);
+      const received = addMoney(...input.payments.map((p) => p.amount));
       if (received < total - MONEY_EPSILON) {
         throw new TRPCError({
           code: "BAD_REQUEST",
           message: `Los pagos ($${received.toFixed(2)}) no cubren el total de la venta ($${total.toFixed(2)})`,
         });
       }
-      const recorded = settleChange(input.payments, received - total);
-      const totalPaid = recorded.reduce((sum, p) => sum + p.amount, 0);
+      const recorded = settleChange(
+        input.payments,
+        subtractMoney(received, total),
+      );
+      const totalPaid = addMoney(...recorded.map((p) => p.amount));
 
       const [order] = await ctx.db
         .insert(SalesOrder)
@@ -1101,7 +1100,7 @@ export const salesRouter = createTRPCRouter({
           quantity: item.quantity,
           unitPrice: item.unitPrice,
           discount: item.discount,
-          lineTotal: (item.unitPrice - item.discount) * item.quantity,
+          lineTotal: lineTotal(item),
         })),
       );
 
@@ -1536,7 +1535,7 @@ export const salesRouter = createTRPCRouter({
           ),
         );
 
-      const total = Number(order.total) + input.tax;
+      const total = addMoney(Number(order.total), input.tax);
 
       const [invoice] = await ctx.db
         .insert(InternalInvoice)

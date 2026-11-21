@@ -7,13 +7,7 @@ import * as Sentry from "@sentry/nextjs";
 import { Button } from "@cendaro/ui";
 import { Icons } from "@cendaro/ui/icons";
 
-/**
- * Cendaro — Root Segment Error Boundary
- *
- * Catches unhandled runtime exceptions in public/auth segments outside (app)
- * and reports them to Sentry.
- */
-export default function RootSegmentError({
+export default function LoginSegmentError({
   error,
   reset,
 }: {

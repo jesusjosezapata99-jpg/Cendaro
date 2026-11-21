@@ -38,7 +38,7 @@
   <a href="#-security">Security</a> ·
   <a href="#-design-system">Design System</a> ·
   <a href="#-getting-started">Quickstart</a> ·
-  <a href="#-documentation">Docs</a>
+  <a href="SECURITY.md">Security Policy</a>
 </p>
 
 <br/>
@@ -100,7 +100,6 @@ Built as a strictly typed **pnpm + Turborepo** monorepo on **Next.js 16 (App Rou
   - [Environment Variables Reference](#environment-variables)
   - [Workspace Scripts & CI Quality Gates](#-scripts)
 - [🗺 Roadmap & Maturity](#-roadmap)
-- [📄 Canonical Documentation & Compliance Index](#-documentation)
 - [⚖️ License](#-license)
 
 ---
@@ -311,13 +310,13 @@ cendaro/
 │   └── typescript/                           # Strict ES2024 TSConfigs (noUncheckedIndexedAccess)
 │
 ├── scripts/
-│   ├── checks/                               # CI guards: design-guard, contrast, role-matrix, smoke-routes
+│   ├── checks/                               # CI & prod guards: design-guard, contrast, invariants, Merkle notary
 │   ├── landing-media/                        # Playwright + FFmpeg HiDPI video/poster capture pipeline
+│   ├── load/                                 # k6 concurrent HTTP load & Supavisor benchmark suite
 │   ├── seed/                                 # Deterministic audit dataset seeder & unseeder
 │   └── seo/                                  # IndexNow, WebSub & Google Search Console deployment ping
 │
-├── docs/                                     # Canonical PRD v1/v2, ERD, DBML, ADRs & SOC2/ISO policies
-├── plans/                                    # Engineering execution plans & security/performance audit reports
+├── docs/assets/                              # Dual-theme brand logos & product showcase captures
 ├── turbo.json                                # Turborepo v2.10 pipeline orchestration
 └── pnpm-workspace.yaml                       # Workspace topology, dependency catalogs & 24h release quarantine
 ```
@@ -887,42 +886,6 @@ Run all commands from the repository root using `pnpm`:
 | **11** | Generative Engine Optimization (GEO): `/llms.txt`, `/llms-full.txt`, connected `@graph` JSON-LD, HiDPI dual-theme media pipeline, and IndexNow automation.                                                                                  | ✅ Completed |
 
 <p align="right"><a href="#top">↑ Back to top</a></p>
-
----
-
-## 📄 Documentation
-
-> [!IMPORTANT]
-> **Canonical Specification Package:** The [`docs/`](docs/README.md) directory is the authoritative specification source for Cendaro ERP. Architectural and execution plans reside in [`plans/`](plans/README.md).
-
-### Product, Architecture & Data Specifications
-
-| Document                                     | Path                                                                                                                 |   Status    |
-| :------------------------------------------- | :------------------------------------------------------------------------------------------------------------------- | :---------: |
-| **PRD v2.0 — Production & Market Expansion** | [`docs/product/PRD_v2.0_Produccion_y_Mercado.md`](docs/product/PRD_v2.0_Produccion_y_Mercado.md)                     |  ✅ Active  |
-| **PRD v1.0 — Core Omnichannel ERP**          | [`docs/product/PRD_v1.0.md`](docs/product/PRD_v1.0.md)                                                               |  ✅ Active  |
-| **Feature PRD — Catalog Import Wizard**      | [`docs/product/features/FEATURE_PRD_CATALOG_IMPORT.md`](docs/product/features/FEATURE_PRD_CATALOG_IMPORT.md)         |  ✅ Active  |
-| **Feature PRD — Inventory Import Wizard**    | [`docs/product/features/FEATURE_PRD_INVENTORY_IMPORT.md`](docs/product/features/FEATURE_PRD_INVENTORY_IMPORT.md)     |  ✅ Active  |
-| **Feature PRD — Spreadsheet Import Engine**  | [`docs/product/features/FEATURE_PRD_SPREADSHEET_IMPORT.md`](docs/product/features/FEATURE_PRD_SPREADSHEET_IMPORT.md) |  ✅ Active  |
-| **ERD & Schema Blueprint v1**                | [`docs/architecture/erd_schema_blueprint_v1.md`](docs/architecture/erd_schema_blueprint_v1.md)                       |  ✅ Active  |
-| **Module & API Blueprint v1**                | [`docs/architecture/module_api_blueprint_v1.md`](docs/architecture/module_api_blueprint_v1.md)                       |  ✅ Active  |
-| **Multi-Tenant RLS Architecture**            | [`docs/architecture/multi-tenant-architecture.md`](docs/architecture/multi-tenant-architecture.md)                   |  ✅ Active  |
-| **DBML Schema Specification**                | [`docs/data/erp_schema_v1.dbml`](docs/data/erp_schema_v1.dbml)                                                       |  ✅ Active  |
-| **Schema Alignment Report**                  | [`docs/data/SCHEMA_ALIGNMENT.md`](docs/data/SCHEMA_ALIGNMENT.md)                                                     |  ✅ Active  |
-| **ADR-001 — ERP v1.0 Source of Truth**       | [`docs/adr/001-erp-v1-source-of-truth.md`](docs/adr/001-erp-v1-source-of-truth.md)                                   | ✅ Accepted |
-| **ADR-002 — PRD v2.0 Production Roadmap**    | [`docs/adr/002-prd-v2-production-roadmap.md`](docs/adr/002-prd-v2-production-roadmap.md)                             | ✅ Accepted |
-
-### Security Runbooks & Internal Policies
-
-| Document                                          | Path                                                                                                                                 |  Status   |
-| :------------------------------------------------ | :----------------------------------------------------------------------------------------------------------------------------------- | :-------: |
-| **01 · Information Security Policy**              | [`docs/compliance/01-INFORMATION-SECURITY-POLICY.md`](docs/compliance/01-INFORMATION-SECURITY-POLICY.md)                             | ✅ Active |
-| **02 · Access Control & MFA Policy**              | [`docs/compliance/02-ACCESS-CONTROL-AND-MFA-POLICY.md`](docs/compliance/02-ACCESS-CONTROL-AND-MFA-POLICY.md)                         | ✅ Active |
-| **03 · Incident Management & Response**           | [`docs/compliance/03-INCIDENT-MANAGEMENT-AND-RESPONSE.md`](docs/compliance/03-INCIDENT-MANAGEMENT-AND-RESPONSE.md)                   | ✅ Active |
-| **04 · Business Continuity & Disaster Recovery**  | [`docs/compliance/04-BUSINESS-CONTINUITY-AND-DISASTER-RECOVERY.md`](docs/compliance/04-BUSINESS-CONTINUITY-AND-DISASTER-RECOVERY.md) | ✅ Active |
-| **05 · Data Classification, Retention & Privacy** | [`docs/compliance/05-DATA-CLASSIFICATION-RETENTION-PRIVACY.md`](docs/compliance/05-DATA-CLASSIFICATION-RETENTION-PRIVACY.md)         | ✅ Active |
-| **06 · Secure SDLC & Change Management**          | [`docs/compliance/06-SECURE-SDLC-AND-CHANGE-MANAGEMENT.md`](docs/compliance/06-SECURE-SDLC-AND-CHANGE-MANAGEMENT.md)                 | ✅ Active |
-| **Incident Response Runbook**                     | [`docs/security/INCIDENT_RESPONSE.md`](docs/security/INCIDENT_RESPONSE.md)                                                           | ✅ Active |
 
 ---
 

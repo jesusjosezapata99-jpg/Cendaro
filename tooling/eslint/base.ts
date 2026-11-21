@@ -35,6 +35,8 @@ export const restrictEnvAccess = defineConfig(
   },
 );
 
+export const disableTypeChecked = tseslint.configs.disableTypeChecked;
+
 export const baseConfig = defineConfig(
   includeIgnoreFile(path.join(import.meta.dirname, "../../.gitignore")),
   { ignores: ["**/*.config.*"] },

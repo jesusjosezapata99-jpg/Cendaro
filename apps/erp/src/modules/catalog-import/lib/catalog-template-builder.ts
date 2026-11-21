@@ -20,6 +20,8 @@
 import type { CellObject, WorkSheet } from "xlsx";
 import { utils, writeFile } from "xlsx";
 
+import { sanitizeSpreadsheetCell } from "~/lib/xlsx/workbook";
+
 // ── Types ─────────────────────────────────────
 
 export interface BrandRef {
@@ -446,10 +448,10 @@ function buildValidValuesSheet(
       s: { fill: HEADER_FILL, font: HEADER_FONT },
     } satisfies CellObject;
 
-    // Values
+    // Values (sanitized against spreadsheet formula injection)
     for (let r = 0; r < col.values.length; r++) {
       ws[utils.encode_cell({ r: r + 1, c })] = {
-        v: col.values[r] ?? "",
+        v: String(sanitizeSpreadsheetCell(col.values[r] ?? "")),
         t: "s",
         s: { fill: BLUE_FILL },
       } satisfies CellObject;

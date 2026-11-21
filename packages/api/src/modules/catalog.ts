@@ -706,7 +706,11 @@ export const catalogRouter = createTRPCRouter({
         .insert(ProductPrice)
         .values({ ...input, workspaceId: ctx.workspace.workspaceId })
         .onConflictDoUpdate({
-          target: [ProductPrice.productId, ProductPrice.priceType],
+          target: [
+            ProductPrice.workspaceId,
+            ProductPrice.productId,
+            ProductPrice.priceType,
+          ],
           set: {
             amountUsd: input.amountUsd,
             amountBs: input.amountBs,

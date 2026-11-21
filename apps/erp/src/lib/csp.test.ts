@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { buildContentSecurityPolicy } from "../../csp.mjs";
+import {
+  buildAppContentSecurityPolicy,
+  buildContentSecurityPolicy,
+} from "../../csp.mjs";
 
 /**
  * internal plan F9.1 (hardening item) — regression guard.
@@ -79,5 +82,31 @@ describe("Content-Security-Policy (F9.1, M3)", () => {
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "");
     expect(() => buildContentSecurityPolicy(false)).toThrow();
     vi.unstubAllEnvs();
+  });
+
+  it("enforces per-request nonce + strict-dynamic without unsafe-inline on authenticated /(app)/* routes", () => {
+    const nonce = "YWJjZGVmZ2hpamtsbW5vcA==";
+    const appProd = buildAppContentSecurityPolicy(false, nonce, SUPABASE_URL);
+    const scriptSrc = directive(appProd, "script-src");
+
+    expect(scriptSrc).toContain(`'nonce-${nonce}'`);
+    expect(scriptSrc).toContain("'strict-dynamic'");
+    expect(scriptSrc).not.toContain("'unsafe-inline'");
+    expect(scriptSrc).not.toContain("'unsafe-eval'");
+    expect(directive(appProd, "frame-ancestors")).toBe("'none'");
+    expect(directive(appProd, "object-src")).toBe("'none'");
+    expect(appProd).toContain("upgrade-insecure-requests");
+
+    // Rejects malformed or short nonces to prevent header injection
+    expect(() =>
+      buildAppContentSecurityPolicy(false, "short", SUPABASE_URL),
+    ).toThrow();
+    expect(() =>
+      buildAppContentSecurityPolicy(
+        false,
+        "bad'nonce;script-src *",
+        SUPABASE_URL,
+      ),
+    ).toThrow();
   });
 });

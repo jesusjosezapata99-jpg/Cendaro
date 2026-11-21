@@ -18,6 +18,8 @@
 import type { CellObject, WorkSheet } from "xlsx";
 import { utils, writeFile } from "xlsx";
 
+import { sanitizeSpreadsheetCell } from "~/lib/xlsx/workbook";
+
 // ── Types ─────────────────────────────────────────
 
 /** Product data from getWarehouseProducts tRPC query */
@@ -243,11 +245,18 @@ function buildDataSheet(
       const isGreen = greenCols.has(headerName);
       const fill = isGreen ? GREEN_FILL : BLUE_FILL;
 
-      const value = getCellValue(headerName, p, mode);
-      const cellType = typeof value === "number" ? "n" : "s";
+      const rawValue = getCellValue(headerName, p, mode);
+      const sanitizedValue =
+        typeof rawValue === "number"
+          ? rawValue
+          : sanitizeSpreadsheetCell(String(rawValue));
+      const cellType = typeof sanitizedValue === "number" ? "n" : "s";
 
       const cell: CellObject = {
-        v: value,
+        v:
+          typeof sanitizedValue === "number"
+            ? sanitizedValue
+            : String(sanitizedValue),
         t: cellType,
         s: {
           fill,

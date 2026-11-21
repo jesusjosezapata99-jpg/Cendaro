@@ -23,7 +23,7 @@ import {
   Supplier,
   Warehouse,
 } from "@cendaro/db/schema";
-import { can } from "@cendaro/validators";
+import { can, roundMoney2 } from "@cendaro/validators";
 
 import {
   assertAllInWorkspace,
@@ -1081,7 +1081,7 @@ export const containerRouter = createTRPCRouter({
           containersFound: matchedContainers.length,
           itemsFound: matchedItems.length,
           documentsFound: matchedDocuments.length,
-          totalFobUsd: Math.round(totalFobMatched * 100) / 100,
+          totalFobUsd: roundMoney2(totalFobMatched),
         },
       };
     }),

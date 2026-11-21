@@ -22,7 +22,9 @@ import type { UpstreamRate, VesRates } from "../services/exchange-rate-sources";
 import type { HeldRate, RateSyncResult } from "./rate-sync";
 import { getUsdCnyRate, getVesRates } from "../services/exchange-rate-sources";
 import {
+  assertMfaCompliance,
   createTRPCRouter,
+  HEAVY_STATEMENT_TIMEOUT_MS,
   memberReadProcedure,
   runInWorkspaceRls,
   wsPermissionProcedure,
@@ -149,6 +151,7 @@ export const pricingRouter = createTRPCRouter({
   syncRates: wsReadPermissionProcedure("rates", "update")
     .input(z.object({ force: z.boolean().default(false) }))
     .mutation(async ({ ctx, input }): Promise<SyncRatesResult> => {
+      assertMfaCompliance(ctx.user);
       const [ves, cny] = await Promise.all([
         getVesRates({ fresh: input.force }),
         getUsdCnyRate({ fresh: input.force }),
@@ -158,8 +161,11 @@ export const pricingRouter = createTRPCRouter({
       const results =
         candidates.length === 0
           ? []
-          : await runInWorkspaceRls(ctx.db, workspaceId, (tx) =>
-              syncAutomaticRates(tx, ctx.user, workspaceId, candidates),
+          : await runInWorkspaceRls(
+              ctx.db,
+              workspaceId,
+              (tx) => syncAutomaticRates(tx, ctx.user, workspaceId, candidates),
+              { statementTimeoutMs: 15_000 },
             );
       return { results, live: { ves, cny } };
     }),
@@ -317,7 +323,9 @@ export const pricingRouter = createTRPCRouter({
         .limit(input.limit);
     }),
 
-  approveRepricing: wsPermissionProcedure("pricing", "approve")
+  approveRepricing: wsPermissionProcedure("pricing", "approve", {
+    statementTimeoutMs: HEAVY_STATEMENT_TIMEOUT_MS,
+  })
     .input(z.object({ id: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
       const [existingEvent] = await ctx.db
@@ -387,7 +395,7 @@ export const pricingRouter = createTRPCRouter({
             await ctx.db
               .update(ProductPrice)
               .set({
-                amountBs: sql`round((${ProductPrice.amountUsd} * ${newRate})::numeric, 2)::float8`,
+                amountBs: sql`round((${ProductPrice.amountUsd} * ${newRate})::numeric, 2)`,
                 rateUsed: newRate,
                 updatedAt: new Date(),
               })

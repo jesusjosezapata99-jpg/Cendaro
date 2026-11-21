@@ -1,7 +1,9 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 
-import { logger, runScheduledRateSync } from "@cendaro/api";
+import { checkSchemaVersion, logger, runScheduledRateSync } from "@cendaro/api";
+import { getDb } from "@cendaro/db/client";
 
 import { env } from "~/env";
 
@@ -51,9 +53,19 @@ export async function GET(request: Request) {
 
   try {
     const summary = await runScheduledRateSync();
-    return NextResponse.json(summary, {
-      headers: { "Cache-Control": "no-store" },
-    });
+    const schema = await checkSchemaVersion(getDb());
+    if (!schema.applied) {
+      Sentry.captureMessage(
+        `Production is missing migration ${schema.expected}`,
+        "error",
+      );
+    }
+    return NextResponse.json(
+      { ...summary, schema },
+      {
+        headers: { "Cache-Control": "no-store" },
+      },
+    );
   } catch (error) {
     logger.error("scheduled rate sync crashed", {}, error);
     return NextResponse.json(

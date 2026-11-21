@@ -23,6 +23,7 @@ import {
   Warehouse,
   warehouseTypeEnum,
 } from "@cendaro/db/schema";
+import { roundMoney2 } from "@cendaro/validators";
 
 import {
   assertAllInWorkspace,
@@ -1364,7 +1365,7 @@ export const inventoryRouter = createTRPCRouter({
           invoiceKey,
           itemsCount: input.items.length,
           totalUnits,
-          totalCostUsd: Number(totalCostUsd.toFixed(2)),
+          totalCostUsd: roundMoney2(totalCostUsd),
         },
       });
 
@@ -1372,7 +1373,7 @@ export const inventoryRouter = createTRPCRouter({
         success: true,
         invoiceNumber: input.invoiceNumber,
         totalUnits,
-        totalCostUsd: Number(totalCostUsd.toFixed(2)),
+        totalCostUsd: roundMoney2(totalCostUsd),
       };
     }),
 });

@@ -3,13 +3,20 @@ import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
 import type { UserRole } from "@cendaro/validators";
-import { buildAuditIntegrityMetadata, isValidUuid, logger } from "@cendaro/api";
+import {
+  buildAuditIntegrityMetadata,
+  isValidUuid,
+  logger,
+  mapClaimsToUser,
+  mfaComplianceFor,
+} from "@cendaro/api";
 import { createSupabaseServerClient } from "@cendaro/auth/server";
 import { createUserSchema } from "@cendaro/validators";
 
 import { env } from "~/env";
 import { getClientIp } from "~/lib/client-ip";
 import { rateLimit } from "~/lib/rate-limit";
+import { readBodyWithByteLimit } from "~/lib/request-body-limit";
 import { isTrustedOrigin } from "~/lib/trusted-origin";
 
 /**
@@ -37,6 +44,7 @@ const AUTH_SECURITY_HEADERS = {
 } as const;
 
 const WORKSPACE_COOKIE = "cendaro-workspace-id";
+const MAX_BODY_BYTES = 16 * 1024; // 16KB
 const CREATOR_ROLES: readonly UserRole[] = ["owner", "admin"];
 const OWNER_ONLY_ROLES: readonly UserRole[] = ["owner", "admin"];
 
@@ -100,10 +108,22 @@ export async function POST(request: Request) {
     return json({ error: "Solicitud no autorizada" }, 403);
   }
 
+  // ── Body size guard (Content-Length + streamed body fallback) ──
+  let req: Request = request;
+  const rawContentLength = req.headers.get("content-length");
+  if (rawContentLength && parseInt(rawContentLength, 10) > MAX_BODY_BYTES) {
+    return json({ error: "Solicitud demasiado grande" }, 413);
+  }
+  if (!rawContentLength) {
+    const limited = await readBodyWithByteLimit(req, MAX_BODY_BYTES);
+    if (!limited.ok) {
+      return json({ error: "Solicitud demasiado grande" }, 413);
+    }
+    req = limited.request;
+  }
+
   // ── Input validation ──
-  const parsed = createUserSchema.safeParse(
-    await request.json().catch(() => ({})),
-  );
+  const parsed = createUserSchema.safeParse(await req.json().catch(() => ({})));
   if (!parsed.success) {
     return json(
       { error: "Datos inválidos", details: parsed.error.issues },
@@ -178,6 +198,23 @@ export async function POST(request: Request) {
   }
   if (OWNER_ONLY_ROLES.includes(role) && callerRole !== "owner") {
     return forbidden("Solo un dueño puede crear administradores o dueños");
+  }
+
+  // ── Privileged MFA gate (matches trpc.ts workspaceProcedure) ──
+  const claimsResponse =
+    typeof supabase.auth.getClaims === "function"
+      ? await supabase.auth.getClaims()
+      : { data: null };
+  const callerAal = mapClaimsToUser(claimsResponse.data?.claims)?.aal ?? null;
+  if (mfaComplianceFor(callerRole, callerAal).blocked) {
+    return json(
+      {
+        error:
+          "Tu rol requiere autenticación de dos factores (TOTP). Actívala en Configuración → Seguridad.",
+        mfaRequired: true,
+      },
+      403,
+    );
   }
 
   // ── Plan quota ──

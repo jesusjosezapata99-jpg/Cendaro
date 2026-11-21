@@ -5,6 +5,7 @@ import { writeFile } from "xlsx";
 
 import {
   buildMultiSheetWorkbook,
+  jsonToCsv,
   jsonToWorkbook,
   workbookToBuffer,
 } from "./workbook";
@@ -17,6 +18,21 @@ export function downloadAsXlsx<T extends object>(
 ): void {
   const wb = jsonToWorkbook(rows, sheetName);
   writeFile(wb, filename);
+}
+
+/** Trigger a browser download of a UTF-8 BOM + formula-hardened CSV file */
+export function downloadAsCsv<T extends object>(
+  rows: T[],
+  filename = "export.csv",
+): void {
+  const csvContent = jsonToCsv(rows, { includeBom: true });
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
 }
 
 /** Trigger a browser download from a pre-built WorkBook */

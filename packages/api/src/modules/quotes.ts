@@ -16,7 +16,7 @@ import {
   quoteStatusEnum,
   salesChannelEnum,
 } from "@cendaro/db/schema";
-import { PAYMENT_TERMS } from "@cendaro/validators";
+import { lineTotal, orderTotals, PAYMENT_TERMS } from "@cendaro/validators";
 
 import { createCommercialOrder } from "../services/order-lifecycle";
 import { assertInWorkspace } from "../services/workspace-guard";
@@ -204,15 +204,11 @@ export const quotesRouter = createTRPCRouter({
         }
       }
 
-      const subtotal = input.items.reduce(
-        (sum, i) => sum + i.unitPrice * i.quantity,
-        0,
-      );
-      const totalDiscount = input.items.reduce(
-        (sum, i) => sum + i.discount * i.quantity,
-        0,
-      );
-      const total = subtotal - totalDiscount;
+      const {
+        subtotal,
+        discount: totalDiscount,
+        total,
+      } = orderTotals(input.items);
 
       const [quote] = await ctx.db
         .insert(Quote)
@@ -240,7 +236,7 @@ export const quotesRouter = createTRPCRouter({
             quantity: item.quantity,
             unitPrice: item.unitPrice,
             discount: item.discount,
-            lineTotal: (item.unitPrice - item.discount) * item.quantity,
+            lineTotal: lineTotal(item),
           })),
         );
       }

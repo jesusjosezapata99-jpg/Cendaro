@@ -59,6 +59,7 @@ Design system (radius is 0 by design, and the Hedvig fonts ship only weight 400)
 
 - One writer per value: `customer.balance`, receivable paid amounts and the audit chain belong to database triggers; see `docs/runbooks/release-and-migrations.md`. Application code never updates them too.
 - A write that touches money or stock locks what it reads and is covered by a test against real Postgres (`pnpm -F @cendaro/api test:integration`). Mocks cannot see locks, triggers or CHECK constraints.
+- Amounts are `numeric` in the database and computed with the helpers in `@cendaro/validators` (`orderTotals`, `addMoney`, `roundMoney2`), never by hand with `toFixed` or `Math.round`.
 - Never change production code to satisfy a mock.
 - A migration reaches production before the code that needs it, after a rehearsal in production order.
 
