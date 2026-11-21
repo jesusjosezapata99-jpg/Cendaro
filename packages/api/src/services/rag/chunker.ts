@@ -780,7 +780,8 @@ export function chunkRawCommercialDocument(
   const lines = normalizedText.split(/\r?\n/).map((l) => l.trimEnd());
 
   // Extract common commercial identifiers via regex (V-13: expanded for unhyphenated/spaced/dotted SENIAT RIFs)
-  const rifRegex = /\b([JVGEPCjvgepc])\s*[-.]?\s*(\d{7,9})\s*[-.]?\s*(\d)\b/gi;
+  const rifRegex =
+    /\b([JVGEPCjvgepc])\s*(?:[-.]\s*)?(\d{7,9})\s*(?:[-.]\s*)?(\d)\b/gi;
   const controlRegex = /\b00-\d{6,8}\b/gi;
   const containerRegex = /\b[A-Z]{4}\d{7}\b/g;
   const invoiceRegex =

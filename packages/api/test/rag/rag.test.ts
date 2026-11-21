@@ -3518,6 +3518,41 @@ describe("6. Cryptographic PII Vault, Dual-Tokenization & Role-Gated Re-Hydratio
           globalThis.fetch = origFetch;
         }
       });
+
+      it("guarantees linear O(N) non-polynomial runtime against CodeQL ReDoS payloads", async () => {
+        const { sanitizeDocumentStructuralContent, scanOutputDLP } =
+          await import("../../src/services/rag/guardrails");
+        const start = performance.now();
+
+        // Exact CodeQL polynomial-redos witness: `<` followed by 100k spaces
+        const angleSpaces = `<${" ".repeat(100_000)}x`;
+        expect(sanitizeDocumentStructuralContent(angleSpaces)).toBe(
+          angleSpaces,
+        );
+
+        // Unclosed angle brackets & nested structural shells
+        const manyAngles = "<".repeat(50_000);
+        expect(sanitizeDocumentStructuralContent(manyAngles)).toBe(manyAngles);
+        expect(
+          sanitizeDocumentStructuralContent("<sy<system>stem>payload</system>"),
+        ).toBe("payload");
+        // Word boundary parity: `<user_profile>` and `<systematic>` stay intact while `<user>` / `<system-override>` strip
+        expect(
+          sanitizeDocumentStructuralContent(
+            "<user_profile><systematic><user><system-override>ok",
+          ),
+        ).toBe("<user_profile><systematic>ok");
+
+        // Adjacent optional delimiter witnesses on PII & Output DLP scanners
+        expect(detectPiiEntities(`J${" ".repeat(80_000)}x`)).toEqual([]);
+        expect(detectPiiEntities(`Total:${" ".repeat(80_000)}x`)).toEqual([]);
+        expect(scanOutputDLP(`<img src=${" ".repeat(80_000)}x`).passed).toBe(
+          true,
+        );
+
+        const elapsedMs = performance.now() - start;
+        expect(elapsedMs).toBeLessThan(250);
+      });
     });
   });
 });

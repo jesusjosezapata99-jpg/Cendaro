@@ -106,14 +106,42 @@ function uuidv4() {
   });
 }
 
+function parseUrlHostname(rawUrl) {
+  const trimmed = String(rawUrl).trim();
+  const schemeMatch = /^https?:\/\//i.exec(trimmed);
+  if (!schemeMatch) {
+    return "";
+  }
+  const rest = trimmed.slice(schemeMatch[0].length);
+  const slashIdx = rest.search(/[/?#]/);
+  const authority = slashIdx === -1 ? rest : rest.slice(0, slashIdx);
+  const atIdx = authority.lastIndexOf("@");
+  const hostPort = atIdx === -1 ? authority : authority.slice(atIdx + 1);
+  if (hostPort.startsWith("[")) {
+    const closeBracket = hostPort.indexOf("]");
+    return closeBracket === -1
+      ? ""
+      : hostPort.slice(0, closeBracket + 1).toLowerCase();
+  }
+  const colonIdx = hostPort.indexOf(":");
+  const host = colonIdx === -1 ? hostPort : hostPort.slice(0, colonIdx);
+  return host.toLowerCase();
+}
+
 /**
  * Authenticates ONCE during setup() so per-IP/per-user rate limits on
  * `/api/auth/login` (5 req/60s) are never tripped by virtual users.
  */
 export function setup() {
+  const targetHost = parseUrlHostname(BASE_URL);
+  if (!targetHost) {
+    fail(`BASE_URL must be a valid absolute URL (received: ${BASE_URL})`);
+  }
   const isProdHost =
-    BASE_URL.includes("cendaro-erp.vercel.app") ||
-    BASE_URL.includes("cendaro.com");
+    targetHost === "cendaro-erp.vercel.app" ||
+    targetHost.endsWith(".cendaro-erp.vercel.app") ||
+    targetHost === "cendaro.com" ||
+    targetHost.endsWith(".cendaro.com");
   if (isProdHost && __ENV.ALLOW_PROD_LOAD_TEST !== "I_UNDERSTAND") {
     fail(
       `Refusing to run load test against production host (${BASE_URL}) without ALLOW_PROD_LOAD_TEST=I_UNDERSTAND`,

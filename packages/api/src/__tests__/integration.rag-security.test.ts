@@ -13,6 +13,7 @@
  *      `42501`) and `public.verify_rag_audit_chain_integrity()` returning 0 violations
  *      with byte-for-byte digest parity against TypeScript `computeSqlAuditHashes()`.
  */
+import { randomUUID } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
@@ -31,12 +32,13 @@ import { computeSqlAuditHashes } from "../services/rag/audit";
 import { generateDeterministicEmbedding } from "../services/rag/embeddings";
 import { tokenizeAndVaultContent } from "../services/rag/pii-vault";
 import { runInWorkspaceRls, runInWorkspaceRlsReadonly } from "../trpc";
+import { isLocalDatabase } from "./helpers/real-db";
 
 const TEST_URL = process.env.TEST_DATABASE_URL;
 
-const WS_A = "e1000000-0000-4000-8000-00000000000a";
-const WS_B = "e1000000-0000-4000-8000-00000000000b";
-const VENDOR_A = "e1000000-0000-4000-8000-0000000000va".replace("va", "aa");
+const WS_A = randomUUID();
+const WS_B = randomUUID();
+const VENDOR_A = randomUUID();
 
 function rowsOf<T>(result: unknown): T[] {
   const shaped = result as { rows?: T[] } | T[];
@@ -64,16 +66,20 @@ describe.skipIf(!TEST_URL)(
     }
 
     beforeAll(async () => {
+      if (!isLocalDatabase()) {
+        throw new Error("Integration writes only run against a local database");
+      }
+
       admin = new pg.Client({ connectionString: TEST_URL });
       await admin.connect();
 
       await admin.query("BEGIN");
       await admin.query(
         `INSERT INTO workspace (id, name, slug) VALUES
-           ($1, 'RAG Int Alpha', 'rag-int-alpha'),
-           ($2, 'RAG Int Beta', 'rag-int-beta')
+           ($1, 'RAG Int Alpha', $3),
+           ($2, 'RAG Int Beta', $4)
          ON CONFLICT (id) DO NOTHING`,
-        [WS_A, WS_B],
+        [WS_A, WS_B, `rag-int-a-${WS_A}`, `rag-int-b-${WS_B}`],
       );
       await admin.query("COMMIT");
 
@@ -167,28 +173,9 @@ describe.skipIf(!TEST_URL)(
     });
 
     afterAll(async () => {
-      if (admin) {
-        // Temporarily disable WORM triggers as superuser ONLY in disposable test cleanup
-        await admin.query(
-          `ALTER TABLE public.rag_audit_log DISABLE TRIGGER trg_rag_audit_log_immutable`,
-        );
-        await admin.query(
-          `DELETE FROM public.rag_audit_log WHERE workspace_id IN ($1, $2)`,
-          [WS_A, WS_B],
-        );
-        await admin.query(
-          `ALTER TABLE public.rag_audit_log ENABLE ALWAYS TRIGGER trg_rag_audit_log_immutable`,
-        );
-        await admin.query(
-          `DELETE FROM public.rag_documents WHERE workspace_id IN ($1, $2)`,
-          [WS_A, WS_B],
-        );
-        await admin.query(`DELETE FROM public.workspace WHERE id IN ($1, $2)`, [
-          WS_A,
-          WS_B,
-        ]);
-        await admin.end();
-      }
+      // `rag_audit_log` is WORM-immutable (just like `audit_log` in `real-db.ts`):
+      // never disable triggers or acquire ACCESS EXCLUSIVE locks during parallel suites.
+      if (admin) await admin.end();
       if (pool) await pool.end();
     });
 

@@ -64,11 +64,141 @@ export class RagGuardrailViolationError extends Error {
 // 1. Structural Parser & Unicode Sanitizer
 // ──────────────────────────────────────────────
 
-// Strictly linear O(N) non-backtracking tag matcher (`[^<>]*>` prevents O(N^2) scanning on unclosed `<`)
-const STRUCTURAL_DELIMITER_REGEX =
-  /<\s*\/?\s*(?:untrusted_document_rows|data_boundary_start_[a-z0-9_-]*|data_boundary_end_[a-z0-9_-]*|system|prompt|instruction|context|think|assistant|user|untrusted)\b[^<>]*>/gi;
+const EXACT_STRUCTURAL_DELIMITER_TAGS: ReadonlySet<string> = new Set([
+  "untrusted_document_rows",
+  "system",
+  "prompt",
+  "instruction",
+  "context",
+  "think",
+  "assistant",
+  "user",
+  "untrusted",
+]);
 
 const MAX_DELIMITER_SCRUB_PASSES = 4;
+
+function isDelimiterWhitespaceCode(code: number): boolean {
+  return (
+    code === 0x20 ||
+    code === 0x09 ||
+    code === 0x0a ||
+    code === 0x0d ||
+    code === 0x0b ||
+    code === 0x0c ||
+    code === 0xa0
+  );
+}
+
+function isAsciiWordCode(code: number): boolean {
+  return (
+    (code >= 0x30 && code <= 0x39) || // 0-9
+    (code >= 0x41 && code <= 0x5a) || // A-Z
+    (code >= 0x61 && code <= 0x7a) || // a-z
+    code === 0x5f // _
+  );
+}
+
+/**
+ * Deterministic O(|body|) matcher for structural prompt/XML boundary tags
+ * inside a `<...>` slice containing no nested `<` or `>`. Uses zero regular
+ * expressions, eliminating polynomial ReDoS on pathological `<   ...` inputs.
+ */
+function isStructuralDelimiterTagBody(body: string): boolean {
+  const len = body.length;
+  let i = 0;
+
+  while (i < len && isDelimiterWhitespaceCode(body.charCodeAt(i))) {
+    i++;
+  }
+
+  if (i < len && body.charCodeAt(i) === 0x2f /* '/' */) {
+    i++;
+    while (i < len && isDelimiterWhitespaceCode(body.charCodeAt(i))) {
+      i++;
+    }
+  }
+
+  if (i >= len) {
+    return false;
+  }
+
+  const tailLower = body.slice(i).toLowerCase();
+  if (
+    tailLower.startsWith("data_boundary_start_") ||
+    tailLower.startsWith("data_boundary_end_")
+  ) {
+    return true;
+  }
+
+  const wordStart = i;
+  while (i < len && isAsciiWordCode(body.charCodeAt(i))) {
+    i++;
+  }
+  if (i === wordStart) {
+    return false;
+  }
+
+  const tagWord = body.slice(wordStart, i).toLowerCase();
+  return EXACT_STRUCTURAL_DELIMITER_TAGS.has(tagWord);
+}
+
+/**
+ * Single-pass linear O(N) stripper for `<system>`, `</untrusted_document_rows>`,
+ * `<DATA_BOUNDARY_START_...>`, and related structural prompt-boundary tags.
+ * Visits each character at most twice regardless of unclosed `<` or whitespace runs.
+ */
+function stripStructuralDelimiterTagsOnce(text: string): string {
+  const firstLt = text.indexOf("<");
+  if (firstLt === -1) {
+    return text;
+  }
+
+  const len = text.length;
+  let out = "";
+  let cursor = 0;
+
+  while (cursor < len) {
+    const lt = text.indexOf("<", cursor);
+    if (lt === -1) {
+      out += text.slice(cursor);
+      break;
+    }
+
+    if (lt > cursor) {
+      out += text.slice(cursor, lt);
+    }
+
+    // Advance from lt + 1 until the next `<` or `>`
+    let scan = lt + 1;
+    while (scan < len) {
+      const code = text.charCodeAt(scan);
+      if (code === 0x3c /* '<' */ || code === 0x3e /* '>' */) {
+        break;
+      }
+      scan++;
+    }
+
+    // Hit end-of-string or another `<` before `>`: `[lt .. scan)` cannot be a closed tag
+    if (scan >= len || text.charCodeAt(scan) !== 0x3e /* '>' */) {
+      out += text.slice(lt, scan);
+      cursor = scan;
+      continue;
+    }
+
+    const body = text.slice(lt + 1, scan);
+    if (!isStructuralDelimiterTagBody(body)) {
+      out += text.slice(lt, scan + 1);
+    }
+    cursor = scan + 1;
+  }
+
+  return out;
+}
+
+function hasStructuralDelimiterTag(text: string): boolean {
+  return stripStructuralDelimiterTagsOnce(text) !== text;
+}
 
 /**
  * Strips Unicode Plane 14 Tag Characters (U+E0000–U+E007F), Plane 14 Variation
@@ -106,10 +236,10 @@ export function sanitizeDocumentStructuralContent(rawText: string): string {
   // eslint-disable-next-line no-control-regex
   sanitized = sanitized.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, "");
 
-  // 3. Bounded linear O(N) delimiter stripping loop (< 5 iterations) with fail-closed fallback
+  // 3. Bounded linear O(N) regex-free delimiter stripping loop (< 5 iterations) with fail-closed fallback
   let passes = 0;
   while (passes < MAX_DELIMITER_SCRUB_PASSES) {
-    const next = sanitized.replace(STRUCTURAL_DELIMITER_REGEX, "");
+    const next = stripStructuralDelimiterTagsOnce(sanitized);
     if (next === sanitized) {
       break;
     }
@@ -117,11 +247,9 @@ export function sanitizeDocumentStructuralContent(rawText: string): string {
     passes++;
   }
   // Fail-closed: if >= 5 nested shells reconstructed a structural delimiter, strip angle brackets
-  if (STRUCTURAL_DELIMITER_REGEX.test(sanitized)) {
-    STRUCTURAL_DELIMITER_REGEX.lastIndex = 0;
+  if (hasStructuralDelimiterTag(sanitized)) {
     sanitized = sanitized.replace(/[<>]/g, "");
   }
-  STRUCTURAL_DELIMITER_REGEX.lastIndex = 0;
 
   // 4. Linear O(N) Markdown javascript: link & bare javascript: URI neutralization
   sanitized = sanitized.replace(
@@ -374,12 +502,12 @@ const INTERNAL_MARKER_PATTERNS: readonly { pattern: RegExp; label: string }[] =
   ];
 
 const API_KEY_TOKEN_LEAK_REGEX =
-  /\b(?:AQ\.[A-Za-z0-9_-]{20,}|AIza[0-9A-Za-z_-]{35}|gsk_[A-Za-z0-9_-]{20,}|sk-(?:proj-|svcacct-)?[A-Za-z0-9_-]{20,})\b/g;
+  /\b(?:AQ\.[A-Za-z0-9_-]{20,256}|AIza[0-9A-Za-z_-]{35}|gsk_[A-Za-z0-9_-]{20,256}|sk-(?:proj-|svcacct-)?[A-Za-z0-9_-]{20,256})\b/g;
 
-const CARD_PAN_OUTPUT_REGEX = /\b(?:\d[ -]*?){13,19}\b/g;
-// Linear O(N) CommonMark image callback (`![alt](https://... "title")`, angle-bracketed, protocol-relative) + HTML `<img src=...>`
+const CARD_PAN_OUTPUT_REGEX = /\b\d(?:[ -]{0,2}\d){12,18}\b/g;
+// Bounded linear O(N) CommonMark image callback (`![alt](https://... "title")`, angle-bracketed, protocol-relative) + HTML `<img src=...>`
 const EXTERNAL_IMAGE_BEACON_REGEX =
-  /!\[[^[\]]*\]\(\s*<?(?:https?:)?\/\/[^)\s>]*>?(?:\s+[^)]*)?\)|<\s*img\b[^<>]*\bsrc\s*=\s*['"]?\s*(?:https?:)?\/\/[^<>]*>/gi;
+  /!\[[^[\]]{0,500}\]\([ \t\r\n]{0,20}<?(?:https?:)?\/\/[^()]{1,2000}\)|<[ \t\r\n]{0,20}img\b[^<>]{0,1000}?\bsrc[ \t\r\n]{0,20}=[ \t\r\n]{0,20}(?:['"][ \t\r\n]{0,20})?(?:https?:)?\/\/[^<>]{0,2000}>/gi;
 const RAW_SURROGATE_LEAK_REGEX = /<(?:PII_[A-Z]+|CONF_[A-Z]+)_[a-f0-9-]+>/gi;
 
 /**

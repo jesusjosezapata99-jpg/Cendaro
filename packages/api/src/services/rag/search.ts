@@ -178,7 +178,7 @@ export function isVendorAllowed(
  * Incoterms (FOB, CIF, CFR, EXW, DDP, DAP) and multi-currency symbols (USD, EUR, VES, CNY, RMB).
  */
 export const FINANCIAL_CONTENT_REGEX =
-  /(?:(?:P\.Unit|Precio(?:\s*Unitario)?|Unit\s*(?:Cost|Price)|Total|Costo(?:\s*Total)?|Valor(?:\s*Total)?)[^\n:]*\b(?:FOB|CIF|CFR|EXW|DDP|DAP)\b[\s:=]+(?:(?:USD|EUR|VES|CNY|RMB|Bs\.?)\s*)?(?:[$€¥]\s*)?[0-9][0-9.,]*|(?:[$€¥]|(?:USD|EUR|VES|CNY|RMB|Bs\.?)\s*)[0-9][0-9.,]*\s*\b(?:FOB|CIF|CFR|EXW|DDP|DAP)\b|\b(?:Margen(?:\s*Bruto|\s*Comercial)?|Gross\s*Margin|Profit\s*Margin|Markup)[\s:=]+\d+(?:[.,]\d+)?\s*%)/i;
+  /(?:(?:P\.Unit|Precio(?:\s*Unitario)?|Unit\s*(?:Cost|Price)|Total|Costo(?:\s*Total)?|Valor(?:\s*Total)?)[^\n:]{0,64}\b(?:FOB|CIF|CFR|EXW|DDP|DAP)\b[\s:=]+(?:(?:USD|EUR|VES|CNY|RMB|Bs\.?)\s*)?(?:[$€¥]\s*)?[0-9][0-9.,]*|(?:[$€¥]|(?:USD|EUR|VES|CNY|RMB|Bs\.?)\s*)[0-9][0-9.,]*\s*\b(?:FOB|CIF|CFR|EXW|DDP|DAP)\b|\b(?:Margen(?:\s*Bruto|\s*Comercial)?|Gross\s*Margin|Profit\s*Margin|Markup)[\s:=]+\d+(?:[.,]\d+)?\s*%)/i;
 
 /**
  * Redacts confidential FOB/CIF/EXW purchase costs and margins from chunk text
@@ -195,7 +195,7 @@ export function redactConfidentialContent(content: string): string {
       "Total FOB: [CONFIDENCIAL]",
     )
     .replace(
-      /(?:Valor\s*Total\s*FOB[^\n:]*)[\s:]+\$[0-9.,]+(?:\s*USD)?/gi,
+      /(?:Valor\s*Total\s*FOB[^\n:]{0,64})[\s:]+\$[0-9.,]+(?:\s*USD)?/gi,
       "Valor Total FOB: [CONFIDENCIAL]",
     )
     .replace(/(?:Costo\s*FOB)[\s:]+\$[0-9.,]+/gi, "Costo FOB: [CONFIDENCIAL]")

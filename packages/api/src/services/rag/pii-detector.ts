@@ -90,12 +90,12 @@ export function isPaymentCardPan(cardNumber: string): boolean {
  * Multi-jurisdiction PII regex patterns.
  */
 export const PII_PATTERNS = {
-  // Venezuela SENIAT RIF (hyphenated, unhyphenated, spaced, dotted)
-  RIF_VE: /\b([JVGEPCjvgepc])\s*[-.]?\s*(\d{7,9})\s*[-.]?\s*(\d)\b/g,
+  // Venezuela SENIAT RIF (hyphenated, unhyphenated, spaced, dotted — zero adjacent optional quantifiers)
+  RIF_VE: /\b([JVGEPCjvgepc])\s*(?:[-.]\s*)?(\d{7,9})\s*(?:[-.]\s*)?(\d)\b/g,
 
   // Spain NIF / CIF / NIE (DNI 8+1 with optional dots/hyphen, K/L/M NIFs, CIF 1+7+1, NIE X/Y/Z+7/8+1)
   NIF_CIF_ES:
-    /\b((?:\d{8}|\d{2}\.\d{3}\.\d{3})\s*-?\s*[A-Za-z]|[KLMXYZklmxyz]\s*[-.]?\s*\d{7,8}\s*[-.]?\s*[A-Za-z]|[A-HJ-NP-SUVWa-hj-np-suvw]\s*[-.]?\s*\d{7}\s*[-.]?\s*[0-9A-Ja-j])\b/g,
+    /\b((?:\d{8}|\d{2}\.\d{3}\.\d{3})\s*(?:-\s*)?[A-Za-z]|[KLMXYZklmxyz]\s*(?:[-.]\s*)?\d{7,8}\s*(?:[-.]\s*)?[A-Za-z]|[A-HJ-NP-SUVWa-hj-np-suvw]\s*(?:[-.]\s*)?\d{7}\s*(?:[-.]\s*)?[0-9A-Ja-j])\b/g,
 
   // Mexico RFC (3-4 letters, 6 digits, 3 homoclave characters)
   RFC_MX: /\b([A-Z&Ñ]{3,4}-?\d{6}-?[A-Z0-9]{3})\b/gi,
@@ -109,16 +109,16 @@ export const PII_PATTERNS = {
   // SWIFT / BIC (8 or 11 characters)
   SWIFT_BIC: /\b([A-Z]{4}[A-Z]{2}[A-Z0-9]{2}(?:[A-Z0-9]{3})?)\b/g,
 
-  // Card PAN (13 to 19 digits)
-  CARD_PAN: /\b(?:\d[ -]*?){13,19}\b/g,
+  // Card PAN (13 to 19 digits, bounded separator length)
+  CARD_PAN: /\b\d(?:[ -]{0,2}\d){12,18}\b/g,
 
   // FOB, CIF, DAP, EXW prices & costs (supports USD/EUR/VES/CNY/RMB/¥ and thousands separators, linear O(N) ReDoS-safe)
   FOB_COST:
-    /(?:\b(?:P\.?\s*Unit(?:ario)?|Precio(?:\s*Unit(?:ario)?)?|Unit\s*Cost|Total|Costo\s*(?:Total)?|Valor\s*(?:Total)?)\s*(?:\((?:FOB|CIF|CFR|EXW|DDP|DAP)\)|FOB|CIF|CFR|EXW|DDP|DAP)?|\b(?:FOB|CIF|CFR|EXW|DDP|DAP)\s*(?:Unit\s*Cost|Price|Total)?)[\s:]+(?:\$|(?:USD|EUR|VES|CNY|RMB|Bs\.?)|€|¥)?\s*(?:\d{1,3}(?:[.,]\d{3}){1,4}(?:[.,]\d{1,2})?|\d{1,9}(?:[.,]\d{1,2})?)(?:\s*(?:USD|EUR|VES|CNY|RMB|Bs\.?|€|¥))?(?:\s*(?:FOB|CIF|CFR|EXW|DDP|DAP))?|(?:\b(?:USD|EUR|VES|CNY|RMB|Bs\.?)\s*|[$€¥]\s*)?(?:\d{1,3}(?:[.,]\d{3}){1,4}(?:[.,]\d{1,2})?|\d{1,9}(?:[.,]\d{1,2})?)(?:\s*(?:\$|USD|EUR|VES|CNY|RMB|Bs\.?|€|¥))?\s+(?:FOB|CIF|DAP|EXW|CFR|DDP)\b|\b(?:FOB|CIF|DAP|EXW|CFR|DDP)\s+(?:\$|USD|EUR|VES|CNY|RMB|Bs\.?|€|¥)?\s*(?:\d{1,3}(?:[.,]\d{3}){1,4}(?:[.,]\d{1,2})?|\d{1,9}(?:[.,]\d{1,2})?)(?:\s*(?:\$|USD|EUR|VES|CNY|RMB|Bs\.?|€|¥))?/gi,
+    /(?:\b(?:P\.?\s*Unit(?:ario)?|Precio(?:\s*Unit(?:ario)?)?|Unit\s*Cost|Total|Costo\s*(?:Total)?|Valor\s*(?:Total)?)\s*(?:\((?:FOB|CIF|CFR|EXW|DDP|DAP)\)|FOB|CIF|CFR|EXW|DDP|DAP)?|\b(?:FOB|CIF|CFR|EXW|DDP|DAP)\s*(?:Unit\s*Cost|Price|Total)?)[\s:]+(?:(?:\$|USD|EUR|VES|CNY|RMB|Bs\.?|€|¥)\s*)?(?:\d{1,3}(?:[.,]\d{3}){1,4}(?:[.,]\d{1,2})?|\d{1,9}(?:[.,]\d{1,2})?)(?:\s*(?:USD|EUR|VES|CNY|RMB|Bs\.?|€|¥))?(?:\s*(?:FOB|CIF|CFR|EXW|DDP|DAP))?|(?:\b(?:USD|EUR|VES|CNY|RMB|Bs\.?)\s*|[$€¥]\s*)?(?:\d{1,3}(?:[.,]\d{3}){1,4}(?:[.,]\d{1,2})?|\d{1,9}(?:[.,]\d{1,2})?)(?:\s*(?:\$|USD|EUR|VES|CNY|RMB|Bs\.?|€|¥))?\s+(?:FOB|CIF|DAP|EXW|CFR|DDP)\b|\b(?:FOB|CIF|DAP|EXW|CFR|DDP)\s+(?:(?:\$|USD|EUR|VES|CNY|RMB|Bs\.?|€|¥)\s*)?(?:\d{1,3}(?:[.,]\d{3}){1,4}(?:[.,]\d{1,2})?|\d{1,9}(?:[.,]\d{1,2})?)(?:\s*(?:\$|USD|EUR|VES|CNY|RMB|Bs\.?|€|¥))?/gi,
 
   // Commercial margins
   COMMERCIAL_MARGIN:
-    /\b(?:margen|gross margin|profit margin)\s*[:=]?\s*(\d{1,2}(?:[.,]\d{1,2})?%)/gi,
+    /\b(?:margen|gross margin|profit margin)\s*(?:[:=]\s*)?(\d{1,2}(?:[.,]\d{1,2})?%)/gi,
 };
 
 /**
@@ -615,7 +615,7 @@ export function detectPiiEntities(text: string): DetectedPii[] {
   const swiftRegex = new RegExp(PII_PATTERNS.SWIFT_BIC.source, "g");
   while ((m = swiftRegex.exec(text)) !== null) {
     const raw = m[0];
-    const isContextual = /\b(?:SWIFT|BIC)\s*[:=#-]?\s*$/i.test(
+    const isContextual = /\b(?:SWIFT|BIC)\s*(?:[:=#-]\s*)?$/i.test(
       text.slice(Math.max(0, m.index - 20), m.index),
     );
     const bankPrefix = raw.slice(0, 4).toUpperCase();
