@@ -69,4 +69,19 @@ export type {
   ValidatedRow,
 } from "./modules/inventory-import";
 
+export {
+  buildSpotlightBoundaryInstruction,
+  createSpotlightedDelimiter,
+  evaluateInputGuardrails,
+  RagGuardrailViolationError,
+  sanitizeDocumentStructuralContent,
+  scanOutputDLP,
+  spotlightUntrustedContent,
+} from "./services/rag/guardrails";
+export type {
+  GuardrailDecision,
+  OutputDlpResult,
+  SpotlightDelimiter,
+} from "./services/rag/guardrails";
+
 export const createCaller = createCallerFactory(appRouter);

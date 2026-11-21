@@ -31,6 +31,22 @@ export const env = createEnv({
       (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
       z.string().min(32).optional(),
     ),
+    // Dedicated root master secret for per-workspace HKDF + AES-256-GCM RAG PII Vault
+    // (isolated from SUPABASE_SERVICE_ROLE_KEY so keys rotate independently).
+    PII_VAULT_MASTER_KEY: z.preprocess(
+      (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+      z.string().min(32).optional(),
+    ),
+    OPENAI_API_KEY: z.preprocess(
+      (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+      z.string().min(1).optional(),
+    ),
+    GEMINI_API_KEY: z.preprocess(
+      (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+      z.string().min(1).optional(),
+    ),
+    RAG_EMBEDDING_PROVIDER: z.enum(["gemini", "openai", "local"]).optional(),
+    ENABLE_RAG_GUARDRAILS: z.enum(["true", "false"]).optional(),
     // Cloudflare Turnstile CAPTCHA server secret (F9.1). Optional in local/CI;
     // when set, /api/auth/login enforces siteverify before calling Supabase Auth.
     TURNSTILE_SECRET_KEY: z.preprocess(

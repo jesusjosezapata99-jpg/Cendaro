@@ -377,6 +377,7 @@ export function chunkInvoice(input: ChunkInvoiceInput): ChunkDocumentResult {
     "admin",
     "supervisor",
     "employee",
+    ...(vendorId ? (["vendor"] as const) : []),
   ];
 
   const origin: DocumentOrigin = {
@@ -574,6 +575,7 @@ export function chunkDeliveryNote(
     "admin",
     "supervisor",
     "employee",
+    ...(vendorId ? (["vendor"] as const) : []),
   ];
 
   const destination: DocumentDestination = {
@@ -669,6 +671,98 @@ export interface ParseRawDocumentOptions {
 }
 
 /**
+ * Context-Propagating Tabular Normalization (Feature 15).
+ * Detects tabular structures (Markdown tables, pipe-delimited tables)
+ * and normalizes rows by prepending column headers before chunking and embedding.
+ * e.g., '[Fila 1] SKU: WID-01 | Cantidad: 150 PCS | Precio Unitario FOB: $45.50 | Total FOB: $6,825.00'
+ */
+export function normalizeTabularContent(rawText: string): string {
+  if (!rawText || typeof rawText !== "string") {
+    return "";
+  }
+
+  const lines = rawText.split(/\r?\n/);
+  const resultLines: string[] = [];
+  let i = 0;
+
+  while (i < lines.length) {
+    const line = lines[i] ?? "";
+    const trimmed = line.trim();
+
+    // Check for Markdown table or pipe-delimited table
+    if (
+      trimmed.startsWith("|") &&
+      trimmed.endsWith("|") &&
+      trimmed.includes("|")
+    ) {
+      const tableLines: string[] = [];
+      while (i < lines.length) {
+        const currentLine = lines[i]?.trim();
+        if (currentLine?.startsWith("|") && currentLine.endsWith("|")) {
+          tableLines.push(currentLine);
+          i++;
+        } else {
+          break;
+        }
+      }
+
+      if (tableLines.length >= 2) {
+        // Parse header row
+        const headerRow = tableLines[0] ?? "";
+        const headers = headerRow
+          .slice(1, -1)
+          .split("|")
+          .map((h) => h.trim());
+
+        // Skip divider row if present (|---|---|) — strictly linear O(N) non-backtracking check (F-08)
+        let dataStartIndex = 1;
+        if (
+          tableLines[1] &&
+          /^\|(?:\s*:?-{1,200}:?\s*\|)+$/.test(tableLines[1])
+        ) {
+          dataStartIndex = 2;
+        }
+
+        let rowCount = 1;
+        for (let r = dataStartIndex; r < tableLines.length; r++) {
+          const rowLine = tableLines[r] ?? "";
+          const cells = rowLine
+            .slice(1, -1)
+            .split("|")
+            .map((c) => c.trim());
+
+          const formattedPairs: string[] = [];
+          for (let c = 0; c < headers.length; c++) {
+            const header = headers[c]?.trim();
+            const h = header && header.length > 0 ? header : `Columna ${c + 1}`;
+            const val = cells[c] ?? "";
+            if (val) {
+              formattedPairs.push(`${h}: ${val}`);
+            }
+          }
+
+          if (formattedPairs.length > 0) {
+            resultLines.push(
+              `[Fila ${rowCount}] ${formattedPairs.join(" | ")}`,
+            );
+            rowCount++;
+          }
+        }
+        continue;
+      }
+
+      resultLines.push(...tableLines);
+      continue;
+    }
+
+    resultLines.push(line);
+    i++;
+  }
+
+  return resultLines.join("\n");
+}
+
+/**
  * Robust structure-aware chunker for raw text/markdown documents.
  * Extracts Venezuelan RIFs, control numbers, container numbers, and separates headers from tables/sections.
  */
@@ -676,27 +770,38 @@ export function chunkRawCommercialDocument(
   rawText: string,
   options: ParseRawDocumentOptions,
 ): ChunkDocumentResult {
+  const normalizedText = normalizeTabularContent(rawText);
   const {
     documentType,
     documentNumber,
     vendorId,
     maxChunkSizeChars = 1200,
   } = options;
-  const lines = rawText.split(/\r?\n/).map((l) => l.trimEnd());
+  const lines = normalizedText.split(/\r?\n/).map((l) => l.trimEnd());
 
-  // Extract common commercial identifiers via regex
-  const rifRegex = /\b[JVGEPC]-\d{8}-\d\b/gi;
+  // Extract common commercial identifiers via regex (V-13: expanded for unhyphenated/spaced/dotted SENIAT RIFs)
+  const rifRegex = /\b([JVGEPCjvgepc])\s*[-.]?\s*(\d{7,9})\s*[-.]?\s*(\d)\b/gi;
   const controlRegex = /\b00-\d{6,8}\b/gi;
   const containerRegex = /\b[A-Z]{4}\d{7}\b/g;
   const invoiceRegex =
     /(?:factura|invoice|fac|nro|n°|num)[.:\s#]*([A-Z0-9-]{3,20})/i;
 
-  const rifs = Array.from(new Set(rawText.match(rifRegex) ?? []));
-  const controlNumbers = Array.from(new Set(rawText.match(controlRegex) ?? []));
-  const containerNumbers = Array.from(
-    new Set(rawText.match(containerRegex) ?? []),
+  const rifs: string[] = [];
+  let rm: RegExpExecArray | null;
+  while ((rm = rifRegex.exec(normalizedText)) !== null) {
+    const letter = (rm[1] ?? "").toUpperCase();
+    const body = rm[2] ?? "";
+    const check = rm[3] ?? "";
+    rifs.push(`${letter}-${body}-${check}`);
+  }
+  const uniqueRifs = Array.from(new Set(rifs));
+  const controlNumbers = Array.from(
+    new Set(normalizedText.match(controlRegex) ?? []),
   );
-  const invoiceMatch = invoiceRegex.exec(rawText);
+  const containerNumbers = Array.from(
+    new Set(normalizedText.match(containerRegex) ?? []),
+  );
+  const invoiceMatch = invoiceRegex.exec(normalizedText);
 
   const resolvedDocNumber =
     documentNumber ??
@@ -707,19 +812,25 @@ export function chunkRawCommercialDocument(
 
   const isConfidential =
     documentType === "packing_list" &&
-    /\b(fob|costo|cost|unit cost|costo unitario)\b/i.test(rawText);
+    /\b(fob|costo|cost|unit cost|costo unitario)\b/i.test(normalizedText);
 
   const allowedRoles: RagAccessRole[] = isConfidential
     ? ["owner", "admin", "supervisor"]
-    : ["owner", "admin", "supervisor", "employee"];
+    : [
+        "owner",
+        "admin",
+        "supervisor",
+        "employee",
+        ...(vendorId ? (["vendor"] as const) : []),
+      ];
 
   const origin: DocumentOrigin = {
-    rif: rifs[0],
+    rif: uniqueRifs[0],
     entityName: lines[0] ?? undefined,
   };
 
   const destination: DocumentDestination = {
-    rif: rifs.length > 1 ? rifs[1] : undefined,
+    rif: uniqueRifs.length > 1 ? uniqueRifs[1] : undefined,
   };
 
   const documentNumbers: DocumentNumbers = {
@@ -766,7 +877,7 @@ export function chunkRawCommercialDocument(
 
   // Create Master Header Chunk from first paragraph(s)
   const headerPara = paragraphs[0] ?? rawText.substring(0, 500);
-  const masterTag = `[DOCUMENTO: ${documentType.toUpperCase()} | Identificador: ${resolvedDocNumber}${controlNumbers[0] ? ` | Control: ${controlNumbers[0]}` : ""}${rifs[0] ? ` | RIF: ${rifs[0]}` : ""}]`;
+  const masterTag = `[DOCUMENTO: ${documentType.toUpperCase()} | Identificador: ${resolvedDocNumber}${controlNumbers[0] ? ` | Control: ${controlNumbers[0]}` : ""}${uniqueRifs[0] ? ` | RIF: ${uniqueRifs[0]}` : ""}]`;
 
   const summaryContent = `${masterTag}\n${headerPara}`;
   chunks.push({
@@ -778,7 +889,7 @@ export function chunkRawCommercialDocument(
       isMasterSummary: true,
       documentNumber: resolvedDocNumber,
       controlNumber: controlNumbers[0],
-      rifs,
+      rifs: uniqueRifs,
       accessRoles: allowedRoles,
       confidentialCosts: isConfidential,
     },

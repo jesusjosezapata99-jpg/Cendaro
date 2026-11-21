@@ -1,18 +1,33 @@
 /**
  * Cendaro — RAG Vector Embedding Generator
  *
- * Generates 1536-dimensional cosine-normalized vector embeddings.
- * Features:
+ * Generates 1536-dimensional cosine-normalized vector embeddings (||v||₂ = 1.0):
+ *   • Google Gemini `gemini-embedding-001` (`outputDimensionality: 1536` + strict L2
+ *     re-normalization and `x-goog-api-key` header auth) when `GEMINI_API_KEY` is configured.
+ *   • OpenAI `text-embedding-3-small` (`dimensions: 1536`) when `OPENAI_API_KEY` is configured.
  *   • Deterministic offline token-weighted frequency hashing (SimHash / Feature Hashing)
- *     for reliable, zero-dependency, network-free operation in tests and development.
- *   • Automatic OpenAI `text-embedding-3-small` integration when `OPENAI_API_KEY` is present,
- *     with graceful fallback to offline deterministic embeddings on network errors.
- *   • Cosine normalization: all vectors satisfy ||v||₂ = 1.0.
+ *     when no external embedding API key is configured (for local/CI unit tests).
+ *   • Strict fail-closed behavior (`RagEmbeddingProviderError`) whenever an external
+ *     embedding provider is configured and fails, preventing orthogonal vector-space mixing (V-03).
  */
 
 import { logger } from "../../logger";
 
 export const EMBEDDING_DIMENSIONS = 1536;
+const GEMINI_MAX_BATCH_SIZE = 100;
+const GEMINI_EMBEDDING_MODEL = "models/gemini-embedding-001";
+const GEMINI_BATCH_ENDPOINT =
+  "https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:batchEmbedContents";
+
+export class RagEmbeddingProviderError extends Error {
+  readonly code = "RAG_EMBEDDING_PROVIDER_ERROR";
+
+  constructor(message: string, cause?: unknown) {
+    super(message);
+    this.name = "RagEmbeddingProviderError";
+    if (cause) this.cause = cause;
+  }
+}
 
 // ──────────────────────────────────────────────
 // Deterministic Hash Primitives (FNV-1a 32-bit)
@@ -104,6 +119,146 @@ export function generateDeterministicEmbedding(text: string): number[] {
   return Array.from(vector);
 }
 
+/**
+ * Enforces strict Euclidean L2 unit normalization (||v||₂ = 1.0) on any 1536-dim vector.
+ * Essential for Matryoshka-truncated models such as `gemini-embedding-001` (`outputDimensionality: 1536`),
+ * whose raw truncated slice has ||v||₂ < 1.0 prior to re-normalization.
+ */
+export function normalizeL2Vector(values: readonly number[]): number[] {
+  if (values.length !== EMBEDDING_DIMENSIONS) {
+    throw new RagEmbeddingProviderError(
+      `Dimensión de embedding inválida: se esperaban ${EMBEDDING_DIMENSIONS}, recibido ${values.length}`,
+    );
+  }
+  const out = new Float64Array(EMBEDDING_DIMENSIONS);
+  let sumSq = 0;
+  for (let i = 0; i < EMBEDDING_DIMENSIONS; i++) {
+    const val = values[i];
+    if (typeof val !== "number" || !Number.isFinite(val)) {
+      throw new RagEmbeddingProviderError(
+        "El proveedor de embeddings devolvió componentes no numéricos o infinitos",
+      );
+    }
+    out[i] = val;
+    sumSq += val * val;
+  }
+  if (sumSq > 0) {
+    const norm = Math.sqrt(sumSq);
+    for (let i = 0; i < EMBEDDING_DIMENSIONS; i++) {
+      out[i] = (out[i] ?? 0) / norm;
+    }
+  } else {
+    out[0] = 1.0;
+  }
+  return Array.from(out);
+}
+
+// ──────────────────────────────────────────────
+// Google Gemini Embedding Integration (`gemini-embedding-001`)
+// ──────────────────────────────────────────────
+
+async function fetchGeminiSubBatch(
+  subBatch: string[],
+  apiKey: string,
+): Promise<number[][] | null> {
+  const payload = {
+    requests: subBatch.map((t) => ({
+      model: GEMINI_EMBEDDING_MODEL,
+      outputDimensionality: EMBEDDING_DIMENSIONS,
+      content: {
+        parts: [
+          {
+            text: t.trim().length > 0 ? t.slice(0, 8000) : " ",
+          },
+        ],
+      },
+    })),
+  };
+
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+    try {
+      const response = await fetch(GEMINI_BATCH_ENDPOINT, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          // Passed strictly via header (never URL `?key=`) so secrets never appear in logs
+          "x-goog-api-key": apiKey,
+        },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      });
+
+      if (response.status === 429 && attempt === 0) {
+        await new Promise((resolve) => setTimeout(resolve, 600));
+        continue;
+      }
+
+      if (!response.ok) {
+        logger.warn(`Gemini embedding API returned status ${response.status}`, {
+          module: "rag-embeddings",
+          provider: "gemini",
+        });
+        return null;
+      }
+
+      const data = (await response.json()) as {
+        embeddings?: { values?: number[] }[];
+      };
+
+      if (
+        !Array.isArray(data.embeddings) ||
+        data.embeddings.length !== subBatch.length
+      ) {
+        return null;
+      }
+
+      const normalizedVectors: number[][] = [];
+      for (const item of data.embeddings) {
+        if (
+          !Array.isArray(item.values) ||
+          item.values.length !== EMBEDDING_DIMENSIONS
+        ) {
+          return null;
+        }
+        normalizedVectors.push(normalizeL2Vector(item.values));
+      }
+
+      return normalizedVectors;
+    } catch (err) {
+      logger.warn(
+        "Gemini embedding request failed or timed out",
+        { module: "rag-embeddings", provider: "gemini" },
+        err,
+      );
+      return null;
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }
+
+  return null;
+}
+
+async function fetchGeminiEmbeddingsBatch(
+  texts: string[],
+  apiKey: string,
+): Promise<number[][] | null> {
+  if (texts.length === 0) return [];
+
+  const allVectors: number[][] = [];
+  for (let start = 0; start < texts.length; start += GEMINI_MAX_BATCH_SIZE) {
+    const slice = texts.slice(start, start + GEMINI_MAX_BATCH_SIZE);
+    const subVectors = await fetchGeminiSubBatch(slice, apiKey);
+    if (!subVectors) {
+      return null;
+    }
+    allVectors.push(...subVectors);
+  }
+  return allVectors;
+}
+
 // ──────────────────────────────────────────────
 // OpenAI Embedding Integration (Optional)
 // ──────────────────────────────────────────────
@@ -164,7 +319,7 @@ async function fetchOpenAIEmbeddingsBatch(
     return vectors;
   } catch (err) {
     logger.warn(
-      "OpenAI embedding request failed, falling back to deterministic embedder",
+      "OpenAI embedding request failed or timed out",
       { module: "rag-embeddings" },
       err,
     );
@@ -182,40 +337,117 @@ async function fetchOpenAIEmbedding(
   return batch?.[0] ?? null;
 }
 
+function resolveActiveProvider(): {
+  provider: "openai" | "gemini" | "local";
+  apiKey: string;
+} {
+  const forced = process.env.RAG_EMBEDDING_PROVIDER?.trim().toLowerCase();
+  const openAiKey = process.env.OPENAI_API_KEY?.trim() ?? "";
+  const geminiKey = process.env.GEMINI_API_KEY?.trim() ?? "";
+
+  const hasValidOpenAi = openAiKey.length > 0 && !openAiKey.startsWith("mock-");
+  const hasValidGemini = geminiKey.length > 0 && !geminiKey.startsWith("mock-");
+
+  if (forced === "local") {
+    return { provider: "local", apiKey: "" };
+  }
+  if (forced === "gemini") {
+    if (!hasValidGemini) {
+      throw new RagEmbeddingProviderError(
+        "RAG_EMBEDDING_PROVIDER=gemini está activo pero GEMINI_API_KEY no está configurada.",
+      );
+    }
+    return { provider: "gemini", apiKey: geminiKey };
+  }
+  if (forced === "openai") {
+    if (!hasValidOpenAi) {
+      throw new RagEmbeddingProviderError(
+        "RAG_EMBEDDING_PROVIDER=openai está activo pero OPENAI_API_KEY no está configurada.",
+      );
+    }
+    return { provider: "openai", apiKey: openAiKey };
+  }
+
+  if (hasValidOpenAi) {
+    return { provider: "openai", apiKey: openAiKey };
+  }
+  if (hasValidGemini) {
+    return { provider: "gemini", apiKey: geminiKey };
+  }
+  return { provider: "local", apiKey: "" };
+}
+
 // ──────────────────────────────────────────────
 // Primary Public Embedding Functions
 // ──────────────────────────────────────────────
 
 /**
  * Generates a 1536-dimensional cosine-normalized vector embedding for a given text.
- * Automatically utilizes OpenAI text-embedding-3-small when OPENAI_API_KEY is configured,
- * otherwise runs the fast, deterministic offline embedding algorithm.
+ * Uses OpenAI (`OPENAI_API_KEY`) or Google Gemini `gemini-embedding-001` (`GEMINI_API_KEY`)
+ * when configured, failing closed on provider errors (V-03); otherwise runs the deterministic
+ * offline embedding algorithm.
  */
 export async function generateEmbedding(text: string): Promise<number[]> {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (apiKey && apiKey.trim().length > 0 && !apiKey.startsWith("mock-")) {
-    const openAiVector = await fetchOpenAIEmbedding(text, apiKey);
-    if (openAiVector) {
-      return openAiVector;
+  const active = resolveActiveProvider();
+
+  if (active.provider === "openai") {
+    const openAiVector = await fetchOpenAIEmbedding(text, active.apiKey);
+    if (!openAiVector) {
+      throw new RagEmbeddingProviderError(
+        "OpenAI embedding generation failed or timed out. Silent fallback to offline hashing is prohibited (V-03).",
+      );
     }
+    return normalizeL2Vector(openAiVector);
+  }
+
+  if (active.provider === "gemini") {
+    const geminiBatch = await fetchGeminiEmbeddingsBatch([text], active.apiKey);
+    const geminiVector = geminiBatch?.[0];
+    if (!geminiVector) {
+      throw new RagEmbeddingProviderError(
+        "Gemini embedding generation failed or timed out. Silent fallback to offline hashing is prohibited (V-03).",
+      );
+    }
+    return geminiVector;
   }
 
   return generateDeterministicEmbedding(text);
 }
 
 /**
- * Generates vector embeddings for a batch of text chunks in a single API call
- * (when OpenAI is configured) or via deterministic offline feature hashing.
+ * Generates vector embeddings for a batch of text chunks via OpenAI, Google Gemini
+ * (`gemini-embedding-001` with automatic <= 100 sub-batching and L2 normalization),
+ * or deterministic offline feature hashing.
  */
 export async function generateEmbeddings(texts: string[]): Promise<number[][]> {
   if (texts.length === 0) return [];
 
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (apiKey && apiKey.trim().length > 0 && !apiKey.startsWith("mock-")) {
-    const openAiVectors = await fetchOpenAIEmbeddingsBatch(texts, apiKey);
-    if (openAiVectors) {
-      return openAiVectors;
+  const active = resolveActiveProvider();
+
+  if (active.provider === "openai") {
+    const openAiVectors = await fetchOpenAIEmbeddingsBatch(
+      texts,
+      active.apiKey,
+    );
+    if (!openAiVectors) {
+      throw new RagEmbeddingProviderError(
+        "OpenAI batch embedding generation failed or timed out. Silent fallback to offline hashing is prohibited (V-03).",
+      );
     }
+    return openAiVectors.map((vec) => normalizeL2Vector(vec));
+  }
+
+  if (active.provider === "gemini") {
+    const geminiVectors = await fetchGeminiEmbeddingsBatch(
+      texts,
+      active.apiKey,
+    );
+    if (!geminiVectors) {
+      throw new RagEmbeddingProviderError(
+        "Gemini batch embedding generation failed or timed out. Silent fallback to offline hashing is prohibited (V-03).",
+      );
+    }
+    return geminiVectors;
   }
 
   return texts.map((text) => generateDeterministicEmbedding(text));

@@ -16,6 +16,8 @@
  */
 import { relations, sql } from "drizzle-orm";
 import {
+  customType,
+  foreignKey,
   index,
   pgEnum,
   pgPolicy,
@@ -4239,7 +4241,7 @@ export const ragDocuments = pgTable(
       .uuid()
       .notNull()
       .references(() => Workspace.id)
-      .default(sql`current_setting('app.workspace_id')::uuid`),
+      .default(sql`current_setting('app.workspace_id', true)::uuid`),
     documentType: ragDocumentTypeEnum().notNull(),
     documentNumber: t.varchar({ length: 64 }),
     title: t.varchar({ length: 256 }).notNull(),
@@ -4262,6 +4264,7 @@ export const ragDocuments = pgTable(
       .notNull(),
   }),
   (table) => [
+    unique("uq_rag_documents_id_ws").on(table.id, table.workspaceId),
     index("idx_rag_documents_workspace_id").on(table.workspaceId),
     index("idx_rag_documents_type").on(table.documentType),
     index("idx_rag_documents_status").on(table.status),
@@ -4277,15 +4280,12 @@ export const ragDocumentChunks = pgTable(
   "rag_document_chunks",
   (t) => ({
     id: t.uuid().notNull().primaryKey().defaultRandom(),
-    documentId: t
-      .uuid()
-      .notNull()
-      .references(() => ragDocuments.id, { onDelete: "cascade" }),
+    documentId: t.uuid().notNull(),
     workspaceId: t
       .uuid()
       .notNull()
       .references(() => Workspace.id)
-      .default(sql`current_setting('app.workspace_id')::uuid`),
+      .default(sql`current_setting('app.workspace_id', true)::uuid`),
     chunkIndex: t.integer().notNull(),
     chunkType: t.varchar({ length: 64 }).notNull().default("document_summary"),
     content: t.text().notNull(),
@@ -4303,6 +4303,15 @@ export const ragDocumentChunks = pgTable(
       .notNull(),
   }),
   (table) => [
+    foreignKey({
+      columns: [table.documentId, table.workspaceId],
+      foreignColumns: [ragDocuments.id, ragDocuments.workspaceId],
+      name: "rag_document_chunks_doc_ws_fkey",
+    }).onDelete("cascade"),
+    index("idx_rag_document_chunks_doc_ws").on(
+      table.documentId,
+      table.workspaceId,
+    ),
     index("idx_rag_document_chunks_workspace_id").on(table.workspaceId),
     index("idx_rag_document_chunks_document_id").on(table.documentId),
     index("idx_rag_document_chunks_metadata").using("gin", table.metadata),
@@ -4310,6 +4319,52 @@ export const ragDocumentChunks = pgTable(
       .using("hnsw", table.embedding.op("vector_cosine_ops"))
       .with({ m: 16, ef_construction: 64 }),
     workspacePolicy("rag_document_chunks"),
+  ],
+).enableRLS();
+
+export const bytea = customType<{ data: Buffer; driverData: Buffer }>({
+  dataType() {
+    return "bytea";
+  },
+});
+
+/**
+ * Cryptographic PII Vault for AES-256-GCM encrypted sensitive entity values
+ * associated with surrogate tokens in RAG chunks and documents.
+ */
+export const ragPiiVault = pgTable(
+  "rag_pii_vault",
+  (t) => ({
+    id: t.uuid().notNull().primaryKey().defaultRandom(),
+    workspaceId: t
+      .uuid()
+      .notNull()
+      .references(() => Workspace.id, { onDelete: "cascade" })
+      .default(sql`current_setting('app.workspace_id', true)::uuid`),
+    documentId: t.uuid().notNull(),
+    surrogateToken: t.varchar({ length: 128 }).notNull(),
+    entityType: t.varchar({ length: 32 }).notNull(),
+    encryptedValue: bytea("encrypted_value").notNull(),
+    keyFingerprint: t.varchar({ length: 64 }).notNull(),
+    createdAt: t
+      .timestamp({ mode: "date", withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  }),
+  (table) => [
+    foreignKey({
+      columns: [table.documentId, table.workspaceId],
+      foreignColumns: [ragDocuments.id, ragDocuments.workspaceId],
+      name: "rag_pii_vault_doc_ws_fkey",
+    }).onDelete("cascade"),
+    unique("uq_rag_pii_vault_token").on(
+      table.workspaceId,
+      table.documentId,
+      table.surrogateToken,
+    ),
+    index("idx_rag_pii_vault_doc_ws").on(table.documentId, table.workspaceId),
+    index("idx_rag_pii_vault_workspace_id").on(table.workspaceId),
+    workspacePolicy("rag_pii_vault"),
   ],
 ).enableRLS();
 
@@ -4325,6 +4380,7 @@ export const ragDocumentsRelations = relations(
       references: [UserProfile.id],
     }),
     chunks: many(ragDocumentChunks),
+    piiVaultEntries: many(ragPiiVault),
   }),
 );
 
@@ -4342,7 +4398,95 @@ export const ragDocumentChunksRelations = relations(
   }),
 );
 
+export const ragPiiVaultRelations = relations(ragPiiVault, ({ one }) => ({
+  document: one(ragDocuments, {
+    fields: [ragPiiVault.documentId],
+    references: [ragDocuments.id],
+  }),
+  workspace: one(Workspace, {
+    fields: [ragPiiVault.workspaceId],
+    references: [Workspace.id],
+  }),
+}));
+
+/**
+ * Append-only WORM cryptographic audit log for RAG operations (search, ingest,
+ * delete, guardrail_violation) with per-workspace SHA-256 hash chaining (migration 036).
+ */
+export const ragAuditLog = pgTable(
+  "rag_audit_log",
+  (t) => ({
+    id: t.uuid().notNull().primaryKey().defaultRandom(),
+    workspaceId: t
+      .uuid()
+      .notNull()
+      .references(() => Workspace.id)
+      .default(sql`current_setting('app.workspace_id', true)::uuid`),
+    userId: t.uuid().references(() => UserProfile.id),
+    operationType: t.varchar({ length: 32 }).notNull(),
+    queryText: t.text(),
+    promptTemplateHash: t.varchar({ length: 64 }).notNull().default(""),
+    retrievedChunkIds: t
+      .uuid()
+      .array()
+      .notNull()
+      .default(sql`'{}'::uuid[]`),
+    outputHash: t.varchar({ length: 64 }).notNull().default(""),
+    metadata: t.jsonb().notNull().default({}),
+    latencyMs: t.integer().notNull().default(0),
+    tokenUsage: t
+      .jsonb()
+      .notNull()
+      .default({ prompt: 0, completion: 0, total: 0 }),
+    // Assigned by trg_rag_audit_log_chain (BEFORE INSERT) under workspace advisory lock
+    seq: t.bigint({ mode: "number" }),
+    prevHash: t.text(),
+    payloadHash: t.text(),
+    chainHash: t.text(),
+    createdAt: t
+      .timestamp({ mode: "date", withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  }),
+  (table) => [
+    unique("uq_rag_audit_log_seq").on(table.seq),
+    index("idx_rag_audit_log_workspace_seq").on(table.workspaceId, table.seq),
+    index("idx_rag_audit_log_workspace_created").on(
+      table.workspaceId,
+      table.createdAt,
+    ),
+    index("idx_rag_audit_log_user_id").on(table.userId),
+    pgPolicy("rag_audit_log_workspace_select", {
+      as: "permissive",
+      for: "select",
+      to: appUserRole,
+      using: sql`workspace_id = (select current_setting('app.workspace_id', true))::uuid`,
+    }),
+    pgPolicy("rag_audit_log_workspace_insert", {
+      as: "permissive",
+      for: "insert",
+      to: appUserRole,
+      withCheck: sql`workspace_id = (select current_setting('app.workspace_id', true))::uuid`,
+    }),
+  ],
+).enableRLS();
+
+export const ragAuditLogRelations = relations(ragAuditLog, ({ one }) => ({
+  workspace: one(Workspace, {
+    fields: [ragAuditLog.workspaceId],
+    references: [Workspace.id],
+  }),
+  user: one(UserProfile, {
+    fields: [ragAuditLog.userId],
+    references: [UserProfile.id],
+  }),
+}));
+
 export type RagDocumentSelect = typeof ragDocuments.$inferSelect;
 export type RagDocumentInsert = typeof ragDocuments.$inferInsert;
 export type RagDocumentChunkSelect = typeof ragDocumentChunks.$inferSelect;
 export type RagDocumentChunkInsert = typeof ragDocumentChunks.$inferInsert;
+export type RagPiiVaultSelect = typeof ragPiiVault.$inferSelect;
+export type RagPiiVaultInsert = typeof ragPiiVault.$inferInsert;
+export type RagAuditLogSelect = typeof ragAuditLog.$inferSelect;
+export type RagAuditLogInsert = typeof ragAuditLog.$inferInsert;

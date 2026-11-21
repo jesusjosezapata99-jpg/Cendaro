@@ -760,20 +760,35 @@ export const workspaceReadProcedure = protectedProcedure.use(
       });
     }
 
-    return runInWorkspaceRlsReadonly(
-      ctx.db,
-      resolved.workspaceId,
-      (tx) =>
-        next({
-          ctx: {
-            ...ctx,
-            db: tx,
-            user: toWorkspaceActor(ctx.user, resolved),
-            workspace,
-          },
-        }),
-      { statementTimeoutMs: meta?.statementTimeoutMs },
-    );
+    try {
+      return await runInWorkspaceRlsReadonly(
+        ctx.db,
+        resolved.workspaceId,
+        (tx) =>
+          next({
+            ctx: {
+              ...ctx,
+              db: tx,
+              user: toWorkspaceActor(ctx.user, resolved),
+              workspace,
+            },
+          }),
+        { statementTimeoutMs: meta?.statementTimeoutMs },
+      );
+    } finally {
+      // Post-read hooks (e.g. RAG WORM search / guardrail_violation audit writes):
+      // execute strictly AFTER the READ ONLY transaction releases its pooled slot,
+      // and are awaited before the serverless response flushes.
+      const pendingTasks = [...ctx.afterCommit];
+      ctx.afterCommit.length = 0;
+      for (const task of pendingTasks) {
+        try {
+          await task(ctx.db);
+        } catch (error) {
+          ctx.log.error("after-commit task failed", {}, error);
+        }
+      }
+    }
   },
 );
 

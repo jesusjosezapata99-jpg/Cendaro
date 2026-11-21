@@ -67,10 +67,30 @@ try {
     );
   }
 
-  const allRows = [...financialRows, ...auditRows].map((row) => ({
-    invariant: String(row.invariant),
-    violations: Number(row.violations),
-  }));
+  // Check whether migration 036 (`verify_rag_audit_chain_integrity`) is installed
+  const { rows: ragFnCheck } = await client.query(
+    `SELECT to_regprocedure('public.verify_rag_audit_chain_integrity()') IS NOT NULL AS installed`,
+  );
+
+  /** @type {{ invariant: string; violations: number }[]} */
+  let ragAuditRows = [];
+  if (ragFnCheck[0]?.installed) {
+    const res = await client.query(
+      `SELECT invariant, violations FROM public.verify_rag_audit_chain_integrity()`,
+    );
+    ragAuditRows = res.rows;
+  } else {
+    console.warn(
+      "[run-invariants] public.verify_rag_audit_chain_integrity() not yet installed (pending migration 036); skipping RAG audit-chain digest check.",
+    );
+  }
+
+  const allRows = [...financialRows, ...auditRows, ...ragAuditRows].map(
+    (row) => ({
+      invariant: String(row.invariant),
+      violations: Number(row.violations),
+    }),
+  );
 
   for (const row of allRows) {
     console.log(`${String(row.violations).padStart(6)}  ${row.invariant}`);

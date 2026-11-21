@@ -171,6 +171,186 @@ export const documentMetadataSchema = z
 export type DocumentMetadata = z.infer<typeof documentMetadataSchema>;
 
 // ──────────────────────────────────────────────
+// Storage URL Validation (V-12)
+// ──────────────────────────────────────────────
+
+function hasAsciiControlOrWhitespace(value: string): boolean {
+  for (let i = 0; i < value.length; i++) {
+    const code = value.charCodeAt(i);
+    if (code <= 0x20 || code === 0x7f) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Validates that a fileUrl belongs to an owned Supabase storage bucket and origin,
+ * and optionally matches the specified workspace ID directory (V-12).
+ */
+export function isOwnedStorageUrl(
+  url: string | undefined | null,
+  workspaceId?: string,
+): boolean {
+  if (!url || typeof url !== "string") return false;
+
+  const trimmed = url.trim();
+  if (trimmed.length === 0) return false;
+
+  // Reject any embedded whitespace or ASCII control chars (\t, \n, \r, \0, etc.)
+  // to eliminate WHATWG URL parser differentials (`ht\ttps://`, `/\t/evil`, `.\t.`)
+  if (hasAsciiControlOrWhitespace(trimmed)) {
+    return false;
+  }
+
+  // Reject protocol-relative URLs upfront
+  if (trimmed.startsWith("//")) {
+    return false;
+  }
+
+  // Reject path traversal and encoded separator exploits (F-09)
+  if (
+    trimmed.includes("..") ||
+    /%(?:2e|2f|5c|25)/i.test(trimmed) ||
+    trimmed.includes("\\")
+  ) {
+    return false;
+  }
+
+  // Reject JavaScript, data, or local schemes
+  if (/^(?:javascript|data|file|vbscript|blob):/i.test(trimmed)) {
+    return false;
+  }
+
+  // Strictly classify as canonical double-slash http(s):// OR leading-slash relative path
+  // (rejects single-slash `http:/evil...` and scheme-prefixed `http:evil...` differentials)
+  const isAbsolute = /^https?:\/\//i.test(trimmed);
+  const isRelativePath = trimmed.startsWith("/") && !trimmed.startsWith("//");
+  if (!isAbsolute && !isRelativePath) {
+    return false;
+  }
+
+  // If workspaceId is provided, validate UUID format
+  if (
+    workspaceId &&
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+      workspaceId,
+    )
+  ) {
+    return false;
+  }
+
+  try {
+    const URLCtor = (
+      globalThis as unknown as {
+        URL: new (
+          url: string,
+          base?: string,
+        ) => {
+          protocol: string;
+          hostname: string;
+          pathname: string;
+        };
+      }
+    ).URL;
+
+    const parsed = isAbsolute
+      ? new URLCtor(trimmed)
+      : new URLCtor(trimmed, "https://supabase.internal");
+
+    // Enforce HTTP / HTTPS protocol
+    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+      return false;
+    }
+
+    // Unconditional host validation (relative URLs must stay pinned to supabase.internal)
+    const hostname = parsed.hostname.toLowerCase();
+    if (
+      isRelativePath &&
+      (parsed.protocol !== "https:" || hostname !== "supabase.internal")
+    ) {
+      return false;
+    }
+
+    // Prohibit link-local, cloud metadata IPs, and IPv6 loopbacks
+    if (
+      hostname === "169.254.169.254" ||
+      hostname === "metadata.google.internal" ||
+      hostname === "instance-data"
+    ) {
+      return false;
+    }
+
+    const runtimeEnv = (
+      globalThis as unknown as {
+        process?: { env?: Record<string, string | undefined> };
+      }
+    ).process?.env;
+
+    const isProd = runtimeEnv?.NODE_ENV === "production";
+
+    if (isProd && (hostname === "localhost" || hostname === "127.0.0.1")) {
+      return false;
+    }
+
+    const configuredSupabaseUrl = runtimeEnv?.NEXT_PUBLIC_SUPABASE_URL?.trim();
+
+    if (isProd && !isRelativePath) {
+      if (parsed.protocol !== "https:" || !configuredSupabaseUrl) {
+        return false;
+      }
+      try {
+        const expectedHost = new URLCtor(
+          configuredSupabaseUrl,
+        ).hostname.toLowerCase();
+        if (hostname !== expectedHost) {
+          return false;
+        }
+      } catch {
+        return false;
+      }
+    }
+
+    // Allowed domains: Supabase production, development localhost/127.0.0.1, or supabase hostnames
+    const isAllowedDomain =
+      hostname === "localhost" ||
+      hostname === "127.0.0.1" ||
+      hostname === "supabase" ||
+      hostname === "supabase.internal" ||
+      hostname === "supabase-kong" ||
+      hostname.endsWith(".supabase.co") ||
+      hostname.endsWith(".supabase.in");
+
+    if (!isAllowedDomain) {
+      return false;
+    }
+
+    // Storage endpoint path validation
+    // Format: /storage/v1/object/(?:public|authenticated|sign)/<bucket>/[workspaceId/]...
+    const storagePattern =
+      /^\/storage\/v1\/object\/(?:public|authenticated|sign)\/[^/]+(?:\/|$)/i;
+    if (!storagePattern.test(parsed.pathname)) {
+      return false;
+    }
+
+    // If workspaceId is provided, enforce workspace tenancy path scoping
+    if (workspaceId) {
+      const workspacePattern = new RegExp(
+        `^/storage/v1/object/(?:public|authenticated|sign)/[^/]+/${workspaceId}(?:/|$)`,
+        "i",
+      );
+      if (!workspacePattern.test(parsed.pathname)) {
+        return false;
+      }
+    }
+
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// ──────────────────────────────────────────────
 // Chunk Schemas & Input Types
 // ──────────────────────────────────────────────
 
@@ -178,15 +358,17 @@ export const ragChunkInputSchema = z
   .object({
     chunkIndex: z.number().int().nonnegative().optional(),
     chunkType: ragChunkTypeSchema.default("document_summary"),
-    content: z.string().min(1, "El contenido del fragmento es requerido"),
+    content: z
+      .string()
+      .min(1, "El contenido del fragmento es requerido")
+      .max(8000, "El contenido no puede superar 8000 caracteres"),
     metadata: z.record(z.string(), z.unknown()).optional().default({}),
-    embedding: z
-      .array(z.number())
-      .length(1536, "El embedding debe tener exactamente 1536 dimensiones")
-      .optional(),
     tokenCount: z.number().int().positive().optional(),
   })
-  .passthrough();
+  .passthrough()
+  .refine((val) => !("embedding" in (val as Record<string, unknown>)), {
+    message: "No se permite proporcionar embeddings desde el cliente (V-01)",
+  });
 
 export type RagChunkInput = z.infer<typeof ragChunkInputSchema>;
 
@@ -199,6 +381,7 @@ export const ragSearchInputSchema = z
   .object({
     query: z
       .string()
+      .trim()
       .min(1, "La consulta no puede estar vacía")
       .max(1000, "La consulta no puede superar 1000 caracteres"),
     documentType: ragDocumentTypeSchema.optional(),
@@ -218,12 +401,20 @@ export const ragIngestInputSchema = z.object({
     .string()
     .min(1, "El título del documento es requerido")
     .max(256, "El título no puede superar 256 caracteres"),
-  fileUrl: z.string().optional(),
+  fileUrl: z
+    .string()
+    .max(2048)
+    .refine((url) => isOwnedStorageUrl(url), {
+      message:
+        "fileUrl debe pertenecer a un bucket de almacenamiento autorizado de Supabase",
+    })
+    .optional(),
   fileName: z.string().max(256).optional(),
   metadata: documentMetadataSchema.optional().default({}),
   chunks: z
     .array(ragChunkInputSchema)
-    .min(1, "El documento debe contener al menos un fragmento (chunk)"),
+    .min(1, "El documento debe contener al menos un fragmento (chunk)")
+    .max(500, "El documento no puede superar 500 fragmentos"),
 });
 
 export type RagIngestInput = z.infer<typeof ragIngestInputSchema>;

@@ -121,6 +121,7 @@ const EXPECTED_AUTHZ: Record<string, string> = {
   "quotes.create": "orders.create",
   "quotes.updateStatus": "orders.update",
   "quotes.convertToOrder": "orders.create",
+  "rag.deleteDocument": "containers.delete",
   "rag.getDocument": "orders.read",
   "rag.ingestDocument": "containers.update",
   "rag.listDocuments": "orders.read",
