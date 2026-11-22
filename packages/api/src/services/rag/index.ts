@@ -10,3 +10,4 @@ export * from "./pii-detector";
 export * from "./pii-vault";
 export * from "./guardrails";
 export * from "./audit";
+export * from "./product-matcher";

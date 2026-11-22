@@ -1,22 +1,16 @@
 /**
- * Cendaro — Inventory Import Header Aliases
+ * Cendaro — Inventory Import Header Aliases (Zero-Template Ready)
  *
- * Maps spreadsheet header labels to standard field names.
- * Case-insensitive, accent-insensitive matching.
- *
- * PRD: FEATURE_PRD_INVENTORY_IMPORT.md Appendix A
+ * Maps spreadsheet header labels to standard field names across Spanish,
+ * English, and Mandarin Chinese, supporting both packaging breakdowns
+ * (`bultos × cajas × unid`) and direct unit counts (`quantity` / `barcode`).
  */
 
-/**
- * Standard field names used in the import process.
- *
- * - sku, bultos, cajasPerBulk, presentacion: Import fields
- * - marca, producto: Info-only for Replace/Adjust, REQUIRED for Initialize
- * - unidPerCaja, stockTotal: Info fields (recognized but not required)
- */
 export type ImportField =
   | "sku"
   | "bultos"
+  | "quantity"
+  | "barcode"
   | "cajasPerBulk"
   | "presentacion"
   | "marca"
@@ -24,21 +18,58 @@ export type ImportField =
   | "unidPerCaja"
   | "stockTotal";
 
-/** Fields that drive the import calculation (Replace/Adjust) */
+/** Classic template fields (kept for backwards compatibility) */
 export const REQUIRED_IMPORT_FIELDS: ImportField[] = ["sku", "bultos"];
 
-/** Returns the required fields for a given import mode */
+/** Returns primary display required fields for a given import mode */
 export function getRequiredFieldsForMode(
   mode: "replace" | "adjust" | "initialize",
 ): ImportField[] {
   if (mode === "initialize") {
-    return ["sku", "bultos", "marca", "producto"];
+    return ["producto", "bultos"];
   }
   return ["sku", "bultos"];
 }
 
-/** Fields recognized by the parser but not required */
+/**
+ * Checks whether a header mapping has sufficient columns to proceed in Zero-Template mode:
+ * - Replace/Adjust: needs an identifier (`sku`, `producto`, or `barcode`) AND a count (`bultos`, `quantity`, or `stockTotal`).
+ * - Initialize: needs `producto` (or `sku`) AND a count (`bultos` or `quantity`).
+ */
+export function canConfirmInventoryHeaderMap(
+  headerMap: Record<string, number>,
+  mode: "replace" | "adjust" | "initialize",
+): { ok: boolean; missingSummary: string[] } {
+  const missing: string[] = [];
+  const hasCount =
+    "bultos" in headerMap ||
+    "quantity" in headerMap ||
+    "stockTotal" in headerMap;
+
+  if (mode === "initialize") {
+    if (!("producto" in headerMap) && !("sku" in headerMap)) {
+      missing.push("Producto / Nombre");
+    }
+    if (!hasCount) {
+      missing.push("Bultos o Cantidad");
+    }
+  } else {
+    const hasIdentifier =
+      "sku" in headerMap || "producto" in headerMap || "barcode" in headerMap;
+    if (!hasIdentifier) {
+      missing.push("SKU, Producto o Código de barras");
+    }
+    if (!hasCount) {
+      missing.push("Bultos o Cantidad");
+    }
+  }
+
+  return { ok: missing.length === 0, missingSummary: missing };
+}
+
 export const OPTIONAL_IMPORT_FIELDS: ImportField[] = [
+  "quantity",
+  "barcode",
   "cajasPerBulk",
   "presentacion",
   "marca",
@@ -47,12 +78,6 @@ export const OPTIONAL_IMPORT_FIELDS: ImportField[] = [
   "stockTotal",
 ];
 
-/**
- * Header alias map — maps normalized header strings to field names.
- *
- * Green fields (editable): bultos, cajasPerBulk, presentacion
- * Blue fields (reference): sku, marca, producto, unidPerCaja, stockTotal
- */
 export const INVENTORY_HEADER_ALIASES: Record<string, ImportField> = {
   // ── SKU / Reference ────────────────────────────
   sku: "sku",
@@ -72,6 +97,17 @@ export const INVENTORY_HEADER_ALIASES: Record<string, ImportField> = {
   "\u7f16\u53f7": "sku", // 编号
   "\u8d27\u53f7": "sku", // 货号
 
+  // ── Barcode / EAN ──────────────────────────────
+  barcode: "barcode",
+  ean: "barcode",
+  ean13: "barcode",
+  upc: "barcode",
+  gtin: "barcode",
+  "codigo de barras": "barcode",
+  codigo_barras: "barcode",
+  "\u6761\u7801": "barcode", // 条码
+  "\u6761\u5f62\u7801": "barcode", // 条形码
+
   // ── Bultos ─────────────────────────────────────
   bultos: "bultos",
   bulto: "bultos",
@@ -80,6 +116,24 @@ export const INVENTORY_HEADER_ALIASES: Record<string, ImportField> = {
   paquetes: "bultos",
   fardos: "bultos",
   cajas_grandes: "bultos",
+  ctns: "bultos",
+  cartons: "bultos",
+  "\u4ef6\u6570": "bultos", // 件数
+  "\u7bb1\u6570": "bultos", // 箱数
+
+  // ── Direct Quantity (Unidades / Conteo físico) ─
+  cantidad: "quantity",
+  cant: "quantity",
+  qty: "quantity",
+  quantity: "quantity",
+  unidades: "quantity",
+  units: "quantity",
+  pcs: "quantity",
+  pieces: "quantity",
+  conteo: "quantity",
+  fisico: "quantity",
+  "conteo fisico": "quantity",
+  "\u6570\u91cf": "quantity", // 数量
 
   // ── Cajas per Bulto ────────────────────────────
   "cajas/bulto": "cajasPerBulk",
@@ -96,39 +150,40 @@ export const INVENTORY_HEADER_ALIASES: Record<string, ImportField> = {
   display: "presentacion",
   empaque: "presentacion",
 
-  // ── Marca (info — ignored by import engine) ────
+  // ── Marca ──────────────────────────────────────
   marca: "marca",
   brand: "marca",
+  fabricante: "marca",
   "\u54c1\u724c": "marca", // 品牌
 
-  // ── Producto (info — ignored by import engine) ─
+  // ── Producto ───────────────────────────────────
   producto: "producto",
   product: "producto",
   nombre: "producto",
   name: "producto",
+  descripcion: "producto",
+  description: "producto",
   "\u4ea7\u54c1": "producto", // 产品
+  "\u54c1\u540d": "producto", // 品名
+  "\u4ea7\u54c1\u540d\u79f0": "producto", // 产品名称
 
-  // ── Unid/Caja (info — read-only) ───────────────
+  // ── Unid/Caja ──────────────────────────────────
   "unid/caja": "unidPerCaja",
   unidades_por_caja: "unidPerCaja",
   "unidades por caja": "unidPerCaja",
   units_per_box: "unidPerCaja",
   "units per box": "unidPerCaja",
 
-  // ── Stock Total (info — read-only, adjust mode) ─
+  // ── Stock Total ────────────────────────────────
   "stock total": "stockTotal",
   stock_total: "stockTotal",
   "total stock": "stockTotal",
   existencias: "stockTotal",
+  existencia: "stockTotal",
   inventario: "stockTotal",
+  stock: "stockTotal",
 };
 
-/**
- * Normalize a header string for matching against alias map.
- * - Trim whitespace
- * - Lowercase
- * - NFD normalize + strip diacritics (á→a, ñ→n, etc.)
- */
 export function normalizeHeader(header: string): string {
   return String(header)
     .trim()
@@ -137,12 +192,6 @@ export function normalizeHeader(header: string): string {
     .replace(/[\u0300-\u036f]/g, "");
 }
 
-/**
- * Auto-map detected headers to standard field names.
- *
- * @param headers - The first row of the spreadsheet (raw header values)
- * @returns Record<ImportField, number> — maps field name to column index
- */
 export function autoMapHeaders(headers: string[]): {
   map: Record<string, number>;
   unmapped: string[];
@@ -157,9 +206,8 @@ export function autoMapHeaders(headers: string[]): {
     const field = INVENTORY_HEADER_ALIASES[normalized];
 
     if (field && !(field in map)) {
-      // First match wins — don't overwrite if a field already mapped
       map[field] = i;
-    } else if (!field) {
+    } else if (!field && header.trim().length > 0) {
       unmapped.push(header);
     }
   }

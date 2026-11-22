@@ -969,6 +969,7 @@ export const Supplier = pgTable(
   }),
   (table) => [
     // FK covering indexes (migration 007)
+    unique("uq_supplier_id_ws").on(table.id, table.workspaceId),
     index("idx_supplier_workspace_id").on(table.workspaceId),
     index("idx_supplier_name").on(table.name),
     index("idx_supplier_status").on(table.status),
@@ -1013,6 +1014,7 @@ export const Product = pgTable(
       .$onUpdateFn(() => sql`now()`),
   }),
   (table) => [
+    unique("uq_product_id_ws").on(table.id, table.workspaceId),
     unique("uq_product_sku").on(table.workspaceId, table.sku),
     index("idx_product_barcode").on(table.barcode),
     index("idx_product_ws_barcode").on(table.workspaceId, table.barcode),
@@ -4482,6 +4484,133 @@ export const ragAuditLogRelations = relations(ragAuditLog, ({ one }) => ({
   }),
 }));
 
+/**
+ * Learned per-workspace / per-supplier spreadsheet header & transformation profiles
+ * enabling 0-ms Zero-Template imports on recurring supplier formats (migration 037).
+ */
+export const ImportTemplateProfile = pgTable(
+  "import_template_profile",
+  (t) => ({
+    id: t.uuid().notNull().primaryKey().defaultRandom(),
+    workspaceId: t
+      .uuid()
+      .notNull()
+      .references(() => Workspace.id, { onDelete: "cascade" })
+      .default(sql`current_setting('app.workspace_id', true)::uuid`),
+    supplierId: t.uuid(),
+    targetDomain: t.varchar({ length: 32 }).notNull(),
+    profileName: t.varchar({ length: 128 }).notNull(),
+    headerFingerprint: t.varchar({ length: 64 }).notNull(),
+    sampleHeaders: t.jsonb().notNull().default([]),
+    columnMapping: t.jsonb().notNull().default({}),
+    transformRules: t.jsonb().notNull().default({}),
+    hitCount: t.integer().notNull().default(1),
+    createdBy: t.uuid().references(() => UserProfile.id, {
+      onDelete: "set null",
+    }),
+    createdAt: t
+      .timestamp({ mode: "date", withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: t
+      .timestamp({ mode: "date", withTimezone: true })
+      .defaultNow()
+      .$onUpdateFn(() => sql`now()`)
+      .notNull(),
+  }),
+  (table) => [
+    foreignKey({
+      columns: [table.supplierId, table.workspaceId],
+      foreignColumns: [Supplier.id, Supplier.workspaceId],
+      name: "import_template_profile_supplier_ws_fkey",
+    }),
+    unique("uq_import_template_profile_fingerprint").on(
+      table.workspaceId,
+      table.targetDomain,
+      table.headerFingerprint,
+    ),
+    index("idx_import_template_profile_workspace_id").on(table.workspaceId),
+    index("idx_import_template_profile_supplier_ws").on(
+      table.supplierId,
+      table.workspaceId,
+    ),
+    index("idx_import_template_profile_created_by").on(table.createdBy),
+    workspacePolicy("import_template_profile"),
+  ],
+).enableRLS();
+
+export const importTemplateProfileRelations = relations(
+  ImportTemplateProfile,
+  ({ one }) => ({
+    workspace: one(Workspace, {
+      fields: [ImportTemplateProfile.workspaceId],
+      references: [Workspace.id],
+    }),
+    supplier: one(Supplier, {
+      fields: [ImportTemplateProfile.supplierId],
+      references: [Supplier.id],
+    }),
+    author: one(UserProfile, {
+      fields: [ImportTemplateProfile.createdBy],
+      references: [UserProfile.id],
+    }),
+  }),
+);
+
+/**
+ * 1:1 multi-tenant cosine-normalized 1536-dim semantic vector index for catalog products
+ * with content_hash delta tracking and HNSW cosine similarity indexing (migration 038).
+ */
+export const ProductEmbedding = pgTable(
+  "product_embedding",
+  (t) => ({
+    productId: t.uuid().notNull().primaryKey(),
+    workspaceId: t
+      .uuid()
+      .notNull()
+      .references(() => Workspace.id, { onDelete: "cascade" })
+      .default(sql`current_setting('app.workspace_id', true)::uuid`),
+    contentHash: t.varchar({ length: 64 }).notNull(),
+    searchDocument: t.text().notNull(),
+    embedding: vector("embedding", { dimensions: 1536 }).notNull(),
+    updatedAt: t
+      .timestamp({ mode: "date", withTimezone: true })
+      .defaultNow()
+      .$onUpdateFn(() => sql`now()`)
+      .notNull(),
+  }),
+  (table) => [
+    foreignKey({
+      columns: [table.productId, table.workspaceId],
+      foreignColumns: [Product.id, Product.workspaceId],
+      name: "product_embedding_prod_ws_fkey",
+    }).onDelete("cascade"),
+    index("idx_product_embedding_prod_ws").on(
+      table.productId,
+      table.workspaceId,
+    ),
+    index("idx_product_embedding_workspace_id").on(table.workspaceId),
+    index("idx_product_embedding_hnsw")
+      .using("hnsw", table.embedding.op("vector_cosine_ops"))
+      .with({ m: 16, ef_construction: 64 }),
+    workspacePolicy("product_embedding"),
+  ],
+).enableRLS();
+
+export const productEmbeddingRelations = relations(
+  ProductEmbedding,
+  ({ one }) => ({
+    product: one(Product, {
+      fields: [ProductEmbedding.productId],
+      references: [Product.id],
+    }),
+    workspace: one(Workspace, {
+      fields: [ProductEmbedding.workspaceId],
+      references: [Workspace.id],
+    }),
+  }),
+);
+
 export type RagDocumentSelect = typeof ragDocuments.$inferSelect;
 export type RagDocumentInsert = typeof ragDocuments.$inferInsert;
 export type RagDocumentChunkSelect = typeof ragDocumentChunks.$inferSelect;
@@ -4490,3 +4619,9 @@ export type RagPiiVaultSelect = typeof ragPiiVault.$inferSelect;
 export type RagPiiVaultInsert = typeof ragPiiVault.$inferInsert;
 export type RagAuditLogSelect = typeof ragAuditLog.$inferSelect;
 export type RagAuditLogInsert = typeof ragAuditLog.$inferInsert;
+export type ImportTemplateProfileSelect =
+  typeof ImportTemplateProfile.$inferSelect;
+export type ImportTemplateProfileInsert =
+  typeof ImportTemplateProfile.$inferInsert;
+export type ProductEmbeddingSelect = typeof ProductEmbedding.$inferSelect;
+export type ProductEmbeddingInsert = typeof ProductEmbedding.$inferInsert;

@@ -83,5 +83,24 @@ export type {
   OutputDlpResult,
   SpotlightDelimiter,
 } from "./services/rag/guardrails";
+export {
+  analyzeProductImagesWithGemini,
+  compileTabularRowsDeterministically,
+  extractItemsFromDocumentWithGemini,
+  generateStructuredJson,
+  inferTabularSchema,
+  isGenerativeAiConfigured,
+  lookupSavedTemplateProfile,
+} from "./services/ai";
+export type {
+  ExtractDocumentItemsParams,
+  ExtractDocumentItemsResult,
+  VisionImageAnalysisItem,
+} from "./services/ai";
+export {
+  matchImportedItemsToCatalog,
+  syncWorkspaceProductEmbeddings,
+} from "./services/rag/product-matcher";
+export type { MatchableImportCandidate } from "./services/rag/product-matcher";
 
 export const createCaller = createCallerFactory(appRouter);

@@ -36,6 +36,7 @@ import {
 } from "@cendaro/db/schema";
 import { can } from "@cendaro/validators";
 
+import { syncWorkspaceProductEmbeddings } from "../services/rag/product-matcher";
 import { assertInWorkspace } from "../services/workspace-guard";
 import {
   createTRPCRouter,
@@ -470,6 +471,17 @@ export const catalogRouter = createTRPCRouter({
         },
       });
 
+      if (product?.id) {
+        const pid = product.id;
+        ctx.afterCommit.push(async (poolDb) => {
+          await syncWorkspaceProductEmbeddings(
+            poolDb,
+            ctx.workspace.workspaceId,
+            { productIds: [pid], maxBatchLimit: 10 },
+          );
+        });
+      }
+
       return product;
     }),
 
@@ -512,6 +524,16 @@ export const catalogRouter = createTRPCRouter({
         entityId: id,
         newValue: updates,
       });
+
+      if (updated?.id) {
+        ctx.afterCommit.push(async (poolDb) => {
+          await syncWorkspaceProductEmbeddings(
+            poolDb,
+            ctx.workspace.workspaceId,
+            { productIds: [id], maxBatchLimit: 10 },
+          );
+        });
+      }
 
       return updated;
     }),

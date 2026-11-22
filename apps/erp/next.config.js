@@ -1,6 +1,20 @@
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import { withSentryConfig } from "@sentry/nextjs/config";
 
 import { buildContentSecurityPolicy } from "./csp.mjs";
+
+/**
+ * Populated during `compiler.runAfterProductionCompile` (which `@sentry/nextjs`
+ * wraps in a Proxy and runs before `handleRunAfterProductionCompile`) with
+ * Turbopack's content-hashed `polyfill-nomodule.js` chunk from Next's
+ * `build-manifest.json`. Next ships `polyfill-nomodule.js` pre-minified without
+ * a `.map` file, and Turbopack hashes its filename without the `polyfills-`
+ * prefix that `@sentry/nextjs` ignores by default (`static/chunks/polyfills-*`).
+ *
+ * @type {string[]}
+ */
+const sentrySourcemapsIgnore = [];
 
 /** @type {import("next").NextConfig} */
 const config = {
@@ -17,10 +31,35 @@ const config = {
     "@cendaro/ui",
     "@cendaro/validators",
   ],
-  /** Tree-shake heavy packages for smaller bundles */
+  /** Cache Components (PPR) + reusable App Shell Partial Prefetching (Next 16.4+) */
   cacheComponents: true,
+  partialPrefetching: true,
+  compiler: {
+    async runAfterProductionCompile({ distDir }) {
+      sentrySourcemapsIgnore.length = 0;
+      try {
+        const raw = await readFile(
+          path.join(distDir, "build-manifest.json"),
+          "utf8",
+        );
+        /** @type {{ polyfillFiles?: unknown }} */
+        const manifest = JSON.parse(raw);
+        if (Array.isArray(manifest.polyfillFiles)) {
+          for (const relPath of manifest.polyfillFiles) {
+            if (typeof relPath === "string") {
+              const base = path.posix.basename(relPath.replace(/\\/g, "/"));
+              if (base) sentrySourcemapsIgnore.push(`**/${base}`);
+            }
+          }
+        }
+      } catch {
+        // Non-fatal: if Next changes manifest layout, Sentry falls back to defaults.
+      }
+    },
+  },
   experimental: {
     globalNotFound: true,
+    /** Tree-shake heavy packages for smaller bundles */
     optimizePackageImports: [
       "@cendaro/ui",
       "@dnd-kit/core",
@@ -131,7 +170,11 @@ export default withSentryConfig(config, {
   // env var). Local and CI builds without it skip the upload instead of
   // failing.
   authToken: process.env.SENTRY_AUTH_TOKEN,
-  sourcemaps: { disable: !process.env.SENTRY_AUTH_TOKEN },
+  sourcemaps: {
+    disable: !process.env.SENTRY_AUTH_TOKEN,
+    deleteSourcemapsAfterUpload: true,
+    ignore: sentrySourcemapsIgnore,
+  },
   widenClientFileUpload: true,
   // Browser events go through /monitoring on our own origin: ad blockers
   // don't drop them and CSP 'self' covers them. The route is public in

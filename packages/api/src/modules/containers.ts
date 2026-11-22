@@ -26,11 +26,18 @@ import {
 import { can, roundMoney2 } from "@cendaro/validators";
 
 import {
+  chunkPackingList,
+  persistPreparedIngest,
+  prepareIngestPayload,
+  syncWorkspaceProductEmbeddings,
+} from "../services/rag";
+import {
   assertAllInWorkspace,
   assertInWorkspace,
 } from "../services/workspace-guard";
 import {
   createTRPCRouter,
+  runInWorkspaceRls,
   wsPermissionProcedure,
   wsReadPermissionProcedure,
 } from "../trpc";
@@ -762,7 +769,10 @@ export const containerRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       // Verify container belongs to current workspace
       const [container] = await ctx.db
-        .select({ id: Container.id })
+        .select({
+          id: Container.id,
+          containerNumber: Container.containerNumber,
+        })
         .from(Container)
         .where(
           and(
@@ -863,6 +873,77 @@ export const containerRouter = createTRPCRouter({
         entity: "container",
         entityId: input.containerId,
         newValue: { total: input.items.length, created, linked, unmatched },
+      });
+
+      const createdProductIds = resolvedItems.flatMap((r) =>
+        r.item.createProduct && r.productId !== null ? [r.productId] : [],
+      );
+      const containerNum = container.containerNumber;
+
+      ctx.afterCommit.push(async (poolDb) => {
+        if (
+          typeof (poolDb as unknown as { transaction?: unknown })
+            .transaction !== "function"
+        ) {
+          return;
+        }
+        if (createdProductIds.length > 0) {
+          await syncWorkspaceProductEmbeddings(
+            poolDb,
+            ctx.workspace.workspaceId,
+            { productIds: createdProductIds, maxBatchLimit: 200 },
+          );
+        }
+        try {
+          const chunked = chunkPackingList({
+            header: {
+              containerNumber: containerNum,
+              notes: `Contenedor ID: ${input.containerId}`,
+            },
+            items: input.items.map((item, idx) => ({
+              sku: item.skuHint ?? `ITEM-${idx + 1}`,
+              description: item.categoryHint
+                ? `${item.translatedName} (${item.categoryHint})`
+                : item.translatedName,
+              translatedName: item.translatedName,
+              chineseName:
+                item.originalName !== item.translatedName
+                  ? item.originalName
+                  : undefined,
+              quantity: item.quantity,
+              unitCostFob: item.unitCost ?? undefined,
+              weightKg: item.weightKg ?? undefined,
+            })),
+          });
+          const ragInput = {
+            documentType: "packing_list" as const,
+            documentNumber: containerNum,
+            title: `Packing List Contenedor ${containerNum}`,
+            metadata: chunked.metadata,
+            chunks: chunked.chunks,
+          };
+          const prepared = await prepareIngestPayload(
+            ragInput,
+            ctx.workspace.workspaceId,
+          );
+          await runInWorkspaceRls(
+            poolDb,
+            ctx.workspace.workspaceId,
+            (tx) =>
+              persistPreparedIngest(
+                tx as unknown as Parameters<typeof persistPreparedIngest>[0],
+                {
+                  workspace: { workspaceId: ctx.workspace.workspaceId },
+                  user: { id: ctx.user.id },
+                },
+                ragInput,
+                prepared,
+              ),
+            { statementTimeoutMs: 15_000 },
+          );
+        } catch {
+          // Best-effort RAG indexing; never fail an already-committed container confirmation
+        }
       });
 
       return {

@@ -226,14 +226,16 @@ function RelatedModules({ page }: { page: FeaturePageContent }) {
             {page.modules.map((module) => {
               const info = MODULES[module];
               const slug = MODULE_FEATURE[module];
+              const isFeatureRoute = Boolean(slug && slug !== page.slug);
               const href =
-                slug && slug !== page.slug
+                isFeatureRoute && slug
                   ? featureHref(slug)
                   : `/funciones#${module}`;
               return (
                 <li key={module} className="border-border border-r border-b">
                   <Link
                     href={href}
+                    prefetch={isFeatureRoute ? true : "auto"}
                     className="group hover:bg-muted flex h-full flex-col gap-4 p-5 transition-colors duration-(--motion-micro)"
                   >
                     <span className="flex items-center justify-between">

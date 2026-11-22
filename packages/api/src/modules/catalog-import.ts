@@ -24,6 +24,7 @@ import {
 } from "@cendaro/db/schema";
 
 import type { createTRPCContext } from "../trpc";
+import { syncWorkspaceProductEmbeddings } from "../services/rag/product-matcher";
 import {
   createTRPCRouter,
   HEAVY_STATEMENT_TIMEOUT_MS,
@@ -1437,6 +1438,16 @@ export const catalogImportRouter = createTRPCRouter({
           failed,
         },
       });
+
+      if (inserted > 0 || updated > 0) {
+        ctx.afterCommit.push(async (poolDb) => {
+          await syncWorkspaceProductEmbeddings(
+            poolDb,
+            ctx.workspace.workspaceId,
+            { maxBatchLimit: 300 },
+          );
+        });
+      }
 
       return {
         inserted,

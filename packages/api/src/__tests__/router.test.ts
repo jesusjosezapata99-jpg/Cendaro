@@ -113,15 +113,22 @@ describe("appRouter", () => {
     expect(procedures).toHaveProperty("integrations.listMlAccounts");
     expect(procedures).toHaveProperty("integrations.listIntegrationFailures");
     expect(procedures).toHaveProperty("container.search");
+
+    // Zero-Template AI Import & Semantic RAG Matching
+    expect(procedures).toHaveProperty("aiImport.listTemplateProfiles");
+    expect(procedures).toHaveProperty("aiImport.inferTabularSchema");
+    expect(procedures).toHaveProperty("aiImport.extractDocumentItems");
+    expect(procedures).toHaveProperty("aiImport.matchCatalogItems");
+    expect(procedures).toHaveProperty("aiImport.saveTemplateProfile");
   });
 
   it("has the correct number of top-level routers", () => {
-    // 23 routers: users, audit, approvals, catalog, catalogImport, inventory, inventoryImport, container, pricing, quotes, sales, creditNotes, fiscal, payments, receivables, reporting, vendor, integrations, dashboard, search, health, workspace, rag
+    // 24 routers: users, audit, approvals, catalog, catalogImport, inventory, inventoryImport, container, aiImport, pricing, quotes, sales, creditNotes, fiscal, payments, receivables, reporting, vendor, integrations, dashboard, search, health, workspace, rag
     const topLevel = new Set<string>();
     for (const key of Object.keys(appRouter._def.procedures)) {
       const router = key.split(".")[0];
       if (router) topLevel.add(router);
     }
-    expect(topLevel.size).toBe(23);
+    expect(topLevel.size).toBe(24);
   });
 });

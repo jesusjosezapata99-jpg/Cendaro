@@ -45,6 +45,14 @@ export const env = createEnv({
       (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
       z.string().min(1).optional(),
     ),
+    GEMINI_IMPORT_MODEL: z.preprocess(
+      (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+      z.string().min(1).optional(),
+    ),
+    GEMINI_FALLBACK_MODEL: z.preprocess(
+      (v) => (typeof v === "string" && v.trim() === "" ? undefined : v),
+      z.string().min(1).optional(),
+    ),
     RAG_EMBEDDING_PROVIDER: z.enum(["gemini", "openai", "local"]).optional(),
     ENABLE_RAG_GUARDRAILS: z.enum(["true", "false"]).optional(),
     // Cloudflare Turnstile CAPTCHA server secret (F9.1). Optional in local/CI;

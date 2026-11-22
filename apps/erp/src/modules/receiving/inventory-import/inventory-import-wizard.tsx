@@ -1,11 +1,9 @@
 "use client";
 
 /**
- * Cendaro — Inventory Import Wizard
+ * Cendaro — Inventory Import Wizard (Zero-Template Multi-File + Semantic SKU Resolution)
  *
  * Main orchestrator connecting all 7 steps via state machine.
- *
- * PRD: FEATURE_PRD_INVENTORY_IMPORT.md §15, §20, §22, §23
  */
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
@@ -16,11 +14,13 @@ import type { ImportMode } from "@cendaro/api";
 import { Icons } from "@cendaro/ui/icons";
 
 import type { WarehouseProduct } from "./lib/inventory-template-builder";
+import type { SemanticInventoryResolution } from "./lib/inventory-validators";
 import { useCurrentUser } from "~/hooks/use-current-user";
 import { useTRPC } from "~/trpc/client";
 import { useInventoryImport } from "./hooks/use-inventory-import";
 import { useParseInventoryFile } from "./hooks/use-parse-inventory-file";
 import { useValidateInventory } from "./hooks/use-validate-inventory";
+import { normalizeSku } from "./lib/inventory-normalizers";
 import { downloadInventoryTemplate } from "./lib/inventory-template-builder";
 import { validateInitializeRows } from "./lib/inventory-validators";
 import { CatalogPreview } from "./steps/catalog-preview";
@@ -30,8 +30,6 @@ import { HeaderMapping } from "./steps/header-mapping";
 import { ModeSelect } from "./steps/mode-select";
 import { ResultSummary } from "./steps/result-summary";
 import { ValidationPreview } from "./steps/validation-preview";
-
-// ── Step indicator ───────────────────────────────
 
 const ALL_STEPS = [
   { num: 1, label: "Modo" },
@@ -43,10 +41,6 @@ const ALL_STEPS = [
   { num: 7, label: "Resultado" },
 ] as const;
 
-/**
- * Dynamic step indicator — hides "Catálogo" (step 5) for Replace/Adjust modes.
- * Completed steps are clickable to navigate back.
- */
 function StepIndicator({
   current,
   mode,
@@ -56,7 +50,6 @@ function StepIndicator({
   mode: ImportMode | null;
   onStepClick: (step: number) => void;
 }) {
-  // Filter out "Catálogo" (step 5) unless mode is "initialize"
   const steps =
     mode === "initialize" ? ALL_STEPS : ALL_STEPS.filter((s) => s.num !== 5);
 
@@ -66,18 +59,20 @@ function StepIndicator({
         const isDone = current > s.num;
         const isActive = current === s.num;
 
-        const sharedClasses = `flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-all`;
+        const sharedClasses =
+          "flex items-center gap-1.5 rounded-none px-3 py-1.5 text-xs font-medium transition-all";
 
         const colorClasses = isActive
-          ? "bg-primary text-white"
+          ? "bg-primary text-primary-foreground"
           : isDone
-            ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+            ? "bg-status-success-bg text-status-success-fg"
             : "bg-muted text-muted-foreground";
 
         return (
           <div key={s.num} className="flex items-center gap-1">
             {isDone ? (
               <button
+                type="button"
                 onClick={() => onStepClick(s.num)}
                 className={`${sharedClasses} ${colorClasses} cursor-pointer hover:scale-105 active:scale-95`}
                 title={`Volver a ${s.label}`}
@@ -98,7 +93,7 @@ function StepIndicator({
             {i < steps.length - 1 && (
               <div
                 className={`h-px w-4 transition-colors sm:w-8 ${
-                  current > s.num ? "bg-emerald-400" : "bg-border"
+                  current > s.num ? "bg-status-success-fg" : "bg-border"
                 }`}
               />
             )}
@@ -109,8 +104,6 @@ function StepIndicator({
   );
 }
 
-// ── Wizard ───────────────────────────────────────
-
 interface InventoryImportWizardProps {
   warehouseId: string;
 }
@@ -120,19 +113,15 @@ export function InventoryImportWizard({
 }: InventoryImportWizardProps) {
   const trpc = useTRPC();
   const { profile } = useCurrentUser();
-  // Mirrors inventoryImport: overwriting locked stock and resetting a
-  // warehouse are owner/admin only (the server rejects anyone else).
   const canOverrideStock =
     profile?.role === "owner" || profile?.role === "admin";
 
-  // Fetch warehouse details
   const { data: warehouse } = useQuery(
     trpc.inventory.getWarehouseDetail.queryOptions({ id: warehouseId }),
   );
 
   const warehouseName = warehouse?.name ?? "Almacén";
 
-  // State machine
   const {
     state,
     selectMode,
@@ -151,13 +140,11 @@ export function InventoryImportWizard({
     restoreState,
   } = useInventoryImport(warehouseId, warehouseName);
 
-  // ── Session persistence ─────────────────────────
-
   const STORAGE_KEY = `cendaro-import-wizard-${warehouseId}`;
   const hasRestored = useRef(false);
   const [wasRestored, setWasRestored] = useState(false);
+  const [isResolvingSemantic, setIsResolvingSemantic] = useState(false);
 
-  // Restore state from sessionStorage on mount
   useEffect(() => {
     if (hasRestored.current) return;
     hasRestored.current = true;
@@ -175,7 +162,6 @@ export function InventoryImportWizard({
     }
   }, [STORAGE_KEY, restoreState]);
 
-  // Persist state to sessionStorage on every change
   useEffect(() => {
     if (state.step <= 1) return;
     try {
@@ -193,27 +179,39 @@ export function InventoryImportWizard({
     }
   }, [state, STORAGE_KEY]);
 
-  // Parse hook
   const {
     error: parseError,
     isParsing,
-    parseFile,
+    parseFiles,
     reset: resetParser,
   } = useParseInventoryFile();
 
-  // Validate hook
   const { validate } = useValidateInventory();
 
-  // Fetch products for validation (when entering step 3)
   const { data: products } = useQuery(
     trpc.inventoryImport.getWarehouseProducts.queryOptions({ warehouseId }),
   );
+
+  // Zero-Template AI & Semantic SKU mutations
+  const matchCatalogMutation = useMutation(
+    trpc.aiImport.matchCatalogItems.mutationOptions(),
+  );
+  const saveProfileMutation = useMutation(
+    trpc.aiImport.saveTemplateProfile.mutationOptions(),
+  );
+
+  const persistLearnedProfiles = () => {
+    for (const profile of state.learnedProfilesToSave) {
+      saveProfileMutation.mutate(profile);
+    }
+  };
 
   // Commit mutation (Replace/Adjust)
   const commitMutation = useMutation(
     trpc.inventoryImport.commit.mutationOptions({
       onSuccess: (result) => {
         commitComplete(result);
+        persistLearnedProfiles();
         if (result.failed === 0) {
           toast.success(
             `Importación completada: ${result.committed} productos actualizados`,
@@ -237,6 +235,7 @@ export function InventoryImportWizard({
     trpc.inventoryImport.initializeCommit.mutationOptions({
       onSuccess: (result) => {
         initializeComplete(result);
+        persistLearnedProfiles();
         toast.success(
           `Inicialización completada: ${result.brandsCreated} marcas, ${result.productsCreated} productos, ${result.stockEntries} stock`,
         );
@@ -251,8 +250,8 @@ export function InventoryImportWizard({
 
   // ── Handlers ─────────────────────────
 
-  const handleFileSelect = async (file: File) => {
-    const result = await parseFile(file);
+  const handleFilesSelect = async (files: File[]) => {
+    const result = await parseFiles(files);
     if (result) {
       parseComplete({
         headers: result.headers,
@@ -260,18 +259,27 @@ export function InventoryImportWizard({
         headerMap: result.headerMap,
         unmapped: result.unmapped,
         sheetName: result.sheetName,
+        filenameLabel: result.filenameLabel,
+        aiSummary: result.aiSummary,
+        learnedProfilesToSave: result.learnedProfilesToSave,
+        isMultiSchemaBatch: result.isMultiSchemaBatch,
       });
     }
   };
 
-  const handleConfirmMapping = () => {
+  const handleConfirmMapping = async () => {
     if (!state.mode) return;
 
     if (state.mode === "initialize") {
-      // Initialize mode: validate with Initialize validator
-      const result = validateInitializeRows(state.rawRows, state.headerMap);
+      const existingSkus = products
+        ? new Set(products.map((p) => p.sku.toUpperCase()))
+        : undefined;
+      const result = validateInitializeRows(
+        state.rawRows,
+        state.headerMap,
+        existingSkus,
+      );
 
-      // Build catalog preview
       const brandSet = new Map<string, boolean>();
       const productList: {
         sku: string;
@@ -283,13 +291,13 @@ export function InventoryImportWizard({
       for (const row of result.validatedRows) {
         if (row.status === "error") continue;
         if (!brandSet.has(row.brand)) {
-          brandSet.set(row.brand, true); // isNew (we don't know for sure yet, treat all as new in preview)
+          brandSet.set(row.brand, true);
         }
         productList.push({
           sku: row.sku,
           name: row.productName,
           brand: row.brand,
-          isNew: true,
+          isNew: !(existingSkus?.has(row.sku) ?? false),
         });
       }
 
@@ -306,33 +314,120 @@ export function InventoryImportWizard({
         result.stats,
         catalogPreview,
       );
-    } else {
-      // Replace/Adjust mode: original validation
-      if (!products) return;
-
-      const validated = validate(
-        state.rawRows,
-        state.headerMap,
-        products,
-        state.mode,
-      );
-
-      const stats = {
-        total: validated.length,
-        valid: validated.filter((r) => r.status === "valid").length,
-        warnings: validated.filter((r) => r.status === "warning").length,
-        errors: validated.filter((r) => r.status === "error").length,
-        skipped: state.rawRows.length - validated.length,
-      };
-
-      validationComplete(validated, stats);
+      return;
     }
+
+    // Replace / Adjust mode: resolve missing/unmatched SKUs via Semantic RAG (`matchCatalogItems`)
+    if (!products) return;
+
+    const knownSkuSet = new Set(products.map((p) => p.sku.toUpperCase()));
+    const semanticResolutions = new Map<number, SemanticInventoryResolution>();
+
+    const unresolvedTargets: {
+      rowIdx: number;
+      sku?: string;
+      name: string;
+      barcode?: string;
+      brandRaw?: string;
+    }[] = [];
+
+    for (let i = 0; i < state.rawRows.length; i++) {
+      const row = state.rawRows[i];
+      if (!row) continue;
+
+      const rawSku =
+        state.headerMap.sku !== undefined
+          ? normalizeSku(String(row[state.headerMap.sku] ?? ""))
+          : "";
+      if (rawSku && knownSkuSet.has(rawSku)) {
+        continue;
+      }
+
+      const prodName =
+        state.headerMap.producto !== undefined
+          ? String(row[state.headerMap.producto] ?? "").trim()
+          : "";
+      const barcode =
+        state.headerMap.barcode !== undefined
+          ? String(row[state.headerMap.barcode] ?? "").trim()
+          : "";
+      const brandRaw =
+        state.headerMap.marca !== undefined
+          ? String(row[state.headerMap.marca] ?? "").trim()
+          : "";
+
+      const lookupName = prodName || rawSku || barcode;
+      if (lookupName) {
+        unresolvedTargets.push({
+          rowIdx: i,
+          sku: rawSku || undefined,
+          name: lookupName.slice(0, 512),
+          barcode: barcode ? barcode.slice(0, 128) : undefined,
+          brandRaw: brandRaw ? brandRaw.slice(0, 256) : undefined,
+        });
+      }
+    }
+
+    if (unresolvedTargets.length > 0) {
+      setIsResolvingSemantic(true);
+      try {
+        const BATCH_SIZE = 1500;
+        for (
+          let start = 0;
+          start < unresolvedTargets.length;
+          start += BATCH_SIZE
+        ) {
+          const slice = unresolvedTargets.slice(start, start + BATCH_SIZE);
+          const matches = await matchCatalogMutation.mutateAsync({
+            targetDomain: "inventory",
+            items: slice.map((u) => ({
+              sku: u.sku,
+              skuAutoGenerated: !u.sku,
+              name: u.name,
+              barcode: u.barcode,
+              brandRaw: u.brandRaw,
+            })),
+          });
+          for (const m of matches) {
+            const target = slice[m.rowIndex];
+            if (!target) continue;
+            semanticResolutions.set(target.rowIdx, {
+              classification: m.classification,
+              matchedSku: m.matchedProductSku,
+              matchedName: m.matchedProductName,
+              confidence: m.confidence,
+            });
+          }
+        }
+      } catch {
+        // Degrade gracefully to deterministic exact-SKU lookup
+      } finally {
+        setIsResolvingSemantic(false);
+      }
+    }
+
+    const validated = validate(
+      state.rawRows,
+      state.headerMap,
+      products,
+      state.mode,
+      semanticResolutions,
+    );
+
+    const stats = {
+      total: validated.length,
+      valid: validated.filter((r) => r.status === "valid").length,
+      warnings: validated.filter((r) => r.status === "warning").length,
+      errors: validated.filter((r) => r.status === "error").length,
+      skipped: state.rawRows.length - validated.length,
+    };
+
+    validationComplete(validated, stats);
   };
 
   const handleConfirmImport = () => {
     if (!state.mode) return;
 
-    // Filter rows: valid + (locked if forceLocked)
     const rowsToCommit = state.validatedRows.filter(
       (r) =>
         r.status === "valid" ||
@@ -355,7 +450,7 @@ export function InventoryImportWizard({
         productId: r.productId,
         currentQuantity: r.currentQuantity,
       })),
-      filename: state.file?.name ?? "import.xlsx",
+      filename: state.filenameLabel || (state.file?.name ?? "import.xlsx"),
       idempotencyKey: state.idempotencyKey,
       forceLocked: state.forceLocked,
     });
@@ -384,14 +479,13 @@ export function InventoryImportWizard({
         presentacion: r.presentacion,
         totalUnits: r.totalUnits,
       })),
-      filename: state.file?.name ?? "import.xlsx",
+      filename: state.filenameLabel || (state.file?.name ?? "import.xlsx"),
       idempotencyKey: state.idempotencyKey,
     });
   };
 
   const handleDownloadTemplate = () => {
     if (state.mode === "initialize") {
-      // Initialize mode: empty template, no products needed
       downloadInventoryTemplate("initialize");
       return;
     }
@@ -419,8 +513,6 @@ export function InventoryImportWizard({
     sessionStorage.removeItem(STORAGE_KEY);
     setWasRestored(false);
   };
-
-  // ── Render ───────────────────────────────────
 
   return (
     <div className="space-y-6 py-4 lg:py-8" role="tabpanel">
@@ -450,8 +542,9 @@ export function InventoryImportWizard({
         </h1>
         {state.step < 7 && (
           <button
+            type="button"
             onClick={handleReset}
-            disabled={state.isProcessing}
+            disabled={state.isProcessing || isParsing || isResolvingSemantic}
             className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-sm transition-colors disabled:opacity-50"
           >
             <Icons.RestartAlt className="size-4.5" />
@@ -474,7 +567,7 @@ export function InventoryImportWizard({
       {/* Global error */}
       {state.error && (
         <div className="border-destructive/30 bg-destructive/10 text-destructive flex items-center gap-2 border px-4 py-3 text-sm">
-          <Icons.Error className="size-4.5" />
+          <Icons.Error className="size-4.5 shrink-0" />
           {state.error}
         </div>
       )}
@@ -487,6 +580,7 @@ export function InventoryImportWizard({
             Sesión restaurada — los datos de tu archivo ya están cargados.
           </div>
           <button
+            type="button"
             onClick={() => setWasRestored(false)}
             className="text-status-warning-fg hover:text-foreground transition-colors"
           >
@@ -508,7 +602,7 @@ export function InventoryImportWizard({
         {state.step === 2 && state.mode && (
           <FileUpload
             mode={state.mode}
-            onFileSelect={handleFileSelect}
+            onFilesSelect={handleFilesSelect}
             isParsing={isParsing}
             error={parseError?.message ?? null}
             onDownloadTemplate={handleDownloadTemplate}
@@ -523,6 +617,9 @@ export function InventoryImportWizard({
             sheetName={state.sheetName}
             totalRows={state.rawRows.length + 1}
             mode={state.mode}
+            aiSummary={state.aiSummary}
+            isMultiSchemaBatch={state.isMultiSchemaBatch}
+            isResolvingSemantic={isResolvingSemantic}
             onUpdateMap={updateHeaderMap}
             onConfirm={handleConfirmMapping}
           />
@@ -538,10 +635,8 @@ export function InventoryImportWizard({
             mode={state.mode}
             onProceed={() => {
               if (state.mode === "initialize") {
-                // Initialize: go to Catalog Preview (step 5)
                 goToStep(5);
               } else {
-                // Replace/Adjust: skip catalog, go to Dry-Run Summary (step 6)
                 goToStep(6);
               }
             }}
@@ -564,7 +659,6 @@ export function InventoryImportWizard({
         {state.step === 6 &&
           state.mode &&
           (state.mode === "initialize" ? (
-            // Initialize mode: dry-run using initializeRows
             <DryRunSummary
               validatedRows={state.validatedRows}
               initializeRows={state.initializeRows}
@@ -605,7 +699,9 @@ export function InventoryImportWizard({
               }}
               warehouseId={warehouseId}
               warehouseName={warehouseName}
-              filename={state.file?.name ?? "import.xlsx"}
+              filename={
+                state.filenameLabel || (state.file?.name ?? "import.xlsx")
+              }
               mode={state.mode}
               onNewImport={handleReset}
             />
@@ -614,7 +710,9 @@ export function InventoryImportWizard({
               result={state.commitResult}
               warehouseId={warehouseId}
               warehouseName={warehouseName}
-              filename={state.file?.name ?? "import.xlsx"}
+              filename={
+                state.filenameLabel || (state.file?.name ?? "import.xlsx")
+              }
               mode={state.mode}
               onNewImport={handleReset}
             />

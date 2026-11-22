@@ -810,7 +810,7 @@ interface EnabledModuleContext {
  * Throws FORBIDDEN unless `module` is enabled for the workspace's plan.
  * Core modules (dashboard, users, settings, audit) are always enabled.
  */
-async function assertModuleEnabled(
+export async function assertModuleEnabled(
   ctx: EnabledModuleContext,
   module: ErpModule,
 ): Promise<void> {

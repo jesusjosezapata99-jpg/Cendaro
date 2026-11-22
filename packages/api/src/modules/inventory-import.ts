@@ -23,6 +23,7 @@ import { can } from "@cendaro/validators";
 
 import type { createTRPCContext, UserRole } from "../trpc";
 import type { LedgerSnapshot } from "./inventory-import-plan";
+import { syncWorkspaceProductEmbeddings } from "../services/rag/product-matcher";
 import {
   createTRPCRouter,
   HEAVY_STATEMENT_TIMEOUT_MS,
@@ -848,6 +849,14 @@ export const inventoryImportRouter = createTRPCRouter({
           ...summary,
         },
       });
+
+      if (summary.productsCreated > 0) {
+        ctx.afterCommit.push(async (poolDb) => {
+          await syncWorkspaceProductEmbeddings(poolDb, workspaceId, {
+            maxBatchLimit: 300,
+          });
+        });
+      }
 
       return { ...summary, errors, auditLogId };
     }),

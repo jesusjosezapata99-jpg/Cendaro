@@ -128,6 +128,7 @@ function ModuleCell({ entry }: { entry: ModuleEntry }) {
   return (
     <Link
       href={entry.href}
+      prefetch={true}
       className="group hover:bg-muted flex h-full gap-4 p-5 transition-colors duration-(--motion-micro)"
     >
       {body}

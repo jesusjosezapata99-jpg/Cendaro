@@ -1,17 +1,16 @@
 /**
- * Cendaro — Inventory Import Validators
+ * Cendaro — Inventory Import Validators (Zero-Template + Semantic SKU Ready)
  *
- * Row-level validation logic for inventory import data.
- * Produces ValidatedRow[] with per-row status/message.
- *
- * Packaging calculation:
- * - Scenario A (with inner boxes): total = Bultos × Cajas/Bulto × Unid/Caja
- * - Scenario B (no inner boxes):   total = Bultos × Unid/Caja
- *
- * PRD: FEATURE_PRD_INVENTORY_IMPORT.md §11, Appendix B
+ * Row-level validation logic for inventory import data across:
+ *   • Replace / Adjust modes: supports packaging (`bultos × cajas × unid`) OR direct
+ *     unit counts (`quantity` / `stockTotal`), plus semantic SKU overrides resolved
+ *     via `aiImport.matchCatalogItems` when a count sheet lacks internal SKUs.
+ *   • Initialize mode: supports editable deterministic SKU autogeneration (`AUTO-...`)
+ *     and default `"General"` brand fallback when supplier/warehouse files omit them.
  */
 
 import type { ImportMode, ValidatedRow } from "@cendaro/api";
+import { suggestDeterministicSku } from "@cendaro/validators";
 
 import {
   normalizeBrandName,
@@ -22,8 +21,6 @@ import {
   normalizeSku,
   normalizeUnidPerCaja,
 } from "./inventory-normalizers";
-
-// ── Error Codes ──────────────────────────────────
 
 export const ERROR_CODES = {
   PRODUCT_NOT_FOUND: "PRODUCT_NOT_FOUND",
@@ -42,13 +39,10 @@ export const ERROR_CODES = {
   UNKNOWN_COLUMN: "UNKNOWN_COLUMN",
   VALUE_TRUNCATED: "VALUE_TRUNCATED",
   IDEMPOTENCY_CONFLICT: "IDEMPOTENCY_CONFLICT",
-  // Initialize mode
   BRAND_EMPTY: "BRAND_EMPTY",
   PRODUCT_NAME_EMPTY: "PRODUCT_NAME_EMPTY",
   SKU_ALREADY_EXISTS: "SKU_ALREADY_EXISTS",
 } as const;
-
-// ── Product lookup map type ──────────────────────
 
 export interface ProductInfo {
   id: string;
@@ -62,46 +56,36 @@ export interface ProductInfo {
   isLocked: boolean;
 }
 
-// ── File-level validator ─────────────────────────
+export interface SemanticInventoryResolution {
+  classification: "matched_existing" | "possible_duplicate" | "new_product";
+  matchedSku: string | null;
+  matchedName: string | null;
+  confidence: number;
+}
 
-/** Max file size in bytes (10 MB) */
 export const MAX_FILE_SIZE = 10 * 1024 * 1024;
-
-/** Max data rows (excluding header) */
+export const MAX_PDF_FILE_SIZE = 7 * 1024 * 1024;
 export const MAX_ROW_COUNT = 10_000;
 
-/** Accepted file extensions */
-export const ACCEPTED_EXTENSIONS = [".xlsx", ".xls", ".csv"] as const;
+export const ACCEPTED_EXTENSIONS = [".xlsx", ".xls", ".csv", ".pdf"] as const;
 
-/** Accepted MIME types */
 export const ACCEPTED_MIME_TYPES = [
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   "application/vnd.ms-excel",
   "text/csv",
   "application/csv",
+  "application/pdf",
 ] as const;
 
-/** Validate a file before parsing */
 export function validateFile(file: File): {
   valid: boolean;
   code?: string;
   message?: string;
 } {
-  // Empty file (§21.1)
   if (file.size === 0) {
     return { valid: false, code: "EMPTY_FILE", message: "Archivo vacío" };
   }
 
-  // File too large (FR-2)
-  if (file.size > MAX_FILE_SIZE) {
-    return {
-      valid: false,
-      code: ERROR_CODES.FILE_TOO_LARGE,
-      message: "Archivo excede 10 MB",
-    };
-  }
-
-  // File type check
   const ext = "." + (file.name.split(".").pop()?.toLowerCase() ?? "");
   if (
     !ACCEPTED_EXTENSIONS.includes(ext as (typeof ACCEPTED_EXTENSIONS)[number])
@@ -109,141 +93,175 @@ export function validateFile(file: File): {
     return {
       valid: false,
       code: "INVALID_TYPE",
-      message: `Tipo de archivo no soportado: ${ext}`,
+      message: `Tipo de archivo no soportado (${file.name}): ${ext}`,
+    };
+  }
+
+  if (ext === ".pdf" && file.size > MAX_PDF_FILE_SIZE) {
+    return {
+      valid: false,
+      code: ERROR_CODES.FILE_TOO_LARGE,
+      message: `El PDF "${file.name}" excede 7 MB`,
+    };
+  }
+
+  if (file.size > MAX_FILE_SIZE) {
+    return {
+      valid: false,
+      code: ERROR_CODES.FILE_TOO_LARGE,
+      message: `El archivo "${file.name}" excede 10 MB`,
     };
   }
 
   return { valid: true };
 }
 
-// ── Packaging Calculation ────────────────────────
-
-/**
- * Calculate total units from packaging breakdown.
- *
- * Scenario A (with inner boxes): total = bultos × cajasPerBulk × unitsPerBox
- * Scenario B (no inner boxes):   total = bultos × unitsPerBox
- */
 export function calculateTotalUnits(
   bultos: number,
   cajasPerBulk: number,
   unitsPerBox: number,
 ): number {
   if (cajasPerBulk > 0) {
-    // Scenario A: with inner boxes
     return bultos * cajasPerBulk * unitsPerBox;
   }
-  // Scenario B: no inner boxes, units directly in bulto
   return bultos * unitsPerBox;
 }
 
-// ── Row-level validation ─────────────────────────
+function extractDirectQuantityCell(
+  row: string[],
+  headerMap: Record<string, number>,
+): string {
+  if (headerMap.quantity !== undefined) {
+    return String(row[headerMap.quantity] ?? "").trim();
+  }
+  if (headerMap.bultos === undefined && headerMap.stockTotal !== undefined) {
+    return String(row[headerMap.stockTotal] ?? "").trim();
+  }
+  return "";
+}
 
 /**
- * Validate all data rows against the product map.
- *
- * Pipeline:
- * 1. Normalize values (SKU, bultos, cajas/bulto, presentación)
- * 2. Resolve SKU against productMap
- * 3. Calculate total units from packaging
- * 4. Check lock status
- * 5. Detect duplicate SKUs
- * 6. Enhanced error messages with product name + row
- *
- * @param dataRows - Parsed spreadsheet data (array of arrays, NO header row)
- * @param headerMap - Map of field name → column index
- * @param productMap - Map of UPPERCASE SKU → ProductInfo
- * @param mode - Import mode (replace | adjust)
+ * Validate all data rows against the product map (Replace / Adjust modes).
  */
 export function validateRows(
   dataRows: string[][],
   headerMap: Record<string, number>,
   productMap: Map<string, ProductInfo>,
   mode: ImportMode,
+  semanticResolutions?: Map<number, SemanticInventoryResolution>,
 ): { validatedRows: ValidatedRow[]; stats: ValidationStats } {
   const validatedRows: ValidatedRow[] = [];
-  const seenSKUs = new Map<string, number>(); // SKU → index in validatedRows
+  const seenSKUs = new Map<string, number>();
 
   let validCount = 0;
   let warningCount = 0;
   let errorCount = 0;
   let skippedCount = 0;
 
+  const hasBultosCol = headerMap.bultos !== undefined;
+
   for (let i = 0; i < dataRows.length; i++) {
     const row = dataRows[i];
     if (!row) continue;
-    const rowNumber = i + 2; // 1-indexed, +1 for header row (accounts for legend rows in template)
+    const rowNumber = i + 2;
 
-    // Extract raw values
     const rawSku =
       headerMap.sku !== undefined ? String(row[headerMap.sku] ?? "") : "";
+    const rawProductName =
+      headerMap.producto !== undefined
+        ? String(row[headerMap.producto] ?? "").trim()
+        : "";
+    const rawBarcode =
+      headerMap.barcode !== undefined
+        ? String(row[headerMap.barcode] ?? "").trim()
+        : "";
     const rawBultos =
       headerMap.bultos !== undefined ? String(row[headerMap.bultos] ?? "") : "";
+    const rawDirectQty = extractDirectQuantityCell(row, headerMap);
+    const rawCountInput =
+      hasBultosCol && rawBultos.trim() ? rawBultos : rawDirectQty;
+    const usingDirectUnits =
+      !(hasBultosCol && rawBultos.trim()) && Boolean(rawDirectQty);
+
     const rawCajas =
       headerMap.cajasPerBulk !== undefined
         ? String(row[headerMap.cajasPerBulk] ?? "")
+        : "";
+    const rawUnidPerCaja =
+      headerMap.unidPerCaja !== undefined
+        ? String(row[headerMap.unidPerCaja] ?? "")
         : "";
     const rawPresentacion =
       headerMap.presentacion !== undefined
         ? String(row[headerMap.presentacion] ?? "")
         : "";
 
-    // Normalize
-    const sku = normalizeSku(rawSku);
-    const bultosResult = normalizeBultos(rawBultos);
+    let sku = normalizeSku(rawSku);
+    const countResult = normalizeBultos(rawCountInput);
     const cajasResult = normalizeCajasPerBulk(rawCajas);
+    const unidResult = normalizeUnidPerCaja(rawUnidPerCaja);
     const presentacionResult = normalizePresentacion(rawPresentacion);
 
-    // Skip empty rows (no SKU and no bultos)
-    if (!sku && !rawBultos.trim()) {
+    if (!sku && !rawProductName && !rawBarcode && !rawCountInput.trim()) {
       skippedCount++;
       continue;
     }
 
-    // Resolve product
-    const product = productMap.get(sku);
+    let product = sku ? productMap.get(sku) : undefined;
+    let semanticNote: string | undefined;
+    const sem = semanticResolutions?.get(i);
 
-    // Build detailed error prefix: "Fila {row} — {sku} ({name})"
+    if (
+      !product &&
+      sem?.classification === "matched_existing" &&
+      sem.matchedSku
+    ) {
+      const resolvedSku = sem.matchedSku.toUpperCase();
+      const candidate = productMap.get(resolvedSku);
+      if (candidate) {
+        sku = candidate.sku.toUpperCase();
+        product = candidate;
+        semanticNote = `Vinculado por IA semántica (${Math.round(sem.confidence * 100)}%) a SKU ${candidate.sku}`;
+      }
+    }
+
+    const displayLabel =
+      sku || rawProductName || rawBarcode || "(sin identificador)";
     const errorPrefix = product
       ? `Fila ${rowNumber} — ${sku} (${product.name})`
-      : `Fila ${rowNumber} — ${sku}`;
+      : `Fila ${rowNumber} — ${displayLabel}`;
 
-    // Determine status
     let status: "valid" | "warning" | "error" = "valid";
-    let message: string | undefined;
+    let message: string | undefined = semanticNote;
 
-    // 1. SKU not found
-    if (!sku) {
+    if (!sku && !product) {
       status = "error";
-      message = `${errorPrefix}: SKU vacío`;
+      message =
+        sem?.classification === "possible_duplicate" && sem.matchedSku
+          ? `${errorPrefix}: Coincidencia ambigua con SKU "${sem.matchedSku}" (${sem.matchedName ?? ""}) — confirme el SKU en el archivo`
+          : `${errorPrefix}: Sin SKU y no se encontró coincidencia exacta en el catálogo`;
     } else if (!product) {
       status = "error";
-      message = `${errorPrefix}: Producto no encontrado en el catálogo`;
-    }
-    // 2. Invalid bultos
-    else if (!bultosResult.isValid) {
+      message =
+        sem?.classification === "possible_duplicate" && sem.matchedSku
+          ? `${errorPrefix}: SKU no existe (¿quiso decir "${sem.matchedSku}" — ${sem.matchedName ?? ""}?)`
+          : `${errorPrefix}: Producto no encontrado en el catálogo`;
+    } else if (!countResult.isValid) {
       status = "error";
-      message = `${errorPrefix}: Los bultos deben ser un número entero ≥ 0`;
-    }
-    // 3. Invalid presentación
-    else if (!presentacionResult.isValid) {
+      message = `${errorPrefix}: La cantidad/bultos debe ser un entero ≥ 0`;
+    } else if (!usingDirectUnits && !presentacionResult.isValid) {
       status = "error";
       message = `${errorPrefix}: Presentación debe ser 1, 3, 6, 12 o 24`;
-    }
-    // 4. Calculate total quantity
-    else {
-      // Determine packaging config: use spreadsheet value if provided, else product config
+    } else {
       const cajasPerBulk =
         cajasResult.value > 0 ? cajasResult.value : (product.boxesPerBulk ?? 0);
-      const unitsPerBox = product.unitsPerBox ?? 1;
+      const unitsPerBox =
+        unidResult.value > 0 ? unidResult.value : (product.unitsPerBox ?? 1);
 
-      const totalUnits = calculateTotalUnits(
-        bultosResult.value,
-        cajasPerBulk,
-        unitsPerBox,
-      );
+      const totalUnits = usingDirectUnits
+        ? countResult.value
+        : calculateTotalUnits(countResult.value, cajasPerBulk, unitsPerBox);
 
-      // Check negative result in adjust mode
       if (mode === "adjust") {
         const delta = totalUnits - product.quantity;
         if (product.quantity + delta < 0) {
@@ -252,23 +270,18 @@ export function validateRows(
         }
       }
 
-      // 5. Locked product
       if (status === "valid" && product.isLocked) {
         status = "warning";
         message = `${errorPrefix}: Producto bloqueado en este almacén`;
       }
 
-      // 6. Truncation warnings
-      if (status === "valid" && bultosResult.warning) {
-        status = "warning";
-        message = `${errorPrefix}: ${bultosResult.warning}`;
+      if (status === "valid" && countResult.warning) {
+        message = `${errorPrefix}: ${countResult.warning}`;
       }
 
-      // Build the validated row with calculated quantity
       const quantity =
-        mode === "replace" ? totalUnits : totalUnits - product.quantity; // delta for adjust
+        mode === "replace" ? totalUnits : totalUnits - product.quantity;
 
-      // 7. Duplicate SKU detection
       if (sku && seenSKUs.has(sku)) {
         const prevIndex = seenSKUs.get(sku);
         if (prevIndex !== undefined) {
@@ -285,7 +298,6 @@ export function validateRows(
         seenSKUs.set(sku, validatedRows.length);
       }
 
-      // Track stats
       if (status === "valid") validCount++;
       else if (status === "warning") warningCount++;
       else errorCount++;
@@ -304,7 +316,6 @@ export function validateRows(
       continue;
     }
 
-    // Fallback for error rows (no product resolved)
     if (sku && seenSKUs.has(sku)) {
       const prevIndex = seenSKUs.get(sku);
       if (prevIndex !== undefined) {
@@ -325,13 +336,13 @@ export function validateRows(
 
     validatedRows.push({
       rowNumber,
-      sku,
+      sku: sku || rawBarcode || "SIN-SKU",
       quantity: 0,
       productId: product?.id ?? "",
       currentQuantity: product?.quantity ?? 0,
       status,
       message,
-      productName: product?.name,
+      productName: product?.name ?? (rawProductName || undefined),
       isLocked: product?.isLocked ?? false,
     });
   }
@@ -356,12 +367,11 @@ export interface ValidationStats {
   skipped: number;
 }
 
-// ── Initialize Mode Types ────────────────────────
-
 export interface InitializeValidatedRow {
   rowNumber: number;
   brand: string;
   sku: string;
+  skuAutoGenerated?: boolean;
   productName: string;
   bultos: number;
   cajasPerBulk: number | null;
@@ -372,17 +382,8 @@ export interface InitializeValidatedRow {
   message?: string;
 }
 
-// ── Initialize Row Validator ─────────────────────
-
 /**
- * Validate all data rows for Initialize mode.
- *
- * Unlike validateRows() which resolves against existing products,
- * this validates brand/product names and packaging for creation.
- *
- * @param dataRows - Parsed spreadsheet data (array of arrays, NO header row)
- * @param headerMap - Map of field name → column index
- * @param existingSkus - Optional set of SKUs already in DB (for duplicate warning)
+ * Validate all data rows for Initialize mode (Zero-Template Ready).
  */
 export function validateInitializeRows(
   dataRows: string[][],
@@ -390,19 +391,20 @@ export function validateInitializeRows(
   existingSkus?: Set<string>,
 ): { validatedRows: InitializeValidatedRow[]; stats: ValidationStats } {
   const validatedRows: InitializeValidatedRow[] = [];
-  const seenSKUs = new Map<string, number>(); // SKU → index in validatedRows
+  const seenSKUs = new Map<string, number>();
 
   let validCount = 0;
   let warningCount = 0;
   let errorCount = 0;
   let skippedCount = 0;
 
+  const hasBultosCol = headerMap.bultos !== undefined;
+
   for (let i = 0; i < dataRows.length; i++) {
     const row = dataRows[i];
     if (!row) continue;
-    const rowNumber = i + 2; // 1-indexed, +1 for header
+    const rowNumber = i + 2;
 
-    // Extract raw values
     const rawSku =
       headerMap.sku !== undefined ? String(row[headerMap.sku] ?? "") : "";
     const rawBrand =
@@ -413,6 +415,12 @@ export function validateInitializeRows(
         : "";
     const rawBultos =
       headerMap.bultos !== undefined ? String(row[headerMap.bultos] ?? "") : "";
+    const rawDirectQty = extractDirectQuantityCell(row, headerMap);
+    const rawCountInput =
+      hasBultosCol && rawBultos.trim() ? rawBultos : rawDirectQty;
+    const usingDirectUnits =
+      !(hasBultosCol && rawBultos.trim()) && Boolean(rawDirectQty);
+
     const rawCajas =
       headerMap.cajasPerBulk !== undefined
         ? String(row[headerMap.cajasPerBulk] ?? "")
@@ -426,75 +434,81 @@ export function validateInitializeRows(
         ? String(row[headerMap.presentacion] ?? "")
         : "";
 
-    // Normalize
-    const sku = normalizeSku(rawSku);
-    const brand = normalizeBrandName(rawBrand);
-    const productName = normalizeProductName(rawProduct);
-    const bultosResult = normalizeBultos(rawBultos);
+    let sku = normalizeSku(rawSku);
+    const normalizedBrand = normalizeBrandName(rawBrand);
+    const productName = normalizeProductName(rawProduct) || sku;
+    const countResult = normalizeBultos(rawCountInput);
     const cajasResult = normalizeCajasPerBulk(rawCajas);
     const unidResult = normalizeUnidPerCaja(rawUnidPerCaja);
     const presentacionResult = normalizePresentacion(rawPresentacion);
 
-    // Skip completely empty rows
-    if (!sku && !brand && !productName && !rawBultos.trim()) {
+    if (!sku && !normalizedBrand && !productName && !rawCountInput.trim()) {
       skippedCount++;
       continue;
     }
 
+    const brandDefaulted = !normalizedBrand;
+    const brand = normalizedBrand || "General";
+
+    const skuAutoGenerated = !sku && Boolean(productName);
+    if (skuAutoGenerated) {
+      sku = suggestDeterministicSku({
+        name: productName,
+        brand,
+        rowNumber,
+      });
+    }
+
     const errorPrefix = `Fila ${rowNumber} — ${sku || "(sin SKU)"}`;
     let status: "valid" | "warning" | "error" = "valid";
+    const warnings: string[] = [];
     let message: string | undefined;
 
-    // 1. Brand required
-    if (!brand) {
-      status = "error";
-      message = `${errorPrefix}: Marca vacía`;
-    }
-    // 2. SKU required
-    else if (!sku) {
-      status = "error";
-      message = `${errorPrefix}: SKU vacío`;
-    }
-    // 3. Product name required
-    else if (!productName) {
+    if (!productName) {
       status = "error";
       message = `${errorPrefix}: Nombre de producto vacío`;
-    }
-    // 4. Invalid bultos
-    else if (!bultosResult.isValid) {
+    } else if (!sku) {
       status = "error";
-      message = `${errorPrefix}: Los bultos deben ser un número entero ≥ 0`;
-    }
-    // 5. Invalid presentación
-    else if (!presentacionResult.isValid) {
+      message = `${errorPrefix}: SKU vacío`;
+    } else if (!countResult.isValid) {
+      status = "error";
+      message = `${errorPrefix}: La cantidad/bultos debe ser un entero ≥ 0`;
+    } else if (!usingDirectUnits && !presentacionResult.isValid) {
       status = "error";
       message = `${errorPrefix}: Presentación debe ser 1, 3, 6, 12 o 24`;
-    }
-    // 6. Valid row — calculate total units
-    else {
-      const cajasVal = cajasResult.value > 0 ? cajasResult.value : null;
-      const unidVal = unidResult.value > 0 ? unidResult.value : null;
+    } else {
+      const cajasVal =
+        !usingDirectUnits && cajasResult.value > 0 ? cajasResult.value : null;
+      const unidVal =
+        !usingDirectUnits && unidResult.value > 0 ? unidResult.value : null;
       const effectiveUnitsPer = unidVal ?? 1;
 
-      const totalUnits = calculateTotalUnits(
-        bultosResult.value,
-        cajasVal ?? 0,
-        effectiveUnitsPer,
-      );
+      const totalUnits = usingDirectUnits
+        ? countResult.value
+        : calculateTotalUnits(
+            countResult.value,
+            cajasVal ?? 0,
+            effectiveUnitsPer,
+          );
 
-      // Existing SKU warning
+      if (skuAutoGenerated) {
+        warnings.push("SKU sugerido automáticamente");
+      }
+      if (brandDefaulted) {
+        warnings.push("Marca asignada a 'General' (editable)");
+      }
       if (existingSkus?.has(sku)) {
-        status = "warning";
-        message = `${errorPrefix}: SKU ya existe en catálogo — se actualizará stock`;
+        warnings.push("SKU ya existe en catálogo — se actualizará stock");
+      }
+      if (countResult.warning) {
+        warnings.push(countResult.warning);
       }
 
-      // Truncation warnings
-      if (status === "valid" && bultosResult.warning) {
+      if (warnings.length > 0) {
         status = "warning";
-        message = `${errorPrefix}: ${bultosResult.warning}`;
+        message = `${errorPrefix}: ${warnings.join(" · ")}`;
       }
 
-      // Duplicate SKU within file
       if (seenSKUs.has(sku)) {
         const prevIndex = seenSKUs.get(sku);
         if (prevIndex !== undefined) {
@@ -516,11 +530,12 @@ export function validateInitializeRows(
         rowNumber,
         brand,
         sku,
+        skuAutoGenerated,
         productName,
-        bultos: bultosResult.value,
+        bultos: countResult.value,
         cajasPerBulk: cajasVal,
         unidPerCaja: unidVal,
-        presentacion: presentacionResult.value,
+        presentacion: usingDirectUnits ? 1 : presentacionResult.value,
         totalUnits,
         status,
         message,
@@ -528,7 +543,6 @@ export function validateInitializeRows(
       continue;
     }
 
-    // Error row fallback
     if (sku && seenSKUs.has(sku)) {
       const prevIndex = seenSKUs.get(sku);
       if (prevIndex !== undefined) {
@@ -551,8 +565,9 @@ export function validateInitializeRows(
       rowNumber,
       brand,
       sku,
+      skuAutoGenerated,
       productName,
-      bultos: bultosResult.value || 0,
+      bultos: countResult.value || 0,
       cajasPerBulk: null,
       unidPerCaja: null,
       presentacion: presentacionResult.value || 1,

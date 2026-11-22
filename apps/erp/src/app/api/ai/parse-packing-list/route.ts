@@ -7,11 +7,19 @@ import { z } from "zod/v4";
 
 import type { UserRole } from "@cendaro/validators";
 import {
+  analyzeProductImagesWithGemini,
   buildSpotlightBoundaryInstruction,
+  compileTabularRowsDeterministically,
   createSpotlightedDelimiter,
   evaluateInputGuardrails,
+  extractItemsFromDocumentWithGemini,
+  generateStructuredJson,
+  inferTabularSchema,
   isValidUuid,
+  logger,
+  lookupSavedTemplateProfile,
   mapClaimsToUser,
+  matchImportedItemsToCatalog,
   runInWorkspaceRlsReadonly,
   sanitizeDocumentStructuralContent,
   scanOutputDLP,
@@ -50,6 +58,7 @@ type ParsedItem = z.infer<typeof ParsedItemSchema>;
 
 interface MatchedItem extends ParsedItem {
   suggested_product_id: string | null;
+  suggested_product_name?: string | null;
   match_type: "exact_sku" | "name_similarity" | "ai_only" | "no_match";
   match_confidence: number;
   image_url: string | null;
@@ -124,10 +133,13 @@ const MAX_REQUEST_BYTES = 10 * 1024 * 1024; // matches the tRPC route's own DoS 
 /** Thrown when an uploaded file exceeds a decompression/size safety limit. */
 class PayloadTooLargeError extends Error {}
 
-const ALLOWED_EXTENSIONS = [".xlsx", ".xls", ".pdf"] as const;
+const ALLOWED_EXTENSIONS = [".xlsx", ".xls", ".csv", ".pdf"] as const;
 const ALLOWED_MIME_TYPES = new Set([
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   "application/vnd.ms-excel",
+  "text/csv",
+  "application/csv",
+  "text/plain",
   "application/pdf",
 ]);
 
@@ -768,8 +780,16 @@ Devuelve SOLO {"items": [...]} sin explicaciones ni markdown.`,
     const data = (await response.json()) as GroqResponse;
     let content = data.choices[0]?.message.content ?? "{}";
 
-    // Sanitize Qwen3 think tags and /no_think markers
-    content = content.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+    // Sanitize Qwen3 think tags and /no_think markers using linear O(N) string scans (ReDoS-free)
+    let searchFrom = 0;
+    while (searchFrom < content.length) {
+      const openIdx = content.indexOf("<think>", searchFrom);
+      if (openIdx === -1) break;
+      const closeIdx = content.indexOf("</think>", openIdx + 7);
+      if (closeIdx === -1) break;
+      content = content.slice(0, openIdx) + content.slice(closeIdx + 8);
+      searchFrom = openIdx;
+    }
     content = content.replace(/\/no_think/g, "").trim();
 
     try {
@@ -779,10 +799,12 @@ Devuelve SOLO {"items": [...]} sin explicaciones ni markdown.`,
       }
       return [];
     } catch {
-      const regex = /\[[\s\S]*\]/;
-      const match = regex.exec(content);
-      if (match) {
-        return parseItemsArray(JSON.parse(match[0]) as unknown);
+      const arrStart = content.indexOf("[");
+      const arrEnd = content.lastIndexOf("]");
+      if (arrStart !== -1 && arrEnd > arrStart) {
+        return parseItemsArray(
+          JSON.parse(content.slice(arrStart, arrEnd + 1)) as unknown,
+        );
       }
       return [];
     }
@@ -933,9 +955,11 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  if (!env.GROQ_API_KEY) {
+  const hasGemini = Boolean(env.GEMINI_API_KEY?.trim());
+  const hasGroq = Boolean(env.GROQ_API_KEY?.trim());
+  if (!hasGemini && !hasGroq) {
     return NextResponse.json(
-      { error: "GROQ_API_KEY no configurada" },
+      { error: "GEMINI_API_KEY o GROQ_API_KEY no configurada" },
       { status: 500 },
     );
   }
@@ -997,12 +1021,11 @@ export async function POST(request: NextRequest) {
   const member = { workspaceId, role: memberRole };
 
   // ── Per-user Rate Limit ──
-  // 3 parse requests per 60s per authenticated user.
-  // Prevents a compromised session from draining the Groq API quota.
+  // 10 parse requests per 60s per authenticated user (supports multi-file drops).
   const { rateLimit } = await import("~/lib/rate-limit");
   const rlResult = await rateLimit(`ai:user:${user.id}`, {
     window: 60_000,
-    max: 3,
+    max: 10,
   });
   if (!rlResult.success) {
     const retryAfter = Math.ceil((rlResult.reset - Date.now()) / 1_000);
@@ -1038,7 +1061,7 @@ export async function POST(request: NextRequest) {
     req = limited.request;
   }
 
-  const apiKey = String(env.GROQ_API_KEY);
+  const apiKey = String(env.GROQ_API_KEY ?? "");
 
   try {
     const contentType = req.headers.get("content-type") ?? "";
@@ -1047,9 +1070,12 @@ export async function POST(request: NextRequest) {
     let rows: string[][];
     let extractedImages: ExtractedImage[] = [];
     let containerId: string;
+    let uploadedFilename = "packing-list.xlsx";
+    let rawPdfBase64: string | undefined;
+    let isPdfSource = false;
 
     if (contentType.includes("application/json")) {
-      // ═══ JSON PATH: Client-parsed Excel data (chunked) ═══
+      // ═══ JSON PATH: Client-parsed Excel/CSV data (chunked) ═══
       // Browser already parsed the file — we receive lightweight JSON chunks (≤2MB each)
       const rawBody: unknown = await req.json();
       const parsedBody = ClientParsedInputSchema.safeParse(rawBody);
@@ -1069,18 +1095,7 @@ export async function POST(request: NextRequest) {
         )
         .filter((row) => row.some((c) => c.length > 0));
 
-      // ── Chunked mode: images are NOT embedded in JSON payload ──
-      // Images are either:
-      //   a) Skipped entirely (text-only mode)
-      //   b) Uploaded to Supabase Storage and referenced via imageUrls (Tier 3)
-      // Legacy base64 images are ignored in chunked mode to stay under 4.5MB
       if (body.imageUrls && body.imageUrls.length > 0) {
-        // Tier 3: Groq Vision via URL reference — images stay in Supabase Storage
-        // Each URL can be up to 20MB — Groq fetches directly, zero data through Vercel.
-        // Every URL must resolve to this project's own storage, under this
-        // caller's own workspace path (F8.2) — reject the whole request
-        // rather than silently drop offending URLs, since a URL that fails
-        // this check is a sign of a tampered client, not a benign mismatch.
         const hasForeignUrl = body.imageUrls.some(
           (url) => !isOwnedStorageUrl(url, member.workspaceId),
         );
@@ -1094,16 +1109,15 @@ export async function POST(request: NextRequest) {
           );
         }
         extractedImages = body.imageUrls.map((url, idx) => ({
-          buffer: Buffer.alloc(0), // No binary data — URL-only mode
+          buffer: Buffer.alloc(0),
           index: idx,
           fileName: `image_${idx}`,
           mimeType: "image/jpeg",
-          _url: new URL(url.trim()).href, // Canonicalized URL for vision pipeline
+          _url: new URL(url.trim()).href,
         }));
       }
-      // Note: body.images (legacy base64) is intentionally ignored in chunked mode
     } else {
-      // ═══ FORMDATA PATH: Raw file upload (PDF ≤ 4MB) ═══
+      // ═══ FORMDATA PATH: Raw file upload (PDF/CSV/Excel ≤ 4MB) ═══
       const formData = await req.formData();
       const file = formData.get("file") as File | null;
       const formContainerId = formData.get("containerId") as string | null;
@@ -1116,8 +1130,8 @@ export async function POST(request: NextRequest) {
       }
 
       containerId = formContainerId;
+      uploadedFilename = file.name || "documento";
 
-      // Validate file size (Vercel limit is 4.5MB, guard at 4MB)
       if (file.size > 4 * 1024 * 1024) {
         return NextResponse.json(
           {
@@ -1136,27 +1150,38 @@ export async function POST(request: NextRequest) {
 
       if (!hasValidExtension || !hasValidMime) {
         return NextResponse.json(
-          { error: "Formato no soportado. Use Excel (.xlsx/.xls) o PDF" },
+          {
+            error:
+              "Formato no soportado. Use Excel (.xlsx/.xls), CSV (.csv) o PDF",
+          },
           { status: 400 },
         );
       }
 
-      // Parse file server-side
       const buffer = await file.arrayBuffer();
 
-      if (fileName.endsWith(".xlsx") || fileName.endsWith(".xls")) {
-        const [parsedRows, images] = await Promise.all([
-          parseExcel(buffer),
-          extractImagesFromXlsx(buffer),
-        ]);
+      if (
+        fileName.endsWith(".xlsx") ||
+        fileName.endsWith(".xls") ||
+        fileName.endsWith(".csv")
+      ) {
+        const parsedRows = await parseExcel(buffer);
+        const images = fileName.endsWith(".xlsx")
+          ? await extractImagesFromXlsx(buffer)
+          : [];
         rows = parsedRows;
         extractedImages = images;
       } else {
+        isPdfSource = true;
+        rawPdfBase64 = Buffer.from(buffer).toString("base64");
         const [parsedRows, images] = await Promise.all([
-          parsePDF(buffer),
+          parsePDF(buffer).catch(() => [] as string[][]),
           extractImagesFromPdf(buffer),
         ]);
-        rows = parsedRows;
+        rows =
+          parsedRows.length > 0
+            ? parsedRows
+            : [["[PDF escaneado o multimodal]"]];
         extractedImages = images;
       }
     }
@@ -1188,15 +1213,26 @@ export async function POST(request: NextRequest) {
           return null;
         }
 
-        const [promptCfg, catalogSnap] = await Promise.all([
+        const [promptCfg, catalogSnap, savedProfile] = await Promise.all([
           loadPromptConfig(tx, member.workspaceId),
           buildCatalogContext(tx, member.workspaceId),
+          !isPdfSource
+            ? lookupSavedTemplateProfile(
+                tx as unknown as Parameters<
+                  typeof lookupSavedTemplateProfile
+                >[0],
+                member.workspaceId,
+                "packing_list",
+                rows.slice(0, 25),
+              )
+            : Promise.resolve(null),
         ]);
 
         return {
           config: promptCfg,
           catalogContext: catalogSnap.context,
           catalogProducts: catalogSnap.products,
+          savedProfile,
         };
       },
     );
@@ -1208,14 +1244,249 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { config, catalogContext, catalogProducts } = workspaceSnapshot;
-
-    // ── 3. Build few-shot examples ──
+    const { config, catalogContext, catalogProducts, savedProfile } =
+      workspaceSnapshot;
     const fewShotText = config
       ? buildFewShotExamples(config.fewShotExamples)
       : "";
 
-    // ── 4. Assemble system prompt ──
+    // ═══ GEMINI FREE-TIER ZERO-TEMPLATE + SEMANTIC RAG PIPELINE ═══
+    if (hasGemini) {
+      const maxCols = rows.reduce((acc, r) => Math.max(acc, r.length), 0);
+      let extractedItems: ParsedItem[] = [];
+      let promptSourceLabel = "gemini-free-tier";
+
+      if (isPdfSource || maxCols <= 1) {
+        const joinedText = rows
+          .map((r) => r.join(" "))
+          .filter((l) => l !== "[PDF escaneado o multimodal]")
+          .join("\n");
+        const docRes = await extractItemsFromDocumentWithGemini({
+          workspaceId: member.workspaceId,
+          userId: user.id,
+          filename: uploadedFilename,
+          targetDomain: "packing_list",
+          extractedText: joinedText,
+          pdfBase64: rawPdfBase64,
+          customContext: [config?.businessContext ?? "", fewShotText]
+            .filter(Boolean)
+            .join("\n"),
+        });
+        promptSourceLabel = `${docRes.provider}:${docRes.model}`;
+        extractedItems = docRes.items.map((it) => ({
+          original_name: it.nameOriginal ?? it.name,
+          name_es: it.name,
+          quantity: Math.max(1, it.quantity || 1),
+          unit_cost: it.unitCost,
+          weight_kg: it.weightKg,
+          sku_hint: it.skuAutoGenerated ? null : it.sku,
+          category_hint: it.categoryRaw ?? null,
+          confidence: Math.round(it.confidence * 100),
+        }));
+      } else {
+        // Tabular path: 1 schema inference call (or 0 calls on saved profile/alias) + deterministic row compile
+        const schema = await inferTabularSchema({
+          workspaceId: member.workspaceId,
+          userId: user.id,
+          input: {
+            targetDomain: "packing_list",
+            filename: uploadedFilename,
+            sampleRows: rows.slice(0, 25),
+            totalRowCount: rows.length,
+          },
+          savedProfile,
+        });
+        promptSourceLabel =
+          schema.source === "template_profile"
+            ? `huella:${schema.matchedProfileName ?? "guardada"}`
+            : schema.source;
+
+        const compiled = compileTabularRowsDeterministically(rows, schema);
+
+        // Batch-translate foreign (Chinese/English) item names & infer categories in <= 1 Gemini call per 60 items
+        const translationZod = z.object({
+          translations: z.array(
+            z.object({
+              idx: z.int().min(0),
+              name_es: z.string().min(1).max(512),
+              category_hint: z.string().max(128).nullable().default(null),
+            }),
+          ),
+        });
+
+        const needsTranslation = compiled
+          .map((item, idx) => ({ item, idx }))
+          .filter(
+            ({ item }) =>
+              /[\u4E00-\u9FFF]/.test(item.name) || !item.categoryRaw,
+          );
+
+        const translatedMap = new Map<
+          number,
+          { name_es: string; category_hint: string | null }
+        >();
+
+        const BATCH_TRANSLATE = 60;
+        for (
+          let start = 0;
+          start < needsTranslation.length;
+          start += BATCH_TRANSLATE
+        ) {
+          const slice = needsTranslation.slice(start, start + BATCH_TRANSLATE);
+          try {
+            const trRes = await generateStructuredJson({
+              workspaceId: member.workspaceId,
+              userId: user.id,
+              operationLabel: "packing_list_translate_categorize",
+              systemInstruction: [
+                "Traduce al español comercial venezolano cada descripción de artículo de importación y sugiere su categoría mayorista.",
+                "Conserva medidas, voltajes, materiales y códigos técnicos.",
+                fewShotText,
+              ]
+                .filter(Boolean)
+                .join("\n"),
+              untrustedUserText: JSON.stringify(
+                slice.map(({ item, idx }) => ({
+                  idx,
+                  name: item.name,
+                  category: item.categoryRaw ?? null,
+                })),
+              ),
+              zodSchema: translationZod,
+              timeoutMs: 16_000,
+            });
+            for (const entry of trRes.data.translations) {
+              translatedMap.set(entry.idx, {
+                name_es: entry.name_es,
+                category_hint: entry.category_hint,
+              });
+            }
+          } catch {
+            // Keep original compiled names if translation batch is skipped
+          }
+        }
+
+        extractedItems = compiled.map((it, idx) => {
+          const tr = translatedMap.get(idx);
+          return {
+            original_name: it.nameOriginal ?? it.name,
+            name_es: tr?.name_es ?? it.name,
+            quantity: Math.max(1, it.quantity || 1),
+            unit_cost: it.unitCost,
+            weight_kg: it.weightKg,
+            sku_hint: it.skuAutoGenerated ? null : it.sku,
+            category_hint: it.categoryRaw ?? tr?.category_hint ?? null,
+            confidence: Math.round(it.confidence * 100),
+          };
+        });
+      }
+
+      // Parallel multimodal vision analysis on binary embedded images (when present)
+      const binaryImages = extractedImages
+        .filter((img) => img.buffer.length > 0)
+        .map((img) => {
+          const mimeType: "image/png" | "image/jpeg" | "image/webp" =
+            img.mimeType === "image/png" || img.mimeType === "image/webp"
+              ? img.mimeType
+              : "image/jpeg";
+          return {
+            index: img.index,
+            mimeType,
+            base64Data: img.buffer.toString("base64"),
+          };
+        });
+
+      const [visionMap, semanticMatches] = await Promise.all([
+        analyzeProductImagesWithGemini({
+          workspaceId: member.workspaceId,
+          userId: user.id,
+          images: binaryImages,
+        }),
+        extractedItems.length > 0
+          ? matchImportedItemsToCatalog(
+              db,
+              member.workspaceId,
+              extractedItems.map((it) => ({
+                sku: it.sku_hint,
+                skuAutoGenerated: !it.sku_hint,
+                name: it.name_es,
+                nameOriginal: it.original_name,
+                categoryRaw: it.category_hint,
+              })),
+            )
+          : Promise.resolve([]),
+      ]);
+
+      const matchedItems: MatchedItem[] = extractedItems.map((item, idx) => {
+        const sem = semanticMatches[idx];
+        const vis = visionMap.get(idx);
+        const matchType: MatchedItem["match_type"] =
+          sem?.matchMethod === "exact_sku" ||
+          sem?.matchMethod === "exact_barcode"
+            ? "exact_sku"
+            : sem?.matchedProductId
+              ? "name_similarity"
+              : "no_match";
+        return {
+          ...item,
+          name_es:
+            item.name_es.length < 3 && vis?.product_name_es
+              ? vis.product_name_es
+              : item.name_es,
+          category_hint:
+            item.category_hint ??
+            sem?.suggestedCategoryName ??
+            vis?.category ??
+            null,
+          suggested_product_id: sem?.matchedProductId ?? null,
+          suggested_product_name: sem?.matchedProductName ?? null,
+          match_type: matchType,
+          match_confidence: sem ? Math.round(sem.confidence * 100) : 0,
+          image_url: null,
+          image_description: vis
+            ? `${vis.product_name_es} (${vis.material}, ${vis.colors.join("/")})`.slice(
+                0,
+                300,
+              )
+            : null,
+        };
+      });
+
+      const stats = {
+        matched: matchedItems.filter(
+          (i) =>
+            i.match_type === "exact_sku" ||
+            (i.match_type === "name_similarity" && i.match_confidence >= 80),
+        ).length,
+        review: matchedItems.filter(
+          (i) => i.match_type === "name_similarity" && i.match_confidence < 80,
+        ).length,
+        newItems: matchedItems.filter(
+          (i) => i.match_type === "no_match" || i.match_type === "ai_only",
+        ).length,
+        highConfidence: matchedItems.filter((i) => i.confidence >= 90).length,
+        mediumConfidence: matchedItems.filter(
+          (i) => i.confidence >= 60 && i.confidence < 90,
+        ).length,
+        lowConfidence: matchedItems.filter((i) => i.confidence < 60).length,
+        imagesExtracted: extractedImages.length,
+        imagesAnalyzed: visionMap.size,
+      };
+
+      return NextResponse.json({
+        success: true,
+        containerId,
+        totalRows: rows.length,
+        totalChunks: 1,
+        failedChunks: [],
+        itemCount: matchedItems.length,
+        items: matchedItems,
+        stats,
+        promptSource: promptSourceLabel,
+      });
+    }
+
+    // ═══ LEGACY GROQ FALLBACK PIPELINE (only when GEMINI_API_KEY is unset) ═══
     const systemPrompt = config
       ? assembleSystemPrompt(config.systemPrompt, catalogContext, fewShotText)
       : `Eres CENDARO-AI, un analista profesional de importación para un distribuidor mayorista multi-categoría en Venezuela.
@@ -1294,9 +1565,10 @@ Responde ÚNICAMENTE con JSON válido:
     });
   } catch (err: unknown) {
     // Log full error server-side for debugging — never expose internals to client
-    console.error(
-      "[parse-packing-list] Error:",
-      err instanceof Error ? err.message : err,
+    logger.error(
+      "parse-packing-list failed",
+      { module: "parse-packing-list" },
+      err,
     );
 
     if (err instanceof PayloadTooLargeError) {

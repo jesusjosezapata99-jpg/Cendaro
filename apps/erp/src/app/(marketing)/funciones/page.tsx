@@ -137,6 +137,7 @@ export default function FuncionesPage() {
                 >
                   <Link
                     href={featureHref(slug)}
+                    prefetch={true}
                     className="group hover:bg-muted flex h-full flex-col gap-6 p-6 transition-colors duration-(--motion-micro) md:p-8"
                   >
                     <span className="text-muted-foreground font-mono text-xs tracking-[0.18em] uppercase">

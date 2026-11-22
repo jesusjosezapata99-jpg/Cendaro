@@ -3,33 +3,31 @@
 /**
  * Cendaro — Validate Inventory Hook
  *
- * Takes parsed rows + product map, returns ValidatedRow[] with status/message.
- * Wraps the pure validateRows function in a React hook with state management.
- *
- * PRD: FEATURE_PRD_INVENTORY_IMPORT.md §11
+ * Takes parsed rows + product map (+ optional semantic SKU resolutions),
+ * returns ValidatedRow[] with status/message.
  */
 import { useCallback, useState } from "react";
 
 import type { ImportMode, ValidatedRow } from "@cendaro/api";
 
-import type { ProductInfo, ValidationStats } from "../lib/inventory-validators";
+import type {
+  ProductInfo,
+  SemanticInventoryResolution,
+  ValidationStats,
+} from "../lib/inventory-validators";
 import { validateRows } from "../lib/inventory-validators";
 
 export interface UseValidateInventoryReturn {
-  /** Validated rows (null until validation runs) */
   validatedRows: ValidatedRow[];
-  /** Validation stats */
   stats: ValidationStats | null;
-  /** Whether validation is in progress */
   isValidating: boolean;
-  /** Run validation */
   validate: (
     dataRows: string[][],
     headerMap: Record<string, number>,
     products: ProductInfo[],
     mode: ImportMode,
+    semanticResolutions?: Map<number, SemanticInventoryResolution>,
   ) => ValidatedRow[];
-  /** Reset state */
   reset: () => void;
 }
 
@@ -44,15 +42,21 @@ export function useValidateInventory(): UseValidateInventoryReturn {
       headerMap: Record<string, number>,
       products: ProductInfo[],
       mode: ImportMode,
+      semanticResolutions?: Map<number, SemanticInventoryResolution>,
     ): ValidatedRow[] => {
       setIsValidating(true);
 
-      // Build product map (UPPERCASE SKU → ProductInfo)
       const productMap = new Map<string, ProductInfo>(
         products.map((p) => [p.sku.toUpperCase(), p]),
       );
 
-      const result = validateRows(dataRows, headerMap, productMap, mode);
+      const result = validateRows(
+        dataRows,
+        headerMap,
+        productMap,
+        mode,
+        semanticResolutions,
+      );
 
       setValidatedRows(result.validatedRows);
       setStats(result.stats);
