@@ -813,59 +813,59 @@ export const salesRouter = createTRPCRouter({
 
       if (!order) return null;
 
-      const [items, payments, customerRows] = await Promise.all([
-        ctx.db
-          .select({
-            id: OrderItem.id,
-            workspaceId: OrderItem.workspaceId,
-            orderId: OrderItem.orderId,
-            productId: OrderItem.productId,
-            productName: Product.name,
-            sku: Product.sku,
-            quantity: OrderItem.quantity,
-            unitPrice: OrderItem.unitPrice,
-            discount: OrderItem.discount,
-            lineTotal: OrderItem.lineTotal,
-          })
-          .from(OrderItem)
-          .leftJoin(Product, eq(OrderItem.productId, Product.id))
-          .where(
-            and(
-              eq(OrderItem.orderId, input.id),
-              eq(OrderItem.workspaceId, ctx.workspace.workspaceId),
-            ),
+      const items = await ctx.db
+        .select({
+          id: OrderItem.id,
+          workspaceId: OrderItem.workspaceId,
+          orderId: OrderItem.orderId,
+          productId: OrderItem.productId,
+          productName: Product.name,
+          sku: Product.sku,
+          quantity: OrderItem.quantity,
+          unitPrice: OrderItem.unitPrice,
+          discount: OrderItem.discount,
+          lineTotal: OrderItem.lineTotal,
+        })
+        .from(OrderItem)
+        .leftJoin(Product, eq(OrderItem.productId, Product.id))
+        .where(
+          and(
+            eq(OrderItem.orderId, input.id),
+            eq(OrderItem.workspaceId, ctx.workspace.workspaceId),
           ),
-        ctx.db
-          .select()
-          .from(Payment)
-          .where(
-            and(
-              eq(Payment.orderId, input.id),
-              eq(Payment.workspaceId, ctx.workspace.workspaceId),
-            ),
+        );
+
+      const payments = await ctx.db
+        .select()
+        .from(Payment)
+        .where(
+          and(
+            eq(Payment.orderId, input.id),
+            eq(Payment.workspaceId, ctx.workspace.workspaceId),
           ),
-        order.customerId
-          ? ctx.db
-              .select({
-                id: Customer.id,
-                name: Customer.name,
-                legalName: Customer.legalName,
-                identification: Customer.identification,
-                phone: Customer.phone,
-                email: Customer.email,
-                address: Customer.address,
-                customerType: Customer.customerType,
-              })
-              .from(Customer)
-              .where(
-                and(
-                  eq(Customer.id, order.customerId),
-                  eq(Customer.workspaceId, ctx.workspace.workspaceId),
-                ),
-              )
-              .limit(1)
-          : Promise.resolve([]),
-      ]);
+        );
+
+      const customerRows = order.customerId
+        ? await ctx.db
+            .select({
+              id: Customer.id,
+              name: Customer.name,
+              legalName: Customer.legalName,
+              identification: Customer.identification,
+              phone: Customer.phone,
+              email: Customer.email,
+              address: Customer.address,
+              customerType: Customer.customerType,
+            })
+            .from(Customer)
+            .where(
+              and(
+                eq(Customer.id, order.customerId),
+                eq(Customer.workspaceId, ctx.workspace.workspaceId),
+              ),
+            )
+            .limit(1)
+        : [];
 
       return {
         ...order,

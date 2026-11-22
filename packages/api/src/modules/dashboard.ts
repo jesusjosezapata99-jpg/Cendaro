@@ -333,29 +333,21 @@ async function computeOverview(
 ) {
   const range = periodToRange(period);
 
-  const [
-    sales,
-    grossProfit,
-    receivables,
-    lowStock,
-    pendingDispatch,
-    rate,
-    topProducts,
-    lastClosure,
-    containersInTransit,
-  ] = await Promise.all([
-    computeSales(ctx, range),
-    canViewGrossProfit(role)
-      ? computeGrossProfit(ctx, range)
-      : Promise.resolve(null),
-    canViewReceivables(role) ? computeReceivables(ctx) : Promise.resolve(null),
-    computeLowStock(ctx),
-    computePendingDispatch(ctx),
-    computeRate(ctx),
-    computeTopProducts(ctx, range),
-    computeLastClosure(ctx),
-    computeContainersInTransit(ctx),
-  ]);
+  // Execute sequentially on the single RLS-bound pg.PoolClient (`ctx.db`)
+  // so `pg` never receives overlapping `client.query()` calls (`pg@9` compatibility).
+  const sales = await computeSales(ctx, range);
+  const grossProfit = canViewGrossProfit(role)
+    ? await computeGrossProfit(ctx, range)
+    : null;
+  const receivables = canViewReceivables(role)
+    ? await computeReceivables(ctx)
+    : null;
+  const lowStock = await computeLowStock(ctx);
+  const pendingDispatch = await computePendingDispatch(ctx);
+  const rate = await computeRate(ctx);
+  const topProducts = await computeTopProducts(ctx, range);
+  const lastClosure = await computeLastClosure(ctx);
+  const containersInTransit = await computeContainersInTransit(ctx);
 
   return {
     sales,
@@ -373,40 +365,40 @@ async function computeOverview(
 export type DashboardOverview = Awaited<ReturnType<typeof computeOverview>>;
 
 async function computeSalesSummary(ctx: Context) {
-  const [[orderStats], [paymentStats], [arStats]] = await Promise.all([
-    ctx.db
-      .select({
-        totalOrders: count(SalesOrder.id),
-        totalRevenue: sum(SalesOrder.total),
-        totalPaid: sum(SalesOrder.totalPaid),
-      })
-      .from(SalesOrder)
-      .where(
-        and(
-          eq(SalesOrder.workspaceId, ctx.workspace.workspaceId),
-          notInArray(SalesOrder.status, [...EXCLUDED_ORDER_STATUSES]),
-        ),
+  const [orderStats] = await ctx.db
+    .select({
+      totalOrders: count(SalesOrder.id),
+      totalRevenue: sum(SalesOrder.total),
+      totalPaid: sum(SalesOrder.totalPaid),
+    })
+    .from(SalesOrder)
+    .where(
+      and(
+        eq(SalesOrder.workspaceId, ctx.workspace.workspaceId),
+        notInArray(SalesOrder.status, [...EXCLUDED_ORDER_STATUSES]),
       ),
-    ctx.db
-      .select({
-        totalPayments: count(Payment.id),
-        totalCollected: sum(Payment.amount),
-      })
-      .from(Payment)
-      .where(eq(Payment.workspaceId, ctx.workspace.workspaceId)),
-    ctx.db
-      .select({
-        totalAR: count(AccountReceivable.id),
-        totalDebt: sum(AccountReceivable.balance),
-      })
-      .from(AccountReceivable)
-      .where(
-        and(
-          eq(AccountReceivable.workspaceId, ctx.workspace.workspaceId),
-          inArray(AccountReceivable.status, ["pending", "partial"]),
-        ),
+    );
+
+  const [paymentStats] = await ctx.db
+    .select({
+      totalPayments: count(Payment.id),
+      totalCollected: sum(Payment.amount),
+    })
+    .from(Payment)
+    .where(eq(Payment.workspaceId, ctx.workspace.workspaceId));
+
+  const [arStats] = await ctx.db
+    .select({
+      totalAR: count(AccountReceivable.id),
+      totalDebt: sum(AccountReceivable.balance),
+    })
+    .from(AccountReceivable)
+    .where(
+      and(
+        eq(AccountReceivable.workspaceId, ctx.workspace.workspaceId),
+        inArray(AccountReceivable.status, ["pending", "partial"]),
       ),
-  ]);
+    );
 
   return {
     orders: {

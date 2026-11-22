@@ -247,26 +247,24 @@ export const vendorRouter = createTRPCRouter({
         .limit(1);
       if (!row) return null;
 
-      const [installments, allocations] = await Promise.all([
-        ctx.db
-          .select()
-          .from(ArInstallment)
-          .where(
-            and(
-              eq(ArInstallment.receivableId, input.id),
-              eq(ArInstallment.workspaceId, ctx.workspace.workspaceId),
-            ),
+      const installments = await ctx.db
+        .select()
+        .from(ArInstallment)
+        .where(
+          and(
+            eq(ArInstallment.receivableId, input.id),
+            eq(ArInstallment.workspaceId, ctx.workspace.workspaceId),
           ),
-        ctx.db
-          .select()
-          .from(PaymentAllocation)
-          .where(
-            and(
-              eq(PaymentAllocation.receivableId, input.id),
-              eq(PaymentAllocation.workspaceId, ctx.workspace.workspaceId),
-            ),
+        );
+      const allocations = await ctx.db
+        .select()
+        .from(PaymentAllocation)
+        .where(
+          and(
+            eq(PaymentAllocation.receivableId, input.id),
+            eq(PaymentAllocation.workspaceId, ctx.workspace.workspaceId),
           ),
-      ]);
+        );
 
       return { ...row, installments, allocations };
     }),

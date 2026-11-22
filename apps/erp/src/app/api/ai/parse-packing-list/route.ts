@@ -1213,20 +1213,16 @@ export async function POST(request: NextRequest) {
           return null;
         }
 
-        const [promptCfg, catalogSnap, savedProfile] = await Promise.all([
-          loadPromptConfig(tx, member.workspaceId),
-          buildCatalogContext(tx, member.workspaceId),
-          !isPdfSource
-            ? lookupSavedTemplateProfile(
-                tx as unknown as Parameters<
-                  typeof lookupSavedTemplateProfile
-                >[0],
-                member.workspaceId,
-                "packing_list",
-                rows.slice(0, 25),
-              )
-            : Promise.resolve(null),
-        ]);
+        const promptCfg = await loadPromptConfig(tx, member.workspaceId);
+        const catalogSnap = await buildCatalogContext(tx, member.workspaceId);
+        const savedProfile = !isPdfSource
+          ? await lookupSavedTemplateProfile(
+              tx,
+              member.workspaceId,
+              "packing_list",
+              rows.slice(0, 25),
+            )
+          : null;
 
         return {
           config: promptCfg,

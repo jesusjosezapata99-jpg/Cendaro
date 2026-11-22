@@ -70,27 +70,25 @@ export const containerRouter = createTRPCRouter({
 
       if (!container) return null;
 
-      const [items, documents] = await Promise.all([
-        ctx.db
-          .select()
-          .from(ContainerItem)
-          .where(
-            and(
-              eq(ContainerItem.containerId, input.id),
-              eq(ContainerItem.workspaceId, ctx.workspace.workspaceId),
-            ),
+      const items = await ctx.db
+        .select()
+        .from(ContainerItem)
+        .where(
+          and(
+            eq(ContainerItem.containerId, input.id),
+            eq(ContainerItem.workspaceId, ctx.workspace.workspaceId),
           ),
-        ctx.db
-          .select()
-          .from(ContainerDocument)
-          .where(
-            and(
-              eq(ContainerDocument.containerId, input.id),
-              eq(ContainerDocument.workspaceId, ctx.workspace.workspaceId),
-            ),
-          )
-          .orderBy(desc(ContainerDocument.createdAt)),
-      ]);
+        );
+      const documents = await ctx.db
+        .select()
+        .from(ContainerDocument)
+        .where(
+          and(
+            eq(ContainerDocument.containerId, input.id),
+            eq(ContainerDocument.workspaceId, ctx.workspace.workspaceId),
+          ),
+        )
+        .orderBy(desc(ContainerDocument.createdAt));
 
       return { ...container, items, documents };
     }),
