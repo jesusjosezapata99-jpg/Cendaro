@@ -15,7 +15,8 @@
  */
 import { TRPCError } from "@trpc/server";
 import { describe, expect, it, vi } from "vitest";
-import { z } from "zod/v4";
+
+import { globalSearchInputSchema } from "@cendaro/validators";
 
 import {
   canSearchContainers,
@@ -44,22 +45,24 @@ describe("escapeLike", () => {
 });
 
 describe("search.global input schema", () => {
-  const qSchema = z.object({ q: z.string().trim().min(2).max(64) });
-
   it("rejects a single-character query", () => {
-    expect(qSchema.safeParse({ q: "a" }).success).toBe(false);
+    expect(globalSearchInputSchema.safeParse({ q: "a" }).success).toBe(false);
   });
 
   it("rejects a query that is only whitespace after trim", () => {
-    expect(qSchema.safeParse({ q: "  a  " }).success).toBe(false);
+    expect(globalSearchInputSchema.safeParse({ q: "  a  " }).success).toBe(
+      false,
+    );
   });
 
   it("accepts a 2-character query", () => {
-    expect(qSchema.safeParse({ q: "ab" }).success).toBe(true);
+    expect(globalSearchInputSchema.safeParse({ q: "ab" }).success).toBe(true);
   });
 
-  it("rejects a query over 64 characters", () => {
-    expect(qSchema.safeParse({ q: "a".repeat(65) }).success).toBe(false);
+  it("rejects a query over 120 characters", () => {
+    expect(
+      globalSearchInputSchema.safeParse({ q: "a".repeat(121) }).success,
+    ).toBe(false);
   });
 });
 

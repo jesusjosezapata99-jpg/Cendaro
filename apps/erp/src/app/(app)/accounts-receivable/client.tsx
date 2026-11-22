@@ -57,20 +57,35 @@ interface ReceivableItem {
   lastPaidAt?: Date | string | null;
 }
 
+const VALID_AR_STATUS_TABS = new Set([
+  "all",
+  "open",
+  "pending",
+  "partial",
+  "overdue",
+  "paid",
+]);
+
+function isPastDue(dueDate: Date | string): boolean {
+  return new Date(dueDate).getTime() <= Date.now();
+}
+
 export default function AccountsReceivableClient() {
   const router = useRouter();
   const trpc = useTRPC();
   const bcv = useBcvRate();
 
   const searchParams = useSearchParams();
-  const urlStatus = searchParams.get("status");
-  const [statusFilter, setStatusFilter] = useState<string>(urlStatus ?? "all");
+  const rawUrlStatus = searchParams.get("status");
+  const normalizedUrlStatus =
+    rawUrlStatus && VALID_AR_STATUS_TABS.has(rawUrlStatus)
+      ? rawUrlStatus
+      : "all";
+  const [statusFilter, setStatusFilter] = useState<string>(normalizedUrlStatus);
 
   useEffect(() => {
-    if (urlStatus) {
-      setStatusFilter(urlStatus);
-    }
-  }, [urlStatus]);
+    setStatusFilter(normalizedUrlStatus);
+  }, [normalizedUrlStatus]);
 
   const [agingFilter, setAgingFilter] = useState<string>("all");
   const [showCreate, setShowCreate] = useState(false);
@@ -108,11 +123,21 @@ export default function AccountsReceivableClient() {
   // Filter pipeline
   const filtered = useMemo(() => {
     return items.filter((ar) => {
-      if (statusFilter !== "all" && ar.status !== statusFilter) return false;
+      if (statusFilter === "open") {
+        if (ar.status === "paid" || ar.status === "written_off") return false;
+      } else if (statusFilter === "overdue") {
+        const isOpenAndOverdue =
+          ar.status !== "paid" &&
+          ar.status !== "written_off" &&
+          (ar.status === "overdue" || isPastDue(ar.dueDate));
+        if (!isOpenAndOverdue) return false;
+      } else if (statusFilter !== "all" && ar.status !== statusFilter) {
+        return false;
+      }
 
       if (agingFilter !== "all") {
         const days = computeDaysOverdue(ar.dueDate);
-        if (agingFilter === "current" && days > 0) return false;
+        if (agingFilter === "current" && isPastDue(ar.dueDate)) return false;
         if (agingFilter === "1-30" && (days < 1 || days > 30)) return false;
         if (agingFilter === "31-60" && (days < 31 || days > 60)) return false;
         if (agingFilter === "60+" && days <= 60) return false;
@@ -137,7 +162,7 @@ export default function AccountsReceivableClient() {
         (ar) =>
           ar.status !== "paid" &&
           ar.status !== "written_off" &&
-          computeDaysOverdue(ar.dueDate) > 0,
+          (ar.status === "overdue" || isPastDue(ar.dueDate)),
       ).length,
     [items],
   );
@@ -412,6 +437,7 @@ export default function AccountsReceivableClient() {
         <div className="mobile-scroll-x flex items-center gap-1.5 border-b border-(--line) pb-2">
           {[
             { key: "all", label: "Todas" },
+            { key: "open", label: "Por Cobrar" },
             { key: "pending", label: "Pendientes" },
             { key: "partial", label: "Abono Parcial" },
             { key: "overdue", label: "Vencidas" },

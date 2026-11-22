@@ -94,8 +94,11 @@ describe("appRouter", () => {
     // Workspace
     expect(procedures).toHaveProperty("workspace.list");
 
-    // Search (T2.11)
+    // Search (T2.11 + Hybrid AI)
     expect(procedures).toHaveProperty("search.global");
+    expect(procedures).toHaveProperty("search.semantic");
+    expect(procedures).toHaveProperty("search.askAi");
+    expect(procedures).toHaveProperty("search.copilotChat");
 
     // Credit Notes & Audit Chain (F10)
     expect(procedures).toHaveProperty("creditNotes.list");

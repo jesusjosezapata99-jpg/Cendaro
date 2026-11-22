@@ -23,6 +23,7 @@ import { STARTER_MODULES, STARTER_QUOTA } from "@cendaro/validators";
 import { revokeSessionsIfAccessLost } from "../services/auth-admin";
 import {
   createTRPCRouter,
+  evictWorkspaceModuleCache,
   memberReadProcedure,
   selfProcedure,
   wsPermissionProcedure,
@@ -534,6 +535,8 @@ export const workspaceRouter = createTRPCRouter({
             ),
           );
       }
+
+      evictWorkspaceModuleCache(ws.workspaceId, input.module);
 
       await logAudit(ctx.db, ctx.user, {
         workspaceId: ws.workspaceId,

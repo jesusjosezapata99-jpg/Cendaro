@@ -24,6 +24,7 @@ import type { z } from "zod/v4";
 
 import type { getDb } from "@cendaro/db/client";
 
+import type { PiiEntityType } from "../rag/pii-detector";
 import { logger } from "../../logger";
 import { runInWorkspaceRls } from "../../trpc";
 import { logRagAuditEvent, sha256Hex } from "../rag/audit";
@@ -67,6 +68,19 @@ export interface StructuredAiRequest<T> {
   responseSchema?: GeminiJsonSchema;
   zodSchema: z.ZodType<T>;
   timeoutMs?: number;
+  /** Optional output token ceiling for low-latency structured classifications. */
+  maxOutputTokens?: number;
+  /**
+   * When true, omits `responseSchema` from `generationConfig` (keeping `responseMimeType: "application/json"`
+   * + strict local `zod/v4` validation) to avoid multi-second server-side FSM grammar compilation on short queries.
+   */
+  omitResponseSchema?: boolean;
+  /** Optional model list override (e.g. `["gemini-3.5-flash-lite"]` to isolate search quota from import quota). */
+  candidateModelsOverride?: readonly string[];
+  /** Attempts per Gemini model (1 or 2; defaults to 2). */
+  maxAttemptsPerModel?: 1 | 2;
+  /** Additional PII entity types to skip during pre-wire tokenization (e.g. `"swift_bic"` on 8-char SKUs). */
+  skipPiiTypes?: ReadonlySet<PiiEntityType>;
   /**
    * When true (ONLY during structured line-item price extraction in `document-extractor.ts`),
    * vaults fiscal/banking PII (`rif_ve`, `nif_cif_es`, `rfc_mx`, `ein_us`, `iban`, `swift_bic`, `card_pan`)
@@ -193,6 +207,8 @@ async function callGeminiModelOnce(params: {
   userText: string;
   inlineMedia: readonly InlineMediaPart[];
   responseSchema?: GeminiJsonSchema;
+  omitResponseSchema?: boolean;
+  maxOutputTokens?: number;
   timeoutMs: number;
 }): Promise<
   | { ok: true; result: RawModelResult }
@@ -211,12 +227,21 @@ async function callGeminiModelOnce(params: {
     });
   }
 
+  // Never send `thinkingConfig` (`thinkingBudget` returns HTTP 400 on 3.5-flash-lite;
+  // `thinkingLevel: "MINIMAL"` returns HTTP 400 on 3.8-flash).
   const generationConfig: Record<string, unknown> = {
     temperature: 0.1,
     responseMimeType: "application/json",
   };
-  if (params.responseSchema) {
+  if (params.responseSchema && !params.omitResponseSchema) {
     generationConfig.responseSchema = params.responseSchema;
+  }
+  if (
+    typeof params.maxOutputTokens === "number" &&
+    Number.isFinite(params.maxOutputTokens) &&
+    params.maxOutputTokens > 0
+  ) {
+    generationConfig.maxOutputTokens = Math.trunc(params.maxOutputTokens);
   }
 
   const controller = new AbortController();
@@ -411,13 +436,21 @@ export async function generateStructuredJson<T>(
   }
 
   // 2. Pre-Wire PII Tokenization (0% cleartext RIF/NIF/RFC/EIN/IBAN/PAN on the wire)
+  const mergedSkipTypes = new Set<PiiEntityType>();
+  if (req.preserveItemPrices) {
+    mergedSkipTypes.add("fob_cost");
+    mergedSkipTypes.add("fob_price");
+  }
+  if (req.skipPiiTypes) {
+    for (const item of req.skipPiiTypes) {
+      mergedSkipTypes.add(item);
+    }
+  }
   const { sanitizedContent: piiScrubbed } = tokenizeAndVaultContent(
     structurallyClean,
     req.workspaceId,
     "wire-ephemeral",
-    req.preserveItemPrices
-      ? { skipTypes: new Set(["fob_cost", "fob_price"]) }
-      : undefined,
+    mergedSkipTypes.size > 0 ? { skipTypes: mergedSkipTypes } : undefined,
   );
 
   // 3. Cryptographic 128-bit Dynamic Delimiter Spotlighting (+ Multimodal Boundary Directive)
@@ -438,11 +471,15 @@ export async function generateStructuredJson<T>(
 
   let rawResult: RawModelResult | null = null;
   const failureReasons: string[] = [];
+  const maxAttempts = req.maxAttemptsPerModel ?? 2;
 
   if (geminiKey.length > 0 && !geminiKey.startsWith("mock-")) {
-    const candidateModels = resolveGeminiModels();
+    const candidateModels =
+      req.candidateModelsOverride && req.candidateModelsOverride.length > 0
+        ? [...req.candidateModelsOverride]
+        : resolveGeminiModels();
     for (const model of candidateModels) {
-      for (let attempt = 0; attempt < 2; attempt++) {
+      for (let attempt = 0; attempt < maxAttempts; attempt++) {
         const res = await callGeminiModelOnce({
           model,
           apiKey: geminiKey,
@@ -450,6 +487,8 @@ export async function generateStructuredJson<T>(
           userText: spotlightedPayload,
           inlineMedia,
           responseSchema: req.responseSchema,
+          omitResponseSchema: req.omitResponseSchema,
+          maxOutputTokens: req.maxOutputTokens,
           timeoutMs,
         });
         if (res.ok) {
@@ -457,7 +496,7 @@ export async function generateStructuredJson<T>(
           break;
         }
         failureReasons.push(res.reason);
-        if (!res.retryable || attempt === 1) {
+        if (!res.retryable || attempt >= maxAttempts - 1) {
           break;
         }
         const jitterMs = 350 + Math.floor(Math.random() * 250);
@@ -554,8 +593,14 @@ export async function generateStructuredJson<T>(
           auditEntry,
         ),
       );
-    } catch {
-      // Best-effort WORM audit (e.g. if migration 035 is not yet applied in test/dev)
+    } catch (auditErr) {
+      const code = (auditErr as { code?: string } | null)?.code;
+      if (code !== "42P01") {
+        logger.warn("WORM rag_audit_log persistence failed in ai-gateway", {
+          module: "ai-gateway",
+          operation: req.operationLabel,
+        });
+      }
     }
   }
 

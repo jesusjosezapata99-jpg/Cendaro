@@ -32,6 +32,7 @@ import {
   EMBEDDING_DIMENSIONS,
   generateEmbedding,
   generateEmbeddings,
+  normalizeL2Vector,
 } from "../services/rag/embeddings";
 import {
   evaluateInputGuardrails,
@@ -41,6 +42,12 @@ import {
 import { prepareIngestPayload } from "../services/rag/ingest";
 import { rehydrateSurrogateTokens } from "../services/rag/pii-vault";
 import { redactConfidentialContent } from "../services/rag/search";
+import {
+  clearHybridSearchCaches,
+  executeCopilotChat,
+  executeQuickAiQuery,
+  executeSemanticHybridSearch,
+} from "../services/search/hybrid-search-engine";
 
 const LIVE_GEMINI_KEY = process.env.GEMINI_API_KEY?.trim();
 const WS_ALPHA = "a1000000-0000-4000-8000-000000000001";
@@ -422,5 +429,585 @@ describe.skipIf(!LIVE_GEMINI_KEY)(
         globalThis.fetch = realFetch;
       }
     }, 40_000);
+
+    it("5. Live Hybrid Semantic Search (`gemini-embedding-001`): matches colloquial Spanish query, preserves 8-char SKUs, vaults RIFs, and caches L1", async () => {
+      process.env.RAG_EMBEDDING_PROVIDER = "gemini";
+      clearHybridSearchCaches();
+
+      // Embed two real catalog items via live `gemini-embedding-001` first
+      const [bulbVec, brakeDistractorVec] = await generateEmbeddings([
+        "SKU: LAM-E27-9W | Producto: Lámpara Bulbo LED E27 9W 3000K Luz Cálida | Categoría: Iluminación",
+        "SKU: FREN-HIL-01 | Producto: Juego de Pastillas de Freno Cerámicas Toyota Hilux | Categoría: Automotriz",
+      ]);
+
+      const realFetch = globalThis.fetch;
+      const wirePayloads: { url: string; body: string; status: number }[] = [];
+      globalThis.fetch = async (input, init) => {
+        const url =
+          typeof input === "string"
+            ? input
+            : input instanceof URL
+              ? input.toString()
+              : input.url;
+        const body = typeof init?.body === "string" ? init.body : "";
+        const response = await realFetch(input, init);
+        if (new URL(url).hostname === "generativelanguage.googleapis.com") {
+          wirePayloads.push({ url, body, status: response.status });
+        }
+        return response;
+      };
+
+      try {
+        // Compute live query embedding once to measure real cosine distance for our mock DB projection
+        const userQuery =
+          "bombillo ahorrador luz calida para sala cliente J-40987654-3 codigo VALVES01";
+
+        const makeLiveVectorDb = (queryVecGetter: () => number[] | null) => {
+          const chain = (shape?: Record<string, unknown>) => {
+            const self: Record<string, unknown> = {};
+            for (const m of [
+              "from",
+              "innerJoin",
+              "leftJoin",
+              "where",
+              "orderBy",
+              "limit",
+            ]) {
+              self[m] = () => self;
+            }
+            self.then = (
+              onFulfilled: (rows: unknown[]) => unknown,
+              onRejected: (reason: unknown) => unknown,
+            ) => {
+              if (shape && Object.keys(shape).length === 1 && "id" in shape) {
+                return Promise.resolve([{ id: "mod-enabled" }]).then(
+                  onFulfilled,
+                  onRejected,
+                );
+              }
+              if (shape && "searchDocument" in shape) {
+                const qVec = queryVecGetter();
+                const distBulb = qVec
+                  ? 1 - cosineSimilarity(qVec, bulbVec ?? [])
+                  : 0.25;
+                const distBrake = qVec
+                  ? 1 - cosineSimilarity(qVec, brakeDistractorVec ?? [])
+                  : 0.65;
+                const sorted = [
+                  {
+                    id: "11111111-1111-4111-8111-111111111111",
+                    sku: "LAM-E27-9W",
+                    name: "Lámpara Bulbo LED E27 9W 3000K Luz Cálida",
+                    status: "active",
+                    brandName: "Sylvania",
+                    categoryName: "Iluminación",
+                    searchDocument:
+                      "SKU: LAM-E27-9W | Producto: Lámpara Bulbo LED E27 9W 3000K Luz Cálida",
+                    distance: distBulb,
+                  },
+                  {
+                    id: "22222222-2222-4222-8222-222222222222",
+                    sku: "FREN-HIL-01",
+                    name: "Juego de Pastillas de Freno Cerámicas Toyota Hilux",
+                    status: "active",
+                    brandName: "Toyota",
+                    categoryName: "Automotriz",
+                    searchDocument:
+                      "SKU: FREN-HIL-01 | Producto: Juego de Pastillas de Freno Cerámicas Toyota Hilux",
+                    distance: distBrake,
+                  },
+                ].sort((a, b) => a.distance - b.distance);
+                return Promise.resolve(sorted).then(onFulfilled, onRejected);
+              }
+              return Promise.resolve([]).then(onFulfilled, onRejected);
+            };
+            return self;
+          };
+
+          const dbObj = {
+            execute: () => Promise.resolve({ rows: [] }),
+            select: (shape?: Record<string, unknown>) => chain(shape),
+            transaction: (fn: (tx: unknown) => Promise<unknown>) => fn(dbObj),
+          };
+          return dbObj;
+        };
+
+        // Pre-probe the masked query vector only to compute exact live cosine distance in mock
+        let capturedQueryVec: number[] | null = null;
+        const origFetch = globalThis.fetch;
+        globalThis.fetch = async (input, init) => {
+          const res = await origFetch(input, init);
+          const clone = res.clone();
+          try {
+            const json = (await clone.json()) as {
+              embeddings?: { values?: number[] }[];
+            };
+            if (json.embeddings?.[0]?.values) {
+              capturedQueryVec = normalizeL2Vector(json.embeddings[0].values);
+            }
+          } catch {
+            // ignore non-json
+          }
+          return res;
+        };
+
+        const mockDb = makeLiveVectorDb(() => capturedQueryVec);
+        const firstRun = await executeSemanticHybridSearch(
+          {
+            db: mockDb as never,
+            workspace: {
+              workspaceId: WS_ALPHA,
+              memberId: "33333333-3333-4333-8333-333333333333",
+              role: "owner",
+              plan: "pro",
+            },
+            user: { id: "44444444-4444-4444-8444-444444444444" },
+            afterCommit: [],
+          },
+          { q: userQuery, limit: 5 },
+        );
+
+        expect(wirePayloads).toHaveLength(1);
+        expect(wirePayloads[0]?.status).toBe(200);
+        expect(wirePayloads[0]?.url).not.toContain("key=");
+        // Zero cleartext RIF on wire, while 8-char SKU `VALVES01` survives!
+        expect(wirePayloads[0]?.body).not.toContain("40987654");
+        expect(wirePayloads[0]?.body).toContain("VALVES01");
+
+        expect(firstRun.source).toBe("pgvector");
+        expect(firstRun.products[0]?.sku).toBe("LAM-E27-9W");
+
+        // Second identical call MUST hit L1 cache with 0 additional Gemini network calls
+        const secondRun = await executeSemanticHybridSearch(
+          {
+            db: mockDb as never,
+            workspace: {
+              workspaceId: WS_ALPHA,
+              memberId: "33333333-3333-4333-8333-333333333333",
+              role: "owner",
+              plan: "pro",
+            },
+            user: { id: "44444444-4444-4444-8444-444444444444" },
+            afterCommit: [],
+          },
+          { q: userQuery, limit: 5 },
+        );
+
+        expect(secondRun.source).toBe("cache");
+        expect(wirePayloads).toHaveLength(1);
+      } finally {
+        globalThis.fetch = realFetch;
+      }
+    }, 30_000);
+
+    it("6. Live Zero-PII Quick Operational Query (`gemini-3.5-flash-lite`): HTTP 200 without 400 errors, isolates import model quota, and vaults RIFs", async () => {
+      clearHybridSearchCaches();
+
+      const realFetch = globalThis.fetch;
+      const llmWireCalls: { url: string; body: string; status: number }[] = [];
+      globalThis.fetch = async (input, init) => {
+        const url =
+          typeof input === "string"
+            ? input
+            : input instanceof URL
+              ? input.toString()
+              : input.url;
+        const body = typeof init?.body === "string" ? init.body : "";
+        const response = await realFetch(input, init);
+        if (new URL(url).hostname === "generativelanguage.googleapis.com") {
+          llmWireCalls.push({ url, body, status: response.status });
+        }
+        return response;
+      };
+
+      try {
+        const makeArMockDb = () => {
+          const chain = (shape?: Record<string, unknown>) => {
+            const self: Record<string, unknown> = {};
+            for (const m of [
+              "from",
+              "innerJoin",
+              "leftJoin",
+              "where",
+              "groupBy",
+              "having",
+              "orderBy",
+              "limit",
+            ]) {
+              self[m] = () => self;
+            }
+            self.then = (
+              onFulfilled: (rows: unknown[]) => unknown,
+              onRejected: (reason: unknown) => unknown,
+            ) => {
+              if (shape && Object.keys(shape).length === 1 && "id" in shape) {
+                return Promise.resolve([{ id: "mod-ar" }]).then(
+                  onFulfilled,
+                  onRejected,
+                );
+              }
+              if (shape && "customerName" in shape && "dueDate" in shape) {
+                return Promise.resolve([
+                  {
+                    id: "55555555-5555-4555-8555-555555555555",
+                    balance: 1250.5,
+                    dueDate: new Date(Date.now() - 10 * 86_400_000),
+                    status: "pending",
+                    customerName: "Distribuidora Los Andes C.A.",
+                    customerRif: "J-40987654-3",
+                  },
+                ]).then(onFulfilled, onRejected);
+              }
+              return Promise.resolve([]).then(onFulfilled, onRejected);
+            };
+            return self;
+          };
+          const dbObj = {
+            execute: () => Promise.resolve({ rows: [] }),
+            select: (shape?: Record<string, unknown>) => chain(shape),
+            transaction: (fn: (tx: unknown) => Promise<unknown>) => fn(dbObj),
+          };
+          return dbObj;
+        };
+
+        // Phrased conversationally so Stage-A regex passes through to Stage-B `gemini-3.5-flash-lite`
+        const conversationalQuery =
+          "? necesito revisar qué compradores mayoristas mantienen compromisos atrasados superiores a 850 dólares vinculados al contribuyente J-40987654-3";
+
+        const res = await executeQuickAiQuery(
+          {
+            db: makeArMockDb() as never,
+            workspace: {
+              workspaceId: WS_ALPHA,
+              memberId: "66666666-6666-4666-8666-666666666666",
+              role: "owner",
+              plan: "pro",
+            },
+            user: { id: "77777777-7777-4777-8777-777777777777" },
+            afterCommit: [],
+          },
+          { q: conversationalQuery },
+        );
+
+        expect(llmWireCalls).toHaveLength(1);
+        expect(llmWireCalls[0]?.status).toBe(200);
+        // Must target `gemini-3.5-flash-lite` exclusively (never `gemini-3.8-flash`)
+        expect(llmWireCalls[0]?.url).toContain(
+          "models/gemini-3.5-flash-lite:generateContent",
+        );
+        expect(llmWireCalls[0]?.url).not.toContain("key=");
+        // Must omit `thinkingConfig` and `responseSchema` (0 HTTP 400 errors & <1s latency)
+        expect(llmWireCalls[0]?.body).not.toContain("thinkingConfig");
+        expect(llmWireCalls[0]?.body).not.toContain("responseSchema");
+        // Must scrub cleartext RIF while preserving numeric threshold `850`
+        expect(llmWireCalls[0]?.body).not.toContain("40987654");
+        expect(llmWireCalls[0]?.body).toContain("850");
+
+        expect(res.source).toBe("gemini-flash-lite");
+        expect(res.intent).toBe("overdue_receivables");
+        expect(res.items).toHaveLength(1);
+        expect(res.deepLink?.href).toBe("/accounts-receivable?status=overdue");
+      } finally {
+        globalThis.fetch = realFetch;
+      }
+    }, 30_000);
+
+    it("7. Live Multi-Turn Conversational Copilot (`executeCopilotChat` + `gemini-3.5-flash-lite`): natural Spanish dialogue + history carryover + 0% PII", async () => {
+      clearHybridSearchCaches();
+
+      const realFetch = globalThis.fetch;
+      const copilotWireCalls: { url: string; body: string; status: number }[] =
+        [];
+      globalThis.fetch = async (input, init) => {
+        const url =
+          typeof input === "string"
+            ? input
+            : input instanceof URL
+              ? input.toString()
+              : input.url;
+        const body = typeof init?.body === "string" ? init.body : "";
+        const response = await realFetch(input, init);
+        if (new URL(url).hostname === "generativelanguage.googleapis.com") {
+          copilotWireCalls.push({ url, body, status: response.status });
+        }
+        return response;
+      };
+
+      try {
+        const makeSalesMockDb = () => {
+          const chain = (shape?: Record<string, unknown>) => {
+            const self: Record<string, unknown> = {};
+            for (const m of [
+              "from",
+              "innerJoin",
+              "leftJoin",
+              "where",
+              "groupBy",
+              "having",
+              "orderBy",
+              "limit",
+            ]) {
+              self[m] = () => self;
+            }
+            self.then = (
+              onFulfilled: (rows: unknown[]) => unknown,
+              onRejected: (reason: unknown) => unknown,
+            ) => {
+              if (shape && Object.keys(shape).length === 1 && "id" in shape) {
+                return Promise.resolve([{ id: "mod-orders" }]).then(
+                  onFulfilled,
+                  onRejected,
+                );
+              }
+              if (shape && Object.keys(shape).length === 1 && "rate" in shape) {
+                return Promise.resolve([{ rate: 50 }]).then(
+                  onFulfilled,
+                  onRejected,
+                );
+              }
+              if (shape && "orderCount" in shape && "totalSum" in shape) {
+                return Promise.resolve([
+                  { orderCount: 1, totalSum: "340.00" },
+                ]).then(onFulfilled, onRejected);
+              }
+              if (shape && "orderNumber" in shape && "channel" in shape) {
+                return Promise.resolve([
+                  {
+                    id: "88888888-8888-4888-8888-888888888888",
+                    orderNumber: "ORD-2026-901",
+                    channel: "instagram",
+                    total: 340,
+                    customerName: "Comercial Bolívar C.A.",
+                  },
+                ]).then(onFulfilled, onRejected);
+              }
+              return Promise.resolve([]).then(onFulfilled, onRejected);
+            };
+            return self;
+          };
+          const dbObj = {
+            execute: () => Promise.resolve({ rows: [] }),
+            select: (shape?: Record<string, unknown>) => chain(shape),
+            transaction: (fn: (tx: unknown) => Promise<unknown>) => fn(dbObj),
+          };
+          return dbObj;
+        };
+
+        const ctx = {
+          db: makeSalesMockDb() as never,
+          workspace: {
+            workspaceId: WS_ALPHA,
+            memberId: "66666666-6666-4666-8666-666666666666",
+            role: "owner" as const,
+            plan: "pro" as const,
+          },
+          user: { id: "77777777-7777-4777-8777-777777777777" },
+          afterCommit: [],
+        };
+
+        // Turn 1: Colloquial phrasing (bypasses Stage-A regex -> hits live `gemini-3.5-flash-lite`)
+        const turn1 = await executeCopilotChat(ctx, {
+          message:
+            "Oye equipo, cuéntame cuánto dinero nos ha entrado facturado por Instagram durante el último mes excluyendo devoluciones para el RIF J-40987654-3",
+          history: [],
+        });
+
+        expect(copilotWireCalls).toHaveLength(1);
+        expect(copilotWireCalls[0]?.status).toBe(200);
+        expect(copilotWireCalls[0]?.url).toContain(
+          "models/gemini-3.5-flash-lite:generateContent",
+        );
+        expect(copilotWireCalls[0]?.body).not.toContain("40987654");
+        expect(turn1.source).toBe("gemini-flash-lite");
+        expect(turn1.intent).toBe("sales_summary");
+        expect(turn1.resolvedFilters.channel).toBe("instagram");
+        expect(turn1.reply).toContain("$340.00");
+        expect(turn1.followUps.length).toBeGreaterThan(0);
+
+        // Turn 2: Natural multi-turn follow-up ("¿Y si miramos solo en tienda?")
+        const turn2 = await executeCopilotChat(ctx, {
+          message: "¿Y solo en tienda?",
+          history: [
+            {
+              userText:
+                "Oye equipo, cuéntame cuánto dinero nos ha entrado facturado por Instagram RIF J-40987654-3",
+              intent: turn1.intent,
+              ...turn1.resolvedFilters,
+            },
+          ],
+        });
+
+        expect(turn2.intent).toBe("sales_summary");
+        expect(turn2.resolvedFilters.channel).toBe("store");
+      } finally {
+        globalThis.fetch = realFetch;
+      }
+    }, 30_000);
+
+    it("8. Live Colloquial Invoice & Payment Lookup (`gemini-3.5-flash-lite`): 0% RIF PII on wire + local RAM RIF rehydration + full invoice dossier", async () => {
+      clearHybridSearchCaches();
+
+      const realFetch = globalThis.fetch;
+      const invoiceWireCalls: { url: string; body: string; status: number }[] =
+        [];
+      globalThis.fetch = async (input, init) => {
+        const url =
+          typeof input === "string"
+            ? input
+            : input instanceof URL
+              ? input.toString()
+              : input.url;
+        const body = typeof init?.body === "string" ? init.body : "";
+        const response = await realFetch(input, init);
+        if (new URL(url).hostname === "generativelanguage.googleapis.com") {
+          invoiceWireCalls.push({ url, body, status: response.status });
+        }
+        return response;
+      };
+
+      try {
+        const makeInvoiceMockDb = () => {
+          const chain = (shape?: Record<string, unknown>) => {
+            const self: Record<string, unknown> = {};
+            for (const m of [
+              "from",
+              "innerJoin",
+              "leftJoin",
+              "where",
+              "groupBy",
+              "having",
+              "orderBy",
+              "limit",
+            ]) {
+              self[m] = () => self;
+            }
+            self.then = (
+              onFulfilled: (rows: unknown[]) => unknown,
+              onRejected: (reason: unknown) => unknown,
+            ) => {
+              if (shape && Object.keys(shape).length === 1 && "id" in shape) {
+                return Promise.resolve([{ id: "mod-enabled" }]).then(
+                  onFulfilled,
+                  onRejected,
+                );
+              }
+              if (shape && Object.keys(shape).length === 1 && "rate" in shape) {
+                return Promise.resolve([{ rate: 50 }]).then(
+                  onFulfilled,
+                  onRejected,
+                );
+              }
+              if (shape && "invoiceNumber" in shape && "subtotal" in shape) {
+                return Promise.resolve([
+                  {
+                    id: "inv-live-01",
+                    invoiceNumber: "FAC-2026-9910",
+                    orderId: "ord-live-01",
+                    customerId: "cust-live-01",
+                    status: "issued",
+                    subtotal: 800,
+                    discount: 0,
+                    tax: 128,
+                    total: 928,
+                    issuedAt: new Date("2026-11-21T18:10:00Z"),
+                    createdAt: new Date("2026-11-21T18:10:00Z"),
+                    orderNumber: "ORD-2026-9910",
+                    channel: "store",
+                    totalPaid: 928,
+                    customerName: "Inversiones Orinoco C.A.",
+                    customerLegalName: "Inversiones Orinoco C.A.",
+                    customerRif: "J-30992817-4",
+                  },
+                ]).then(onFulfilled, onRejected);
+              }
+              if (
+                shape &&
+                "fiscalInvoiceNumber" in shape &&
+                "controlNumber" in shape
+              ) {
+                return Promise.resolve([
+                  {
+                    internalInvoiceId: "inv-live-01",
+                    fiscalInvoiceNumber: "FISC-009910",
+                    controlNumber: "00-0077441",
+                    exchangeRateBcv: 50,
+                    totalVes: 46400,
+                  },
+                ]).then(onFulfilled, onRejected);
+              }
+              if (shape && "method" in shape && "reference" in shape) {
+                return Promise.resolve([
+                  {
+                    orderId: "ord-live-01",
+                    method: "mobile_payment",
+                    amount: 928,
+                    reference: "PM-445566",
+                    bankName: "Banesco",
+                    createdAt: new Date("2026-11-21T18:12:00Z"),
+                  },
+                ]).then(onFulfilled, onRejected);
+              }
+              if (shape && "lineTotal" in shape && "sku" in shape) {
+                return Promise.resolve([
+                  {
+                    orderId: "ord-live-01",
+                    quantity: 4,
+                    lineTotal: 928,
+                    productName: "Batería Automotriz 800AMP",
+                    sku: "BAT-800A",
+                  },
+                ]).then(onFulfilled, onRejected);
+              }
+              return Promise.resolve([]).then(onFulfilled, onRejected);
+            };
+            return self;
+          };
+          const dbObj = {
+            execute: () => Promise.resolve({ rows: [] }),
+            select: (shape?: Record<string, unknown>) => chain(shape),
+            transaction: (fn: (tx: unknown) => Promise<unknown>) => fn(dbObj),
+          };
+          return dbObj;
+        };
+
+        // Phrased colloquially without literal "factura" so Stage-A returns null and live `gemini-3.5-flash-lite` runs!
+        const res = await executeCopilotChat(
+          {
+            db: makeInvoiceMockDb() as never,
+            workspace: {
+              workspaceId: WS_ALPHA,
+              memberId: "66666666-6666-4666-8666-666666666666",
+              role: "owner",
+              plan: "pro",
+            },
+            user: { id: "88888888-7777-4777-8777-888888888888" },
+            afterCommit: [],
+          },
+          {
+            message:
+              "Disculpa, ¿me podrías ubicar cuál fue el comprobante fiscal SENIAT más reciente emitido al contribuyente J-30992817-4 y cómo canceló?",
+            history: [],
+          },
+        );
+
+        expect(invoiceWireCalls).toHaveLength(1);
+        expect(invoiceWireCalls[0]?.status).toBe(200);
+        // Zero cleartext RIF on wire to Google AI Studio Free Tier
+        expect(invoiceWireCalls[0]?.body).not.toContain("30992817");
+        expect(res.source).toBe("gemini-flash-lite");
+        expect(res.intent).toBe("invoice_lookup");
+        // Ephemeral RAM rehydration restored exact RIF for local Stage-C SQL lookup
+        expect(res.resolvedFilters.searchTerm).toBe("J-30992817-4");
+        expect(res.headline).toContain("FAC-2026-9910");
+        expect(JSON.stringify(res.details)).toContain("00-0077441");
+        expect(JSON.stringify(res.details)).toContain("Pago Móvil");
+        expect(JSON.stringify(res.details)).toContain("PM-445566");
+        expect(
+          res.quickActions.some((a) => a.href === "?orderId=ord-live-01"),
+        ).toBe(true);
+      } finally {
+        globalThis.fetch = realFetch;
+      }
+    }, 30_000);
   },
 );

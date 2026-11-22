@@ -5,15 +5,19 @@ import { useRouter } from "next/navigation";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 
 import type { IconName } from "@cendaro/ui/icons";
+import type { StatusTone } from "@cendaro/ui/status-pill";
 import { cn } from "@cendaro/ui";
 import { Icon, Icons } from "@cendaro/ui/icons";
+import { StatusPill } from "@cendaro/ui/status-pill";
 
 import { useCurrentUser } from "~/hooks/use-current-user";
 import { useDebounce } from "~/hooks/use-debounce";
 import { getVisibleNav } from "~/lib/navigation";
+import { getStatus } from "~/lib/status";
 import { useTRPC } from "~/trpc/client";
 
-const DEBOUNCE_MS = 150;
+const TIER0_DEBOUNCE_MS = 150;
+const TIER1_SEMANTIC_DEBOUNCE_MS = 650;
 
 interface ResultItem {
   key: string;
@@ -21,8 +25,10 @@ interface ResultItem {
   label: string;
   subtitle: string;
   icon: IconName;
-  href: string;
-  status?: string;
+  href?: string;
+  triggerSemantic?: boolean;
+  badgeText?: string;
+  badgeTone?: StatusTone;
 }
 
 const TYPE_ICON: Record<string, IconName> = {
@@ -56,28 +62,54 @@ export function Search({ onClose }: SearchProps) {
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [contentHeight, setContentHeight] = useState(0);
+  const [semanticBoostForced, setSemanticBoostForced] = useState(false);
+
   const inputRef = useRef<HTMLInputElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
 
-  const debouncedQuery = useDebounce(query, DEBOUNCE_MS);
-  const trimmed = debouncedQuery.trim();
-  const isSearching = trimmed.length >= 2;
+  const rawTrimmed = query.trim();
+  const debouncedTier0 = useDebounce(query, TIER0_DEBOUNCE_MS);
+  const debouncedTier1 = useDebounce(query, TIER1_SEMANTIC_DEBOUNCE_MS);
+
+  const tier0Query = debouncedTier0.trim().slice(0, 120);
+  const tier1Query = debouncedTier1.trim().slice(0, 160);
+
+  const isSearching = rawTrimmed.length >= 2;
+  const shouldRunTier0 = tier0Query.length >= 2;
 
   useEffect(() => {
     requestAnimationFrame(() => inputRef.current?.focus());
   }, []);
 
-  const { data: searchResults, isFetching } = useQuery({
+  // Tier 0: Instant accent-folded + trigram SQL (<25ms, 0 Gemini calls)
+  const { data: searchResults, isFetching: isFetchingTier0 } = useQuery({
     ...trpc.search.global.queryOptions(
-      { q: trimmed },
-      { placeholderData: keepPreviousData },
+      { q: tier0Query },
+      { placeholderData: keepPreviousData, staleTime: 30_000 },
     ),
-    enabled: isSearching,
+    enabled: shouldRunTier0,
   });
 
-  // ── Browse mode (empty query): pages + quick-create actions from the
-  // same NAV_ITEMS/getVisibleNav source of truth the rail uses — no
-  // separate `roles: UserRole[]` list duplicated here (T2.1's own lesson).
+  const tier0EmptyAfterSettle =
+    shouldRunTier0 &&
+    !isFetchingTier0 &&
+    Array.isArray(searchResults) &&
+    searchResults.length === 0 &&
+    tier0Query === rawTrimmed;
+
+  const shouldRunTier1 =
+    tier1Query.length >= 3 && (semanticBoostForced || tier0EmptyAfterSettle);
+
+  // Tier 1: Silent semantic pgvector + RRF fallback when literal SQL returns 0 hits
+  const { data: semanticData, isFetching: isFetchingTier1 } = useQuery({
+    ...trpc.search.semantic.queryOptions(
+      { q: tier1Query, limit: 6 },
+      { staleTime: 120_000 },
+    ),
+    enabled: shouldRunTier1,
+  });
+
+  // ── Browse mode (empty query): role-scoped navigation pages + quick create actions
   const { pageItems, actionItems } = useMemo(() => {
     const visible = getVisibleNav(role);
     const pages: ResultItem[] = [];
@@ -105,11 +137,6 @@ export function Search({ onClose }: SearchProps) {
             href: child.href,
           });
         } else if (child.href !== parent.href) {
-          // Only skipped when the child's href duplicates the parent's own
-          // (e.g. "Catálogo" → /catalog and its "Productos" child →
-          // /catalog) — every other link child is a real, distinct page
-          // (Categorías, Marcas, Contenedores, ...) and must show up here
-          // even when its parent also has its own direct href.
           pages.push({
             key: `page-${parent.id}-${child.href}`,
             group: "Páginas",
@@ -126,35 +153,122 @@ export function Search({ onClose }: SearchProps) {
   }, [role]);
 
   const entityItems: ResultItem[] = useMemo(() => {
-    if (!isSearching || !searchResults) return [];
-    return searchResults.map((item) => ({
-      key: `${item.type}-${item.id}`,
-      group: TYPE_GROUP_LABEL[item.type] ?? item.type,
-      label: item.title,
-      subtitle: item.status
-        ? `${item.subtitle} · ${item.status}`
-        : item.subtitle,
-      icon: TYPE_ICON[item.type] ?? "Search",
-      href: item.href,
-    }));
-  }, [isSearching, searchResults]);
+    if (!shouldRunTier0 || !searchResults) return [];
+    return searchResults.map((item) => {
+      const statusPill =
+        item.status && item.statusDomain
+          ? getStatus(item.statusDomain, item.status)
+          : null;
+      return {
+        key: `${item.type}-${item.id}`,
+        group: TYPE_GROUP_LABEL[item.type] ?? item.type,
+        label: item.title,
+        subtitle: item.subtitle,
+        icon: TYPE_ICON[item.type] ?? "Search",
+        href: item.href,
+        badgeText: statusPill?.label,
+        badgeTone: statusPill?.tone,
+      };
+    });
+  }, [shouldRunTier0, searchResults]);
 
-  const groupedResults = isSearching
-    ? entityItems
-    : [...pageItems, ...actionItems];
+  const semanticItems: ResultItem[] = useMemo(() => {
+    if (!shouldRunTier1 || !semanticData) return [];
+    const existingProductIds = new Set(
+      (searchResults ?? [])
+        .filter((r) => r.type === "product")
+        .map((r) => r.id),
+    );
 
-  // Stable group order: entity types follow their §T2.11 declaration order;
-  // browse mode is pages first, then actions.
-  const groupOrder = isSearching
-    ? [
+    const out: ResultItem[] = [];
+    for (const prod of semanticData.products) {
+      if (existingProductIds.has(prod.id)) continue;
+      const metaParts = [
+        `SKU ${prod.sku}`,
+        prod.brandName,
+        prod.categoryName,
+      ].filter(Boolean);
+      out.push({
+        key: `sem-prod-${prod.id}`,
+        group: "Coincidencias semánticas",
+        label: prod.name,
+        subtitle: metaParts.join(" · "),
+        icon: "ManageSearch",
+        href: prod.href,
+      });
+    }
+
+    for (const doc of semanticData.documents) {
+      out.push({
+        key: `sem-doc-${doc.chunkId}`,
+        group: "Documentos comerciales",
+        label: doc.documentNumber
+          ? `${doc.title} (${doc.documentNumber})`
+          : doc.title,
+        subtitle: doc.snippet,
+        icon: "Description",
+        href: doc.href,
+      });
+    }
+
+    return out;
+  }, [shouldRunTier1, semanticData, searchResults]);
+
+  const semanticExpandItems: ResultItem[] = useMemo(() => {
+    if (
+      !isSearching ||
+      rawTrimmed.length < 3 ||
+      semanticBoostForced ||
+      tier0EmptyAfterSettle ||
+      entityItems.length === 0
+    ) {
+      return [];
+    }
+    return [
+      {
+        key: "helper-semantic",
+        group: "Búsqueda ampliada",
+        label: "Ampliar por significado e idioma (Packing Lists / Catálogo)",
+        subtitle: "Busca equivalentes en español, inglés o mandarín",
+        icon: "ManageSearch",
+        triggerSemantic: true,
+      },
+    ];
+  }, [
+    isSearching,
+    rawTrimmed.length,
+    semanticBoostForced,
+    tier0EmptyAfterSettle,
+    entityItems.length,
+  ]);
+
+  const groupedResults = useMemo(() => {
+    if (!isSearching) {
+      return [...pageItems, ...actionItems];
+    }
+    return [...entityItems, ...semanticItems, ...semanticExpandItems];
+  }, [
+    isSearching,
+    pageItems,
+    actionItems,
+    entityItems,
+    semanticItems,
+    semanticExpandItems,
+  ]);
+
+  const groupOrder = !isSearching
+    ? ["Páginas", "Acciones rápidas"]
+    : [
         "Productos",
         "Clientes",
         "Pedidos",
         "Cotizaciones",
         "Contenedores",
         "Proveedores",
-      ]
-    : ["Páginas", "Acciones rápidas"];
+        "Coincidencias semánticas",
+        "Documentos comerciales",
+        "Búsqueda ampliada",
+      ];
 
   const orderedGroups = groupOrder
     .map((group) => ({
@@ -164,13 +278,28 @@ export function Search({ onClose }: SearchProps) {
     .filter((g) => g.items.length > 0);
 
   const flatItems = orderedGroups.flatMap((g) => g.items);
+  const safeSelectedIndex =
+    flatItems.length === 0 ? 0 : Math.min(selectedIndex, flatItems.length - 1);
 
   useEffect(() => {
     setSelectedIndex(0);
-  }, [query]);
+  }, [query, semanticBoostForced]);
 
-  // M-19: the results panel's height animates (100ms ease, capped 450px) as
-  // its content grows/shrinks — measure the real content, don't guess it.
+  useEffect(() => {
+    if (selectedIndex !== safeSelectedIndex) {
+      setSelectedIndex(safeSelectedIndex);
+    }
+  }, [selectedIndex, safeSelectedIndex]);
+
+  useEffect(() => {
+    const container = contentRef.current;
+    if (!container) return;
+    const activeRow = container.querySelector<HTMLElement>(
+      `[data-search-row="${safeSelectedIndex}"]`,
+    );
+    activeRow?.scrollIntoView({ block: "nearest" });
+  }, [safeSelectedIndex]);
+
   useEffect(() => {
     const node = contentRef.current;
     if (!node) return;
@@ -179,11 +308,25 @@ export function Search({ onClose }: SearchProps) {
     });
     observer.observe(node);
     return () => observer.disconnect();
-  }, [orderedGroups.length]);
+  }, []);
+
+  function handleQueryChange(nextValue: string) {
+    setQuery(nextValue);
+    if (semanticBoostForced) {
+      setSemanticBoostForced(false);
+    }
+  }
 
   function handleSelect(item: ResultItem) {
-    onClose();
-    router.push(item.href);
+    if (item.triggerSemantic) {
+      setSemanticBoostForced(true);
+      requestAnimationFrame(() => inputRef.current?.focus());
+      return;
+    }
+    if (item.href) {
+      onClose();
+      router.push(item.href);
+    }
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
@@ -193,7 +336,9 @@ export function Search({ onClose }: SearchProps) {
     }
     if (e.key === "ArrowDown") {
       e.preventDefault();
-      setSelectedIndex((i) => Math.min(i + 1, flatItems.length - 1));
+      setSelectedIndex((i) =>
+        flatItems.length > 0 ? Math.min(i + 1, flatItems.length - 1) : 0,
+      );
       return;
     }
     if (e.key === "ArrowUp") {
@@ -201,34 +346,38 @@ export function Search({ onClose }: SearchProps) {
       setSelectedIndex((i) => Math.max(i - 1, 0));
       return;
     }
-    if (e.key === "Enter" && flatItems[selectedIndex]) {
+    if (e.key === "Enter" && flatItems[safeSelectedIndex]) {
       e.preventDefault();
-      handleSelect(flatItems[selectedIndex]);
+      handleSelect(flatItems[safeSelectedIndex]);
     }
   }
+
+  const isAnyLoading =
+    (isFetchingTier0 && shouldRunTier0) || (isFetchingTier1 && shouldRunTier1);
 
   let flatIndex = 0;
 
   return (
     <div className="flex h-full flex-col">
       <div className="border-border flex items-center gap-3 border-b px-4">
-        <Icons.Search className="text-muted-foreground size-4.5" />
+        <Icons.Search className="text-muted-foreground size-4.5 shrink-0" />
         <input
           ref={inputRef}
           id="global-search-input"
           name="global-search"
           type="text"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => handleQueryChange(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Buscar páginas, productos, clientes, pedidos..."
-          aria-label="Buscar páginas, productos, clientes, pedidos..."
+          placeholder="Buscar páginas, productos, clientes, pedidos o contenedores..."
+          aria-label="Buscar páginas, productos, clientes, pedidos o contenedores"
           className="text-foreground placeholder:text-muted-foreground h-12 w-full border-none bg-transparent text-sm outline-none"
           autoComplete="off"
           spellCheck={false}
+          maxLength={160}
         />
-        {isFetching && isSearching ? (
-          <span className="loading-ellipsis text-muted-foreground/60 text-xs" />
+        {isAnyLoading ? (
+          <span className="loading-ellipsis text-muted-foreground/60 shrink-0 text-xs" />
         ) : null}
       </div>
 
@@ -241,21 +390,21 @@ export function Search({ onClose }: SearchProps) {
         }
       >
         <div ref={contentRef} className="p-1.5">
-          {trimmed.length === 1 ? (
+          {rawTrimmed.length === 1 ? (
             <div className="flex flex-col items-center gap-2 py-10">
               <Icons.Search className="text-muted-foreground/50 size-7.5" />
               <p className="text-muted-foreground text-sm">
                 Escribe al menos 2 caracteres
               </p>
             </div>
-          ) : flatItems.length === 0 && isSearching ? (
+          ) : flatItems.length === 0 && isSearching && !isAnyLoading ? (
             <div className="flex flex-col items-center gap-2 py-10">
               <Icons.SearchOff className="text-muted-foreground size-7.5" />
               <p className="text-muted-foreground text-sm">
                 No se encontraron resultados
               </p>
               <p className="text-muted-foreground/60 text-xs">
-                Intenta con otro término de búsqueda
+                Prueba con otro nombre, SKU, RIF o número de orden
               </p>
             </div>
           ) : (
@@ -270,22 +419,34 @@ export function Search({ onClose }: SearchProps) {
                     <button
                       key={item.key}
                       type="button"
+                      data-search-row={idx}
                       onClick={() => handleSelect(item)}
                       onMouseEnter={() => setSelectedIndex(idx)}
                       className={cn(
                         "group/row flex min-h-10 w-full items-center gap-3 px-3 py-2 text-left text-sm transition-colors",
-                        idx === selectedIndex
+                        idx === safeSelectedIndex
                           ? "bg-accent text-foreground"
                           : "text-foreground/80 hover:bg-accent/50",
                       )}
                     >
-                      <Icon name={item.icon} className="text-nav-icon size-4" />
+                      <Icon
+                        name={item.icon}
+                        className="text-nav-icon size-4 shrink-0"
+                      />
                       <div className="min-w-0 flex-1">
                         <p className="truncate font-medium">{item.label}</p>
                         <p className="text-muted-foreground truncate text-xs">
                           {item.subtitle}
                         </p>
                       </div>
+                      {item.badgeText ? (
+                        <StatusPill
+                          tone={item.badgeTone ?? "neutral"}
+                          className="shrink-0 font-mono tabular-nums"
+                        >
+                          {item.badgeText}
+                        </StatusPill>
+                      ) : null}
                       <Icons.ArrowOutward className="text-muted-foreground size-4 shrink-0 opacity-0 transition-opacity group-hover/row:opacity-100" />
                     </button>
                   );

@@ -157,9 +157,14 @@ export function normalizeL2Vector(values: readonly number[]): number[] {
 // Google Gemini Embedding Integration (`gemini-embedding-001`)
 // ──────────────────────────────────────────────
 
+export interface EmbeddingCallOptions {
+  timeoutMs?: number;
+}
+
 async function fetchGeminiSubBatch(
   subBatch: string[],
   apiKey: string,
+  timeoutMs = 8000,
 ): Promise<number[][] | null> {
   const payload = {
     requests: subBatch.map((t) => ({
@@ -177,7 +182,7 @@ async function fetchGeminiSubBatch(
 
   for (let attempt = 0; attempt < 2; attempt++) {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 8000);
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
     try {
       const response = await fetch(GEMINI_BATCH_ENDPOINT, {
         method: "POST",
@@ -192,6 +197,17 @@ async function fetchGeminiSubBatch(
 
       if (response.status === 429 && attempt === 0) {
         await new Promise((resolve) => setTimeout(resolve, 600));
+        continue;
+      }
+
+      if (
+        (response.status === 502 ||
+          response.status === 503 ||
+          response.status === 504) &&
+        attempt === 0
+      ) {
+        const jitterMs = 300 + Math.floor(Math.random() * 200);
+        await new Promise((resolve) => setTimeout(resolve, jitterMs));
         continue;
       }
 
@@ -244,13 +260,14 @@ async function fetchGeminiSubBatch(
 async function fetchGeminiEmbeddingsBatch(
   texts: string[],
   apiKey: string,
+  timeoutMs = 8000,
 ): Promise<number[][] | null> {
   if (texts.length === 0) return [];
 
   const allVectors: number[][] = [];
   for (let start = 0; start < texts.length; start += GEMINI_MAX_BATCH_SIZE) {
     const slice = texts.slice(start, start + GEMINI_MAX_BATCH_SIZE);
-    const subVectors = await fetchGeminiSubBatch(slice, apiKey);
+    const subVectors = await fetchGeminiSubBatch(slice, apiKey, timeoutMs);
     if (!subVectors) {
       return null;
     }
@@ -266,11 +283,12 @@ async function fetchGeminiEmbeddingsBatch(
 async function fetchOpenAIEmbeddingsBatch(
   texts: string[],
   apiKey: string,
+  timeoutMs = 3500,
 ): Promise<number[][] | null> {
   if (texts.length === 0) return [];
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 3500);
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     const response = await fetch("https://api.openai.com/v1/embeddings", {
@@ -332,8 +350,9 @@ async function fetchOpenAIEmbeddingsBatch(
 async function fetchOpenAIEmbedding(
   text: string,
   apiKey: string,
+  timeoutMs = 3500,
 ): Promise<number[] | null> {
-  const batch = await fetchOpenAIEmbeddingsBatch([text], apiKey);
+  const batch = await fetchOpenAIEmbeddingsBatch([text], apiKey, timeoutMs);
   return batch?.[0] ?? null;
 }
 
@@ -377,6 +396,11 @@ function resolveActiveProvider(): {
   return { provider: "local", apiKey: "" };
 }
 
+export function resolveActiveEmbeddingProviderName():
+  "openai" | "gemini" | "local" {
+  return resolveActiveProvider().provider;
+}
+
 // ──────────────────────────────────────────────
 // Primary Public Embedding Functions
 // ──────────────────────────────────────────────
@@ -387,11 +411,18 @@ function resolveActiveProvider(): {
  * when configured, failing closed on provider errors (V-03); otherwise runs the deterministic
  * offline embedding algorithm.
  */
-export async function generateEmbedding(text: string): Promise<number[]> {
+export async function generateEmbedding(
+  text: string,
+  options?: EmbeddingCallOptions,
+): Promise<number[]> {
   const active = resolveActiveProvider();
 
   if (active.provider === "openai") {
-    const openAiVector = await fetchOpenAIEmbedding(text, active.apiKey);
+    const openAiVector = await fetchOpenAIEmbedding(
+      text,
+      active.apiKey,
+      options?.timeoutMs ?? 3500,
+    );
     if (!openAiVector) {
       throw new RagEmbeddingProviderError(
         "OpenAI embedding generation failed or timed out. Silent fallback to offline hashing is prohibited (V-03).",
@@ -401,7 +432,11 @@ export async function generateEmbedding(text: string): Promise<number[]> {
   }
 
   if (active.provider === "gemini") {
-    const geminiBatch = await fetchGeminiEmbeddingsBatch([text], active.apiKey);
+    const geminiBatch = await fetchGeminiEmbeddingsBatch(
+      [text],
+      active.apiKey,
+      options?.timeoutMs ?? 8000,
+    );
     const geminiVector = geminiBatch?.[0];
     if (!geminiVector) {
       throw new RagEmbeddingProviderError(
@@ -419,7 +454,10 @@ export async function generateEmbedding(text: string): Promise<number[]> {
  * (`gemini-embedding-001` with automatic <= 100 sub-batching and L2 normalization),
  * or deterministic offline feature hashing.
  */
-export async function generateEmbeddings(texts: string[]): Promise<number[][]> {
+export async function generateEmbeddings(
+  texts: string[],
+  options?: EmbeddingCallOptions,
+): Promise<number[][]> {
   if (texts.length === 0) return [];
 
   const active = resolveActiveProvider();
@@ -428,6 +466,7 @@ export async function generateEmbeddings(texts: string[]): Promise<number[][]> {
     const openAiVectors = await fetchOpenAIEmbeddingsBatch(
       texts,
       active.apiKey,
+      options?.timeoutMs ?? 3500,
     );
     if (!openAiVectors) {
       throw new RagEmbeddingProviderError(
@@ -441,6 +480,7 @@ export async function generateEmbeddings(texts: string[]): Promise<number[][]> {
     const geminiVectors = await fetchGeminiEmbeddingsBatch(
       texts,
       active.apiKey,
+      options?.timeoutMs ?? 8000,
     );
     if (!geminiVectors) {
       throw new RagEmbeddingProviderError(

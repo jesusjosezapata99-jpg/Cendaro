@@ -189,37 +189,36 @@ export async function syncWorkspaceProductEmbeddings(
             )
           : eq(Product.workspaceId, workspaceId);
 
-      const [products, categories, brands, existing] = await Promise.all([
-        tx
-          .select({
-            id: Product.id,
-            sku: Product.sku,
-            barcode: Product.barcode,
-            name: Product.name,
-            descriptionShort: Product.descriptionShort,
-            categoryId: Product.categoryId,
-            brandId: Product.brandId,
-          })
-          .from(Product)
-          .where(productFilter)
-          .orderBy(desc(Product.createdAt))
-          .limit(maxLimit),
-        tx
-          .select({ id: Category.id, name: Category.name })
-          .from(Category)
-          .where(eq(Category.workspaceId, workspaceId)),
-        tx
-          .select({ id: Brand.id, name: Brand.name })
-          .from(Brand)
-          .where(eq(Brand.workspaceId, workspaceId)),
-        tx
-          .select({
-            productId: ProductEmbedding.productId,
-            contentHash: ProductEmbedding.contentHash,
-          })
-          .from(ProductEmbedding)
-          .where(eq(ProductEmbedding.workspaceId, workspaceId)),
-      ]);
+      // Sequential queries on single `tx` PoolClient (zero socket queue contention)
+      const products = await tx
+        .select({
+          id: Product.id,
+          sku: Product.sku,
+          barcode: Product.barcode,
+          name: Product.name,
+          descriptionShort: Product.descriptionShort,
+          categoryId: Product.categoryId,
+          brandId: Product.brandId,
+        })
+        .from(Product)
+        .where(productFilter)
+        .orderBy(desc(Product.createdAt))
+        .limit(maxLimit);
+      const categories = await tx
+        .select({ id: Category.id, name: Category.name })
+        .from(Category)
+        .where(eq(Category.workspaceId, workspaceId));
+      const brands = await tx
+        .select({ id: Brand.id, name: Brand.name })
+        .from(Brand)
+        .where(eq(Brand.workspaceId, workspaceId));
+      const existing = await tx
+        .select({
+          productId: ProductEmbedding.productId,
+          contentHash: ProductEmbedding.contentHash,
+        })
+        .from(ProductEmbedding)
+        .where(eq(ProductEmbedding.workspaceId, workspaceId));
 
       const catMap = new Map(categories.map((c) => [c.id, c.name]));
       const brandMap = new Map(brands.map((b) => [b.id, b.name]));
@@ -444,36 +443,35 @@ export async function matchImportedItemsToCatalog(
     poolDb,
     workspaceId,
     async (tx) => {
-      const [products, categories, aliases, brands] = await Promise.all([
-        tx
-          .select({
-            id: Product.id,
-            sku: Product.sku,
-            barcode: Product.barcode,
-            name: Product.name,
-            descriptionShort: Product.descriptionShort,
-            categoryId: Product.categoryId,
-            brandId: Product.brandId,
-          })
-          .from(Product)
-          .where(eq(Product.workspaceId, workspaceId))
-          .limit(5000),
-        tx
-          .select({ id: Category.id, name: Category.name })
-          .from(Category)
-          .where(eq(Category.workspaceId, workspaceId)),
-        tx
-          .select({
-            alias: CategoryAlias.alias,
-            categoryId: CategoryAlias.categoryId,
-          })
-          .from(CategoryAlias)
-          .where(eq(CategoryAlias.workspaceId, workspaceId)),
-        tx
-          .select({ id: Brand.id, name: Brand.name })
-          .from(Brand)
-          .where(eq(Brand.workspaceId, workspaceId)),
-      ]);
+      // Sequential queries on single `tx` PoolClient
+      const products = await tx
+        .select({
+          id: Product.id,
+          sku: Product.sku,
+          barcode: Product.barcode,
+          name: Product.name,
+          descriptionShort: Product.descriptionShort,
+          categoryId: Product.categoryId,
+          brandId: Product.brandId,
+        })
+        .from(Product)
+        .where(eq(Product.workspaceId, workspaceId))
+        .limit(5000);
+      const categories = await tx
+        .select({ id: Category.id, name: Category.name })
+        .from(Category)
+        .where(eq(Category.workspaceId, workspaceId));
+      const aliases = await tx
+        .select({
+          alias: CategoryAlias.alias,
+          categoryId: CategoryAlias.categoryId,
+        })
+        .from(CategoryAlias)
+        .where(eq(CategoryAlias.workspaceId, workspaceId));
+      const brands = await tx
+        .select({ id: Brand.id, name: Brand.name })
+        .from(Brand)
+        .where(eq(Brand.workspaceId, workspaceId));
       return { products, categories, aliases, brands };
     },
   );
