@@ -1,13 +1,11 @@
 "use client";
 
 /**
- * Cendaro — Catalog Import Wizard
+ * Cendaro — Catalog Import Wizard (Zero-Template Multi-File + Semantic RAG)
  *
  * Main orchestrator connecting all 6 steps via state machine.
- *
- * PRD: FEATURE_PRD_CATALOG_IMPORT.md §11, §21
  */
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -15,10 +13,12 @@ import { toast } from "sonner";
 import { Icons } from "@cendaro/ui/icons";
 
 import type { CatalogImportStep } from "./hooks/use-catalog-import";
+import type { ParsedCatalogRow } from "./lib/catalog-validators";
 import { formatPlural } from "~/lib/plural";
 import { useTRPC } from "~/trpc/client";
 import { useCatalogImport } from "./hooks/use-catalog-import";
 import { useParseCatalogFile } from "./hooks/use-parse-catalog-file";
+import { parseRow } from "./lib/catalog-validators";
 import { CategoryMappingStep } from "./steps/category-mapping";
 import { DryRunSummary } from "./steps/dry-run-summary";
 import { FileUpload } from "./steps/file-upload";
@@ -26,14 +26,9 @@ import { HeaderMapping } from "./steps/header-mapping";
 import { ResultSummary } from "./steps/result-summary";
 import { ValidationPreview } from "./steps/validation-preview";
 
-// ── Module-level constants (stable refs for hooks) ──
-
 const STORAGE_KEY = "cendaro-catalog-import-wizard";
 
-/** Steps that can safely be restored (don't depend on server sessionId) */
 const CLIENT_SAFE_STEPS = new Set(["upload", "header-mapping", "validation"]);
-
-// ── Step indicator ───────────────────────────────
 
 const STEPS: {
   key: CatalogImportStep;
@@ -72,13 +67,14 @@ function StepIndicator({
         const colorClasses = isActive
           ? "bg-primary text-primary-foreground"
           : isDone
-            ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300"
+            ? "bg-status-success-bg text-status-success-fg"
             : "bg-muted text-muted-foreground";
 
         return (
           <div key={s.key} className="flex items-center gap-1">
             {isDone ? (
               <button
+                type="button"
                 onClick={() => onStepClick(s.key)}
                 className={`${sharedClasses} ${colorClasses} cursor-pointer hover:scale-105 active:scale-95`}
                 title={`Volver a ${s.label}`}
@@ -99,7 +95,7 @@ function StepIndicator({
             {i < STEPS.length - 1 && (
               <div
                 className={`h-px w-4 transition-colors sm:w-8 ${
-                  currentNum > s.num ? "bg-emerald-400" : "bg-border"
+                  currentNum > s.num ? "bg-status-success-fg" : "bg-border"
                 }`}
               />
             )}
@@ -110,12 +106,9 @@ function StepIndicator({
   );
 }
 
-// ── Wizard ───────────────────────────────────────
-
 export function CatalogImportWizard() {
   const trpc = useTRPC();
 
-  // State machine
   const {
     state,
     onFileParsed,
@@ -126,6 +119,7 @@ export function CatalogImportWizard() {
     onCategoryMappingUpdated,
     onCategoryMappingComplete,
     onCommitComplete,
+    updateValidatedRowSku,
     setLoading,
     setError,
     goToStep,
@@ -133,15 +127,10 @@ export function CatalogImportWizard() {
     reset,
   } = useCatalogImport();
 
-  // ── Session persistence ─────────────────────────
-  // Only persists CLIENT-SIDE state (up to validation).
-  // Server-dependent steps (category-mapping, dry-run, result) are NOT
-  // persisted because they require a live server session.
-
   const hasRestored = useRef(false);
   const [wasRestored, setWasRestored] = useState(false);
+  const [isMatchingSemantic, setIsMatchingSemantic] = useState(false);
 
-  // Restore state from sessionStorage on mount
   useEffect(() => {
     if (hasRestored.current) return;
     hasRestored.current = true;
@@ -151,7 +140,6 @@ export function CatalogImportWizard() {
       if (!saved) return;
       const parsed = JSON.parse(saved) as Partial<typeof state>;
       if (parsed.step && parsed.step !== "upload") {
-        // If saved step is server-dependent, clamp to validation
         const safeStep = CLIENT_SAFE_STEPS.has(parsed.step)
           ? parsed.step
           : "validation";
@@ -159,9 +147,7 @@ export function CatalogImportWizard() {
         restoreState({
           ...parsed,
           step: safeStep,
-          // Always regenerate idempotencyKey to prevent duplicates
           idempotencyKey: crypto.randomUUID(),
-          // Clear server-side state — it's stale
           sessionId: null,
           unresolvedCategories: [],
           importResult: null,
@@ -173,11 +159,9 @@ export function CatalogImportWizard() {
     }
   }, [restoreState]);
 
-  // Persist state to sessionStorage (only client-safe steps)
   useEffect(() => {
     if (state.step === "upload") return;
 
-    // Don't persist server-dependent steps
     if (!CLIENT_SAFE_STEPS.has(state.step)) {
       sessionStorage.removeItem(STORAGE_KEY);
       return;
@@ -198,15 +182,13 @@ export function CatalogImportWizard() {
     }
   }, [state]);
 
-  // Parse hook
   const {
     error: parseError,
     isParsing,
-    parseFile,
+    parseFiles,
     reset: resetParser,
   } = useParseCatalogFile();
 
-  // Fetch existing data for mapping step + template
   const { data: categories } = useQuery(
     trpc.catalog.listCategories.queryOptions(),
   );
@@ -215,20 +197,87 @@ export function CatalogImportWizard() {
     trpc.catalog.listSuppliers.queryOptions(),
   );
 
-  // ── Server mutations ─────────────────────────
+  // Zero-Template AI & Semantic RAG mutations
+  const matchCatalogMutation = useMutation(
+    trpc.aiImport.matchCatalogItems.mutationOptions(),
+  );
+  const saveProfileMutation = useMutation(
+    trpc.aiImport.saveTemplateProfile.mutationOptions(),
+  );
+
+  const enrichRowsWithSemanticMatch = useCallback(
+    async (rows: ParsedCatalogRow[]): Promise<ParsedCatalogRow[]> => {
+      if (rows.length === 0) return rows;
+      setIsMatchingSemantic(true);
+      try {
+        const enriched = [...rows];
+        const BATCH_SIZE = 1500;
+        for (let start = 0; start < rows.length; start += BATCH_SIZE) {
+          const slice = rows.slice(start, start + BATCH_SIZE);
+          const matches = await matchCatalogMutation.mutateAsync({
+            targetDomain: "catalog",
+            items: slice.map((r) => ({
+              sku: r.sku || undefined,
+              skuAutoGenerated: r.skuAutoGenerated,
+              name: r.name || r.sku || "Producto",
+              barcode: r.barcode,
+              categoryRaw: r.categoryRaw,
+              brandRaw: r.brandRaw,
+            })),
+          });
+
+          for (const m of matches) {
+            const targetIdx = start + m.rowIndex;
+            const current = enriched[targetIdx];
+            if (!current) continue;
+
+            // If SKU was auto-generated and semantic RRF confidently matched an existing SKU, link it!
+            const linkedSku =
+              current.skuAutoGenerated &&
+              m.classification === "matched_existing" &&
+              m.matchedProductSku
+                ? m.matchedProductSku
+                : current.sku;
+
+            enriched[targetIdx] = {
+              ...current,
+              sku: linkedSku,
+              skuAutoGenerated:
+                linkedSku !== current.sku ? false : current.skuAutoGenerated,
+              categoryRaw:
+                current.categoryRaw ?? m.suggestedCategoryName ?? undefined,
+              brandRaw: current.brandRaw ?? m.suggestedBrandName ?? undefined,
+              semanticMatch: {
+                classification: m.classification,
+                matchedSku: m.matchedProductSku,
+                matchedName: m.matchedProductName,
+                confidence: m.confidence,
+                matchMethod: m.matchMethod,
+              },
+            };
+          }
+        }
+        return enriched;
+      } catch {
+        // Best-effort RAG enrichment; never block offline/degraded catalog validation
+        return rows;
+      } finally {
+        setIsMatchingSemantic(false);
+      }
+    },
+    [matchCatalogMutation],
+  );
 
   // Create session — triggers validation on success
   const createSessionMutation = useMutation(
     trpc.catalogImport.create.mutationOptions({
       onSuccess: (result) => {
         onSessionCreated(result.sessionId);
-        // Trigger server-side validation immediately
         validateMutation.mutate({ sessionId: result.sessionId });
       },
       onError: (err) => {
         setError(err.message);
         setLoading(false);
-        // Clear stale session storage on auth/conflict errors
         sessionStorage.removeItem(STORAGE_KEY);
         toast.error("Error al crear sesión: " + err.message);
       },
@@ -292,11 +341,16 @@ export function CatalogImportWizard() {
     enabled: state.step === "dry-run" && !!state.sessionId,
   });
 
-  // Commit
+  // Commit + Persist Learned Template Profiles
   const commitMutation = useMutation(
     trpc.catalogImport.commit.mutationOptions({
       onSuccess: (result) => {
         onCommitComplete(result);
+        const profiles = state.parseResult?.learnedProfilesToSave ?? [];
+        for (const profile of profiles) {
+          saveProfileMutation.mutate(profile);
+        }
+
         if (result.failed === 0) {
           toast.success(
             `Importación completada: ${result.inserted + result.updated} productos procesados`,
@@ -317,28 +371,44 @@ export function CatalogImportWizard() {
 
   // ── Handlers ─────────────────────────
 
-  const handleFileSelect = async (file: File) => {
-    const result = await parseFile(file);
-    if (result) {
-      onFileParsed(result);
+  const handleFilesSelect = async (
+    files: File[],
+    supplierId?: string | null,
+  ) => {
+    const result = await parseFiles(files, { supplierId });
+    if (!result) return;
+
+    onFileParsed(result);
+
+    if (result.autoAdvanceToValidation) {
+      const enriched = await enrichRowsWithSemanticMatch(result.parsedRows);
+      // Pass undefined for rawDataRows so enriched semantic fields are preserved
+      onValidate(enriched, result.headerMap);
     }
   };
 
-  const handleConfirmMapping = () => {
+  const handleConfirmMapping = async () => {
     if (!state.parseResult) return;
 
-    // Re-parse rows with potentially edited header map
-    const parsedRows = state.parseResult.parsedRows.map((row, idx) => ({
-      ...row,
-      rowNumber: idx + 2,
-    }));
+    let candidateRows = state.parseResult.parsedRows;
+    if (
+      state.parseResult.rawDataRows &&
+      state.parseResult.rawDataRows.length > 0 &&
+      !state.parseResult.isMultiSchemaBatch
+    ) {
+      const reparsed: ParsedCatalogRow[] = [];
+      const hIdx = state.parseResult.headerIndex ?? 0;
+      for (let i = 0; i < state.parseResult.rawDataRows.length; i++) {
+        const row = state.parseResult.rawDataRows[i];
+        if (!row) continue;
+        const parsed = parseRow(row, state.headerMap, hIdx + i + 2);
+        if (parsed) reparsed.push(parsed);
+      }
+      candidateRows = reparsed;
+    }
 
-    onValidate(
-      parsedRows,
-      state.headerMap,
-      state.parseResult.rawDataRows,
-      state.parseResult.headerIndex,
-    );
+    const enriched = await enrichRowsWithSemanticMatch(candidateRows);
+    onValidate(enriched, state.headerMap);
   };
 
   const handleProceedFromValidation = () => {
@@ -346,7 +416,6 @@ export function CatalogImportWizard() {
 
     setLoading(true);
 
-    // Create session + upload rows to server
     createSessionMutation.mutate({
       filename: state.parseResult.filename,
       idempotencyKey: state.idempotencyKey,
@@ -366,9 +435,6 @@ export function CatalogImportWizard() {
           description: r.description,
         })),
     });
-
-    // Once session is created, trigger validation
-    // (handled by session creation success callback -> validate mutation)
   };
 
   const handleCategoryMappingComplete = () => {
@@ -376,7 +442,6 @@ export function CatalogImportWizard() {
 
     setLoading(true);
 
-    // Send resolved mappings to server
     const mappings = state.unresolvedCategories.map((c) => ({
       rawCategory: c.rawCategory,
       resolvedCategoryId: c.resolvedCategoryId,
@@ -408,8 +473,6 @@ export function CatalogImportWizard() {
 
   const stepNum = getStepNum(state.step);
 
-  // ── Render ─────────────────────────────────
-
   return (
     <div className="space-y-6 py-4 lg:py-8" role="tabpanel">
       {/* Breadcrumb */}
@@ -431,8 +494,9 @@ export function CatalogImportWizard() {
         </h1>
         {state.step !== "result" && (
           <button
+            type="button"
             onClick={handleReset}
-            disabled={state.isLoading}
+            disabled={state.isLoading || isParsing || isMatchingSemantic}
             className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-sm transition-colors disabled:opacity-50"
           >
             <Icons.RestartAlt className="size-4.5" />
@@ -454,7 +518,7 @@ export function CatalogImportWizard() {
       {/* Global error */}
       {state.serverError && (
         <div className="border-destructive/30 bg-destructive/10 text-destructive flex items-center gap-2 border px-4 py-3 text-xs">
-          <Icons.Error className="size-4" />
+          <Icons.Error className="size-4 shrink-0" />
           {state.serverError}
         </div>
       )}
@@ -467,6 +531,7 @@ export function CatalogImportWizard() {
             Sesión restaurada — los datos de tu archivo ya están cargados.
           </div>
           <button
+            type="button"
             onClick={() => setWasRestored(false)}
             className="text-status-warning-fg hover:text-foreground transition-colors"
           >
@@ -479,8 +544,8 @@ export function CatalogImportWizard() {
       <div className="min-h-75">
         {state.step === "upload" && (
           <FileUpload
-            onFileSelect={handleFileSelect}
-            isParsing={isParsing}
+            onFilesSelect={handleFilesSelect}
+            isParsing={isParsing || isMatchingSemantic}
             error={parseError?.message ?? null}
             brands={brands?.map((b) => ({ id: b.id, name: b.name })) ?? []}
             categories={
@@ -499,6 +564,9 @@ export function CatalogImportWizard() {
             unmapped={state.parseResult.unmapped}
             sheetName={state.parseResult.sheetName}
             totalRows={state.parseResult.parsedRows.length + 1}
+            aiSummary={state.parseResult.aiSummary}
+            isMultiSchemaBatch={state.parseResult.isMultiSchemaBatch}
+            isMatchingSemantic={isMatchingSemantic}
             onUpdateMap={onHeaderMapUpdated}
             onConfirm={handleConfirmMapping}
           />
@@ -510,6 +578,8 @@ export function CatalogImportWizard() {
             validCount={state.validCount}
             warningCount={state.warningCount}
             errorCount={state.errorCount}
+            aiSummary={state.parseResult?.aiSummary}
+            onUpdateRowSku={updateValidatedRowSku}
             onProceed={handleProceedFromValidation}
             onBack={() => goToStep("header-mapping")}
           />
@@ -535,7 +605,13 @@ export function CatalogImportWizard() {
             skipCount={dryRunQuery.data?.skips ?? 0}
             errorCount={state.errorCount}
             onCommit={handleCommit}
-            onBack={() => goToStep("category-mapping")}
+            onBack={() =>
+              goToStep(
+                state.unresolvedCategories.length > 0
+                  ? "category-mapping"
+                  : "validation",
+              )
+            }
             isCommitting={state.isLoading}
           />
         )}

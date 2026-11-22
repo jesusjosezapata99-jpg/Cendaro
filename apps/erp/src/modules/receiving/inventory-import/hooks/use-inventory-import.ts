@@ -16,8 +16,10 @@ import type {
   InitializeResult,
   ValidatedRow,
 } from "@cendaro/api";
+import type { SaveTemplateProfileInput } from "@cendaro/validators";
 
 import type { InitializeValidatedRow } from "../lib/inventory-validators";
+import type { InventoryAiSummary } from "./use-parse-inventory-file";
 
 // ── State ────────────────────────────────────────
 
@@ -27,11 +29,15 @@ export interface ImportState {
   warehouseName: string;
   mode: ImportMode | null;
   file: File | null;
+  filenameLabel: string;
   rawRows: string[][];
   headers: string[];
   headerMap: Record<string, number>;
   unmapped: string[];
   sheetName: string;
+  aiSummary: InventoryAiSummary | null;
+  learnedProfilesToSave: SaveTemplateProfileInput[];
+  isMultiSchemaBatch: boolean;
   validatedRows: ValidatedRow[];
   validationStats: {
     total: number;
@@ -68,6 +74,10 @@ type ImportAction =
       headerMap: Record<string, number>;
       unmapped: string[];
       sheetName: string;
+      filenameLabel?: string;
+      aiSummary?: InventoryAiSummary | null;
+      learnedProfilesToSave?: SaveTemplateProfileInput[];
+      isMultiSchemaBatch?: boolean;
     }
   | { type: "UPDATE_HEADER_MAP"; headerMap: Record<string, number> }
   | {
@@ -108,11 +118,15 @@ function createInitialState(
     warehouseName,
     mode: null,
     file: null,
+    filenameLabel: "import.xlsx",
     rawRows: [],
     headers: [],
     headerMap: {},
     unmapped: [],
     sheetName: "",
+    aiSummary: null,
+    learnedProfilesToSave: [],
+    isMultiSchemaBatch: false,
     validatedRows: [],
     validationStats: null,
     commitResult: null,
@@ -142,6 +156,10 @@ function importReducer(state: ImportState, action: ImportAction): ImportState {
         headerMap: action.headerMap,
         unmapped: action.unmapped,
         sheetName: action.sheetName,
+        filenameLabel: action.filenameLabel ?? "import.xlsx",
+        aiSummary: action.aiSummary ?? null,
+        learnedProfilesToSave: action.learnedProfilesToSave ?? [],
+        isMultiSchemaBatch: action.isMultiSchemaBatch ?? false,
         isProcessing: false,
         step: 3,
       };
@@ -249,6 +267,10 @@ export function useInventoryImport(warehouseId: string, warehouseName: string) {
       headerMap: Record<string, number>;
       unmapped: string[];
       sheetName: string;
+      filenameLabel?: string;
+      aiSummary?: InventoryAiSummary | null;
+      learnedProfilesToSave?: SaveTemplateProfileInput[];
+      isMultiSchemaBatch?: boolean;
     }) => {
       dispatch({ type: "PARSE_COMPLETE", ...data });
     },

@@ -176,6 +176,8 @@ export * from "./money";
 export * from "./rates";
 export * from "./plans";
 export * from "./rag";
+export * from "./ai-import";
+export * from "./hybrid-search";
 
 // ──────────────────────────────────────────────
 // Composite form schemas (frontend ↔ backend)

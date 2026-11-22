@@ -212,6 +212,7 @@ export type ProcedureAuthz =
 export interface ProcedureMeta {
   authz?: ProcedureAuthz;
   statementTimeoutMs?: number;
+  deferRlsTransaction?: boolean;
 }
 
 /**
@@ -534,6 +535,13 @@ export const HEAVY_STATEMENT_TIMEOUT_MS = 30_000;
 export interface WorkspaceProcedureOptions {
   /** Transaction-local `statement_timeout` in milliseconds (defaults to 5000ms). */
   statementTimeoutMs?: number;
+  /**
+   * When true on a `.query()` procedure, leaves `ctx.db` as the unwrapped `Pool`
+   * so rate-limiting and external HTTP calls (e.g. Gemini) execute with 0 held
+   * Supavisor connections; the handler itself invokes `runInWorkspaceRlsReadonly`
+   * around only the SQL/HNSW read.
+   */
+  deferRlsTransaction?: boolean;
 }
 
 function normalizeStatementTimeoutMs(timeoutMs?: number): number {
@@ -749,15 +757,28 @@ export const workspaceReadProcedure = protectedProcedure.use(
     };
 
     // Every actual read executes under app_user + RLS (defense in depth,
-    // M9). Mutations on this builder are the documented exception above.
-    if (type !== "query") {
-      return next({
-        ctx: {
-          ...ctx,
-          user: toWorkspaceActor(ctx.user, resolved),
-          workspace,
-        },
-      });
+    // M9). Mutations on this builder or deferred-RLS queries leave `ctx.db`
+    // as the pooled connection and still drain `ctx.afterCommit` afterward.
+    if (type !== "query" || meta?.deferRlsTransaction) {
+      try {
+        return await next({
+          ctx: {
+            ...ctx,
+            user: toWorkspaceActor(ctx.user, resolved),
+            workspace,
+          },
+        });
+      } finally {
+        const pendingTasks = [...ctx.afterCommit];
+        ctx.afterCommit.length = 0;
+        for (const task of pendingTasks) {
+          try {
+            await task(ctx.db);
+          } catch (error) {
+            ctx.log.error("after-commit task failed", {}, error);
+          }
+        }
+      }
     }
 
     try {
@@ -806,15 +827,31 @@ interface EnabledModuleContext {
   workspace: WorkspaceMembership;
 }
 
+export function evictWorkspaceModuleCache(
+  workspaceId: string,
+  module?: ErpModule,
+): void {
+  if (module) {
+    moduleCache.delete(`module:${workspaceId}:${module}`);
+    return;
+  }
+  const prefix = `module:${workspaceId}:`;
+  for (const key of moduleCache.keys()) {
+    if (key.startsWith(prefix)) {
+      moduleCache.delete(key);
+    }
+  }
+}
+
 /**
- * Throws FORBIDDEN unless `module` is enabled for the workspace's plan.
+ * Non-throwing check returning whether `module` is enabled for the workspace's plan.
  * Core modules (dashboard, users, settings, audit) are always enabled.
  */
-async function assertModuleEnabled(
+export async function isModuleEnabled(
   ctx: EnabledModuleContext,
   module: ErpModule,
-): Promise<void> {
-  if (isCoreModule(module)) return;
+): Promise<boolean> {
+  if (isCoreModule(module)) return true;
 
   const cacheKey = `module:${ctx.workspace.workspaceId}:${module}`;
   let enabled = getCachedModule(cacheKey);
@@ -834,6 +871,18 @@ async function assertModuleEnabled(
     setCachedModule(cacheKey, enabled);
   }
 
+  return enabled;
+}
+
+/**
+ * Throws FORBIDDEN unless `module` is enabled for the workspace's plan.
+ * Core modules (dashboard, users, settings, audit) are always enabled.
+ */
+export async function assertModuleEnabled(
+  ctx: EnabledModuleContext,
+  module: ErpModule,
+): Promise<void> {
+  const enabled = await isModuleEnabled(ctx, module);
   if (!enabled) {
     throw new TRPCError({
       code: "FORBIDDEN",
@@ -891,6 +940,7 @@ export function wsReadPermissionProcedure(
     .meta({
       authz: { kind: "permission", module, action, readOnly: true },
       statementTimeoutMs: opts?.statementTimeoutMs,
+      deferRlsTransaction: opts?.deferRlsTransaction,
     })
     .use(async ({ ctx, next }) => {
       assertPermission(ctx.workspace.role, module, action);

@@ -20,6 +20,7 @@ import {
 } from "@cendaro/ui";
 import { Icon, Icons } from "@cendaro/ui/icons";
 import { StatusPill } from "@cendaro/ui/status-pill";
+import { roundMoney2 } from "@cendaro/validators";
 
 import { EmptyState } from "~/components/empty-state";
 import { Can } from "~/components/role-guard";
@@ -80,7 +81,62 @@ const CONTAINER_ICONS: Record<string, IconName> = {
   closed: "CheckCircle",
 };
 
-const ACCEPTED_FORMATS = ".xlsx,.xls,.pdf";
+const ACCEPTED_FORMATS = ".xlsx,.xls,.csv,.pdf";
+
+function reconcileMultiDocumentItems(batches: ParsedItem[][]): {
+  items: ParsedItem[];
+  reconciledCosts: number;
+} {
+  if (batches.length <= 1) {
+    return { items: batches[0] ?? [], reconciledCosts: 0 };
+  }
+
+  const merged: ParsedItem[] = [];
+  const indexBySku = new Map<string, number>();
+  let reconciledCosts = 0;
+
+  for (let bIdx = 0; bIdx < batches.length; bIdx++) {
+    const batch = batches[bIdx] ?? [];
+    for (const incoming of batch) {
+      const normSku = incoming.sku_hint
+        ?.trim()
+        .toUpperCase()
+        .replace(/[\s-]+/g, "");
+
+      // Cross-document enrichment (e.g. Packing List + Commercial Invoice sharing SKU)
+      if (bIdx > 0 && normSku && indexBySku.has(normSku)) {
+        const existingIdx = indexBySku.get(normSku);
+        if (existingIdx !== undefined) {
+          const existing = merged[existingIdx];
+          if (
+            existing &&
+            (existing.unit_cost === null || incoming.unit_cost === null)
+          ) {
+            const incomingRounded =
+              incoming.unit_cost !== null
+                ? roundMoney2(incoming.unit_cost)
+                : null;
+            merged[existingIdx] = {
+              ...existing,
+              unit_cost: existing.unit_cost ?? incomingRounded,
+              weight_kg: existing.weight_kg ?? incoming.weight_kg,
+              category_hint: existing.category_hint ?? incoming.category_hint,
+            };
+            reconciledCosts++;
+            continue;
+          }
+        }
+      }
+
+      if (normSku && !indexBySku.has(normSku)) {
+        indexBySku.set(normSku, merged.length);
+      }
+      merged.push(incoming);
+    }
+  }
+
+  return { items: merged, reconciledCosts };
+}
 
 export default function ContainerDetailPage() {
   const params = useParams();
@@ -174,238 +230,260 @@ export default function ContainerDetailPage() {
     }),
   );
 
-  // ── File Upload Handler ──────────────────────────────
-  const handleFile = useCallback(
-    async (file: File) => {
+  // ── Multi-File Upload Handler (Zero-Template + Multi-Document Reconciliation) ──
+  const handleFiles = useCallback(
+    async (fileList: File[]) => {
+      if (fileList.length === 0) return;
       setAiStatus("uploading");
       setAiError("");
-      setAiProgress("Validando archivo...");
+      setAiProgress(
+        fileList.length > 1
+          ? `Validando ${fileList.length} documentos del embarque...`
+          : "Validando archivo...",
+      );
 
       try {
-        if (file.size > 500 * 1024 * 1024) {
-          throw new Error("Archivo demasiado grande (máximo 500MB)");
-        }
+        const perFileBatches: ParsedItem[][] = [];
+        let totalRowsProcessed = 0;
+        let totalImagesExtracted = 0;
+        let totalImagesAnalyzed = 0;
+        let lastPromptSource = "";
+        const failedChunks: number[] = [];
 
-        const isExcel = /\.(xlsx|xls)$/i.test(file.name);
-        const isPdf = /\.pdf$/i.test(file.name);
+        for (let fIdx = 0; fIdx < fileList.length; fIdx++) {
+          const file = fileList[fIdx];
+          if (!file) continue;
+          const fileLabel =
+            fileList.length > 1
+              ? `[${fIdx + 1}/${fileList.length}: ${file.name}] `
+              : "";
 
-        if (!isExcel && !isPdf) {
-          throw new Error("Formato no soportado. Use Excel (.xlsx/.xls) o PDF");
-        }
-
-        setAiStatus("processing");
-
-        if (isExcel) {
-          setAiProgress("Leyendo archivo Excel en el navegador...");
-          const { parseAndChunkExcel } =
-            await import("~/lib/parse-file-browser");
-          const { chunks, totalRows, totalChunks } =
-            await parseAndChunkExcel(file);
-
-          if (totalRows === 0) {
+          if (file.size > 500 * 1024 * 1024) {
             throw new Error(
-              "El archivo Excel está vacío o no contiene datos válidos",
+              `${file.name}: Archivo demasiado grande (máximo 500MB)`,
             );
           }
 
-          setAiProgress(
-            `${totalRows.toLocaleString()} filas extraídas → ${totalChunks} lotes de ≤2MB`,
-          );
+          const isTabular = /\.(xlsx|xls|csv)$/i.test(file.name);
+          const isPdf = /\.pdf$/i.test(file.name);
 
-          const allItems: ParsedItem[] = [];
-          const failedChunks: number[] = [];
-          let lastStats: AIStats | null = null;
-          let lastPromptSource = "";
+          if (!isTabular && !isPdf) {
+            throw new Error(
+              `${file.name}: Formato no soportado. Use Excel (.xlsx/.xls), CSV (.csv) o PDF`,
+            );
+          }
 
-          for (let i = 0; i < chunks.length; i++) {
-            if (i > 0) {
-              const delayMs = 30000;
-              const delaySec = delayMs / 1000;
-              for (let sec = delaySec; sec > 0; sec--) {
-                setAiProgress(
-                  `Esperando ${sec}s antes del lote ${i + 1}/${totalChunks} ` +
-                    `(${allItems.length} items acumulados)...`,
-                );
-                await new Promise((r) => setTimeout(r, 1000));
-              }
+          setAiStatus("processing");
+
+          if (isTabular) {
+            setAiProgress(
+              `${fileLabel}Leyendo hojas tabulares en el navegador...`,
+            );
+            const { parseAndChunkExcel } =
+              await import("~/lib/parse-file-browser");
+            const { chunks: byteChunks, totalRows } =
+              await parseAndChunkExcel(file);
+
+            if (totalRows === 0) {
+              throw new Error(
+                `${file.name}: El archivo está vacío o no contiene datos válidos`,
+              );
             }
 
-            setAiProgress(
-              `Procesando lote ${i + 1} de ${totalChunks} con IA ` +
-                `(${allItems.length} items acumulados)...`,
-            );
+            // Guarantee each chunk stays <= 4,000 rows (< 5,000 route cap) and preserves sheet header row
+            const headerContextRow = byteChunks[0]?.[0];
+            const chunks: string[][][] = [];
+            const MAX_ROWS_PER_REQUEST = 4000;
+            for (let bIdx = 0; bIdx < byteChunks.length; bIdx++) {
+              const rawChunk = byteChunks[bIdx] ?? [];
+              for (
+                let rStart = 0;
+                rStart < rawChunk.length;
+                rStart += MAX_ROWS_PER_REQUEST
+              ) {
+                const subSlice = rawChunk.slice(
+                  rStart,
+                  rStart + MAX_ROWS_PER_REQUEST,
+                );
+                if (subSlice.length === 0) continue;
+                const needsHeaderPrefix =
+                  (bIdx > 0 || rStart > 0) && headerContextRow !== undefined;
+                chunks.push(
+                  needsHeaderPrefix
+                    ? [headerContextRow, ...subSlice]
+                    : subSlice,
+                );
+              }
+            }
+            const totalChunks = chunks.length;
 
-            const maxRetries = 3;
-            let chunkSuccess = false;
+            totalRowsProcessed += totalRows;
+            const fileItems: ParsedItem[] = [];
 
-            for (let attempt = 0; attempt < maxRetries; attempt++) {
-              try {
-                const workspaceId = getWorkspaceId();
-                const response = await fetch("/api/ai/parse-packing-list", {
-                  method: "POST",
-                  headers: {
-                    "Content-Type": "application/json",
-                    ...(workspaceId ? { "x-workspace-id": workspaceId } : {}),
-                  },
-                  body: JSON.stringify({
-                    rows: chunks[i],
-                    containerId: id,
-                    chunkIndex: i,
-                    totalChunks,
-                  }),
-                });
+            for (let i = 0; i < chunks.length; i++) {
+              setAiProgress(
+                `${fileLabel}Procesando lote ${i + 1} de ${totalChunks} con IA (${fileItems.length} ítems)...`,
+              );
 
-                if (response.status === 429) {
-                  const retryAfter = parseInt(
-                    response.headers.get("retry-after") ?? "15",
-                    10,
-                  );
-                  const waitSec = Math.max(retryAfter, 10) * (attempt + 1);
-                  for (let sec = waitSec; sec > 0; sec--) {
-                    setAiProgress(
-                      `Límite de API alcanzado — reintentando lote ${i + 1} en ${sec}s...`,
+              const maxRetries = 3;
+              let chunkSuccess = false;
+
+              for (let attempt = 0; attempt < maxRetries; attempt++) {
+                try {
+                  const workspaceId = getWorkspaceId();
+                  const response = await fetch("/api/ai/parse-packing-list", {
+                    method: "POST",
+                    headers: {
+                      "Content-Type": "application/json",
+                      ...(workspaceId ? { "x-workspace-id": workspaceId } : {}),
+                    },
+                    body: JSON.stringify({
+                      rows: chunks[i],
+                      containerId: id,
+                      chunkIndex: i,
+                      totalChunks,
+                    }),
+                  });
+
+                  if (response.status === 429) {
+                    const retryAfter = parseInt(
+                      response.headers.get("retry-after") ?? "5",
+                      10,
                     );
-                    await new Promise((r) => setTimeout(r, 1000));
+                    const waitSec = Math.max(retryAfter, 4) * (attempt + 1);
+                    for (let sec = waitSec; sec > 0; sec--) {
+                      setAiProgress(
+                        `${fileLabel}Reintentando lote ${i + 1} en ${sec}s...`,
+                      );
+                      await new Promise((r) => setTimeout(r, 1000));
+                    }
+                    continue;
                   }
-                  continue;
-                }
 
-                if (!response.ok) {
-                  const contentType =
-                    response.headers.get("content-type") ?? "";
-                  let errorDetail: string;
-                  if (contentType.includes("application/json")) {
-                    const err = (await response.json()) as { error?: string };
-                    errorDetail = err.error ?? `HTTP ${response.status}`;
-                  } else {
-                    errorDetail =
-                      (await response.text()).slice(0, 200) ||
-                      `HTTP ${response.status}`;
+                  if (!response.ok) {
+                    if (attempt < maxRetries - 1) {
+                      await new Promise((r) =>
+                        setTimeout(r, 2000 * (attempt + 1)),
+                      );
+                      continue;
+                    }
+                    failedChunks.push(i);
+                    break;
                   }
-                  console.warn(
-                    `Chunk ${i + 1}/${totalChunks} failed: ${errorDetail}`,
-                  );
+
+                  const data = (await response.json()) as AIResponse;
+                  fileItems.push(...data.items);
+                  totalImagesExtracted += data.stats.imagesExtracted;
+                  totalImagesAnalyzed += data.stats.imagesAnalyzed;
+                  if (data.promptSource) lastPromptSource = data.promptSource;
+                  chunkSuccess = true;
+                  break;
+                } catch {
                   if (attempt < maxRetries - 1) {
                     await new Promise((r) =>
-                      setTimeout(r, 5000 * (attempt + 1)),
+                      setTimeout(r, 2000 * (attempt + 1)),
                     );
                     continue;
                   }
                   failedChunks.push(i);
-                  break;
                 }
+              }
 
-                const data = (await response.json()) as AIResponse;
-                allItems.push(...data.items);
-                lastStats = data.stats;
-                if (data.promptSource) lastPromptSource = data.promptSource;
-                chunkSuccess = true;
-                break;
-              } catch (chunkErr) {
-                console.warn(
-                  `Chunk ${i + 1}/${totalChunks} attempt ${attempt + 1} error:`,
-                  chunkErr,
-                );
-                if (attempt < maxRetries - 1) {
-                  await new Promise((r) => setTimeout(r, 5000 * (attempt + 1)));
-                  continue;
-                }
+              if (!chunkSuccess && !failedChunks.includes(i)) {
                 failedChunks.push(i);
               }
             }
 
-            if (!chunkSuccess && !failedChunks.includes(i)) {
-              failedChunks.push(i);
+            perFileBatches.push(fileItems);
+          } else {
+            if (file.size > 4 * 1024 * 1024) {
+              throw new Error(
+                `${file.name}: PDF demasiado grande (${(file.size / 1024 / 1024).toFixed(1)}MB). Máximo para PDF: 4MB.`,
+              );
             }
-          }
 
-          if (allItems.length === 0 && failedChunks.length > 0) {
-            throw new Error(
-              `Todos los ${totalChunks} lotes fallaron. Revise la conexión o intente de nuevo.`,
-            );
-          }
+            setAiProgress(`${fileLabel}Extrayendo ítems de ${file.name}...`);
+            const formData = new FormData();
+            formData.append("file", file);
+            formData.append("containerId", id);
 
-          const mergedStats: AIStats = lastStats ?? {
-            matched: 0,
-            review: 0,
-            newItems: 0,
-            highConfidence: 0,
-            mediumConfidence: 0,
-            lowConfidence: 0,
-            imagesExtracted: 0,
-            imagesAnalyzed: 0,
-          };
-          mergedStats.matched = allItems.filter(
-            (i) => i.match_type !== "no_match",
-          ).length;
-          mergedStats.newItems = allItems.filter(
-            (i) => i.match_type === "no_match",
-          ).length;
-          mergedStats.highConfidence = allItems.filter(
-            (i) => i.confidence >= 0.8,
-          ).length;
-          mergedStats.mediumConfidence = allItems.filter(
-            (i) => i.confidence >= 0.5 && i.confidence < 0.8,
-          ).length;
-          mergedStats.lowConfidence = allItems.filter(
-            (i) => i.confidence < 0.5,
-          ).length;
+            const workspaceId = getWorkspaceId();
+            const response = await fetch("/api/ai/parse-packing-list", {
+              method: "POST",
+              headers: workspaceId ? { "x-workspace-id": workspaceId } : {},
+              body: formData,
+            });
 
-          setParsedItems(allItems);
-          setAiStats(mergedStats);
-          setAiStatus("done");
-          setAiProgress(
-            `${allItems.length} items procesados de ${totalRows.toLocaleString()} filas (${totalChunks} lotes)` +
-              (failedChunks.length > 0
-                ? ` · ${failedChunks.length} lotes con incidencia`
-                : "") +
-              (lastPromptSource ? ` · Motor: ${lastPromptSource}` : ""),
-          );
-        } else {
-          if (file.size > 4 * 1024 * 1024) {
-            throw new Error(
-              `PDF demasiado grande (${(file.size / 1024 / 1024).toFixed(1)}MB). Máximo para PDF: 4MB. Para archivos más grandes, utilice formato Excel (.xlsx).`,
-            );
-          }
-
-          setAiProgress(`Subiendo ${file.name}...`);
-          const formData = new FormData();
-          formData.append("file", file);
-          formData.append("containerId", id);
-
-          const workspaceId = getWorkspaceId();
-          const response = await fetch("/api/ai/parse-packing-list", {
-            method: "POST",
-            headers: workspaceId ? { "x-workspace-id": workspaceId } : {},
-            body: formData,
-          });
-
-          if (!response.ok) {
-            let errorMessage: string;
-            const contentType = response.headers.get("content-type") ?? "";
-            if (contentType.includes("application/json")) {
-              const err = (await response.json()) as { error?: string };
-              errorMessage =
-                err.error ?? `Error del servidor (${response.status})`;
-            } else {
-              const text = await response.text();
-              errorMessage =
-                text.length > 200
-                  ? `Error del servidor (${response.status}): ${text.slice(0, 200)}…`
-                  : text || `Error del servidor (${response.status})`;
+            if (!response.ok) {
+              let errorMessage: string;
+              const contentType = response.headers.get("content-type") ?? "";
+              if (contentType.includes("application/json")) {
+                const err = (await response.json()) as { error?: string };
+                errorMessage =
+                  err.error ?? `Error del servidor (${response.status})`;
+              } else {
+                const text = await response.text();
+                errorMessage =
+                  text.length > 200
+                    ? `Error del servidor (${response.status}): ${text.slice(0, 200)}…`
+                    : text || `Error del servidor (${response.status})`;
+              }
+              throw new Error(errorMessage);
             }
-            throw new Error(errorMessage);
+
+            const data = (await response.json()) as AIResponse;
+            totalRowsProcessed += data.totalRows;
+            totalImagesExtracted += data.stats.imagesExtracted;
+            totalImagesAnalyzed += data.stats.imagesAnalyzed;
+            if (data.promptSource) lastPromptSource = data.promptSource;
+            perFileBatches.push(data.items);
           }
+        }
 
-          const data = (await response.json()) as AIResponse;
+        const { items: allItems, reconciledCosts } =
+          reconcileMultiDocumentItems(perFileBatches);
 
-          setParsedItems(data.items);
-          setAiStats(data.stats);
-          setAiStatus("done");
-          setAiProgress(
-            `${data.itemCount} items procesados de ${data.totalRows} filas · Motor: ${data.promptSource}`,
+        if (allItems.length === 0) {
+          throw new Error(
+            "No se detectaron ítems válidos en los archivos seleccionados.",
           );
         }
+
+        const mergedStats: AIStats = {
+          matched: allItems.filter(
+            (i) =>
+              i.match_type === "exact_sku" ||
+              (i.match_type === "name_similarity" && i.match_confidence >= 80),
+          ).length,
+          review: allItems.filter(
+            (i) =>
+              i.match_type === "name_similarity" && i.match_confidence < 80,
+          ).length,
+          newItems: allItems.filter(
+            (i) => i.match_type === "no_match" || i.match_type === "ai_only",
+          ).length,
+          highConfidence: allItems.filter((i) => i.confidence >= 90).length,
+          mediumConfidence: allItems.filter(
+            (i) => i.confidence >= 60 && i.confidence < 90,
+          ).length,
+          lowConfidence: allItems.filter((i) => i.confidence < 60).length,
+          imagesExtracted: totalImagesExtracted,
+          imagesAnalyzed: totalImagesAnalyzed,
+        };
+
+        setParsedItems(allItems);
+        setAiStats(mergedStats);
+        setAiStatus("done");
+        setAiProgress(
+          `${allItems.length} ítems extraídos de ${fileList.length} archivo(s) (${totalRowsProcessed.toLocaleString()} filas)` +
+            (reconciledCosts > 0
+              ? ` · ${reconciledCosts} costos FOB conciliados entre documentos`
+              : "") +
+            (failedChunks.length > 0
+              ? ` · ${failedChunks.length} lotes con incidencia`
+              : "") +
+            (lastPromptSource ? ` · Motor: ${lastPromptSource}` : ""),
+        );
       } catch (err) {
         setAiStatus("error");
         setAiError(err instanceof Error ? err.message : "Error desconocido");
@@ -419,18 +497,19 @@ export default function ContainerDetailPage() {
     (e: React.DragEvent) => {
       e.preventDefault();
       setDragActive(false);
-      const file = e.dataTransfer.files[0];
-      if (file) void handleFile(file);
+      const files = Array.from(e.dataTransfer.files);
+      if (files.length > 0) void handleFiles(files);
     },
-    [handleFile],
+    [handleFiles],
   );
 
   const handleInputChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (file) void handleFile(file);
+      const files = Array.from(e.target.files ?? []);
+      if (files.length > 0) void handleFiles(files);
+      e.target.value = "";
     },
-    [handleFile],
+    [handleFiles],
   );
 
   // ── Confirm Import ───────────────────────────────────
@@ -697,6 +776,7 @@ export default function ContainerDetailPage() {
               <input
                 ref={fileInputRef}
                 type="file"
+                multiple
                 accept={ACCEPTED_FORMATS}
                 onChange={handleInputChange}
                 className="hidden"
@@ -707,11 +787,12 @@ export default function ContainerDetailPage() {
                     <Icons.CloudUpload className="size-6" />
                   </div>
                   <p className="text-foreground text-sm font-medium">
-                    Arrastra el archivo de Packing List aquí o haz clic para
-                    seleccionar
+                    Arrastra uno o varios archivos aquí (Packing List + Factura
+                    Comercial) o haz clic para seleccionar
                   </p>
                   <p className="text-muted-foreground mt-1 text-xs">
-                    Soporta Excel (.xlsx / .xls) y PDF con desglose de ítems
+                    Sin plantilla obligatoria · Soporta lotes de Excel (.xlsx /
+                    .xls), CSV y PDF con cruce semántico RAG
                   </p>
                 </>
               )}

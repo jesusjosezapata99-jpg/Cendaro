@@ -93,6 +93,9 @@ export const PII_PATTERNS = {
   // Venezuela SENIAT RIF (hyphenated, unhyphenated, spaced, dotted — zero adjacent optional quantifiers)
   RIF_VE: /\b([JVGEPCjvgepc])\s*(?:[-.]\s*)?(\d{7,9})\s*(?:[-.]\s*)?(\d)\b/g,
 
+  // Venezuela Cédula de Identidad (6-8 digits with separator V-1234567 / E-654321, or 7-8 digits compact V1234567)
+  CEDULA_VE: /\b([VEve])\s*[-.]\s*(\d{6,8})\b|\b([VEve])(\d{7,8})\b/g,
+
   // Spain NIF / CIF / NIE (DNI 8+1 with optional dots/hyphen, K/L/M NIFs, CIF 1+7+1, NIE X/Y/Z+7/8+1)
   NIF_CIF_ES:
     /\b((?:\d{8}|\d{2}\.\d{3}\.\d{3})\s*(?:-\s*)?[A-Za-z]|[KLMXYZklmxyz]\s*(?:[-.]\s*)?\d{7,8}\s*(?:[-.]\s*)?[A-Za-z]|[A-HJ-NP-SUVWa-hj-np-suvw]\s*(?:[-.]\s*)?\d{7}\s*(?:[-.]\s*)?[0-9A-Ja-j])\b/g,
@@ -144,6 +147,21 @@ export function detectPiiEntities(text: string): DetectedPii[] {
       type: "rif_ve",
       raw,
       normalized: `${letter}-${body}-${check}`,
+      start: m.index,
+      end: m.index + raw.length,
+    });
+  }
+
+  // 1b. Venezuelan Cédula de Identidad (6-8 digits) -> vaulted under deterministic `rif_ve` HMAC
+  const cedulaRegex = new RegExp(PII_PATTERNS.CEDULA_VE.source, "gi");
+  while ((m = cedulaRegex.exec(text)) !== null) {
+    const raw = m[0];
+    const letter = (m[1] ?? m[3] ?? "V").toUpperCase();
+    const digits = m[2] ?? m[4] ?? "";
+    matches.push({
+      type: "rif_ve",
+      raw,
+      normalized: `${letter}-${digits}`,
       start: m.index,
       end: m.index + raw.length,
     });

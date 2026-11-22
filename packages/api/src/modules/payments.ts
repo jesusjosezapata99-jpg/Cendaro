@@ -438,32 +438,31 @@ export async function executeComputeDailyClosureTotals(
 ) {
   const { dateStr, startUtc, endUtc } = getCaracasDayBounds(closureDate);
 
-  const [salesAggRows, paymentsAggRows] = await Promise.all([
-    db
-      .select({
-        totalSales: sql<number>`coalesce(sum(${SalesOrder.total}), 0)`,
-      })
-      .from(SalesOrder)
-      .where(
-        and(
-          eq(SalesOrder.workspaceId, workspaceId),
-          sql`${SalesOrder.status} != 'cancelled'`,
-          sql`${SalesOrder.createdAt} >= ${startUtc} AND ${SalesOrder.createdAt} <= ${endUtc}`,
-        ),
+  const salesAggRows = await db
+    .select({
+      totalSales: sql<number>`coalesce(sum(${SalesOrder.total}), 0)`,
+    })
+    .from(SalesOrder)
+    .where(
+      and(
+        eq(SalesOrder.workspaceId, workspaceId),
+        sql`${SalesOrder.status} != 'cancelled'`,
+        sql`${SalesOrder.createdAt} >= ${startUtc} AND ${SalesOrder.createdAt} <= ${endUtc}`,
       ),
-    db
-      .select({
-        totalCash: sql<number>`coalesce(sum(${Payment.amount}) filter (where ${Payment.method} = 'cash'), 0)`,
-        totalDigital: sql<number>`coalesce(sum(${Payment.amount}) filter (where ${Payment.method} != 'cash'), 0)`,
-      })
-      .from(Payment)
-      .where(
-        and(
-          eq(Payment.workspaceId, workspaceId),
-          sql`${Payment.createdAt} >= ${startUtc} AND ${Payment.createdAt} <= ${endUtc}`,
-        ),
+    );
+
+  const paymentsAggRows = await db
+    .select({
+      totalCash: sql<number>`coalesce(sum(${Payment.amount}) filter (where ${Payment.method} = 'cash'), 0)`,
+      totalDigital: sql<number>`coalesce(sum(${Payment.amount}) filter (where ${Payment.method} != 'cash'), 0)`,
+    })
+    .from(Payment)
+    .where(
+      and(
+        eq(Payment.workspaceId, workspaceId),
+        sql`${Payment.createdAt} >= ${startUtc} AND ${Payment.createdAt} <= ${endUtc}`,
       ),
-  ]);
+    );
 
   const totalSales = roundMoney2(Number(salesAggRows[0]?.totalSales ?? 0));
   const totalCash = roundMoney2(Number(paymentsAggRows[0]?.totalCash ?? 0));

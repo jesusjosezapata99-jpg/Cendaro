@@ -1,15 +1,17 @@
 "use client";
 
 /**
- * Step 2 — File Upload
+ * Step 2 — Multi-File Zero-Template Inventory Upload
  *
- * Drag-and-drop upload zone with file validation.
- * PRD: FEATURE_PRD_INVENTORY_IMPORT.md §15, §20 (FileSelected → Parsing)
+ * Accepts 1..N files simultaneously (`.xlsx` multi-sheet, `.xls`, `.csv`, `.pdf`)
+ * with automatic header fingerprinting, Gemini Free-Tier schema inference, and
+ * optional official template download.
  */
 import { useCallback, useRef } from "react";
 
 import type { ImportMode } from "@cendaro/api";
 import { Icons } from "@cendaro/ui/icons";
+import { StatusPill } from "@cendaro/ui/status-pill";
 
 import {
   ACCEPTED_EXTENSIONS,
@@ -18,15 +20,21 @@ import {
 
 interface FileUploadProps {
   mode: ImportMode;
-  onFileSelect: (file: File) => void;
+  onFilesSelect: (files: File[]) => void;
   isParsing: boolean;
   error: string | null;
   onDownloadTemplate: () => void;
 }
 
+const MODE_LABELS: Record<ImportMode, string> = {
+  replace: "Reemplazar",
+  adjust: "Ajustar",
+  initialize: "Inicializar",
+};
+
 export function FileUpload({
   mode,
-  onFileSelect,
+  onFilesSelect,
   isParsing,
   error,
   onDownloadTemplate,
@@ -37,10 +45,12 @@ export function FileUpload({
     (e: React.DragEvent) => {
       e.preventDefault();
       e.stopPropagation();
-      const file = e.dataTransfer.files[0];
-      if (file) onFileSelect(file);
+      const dropped = Array.from(e.dataTransfer.files);
+      if (dropped.length > 0) {
+        onFilesSelect(dropped);
+      }
     },
-    [onFileSelect],
+    [onFilesSelect],
   );
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -50,10 +60,13 @@ export function FileUpload({
 
   const handleChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (file) onFileSelect(file);
+      const chosen = e.target.files ? Array.from(e.target.files) : [];
+      if (chosen.length > 0) {
+        onFilesSelect(chosen);
+      }
+      e.target.value = "";
     },
-    [onFileSelect],
+    [onFilesSelect],
   );
 
   const acceptStr = [...ACCEPTED_MIME_TYPES, ...ACCEPTED_EXTENSIONS].join(",");
@@ -61,14 +74,18 @@ export function FileUpload({
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <div className="text-center">
-        <h2 className="text-foreground text-xl font-medium">
-          Cargar Archivo de Inventario
-        </h2>
+        <div className="inline-flex items-center gap-2">
+          <h2 className="text-foreground text-xl font-medium">
+            Cargar Archivos de Inventario
+          </h2>
+          <StatusPill tone="info">Multi-Archivo + IA</StatusPill>
+        </div>
         <p className="text-muted-foreground mt-1 text-sm">
           Modo:{" "}
           <span className="text-foreground font-medium">
-            {mode === "replace" ? "Reemplazar" : "Ajustar"}
-          </span>
+            {MODE_LABELS[mode]}
+          </span>{" "}
+          — acepta plantillas propias, conteos físicos o PDFs
         </p>
       </div>
 
@@ -83,19 +100,25 @@ export function FileUpload({
       >
         {isParsing ? (
           <>
-            <div className="border-primary size-10 animate-spin rounded-full border-4 border-t-transparent" />
-            <p className="text-muted-foreground mt-4 text-sm font-medium">
-              Analizando archivo...
+            <div className="border-primary size-10 animate-spin border-2 border-t-transparent" />
+            <p className="text-foreground mt-4 text-sm font-medium">
+              Analizando archivos y detectando estructura...
+            </p>
+            <p className="text-muted-foreground mt-1 text-xs">
+              Aplicando huellas de formato e inferencia estructural segura
             </p>
           </>
         ) : (
           <>
-            <Icons.UploadFile className="text-muted-foreground group-hover:text-primary text-5xl transition-colors" />
+            <div className="bg-muted text-muted-foreground border-border group-hover:text-primary flex size-12 items-center justify-center border transition-colors">
+              <Icons.UploadFile className="size-6" />
+            </div>
             <p className="text-foreground mt-4 font-medium">
-              Arrastra un archivo aquí o haz clic para seleccionar
+              Arrastra uno o varios archivos aquí o haz clic para seleccionar
             </p>
             <p className="text-muted-foreground mt-1 text-xs">
-              Formatos aceptados: .xlsx, .xls, .csv — Máximo 10 MB, 10,000 filas
+              Formatos aceptados: .xlsx (multi-pestaña), .xls, .csv, .pdf —
+              hasta 12 archivos / 10,000 filas
             </p>
           </>
         )}
@@ -103,11 +126,12 @@ export function FileUpload({
         <input
           ref={inputRef}
           id="inventory-file-upload-input"
-          name="inventory-file"
+          name="inventory-files"
           type="file"
+          multiple
           accept={acceptStr}
           onChange={handleChange}
-          aria-label="Subir archivo de inventario"
+          aria-label="Subir archivos de inventario"
           className="hidden"
           disabled={isParsing}
         />
@@ -116,19 +140,29 @@ export function FileUpload({
       {/* Error message */}
       {error && (
         <div className="border-destructive/30 bg-destructive/10 text-destructive flex items-center gap-2 border px-4 py-3 text-sm">
-          <Icons.Error className="size-4.5" />
-          {error}
+          <Icons.Error className="size-4.5 shrink-0" />
+          <span>{error}</span>
         </div>
       )}
 
-      {/* Template download */}
-      <div className="text-center">
+      {/* Zero-Template capabilities + optional template download */}
+      <div className="border-border bg-card flex flex-wrap items-center justify-between gap-3 border p-4 text-xs">
+        <div className="text-muted-foreground space-y-0.5">
+          <p className="text-foreground font-medium">
+            ¿Tu conteo físico no tiene el SKU interno de Cendaro?
+          </p>
+          <p>
+            Puedes subir hojas con Nombre de producto o Código de barras +
+            Cantidad o Bultos; el motor RAG resolverá el SKU automáticamente.
+          </p>
+        </div>
         <button
+          type="button"
           onClick={onDownloadTemplate}
-          className="text-primary hover:text-primary/80 inline-flex items-center gap-1.5 text-sm font-medium transition-colors"
+          className="border-border bg-background text-foreground hover:bg-muted inline-flex h-8 shrink-0 items-center gap-1.5 border px-3 text-xs font-medium transition-colors"
         >
-          <Icons.Download className="size-4.5" />
-          Descargar plantilla de ejemplo
+          <Icons.Download className="size-3.5" />
+          Descargar plantilla (opcional)
         </button>
       </div>
     </div>

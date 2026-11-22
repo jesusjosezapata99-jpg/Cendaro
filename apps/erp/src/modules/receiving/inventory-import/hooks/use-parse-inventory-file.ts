@@ -1,34 +1,57 @@
 "use client";
 
 /**
- * Cendaro — Parse Inventory File Hook
+ * Cendaro — Zero-Template Multi-File & Multi-Sheet Inventory Parser Hook
  *
- * Client-side XLSX parsing + header detection.
- * Uses SheetJS with security-hardened options.
- *
- * PRD: FEATURE_PRD_INVENTORY_IMPORT.md §11, §17, §22
+ * Supports 1..N files across `.xlsx` (multi-sheet), `.xls`, `.csv`, and `.pdf`:
+ *   • Tier 0: Saved tenant `ImportTemplateProfile` lookup (`0 ms`, `0` tokens).
+ *   • Tier 1: Local standard header alias detection (`ES` / `EN` / `ZH`).
+ *   • Tier 2: Gemini Free-Tier schema inference (`targetDomain: "inventory"`) on top
+ *             25 sample rows + deterministic compilation.
+ *   • Multimodal PDF count-sheet extraction via `aiImport.extractDocumentItems`.
  */
 import { useCallback, useState } from "react";
+import { useMutation } from "@tanstack/react-query";
 import { read, utils } from "xlsx";
 
+import type {
+  ColumnIndexMapping,
+  ExtractedDocumentItem,
+  InferredTabularSchemaResult,
+  SaveTemplateProfileInput,
+} from "@cendaro/validators";
+import {
+  compileTabularRowsDeterministically,
+  computeHeaderFingerprint,
+  DEFAULT_IMPORT_SUMMARY_KEYWORDS,
+  isImportSummaryOrFooterRow,
+} from "@cendaro/validators";
+
+import { useTRPC } from "~/trpc/client";
 import { autoMapHeaders } from "../lib/inventory-header-aliases";
 import { MAX_ROW_COUNT, validateFile } from "../lib/inventory-validators";
 
-// ── Types ────────────────────────────────────────
+export interface InventoryAiSummary {
+  fileCount: number;
+  sheetCount: number;
+  templateProfileHits: number;
+  aiInferredSheets: number;
+  aliasMatchedSheets: number;
+  pdfFilesExtracted: number;
+  warnings: string[];
+}
 
 export interface ParseResult {
-  /** Parsed header row (original values) */
   headers: string[];
-  /** All data rows (excluding header) */
   dataRows: string[][];
-  /** Auto-detected header mapping: field → column index */
   headerMap: Record<string, number>;
-  /** Unmapped header names */
   unmapped: string[];
-  /** Sheet name that was parsed */
   sheetName: string;
-  /** Total rows including header */
   totalRows: number;
+  filenameLabel: string;
+  learnedProfilesToSave: SaveTemplateProfileInput[];
+  aiSummary: InventoryAiSummary;
+  isMultiSchemaBatch: boolean;
 }
 
 export interface ParseError {
@@ -37,176 +60,498 @@ export interface ParseError {
 }
 
 export interface UseParseInventoryFileReturn {
-  /** Parsed result (null until file is parsed) */
   result: ParseResult | null;
-  /** Parse error (null if no error) */
   error: ParseError | null;
-  /** Whether parsing is in progress */
   isParsing: boolean;
-  /** Parse a File object */
   parseFile: (file: File) => Promise<ParseResult | null>;
-  /** Reset state */
+  parseFiles: (files: File[]) => Promise<ParseResult | null>;
   reset: () => void;
 }
 
-// ── Smart Header Detection ──────────────────────
+const IGNORED_HELPER_SHEETS = new Set([
+  "instrucciones",
+  "instructions",
+  "leyenda",
+  "legend",
+  "referencia",
+  "valores validos",
+  "valores válidos",
+]);
 
-/**
- * Scan the first 20 rows looking for the first row that contains
- * ≥2 recognized column aliases. This automatically skips legend,
- * instruction, and separator rows.
- */
-function findHeaderRow(
-  rows: string[][],
-): { index: number; headers: string[] } | null {
+const SYNTHETIC_HEADERS = [
+  "SKU",
+  "Marca",
+  "Producto",
+  "Código de barras",
+  "Bultos",
+  "Cajas/Bulto",
+  "Unid/Caja",
+  "Cantidad",
+];
+
+const SYNTHETIC_HEADER_MAP: Record<string, number> = {
+  sku: 0,
+  marca: 1,
+  producto: 2,
+  barcode: 3,
+  bultos: 4,
+  cajasPerBulk: 5,
+  unidPerCaja: 6,
+  quantity: 7,
+};
+
+function isHelperSheet(name: string): boolean {
+  return IGNORED_HELPER_SHEETS.has(name.trim().toLowerCase());
+}
+
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  const chunkSize = 0x8000;
+  const parts: string[] = [];
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const slice = bytes.subarray(i, i + chunkSize);
+    parts.push(String.fromCharCode(...slice));
+  }
+  return btoa(parts.join(""));
+}
+
+function findLocalInventoryHeaderRow(rows: string[][]): {
+  index: number;
+  headers: string[];
+  map: Record<string, number>;
+  unmapped: string[];
+} | null {
   const maxScan = Math.min(rows.length, 20);
   for (let i = 0; i < maxScan; i++) {
     const row = rows[i];
     if (!row || row.length === 0) continue;
     const stringRow = row.map((cell) => String(cell));
-    const { map } = autoMapHeaders(stringRow);
-    // ≥2 recognized fields → this is the header row
-    if (Object.keys(map).length >= 2) {
-      return { index: i, headers: stringRow };
+    const { map, unmapped } = autoMapHeaders(stringRow);
+    const hasId = "sku" in map;
+    const hasCount =
+      "bultos" in map || "quantity" in map || "stockTotal" in map;
+    if (hasId && hasCount && Object.keys(map).length >= 2) {
+      return { index: i, headers: stringRow, map, unmapped };
     }
   }
   return null;
 }
 
-// ── Hook ─────────────────────────────────────────
+function toInventoryHeaderMap(
+  mapping: ColumnIndexMapping,
+): Record<string, number> {
+  const out: Record<string, number> = {};
+  if (mapping.sku !== undefined) out.sku = mapping.sku;
+  if (mapping.brand !== undefined) out.marca = mapping.brand;
+  if (mapping.name !== undefined) out.producto = mapping.name;
+  if (mapping.barcode !== undefined) out.barcode = mapping.barcode;
+  if (mapping.bultos !== undefined) out.bultos = mapping.bultos;
+  if (mapping.cajasPerBulk !== undefined)
+    out.cajasPerBulk = mapping.cajasPerBulk;
+  if (mapping.unidPerCaja !== undefined) out.unidPerCaja = mapping.unidPerCaja;
+  if (mapping.presentacion !== undefined)
+    out.presentacion = mapping.presentacion;
+  if (mapping.quantity !== undefined) out.quantity = mapping.quantity;
+  return out;
+}
+
+function itemToSyntheticRow(item: ExtractedDocumentItem): string[] {
+  const omitAmbiguousBultos =
+    item.bultos !== undefined &&
+    (item.unidPerCaja === null || item.unidPerCaja === undefined) &&
+    item.quantity > item.bultos;
+
+  return [
+    item.skuAutoGenerated ? "" : item.sku,
+    item.brandRaw ?? "",
+    item.name,
+    item.barcode ?? "",
+    !omitAmbiguousBultos && item.bultos !== undefined
+      ? String(item.bultos)
+      : "",
+    item.cajasPerBulk !== null && item.cajasPerBulk !== undefined
+      ? String(item.cajasPerBulk)
+      : "",
+    item.unidPerCaja !== null && item.unidPerCaja !== undefined
+      ? String(item.unidPerCaja)
+      : "",
+    String(item.quantity),
+  ];
+}
+
+function rawRowToSyntheticRow(
+  row: string[],
+  headerMap: Record<string, number>,
+): string[] {
+  const cell = (key: string): string => {
+    const idx = headerMap[key];
+    return idx !== undefined ? String(row[idx] ?? "").trim() : "";
+  };
+  return [
+    cell("sku"),
+    cell("marca"),
+    cell("producto"),
+    cell("barcode"),
+    cell("bultos"),
+    cell("cajasPerBulk"),
+    cell("unidPerCaja"),
+    cell("quantity") || cell("stockTotal"),
+  ];
+}
 
 export function useParseInventoryFile(): UseParseInventoryFileReturn {
+  const trpc = useTRPC();
   const [result, setResult] = useState<ParseResult | null>(null);
   const [error, setError] = useState<ParseError | null>(null);
   const [isParsing, setIsParsing] = useState(false);
 
-  const parseFile = useCallback(
-    async (file: File): Promise<ParseResult | null> => {
+  const inferSchemaMutation = useMutation(
+    trpc.aiImport.inferTabularSchema.mutationOptions(),
+  );
+  const extractDocMutation = useMutation(
+    trpc.aiImport.extractDocumentItems.mutationOptions(),
+  );
+
+  const parseFiles = useCallback(
+    async (files: File[]): Promise<ParseResult | null> => {
+      if (files.length === 0) return null;
+      if (files.length > 12) {
+        setError({
+          code: "TOO_MANY_FILES",
+          message: "Puedes subir hasta 12 archivos simultáneamente.",
+        });
+        return null;
+      }
+
       setIsParsing(true);
       setError(null);
       setResult(null);
 
       try {
-        // 1. File-level validation
-        const fileCheck = validateFile(file);
-        if (!fileCheck.valid) {
-          setError({
-            code: fileCheck.code ?? "UNKNOWN",
-            message: fileCheck.message ?? "Error desconocido",
+        for (const file of files) {
+          const check = validateFile(file);
+          if (!check.valid) {
+            setError({
+              code: check.code ?? "INVALID_FILE",
+              message: check.message ?? `Archivo inválido: ${file.name}`,
+            });
+            setIsParsing(false);
+            return null;
+          }
+        }
+
+        const aiSummary: InventoryAiSummary = {
+          fileCount: files.length,
+          sheetCount: 0,
+          templateProfileHits: 0,
+          aiInferredSheets: 0,
+          aliasMatchedSheets: 0,
+          pdfFilesExtracted: 0,
+          warnings: [],
+        };
+
+        const learnedProfilesMap = new Map<string, SaveTemplateProfileInput>();
+        const schemaCache = new Map<string, InferredTabularSchemaResult>();
+
+        interface SheetSlice {
+          label: string;
+          fingerprint: string;
+          headers: string[];
+          headerMap: Record<string, number>;
+          unmapped: string[];
+          rawDataRows: string[][];
+          syntheticRows: string[][];
+          isPdf: boolean;
+        }
+
+        const slices: SheetSlice[] = [];
+        let totalCollectedRows = 0;
+
+        for (const file of files) {
+          const lower = file.name.toLowerCase();
+
+          if (lower.endsWith(".pdf")) {
+            const buffer = await file.arrayBuffer();
+            const pdfBase64 = arrayBufferToBase64(buffer);
+            const extracted = await extractDocMutation.mutateAsync({
+              targetDomain: "inventory",
+              filename: file.name,
+              pdfBase64,
+            });
+
+            aiSummary.pdfFilesExtracted++;
+
+            const synRows: string[][] = [];
+            for (const item of extracted.items) {
+              if (totalCollectedRows >= MAX_ROW_COUNT) break;
+              synRows.push(itemToSyntheticRow(item));
+              totalCollectedRows++;
+            }
+
+            if (synRows.length > 0) {
+              slices.push({
+                label: `${file.name} (PDF)`,
+                fingerprint: `pdf:${file.name}`,
+                headers: SYNTHETIC_HEADERS,
+                headerMap: SYNTHETIC_HEADER_MAP,
+                unmapped: [],
+                rawDataRows: synRows,
+                syntheticRows: synRows,
+                isPdf: true,
+              });
+            }
+            continue;
+          }
+
+          const buffer = await file.arrayBuffer();
+          const workbook = read(buffer, {
+            type: "array",
+            cellFormula: false,
+            cellHTML: false,
+            cellStyles: false,
           });
-          setIsParsing(false);
-          return null;
+
+          const nonHelperNames = workbook.SheetNames.filter(
+            (sn) => !isHelperSheet(sn),
+          );
+          const sheetsToRead =
+            nonHelperNames.length > 0
+              ? nonHelperNames
+              : workbook.SheetNames.slice(0, 1);
+
+          for (const sheetName of sheetsToRead) {
+            const sheet = workbook.Sheets[sheetName];
+            if (!sheet) continue;
+
+            const rawRows = utils
+              .sheet_to_json<string[]>(sheet, {
+                header: 1,
+                defval: "",
+                blankrows: false,
+              })
+              .map((r) => r.map((c) => String(c)));
+
+            if (rawRows.length < 2) continue;
+            aiSummary.sheetCount++;
+
+            const localMatch = findLocalInventoryHeaderRow(rawRows);
+            if (localMatch) {
+              aiSummary.aliasMatchedSheets++;
+              const fp = computeHeaderFingerprint(localMatch.headers);
+              const dataRows = rawRows
+                .slice(localMatch.index + 1)
+                .filter(
+                  (r) =>
+                    !isImportSummaryOrFooterRow(
+                      r,
+                      DEFAULT_IMPORT_SUMMARY_KEYWORDS,
+                      localMatch.map.producto,
+                      localMatch.map.sku,
+                    ),
+                )
+                .slice(0, Math.max(0, MAX_ROW_COUNT - totalCollectedRows));
+              totalCollectedRows += dataRows.length;
+
+              slices.push({
+                label:
+                  files.length > 1 || sheetsToRead.length > 1
+                    ? `${file.name} · ${sheetName}`
+                    : sheetName,
+                fingerprint: fp,
+                headers: localMatch.headers,
+                headerMap: localMatch.map,
+                unmapped: localMatch.unmapped,
+                rawDataRows: dataRows,
+                syntheticRows: dataRows.map((r) =>
+                  rawRowToSyntheticRow(r, localMatch.map),
+                ),
+                isPdf: false,
+              });
+              continue;
+            }
+
+            // Zero-Template AI / Saved Fingerprint Resolution
+            const sampleRows = rawRows
+              .slice(0, 25)
+              .map((r) => r.slice(0, 50).map((c) => String(c).slice(0, 500)));
+            const provisionalFp = computeHeaderFingerprint(sampleRows[0] ?? []);
+            let inferred =
+              provisionalFp !== "0".repeat(64)
+                ? schemaCache.get(provisionalFp)
+                : undefined;
+
+            if (!inferred) {
+              inferred = await inferSchemaMutation.mutateAsync({
+                targetDomain: "inventory",
+                filename: file.name,
+                sheetName,
+                sampleRows,
+                totalRowCount: Math.min(50_000, rawRows.length),
+              });
+              if (inferred.headerFingerprint !== "0".repeat(64)) {
+                schemaCache.set(inferred.headerFingerprint, inferred);
+              }
+            }
+
+            if (inferred.source === "template_profile") {
+              aiSummary.templateProfileHits++;
+            } else if (
+              inferred.source === "gemini_ai" ||
+              inferred.source === "groq_fallback"
+            ) {
+              aiSummary.aiInferredSheets++;
+            } else {
+              aiSummary.aliasMatchedSheets++;
+            }
+
+            if (inferred.warnings.length > 0) {
+              aiSummary.warnings.push(...inferred.warnings);
+            }
+
+            if (
+              inferred.source !== "template_profile" &&
+              inferred.headerFingerprint !== "0".repeat(64) &&
+              Object.keys(inferred.columnMapping).length >= 1
+            ) {
+              learnedProfilesMap.set(inferred.headerFingerprint, {
+                targetDomain: "inventory",
+                profileName: `${file.name.replace(/\.[^.]+$/, "").slice(0, 80)} (${sheetName.slice(0, 32)})`,
+                supplierId: null,
+                headerFingerprint: inferred.headerFingerprint,
+                sampleHeaders: inferred.detectedHeaders
+                  .slice(0, 50)
+                  .map((h) => h.slice(0, 256)),
+                columnMapping: inferred.columnMapping,
+                transformRules: inferred.transformRules,
+              });
+            }
+
+            const mappedHeaderMap = toInventoryHeaderMap(
+              inferred.columnMapping,
+            );
+            const rawSlice = rawRows
+              .slice(inferred.headerRowIndex + 1)
+              .filter(
+                (r) =>
+                  !isImportSummaryOrFooterRow(
+                    r,
+                    inferred.ignoreSummaryKeywords,
+                    inferred.columnMapping.name,
+                    inferred.columnMapping.sku,
+                  ),
+              )
+              .slice(0, Math.max(0, MAX_ROW_COUNT - totalCollectedRows));
+            const compiled = compileTabularRowsDeterministically(
+              rawRows,
+              inferred,
+            ).slice(0, Math.max(0, MAX_ROW_COUNT - totalCollectedRows));
+
+            totalCollectedRows += rawSlice.length;
+
+            slices.push({
+              label:
+                files.length > 1 || sheetsToRead.length > 1
+                  ? `${file.name} · ${sheetName}`
+                  : sheetName,
+              fingerprint: inferred.headerFingerprint,
+              headers: inferred.detectedHeaders,
+              headerMap: mappedHeaderMap,
+              unmapped: inferred.unmappedHeaders,
+              rawDataRows: rawSlice,
+              syntheticRows: compiled.map(itemToSyntheticRow),
+              isPdf: false,
+            });
+          }
         }
 
-        // 2. Read file as ArrayBuffer
-        const buffer = await file.arrayBuffer();
-
-        // 3. Parse with security-hardened options (PRD §17)
-        const workbook = read(buffer, {
-          type: "array",
-          cellFormula: false, // Prevent formula injection
-          cellHTML: false,
-          cellStyles: false,
-        });
-
-        // 4. Extract first sheet
-        const sheetName = workbook.SheetNames[0];
-        if (!sheetName) {
-          setError({
-            code: "EMPTY_FILE",
-            message: "Archivo vacío — sin hojas",
-          });
-          setIsParsing(false);
-          return null;
-        }
-
-        const sheet = workbook.Sheets[sheetName];
-        if (!sheet) {
-          setError({ code: "EMPTY_FILE", message: "Hoja vacía" });
-          setIsParsing(false);
-          return null;
-        }
-
-        // 5. Convert to array-of-arrays (raw strings)
-        const rawRows = utils.sheet_to_json<string[]>(sheet, {
-          header: 1,
-          defval: "",
-          blankrows: false,
-        });
-
-        // 6. Validate row count
-        if (rawRows.length === 0) {
-          setError({ code: "EMPTY_FILE", message: "Archivo vacío" });
-          setIsParsing(false);
-          return null;
-        }
-
-        // 7. Smart header row detection — scan first 20 rows for
-        //    the first row containing ≥2 recognized column aliases.
-        //    This skips legend/instruction rows automatically.
-        const headerResult = findHeaderRow(rawRows);
-
-        if (!headerResult) {
-          setError({
-            code: "MISSING_HEADER",
-            message:
-              "No se encontró una fila de encabezados válida. Asegúrese de que la plantilla contenga columnas como Referencia, Bultos, etc.",
-          });
-          setIsParsing(false);
-          return null;
-        }
-
-        const { index: headerIndex, headers } = headerResult;
-        const dataRows = rawRows
-          .slice(headerIndex + 1)
-          .map((row) => row.map((cell) => String(cell)));
-
-        // No data rows after header (§21.2)
-        if (dataRows.length === 0) {
+        if (slices.length === 0) {
           setError({
             code: "NO_DATA",
-            message: "No se encontraron filas de datos después del encabezado",
+            message:
+              "No se encontraron filas de datos válidas en los archivos seleccionados.",
           });
           setIsParsing(false);
           return null;
         }
 
-        // Too many rows (FR-3)
-        if (dataRows.length > MAX_ROW_COUNT) {
+        const uniqueFps = new Set(slices.map((s) => s.fingerprint));
+        const isMultiSchemaBatch =
+          slices.length > 1 &&
+          (uniqueFps.size > 1 || slices.some((s) => s.isPdf));
+        const firstSlice = slices[0];
+        if (!firstSlice) {
           setError({
-            code: "TOO_MANY_ROWS",
-            message: `Archivo excede ${MAX_ROW_COUNT.toLocaleString()} filas`,
+            code: "NO_DATA",
+            message: "No se encontraron fuentes válidas.",
           });
           setIsParsing(false);
           return null;
         }
 
-        // 8. Auto-detect header mapping (autoMapHeaders normalizes internally)
-        const { map: headerMap, unmapped } = autoMapHeaders(headers);
+        const finalHeaders = isMultiSchemaBatch
+          ? SYNTHETIC_HEADERS
+          : firstSlice.headers;
+        const finalHeaderMap = isMultiSchemaBatch
+          ? SYNTHETIC_HEADER_MAP
+          : firstSlice.headerMap;
+        const finalUnmapped = isMultiSchemaBatch ? [] : firstSlice.unmapped;
+        const finalDataRows = isMultiSchemaBatch
+          ? slices.flatMap((s) => s.syntheticRows)
+          : slices.flatMap((s) => s.rawDataRows);
+
+        if (finalDataRows.length === 0) {
+          setError({
+            code: "NO_DATA",
+            message:
+              "No se encontraron filas de inventario tras el encabezado.",
+          });
+          setIsParsing(false);
+          return null;
+        }
+
+        const filenameLabel =
+          files.length === 1
+            ? (files[0]?.name ?? "import.xlsx")
+            : `${files[0]?.name ?? "lote"} (+${files.length - 1} archivos)`;
 
         const parseResult: ParseResult = {
-          headers,
-          dataRows,
-          headerMap,
-          unmapped,
-          sheetName,
-          totalRows: rawRows.length,
+          headers: finalHeaders,
+          dataRows: finalDataRows,
+          headerMap: finalHeaderMap,
+          unmapped: finalUnmapped,
+          sheetName:
+            slices.length > 1
+              ? `${files.length} archivo(s) · ${slices.length} fuente(s)`
+              : firstSlice.label,
+          totalRows: finalDataRows.length + 1,
+          filenameLabel: filenameLabel.slice(0, 255),
+          learnedProfilesToSave: Array.from(learnedProfilesMap.values()),
+          aiSummary,
+          isMultiSchemaBatch,
         };
 
         setResult(parseResult);
         setIsParsing(false);
         return parseResult;
-      } catch {
+      } catch (err) {
+        const message =
+          err instanceof Error && err.message
+            ? err.message
+            : "Error al analizar el archivo. Verifique que sea un Excel, CSV o PDF válido.";
         setError({
           code: "PARSE_ERROR",
-          message:
-            "Error al analizar el archivo. Verifique que sea un archivo Excel válido.",
+          message,
         });
         setIsParsing(false);
         return null;
       }
     },
-    [],
+    [extractDocMutation, inferSchemaMutation],
+  );
+
+  const parseFile = useCallback(
+    async (file: File): Promise<ParseResult | null> => parseFiles([file]),
+    [parseFiles],
   );
 
   const reset = useCallback(() => {
@@ -215,5 +560,5 @@ export function useParseInventoryFile(): UseParseInventoryFileReturn {
     setIsParsing(false);
   }, []);
 
-  return { result, error, isParsing, parseFile, reset };
+  return { result, error, isParsing, parseFile, parseFiles, reset };
 }

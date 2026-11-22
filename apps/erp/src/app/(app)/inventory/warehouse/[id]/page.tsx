@@ -21,20 +21,24 @@ export const instant = false;
  * initial stock input is { warehouseId: id, search: undefined } — the
  * undefined field is dropped from the cache hash, so keys match.
  */
-export default async function WarehouseDetailPage({
+export default function WarehouseDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  return (
+    <Suspense fallback={<DetailSkeleton />}>
+      <WarehouseDetailPrefetch params={params} />
+    </Suspense>
+  );
+}
+
+async function WarehouseDetailPrefetch({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  return (
-    <Suspense fallback={<DetailSkeleton />}>
-      <WarehouseDetailPrefetch id={id} />
-    </Suspense>
-  );
-}
-
-async function WarehouseDetailPrefetch({ id }: { id: string }) {
   const queryClient = getQueryClient();
 
   try {

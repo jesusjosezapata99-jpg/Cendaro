@@ -30,7 +30,11 @@ import {
   sanitizeDocumentStructuralContent,
   scanOutputDLP,
 } from "./guardrails";
-import { rehydrateChunksBatch, rehydrateMetadataBatch } from "./pii-vault";
+import {
+  rehydrateChunksBatch,
+  rehydrateMetadataBatch,
+  tokenizeAndVaultContent,
+} from "./pii-vault";
 
 // ──────────────────────────────────────────────
 // Types & Context Interfaces
@@ -461,20 +465,37 @@ export function sanitizeMetadata(
 // Vector Search Implementation
 // ──────────────────────────────────────────────
 
-/**
- * Executes a semantic vector similarity search using Drizzle ORM pgvector cosineDistance.
- */
-export async function searchRagChunks(
-  ctx: RagSearchContext,
-  input: RagSearchInput,
-): Promise<RagSearchResponse> {
-  const userRole = ctx.workspace.role;
-  const isManagement = MANAGEMENT_ROLES.has(userRole);
-  const userVendorId =
-    ctx.user.vendorId ?? (userRole === "vendor" ? ctx.user.id : undefined);
+const INCOTERM_OR_COST_KEYWORD_REGEX =
+  /\b(fob|cif|cfr|exw|ddp|dap|costo|unit\s*cost)\b/i;
 
-  // 0. Phase 3 Structural Normalization & Input Guardrail Evaluation
-  const sanitizedQuery = sanitizeDocumentStructuralContent(input.query).trim();
+export function buildSearchQuerySkipPiiSet(
+  query: string,
+): ReadonlySet<"fob_cost" | "fob_price" | "swift_bic"> {
+  if (INCOTERM_OR_COST_KEYWORD_REGEX.test(query)) {
+    return new Set<"fob_cost" | "fob_price" | "swift_bic">(["swift_bic"]);
+  }
+  return new Set<"fob_cost" | "fob_price" | "swift_bic">([
+    "fob_cost",
+    "fob_price",
+    "swift_bic",
+  ]);
+}
+
+/**
+ * Sanitizes, evaluates guardrails, and vaults PII (RIF/Cédula/NIF/RFC/EIN/IBAN/PAN + explicit FOB/CIF costs)
+ * BEFORE any external embedding HTTP call, keeping 8-char SKUs (`swift_bic`) and retail
+ * numeric filters untouched while guaranteeing 0% cleartext PII/FOB on the wire.
+ */
+export async function prepareSafeRagQueryEmbedding(
+  rawQuery: string,
+  workspaceId: string,
+  options?: { timeoutMs?: number },
+): Promise<{
+  sanitizedQuery: string;
+  maskedQuery: string;
+  queryEmbedding: number[];
+}> {
+  const sanitizedQuery = sanitizeDocumentStructuralContent(rawQuery).trim();
   if (sanitizedQuery.length === 0) {
     throw new RagGuardrailViolationError(
       "EMPTY_AFTER_STRUCTURAL_SANITIZATION",
@@ -491,8 +512,62 @@ export async function searchRagChunks(
     }
   }
 
-  // 1. Generate 1536-dimensional query embedding on structurally sanitized query
-  const queryEmbedding = await generateEmbedding(sanitizedQuery);
+  const { sanitizedContent: maskedQuery } = tokenizeAndVaultContent(
+    sanitizedQuery,
+    workspaceId,
+    "query-ephemeral",
+    { skipTypes: buildSearchQuerySkipPiiSet(sanitizedQuery) },
+  );
+
+  const queryEmbedding = await generateEmbedding(maskedQuery, {
+    timeoutMs: options?.timeoutMs,
+  });
+
+  return { sanitizedQuery, maskedQuery, queryEmbedding };
+}
+
+/**
+ * Executes a semantic vector similarity search using Drizzle ORM pgvector cosineDistance.
+ */
+export async function searchRagChunks(
+  ctx: RagSearchContext,
+  input: RagSearchInput,
+  options?: { precomputedEmbedding?: number[]; timeoutMs?: number },
+): Promise<RagSearchResponse> {
+  const userRole = ctx.workspace.role;
+  const isManagement = MANAGEMENT_ROLES.has(userRole);
+  const userVendorId =
+    ctx.user.vendorId ?? (userRole === "vendor" ? ctx.user.id : undefined);
+
+  let queryEmbedding: number[];
+  if (options?.precomputedEmbedding) {
+    const sanitizedQuery = sanitizeDocumentStructuralContent(
+      input.query,
+    ).trim();
+    if (sanitizedQuery.length === 0) {
+      throw new RagGuardrailViolationError(
+        "EMPTY_AFTER_STRUCTURAL_SANITIZATION",
+        1.0,
+      );
+    }
+    if (process.env.ENABLE_RAG_GUARDRAILS !== "false") {
+      const guardrailDecision = evaluateInputGuardrails(sanitizedQuery);
+      if (!guardrailDecision.passed) {
+        throw new RagGuardrailViolationError(
+          guardrailDecision.reason ?? "PROMPT_INJECTION_DETECTED",
+          guardrailDecision.score,
+        );
+      }
+    }
+    queryEmbedding = options.precomputedEmbedding;
+  } else {
+    const prepared = await prepareSafeRagQueryEmbedding(
+      input.query,
+      ctx.workspace.workspaceId,
+      { timeoutMs: options?.timeoutMs },
+    );
+    queryEmbedding = prepared.queryEmbedding;
+  }
 
   // 2. Build schema-qualified pgvector cosine distance expression (`extensions.<=>`)
   //    so HNSW index scans work regardless of connection `search_path`.
@@ -687,7 +762,7 @@ export async function searchRagChunks(
     const rehydratedDocNum = rehydratedDocNumbers[idx] ?? "";
     const safeDocNumber =
       row.documentNumber !== null
-        ? scanOutputDLP(rehydratedDocNum).sanitized || row.documentNumber
+        ? scanOutputDLP(rehydratedDocNum).sanitized.trim() || null
         : null;
 
     matchingResults.push({

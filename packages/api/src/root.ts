@@ -1,3 +1,4 @@
+import { aiImportRouter } from "./modules/ai-import";
 import { approvalsRouter } from "./modules/approvals";
 import { auditRouter } from "./modules/audit-router";
 import { catalogRouter } from "./modules/catalog";
@@ -29,6 +30,7 @@ export const appRouter = createTRPCRouter({
   approvals: approvalsRouter,
   catalog: catalogRouter,
   catalogImport: catalogImportRouter,
+  aiImport: aiImportRouter,
   inventory: inventoryRouter,
   inventoryImport: inventoryImportRouter,
   container: containerRouter,

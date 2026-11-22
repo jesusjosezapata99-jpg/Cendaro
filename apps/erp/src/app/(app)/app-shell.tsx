@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useState } from "react";
+import dynamic from "next/dynamic";
 
 import { Delayed } from "~/components/delayed";
 import { MfaBanner } from "~/components/mfa-banner";
@@ -10,6 +11,14 @@ import { MobileMenu } from "~/components/shell/mobile-menu";
 import { Rail } from "~/components/shell/rail";
 import { useCurrentUser } from "~/hooks/use-current-user";
 import { useWorkspace } from "~/hooks/use-workspace";
+
+const FloatingAiCopilot = dynamic(
+  () =>
+    import("~/components/copilot/floating-ai-copilot").then(
+      (m) => m.FloatingAiCopilot,
+    ),
+  { ssr: false },
+);
 
 function PageSkeleton() {
   return (
@@ -97,6 +106,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </main>
       </div>
       <GlobalSheets />
+      <FloatingAiCopilot />
     </div>
   );
 }

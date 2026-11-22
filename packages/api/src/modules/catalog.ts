@@ -36,6 +36,7 @@ import {
 } from "@cendaro/db/schema";
 import { can } from "@cendaro/validators";
 
+import { syncWorkspaceProductEmbeddings } from "../services/rag/product-matcher";
 import { assertInWorkspace } from "../services/workspace-guard";
 import {
   createTRPCRouter,
@@ -229,27 +230,29 @@ export const catalogRouter = createTRPCRouter({
 
       const where = conditions.length > 0 ? and(...conditions) : undefined;
 
-      const [rows, totalResult] = await Promise.all([
-        ctx.db
-          .select({
-            id: Product.id,
-            sku: Product.sku,
-            name: Product.name,
-            barcode: Product.barcode,
-            imageUrl: Product.imageUrl,
-            status: Product.status,
-            brandId: Product.brandId,
-            categoryId: Product.categoryId,
-            supplierId: Product.supplierId,
-            createdAt: Product.createdAt,
-          })
-          .from(Product)
-          .where(where)
-          .orderBy(orderByClause)
-          .limit(input.limit)
-          .offset(input.cursor ?? input.offset),
-        ctx.db.select({ total: count() }).from(Product).where(where),
-      ]);
+      const rows = await ctx.db
+        .select({
+          id: Product.id,
+          sku: Product.sku,
+          name: Product.name,
+          barcode: Product.barcode,
+          imageUrl: Product.imageUrl,
+          status: Product.status,
+          brandId: Product.brandId,
+          categoryId: Product.categoryId,
+          supplierId: Product.supplierId,
+          createdAt: Product.createdAt,
+        })
+        .from(Product)
+        .where(where)
+        .orderBy(orderByClause)
+        .limit(input.limit)
+        .offset(input.cursor ?? input.offset);
+
+      const totalResult = await ctx.db
+        .select({ total: count() })
+        .from(Product)
+        .where(where);
 
       const productIds = rows.map((r) => r.id).filter(Boolean);
       const priceMap = new Map<
@@ -373,39 +376,30 @@ export const catalogRouter = createTRPCRouter({
 
       if (!product) return null;
 
-      const [
-        attributes,
-        prices,
-        stockLedger,
-        channelAllocations,
-        uomEquivalences,
-        productSuppliers,
-      ] = await Promise.all([
-        ctx.db
-          .select()
-          .from(ProductAttribute)
-          .where(eq(ProductAttribute.productId, input.id)),
-        ctx.db
-          .select()
-          .from(ProductPrice)
-          .where(eq(ProductPrice.productId, input.id)),
-        ctx.db
-          .select()
-          .from(StockLedger)
-          .where(eq(StockLedger.productId, input.id)),
-        ctx.db
-          .select()
-          .from(ChannelAllocation)
-          .where(eq(ChannelAllocation.productId, input.id)),
-        ctx.db
-          .select()
-          .from(ProductUomEquivalence)
-          .where(eq(ProductUomEquivalence.productId, input.id)),
-        ctx.db
-          .select()
-          .from(ProductSupplier)
-          .where(eq(ProductSupplier.productId, input.id)),
-      ]);
+      const attributes = await ctx.db
+        .select()
+        .from(ProductAttribute)
+        .where(eq(ProductAttribute.productId, input.id));
+      const prices = await ctx.db
+        .select()
+        .from(ProductPrice)
+        .where(eq(ProductPrice.productId, input.id));
+      const stockLedger = await ctx.db
+        .select()
+        .from(StockLedger)
+        .where(eq(StockLedger.productId, input.id));
+      const channelAllocations = await ctx.db
+        .select()
+        .from(ChannelAllocation)
+        .where(eq(ChannelAllocation.productId, input.id));
+      const uomEquivalences = await ctx.db
+        .select()
+        .from(ProductUomEquivalence)
+        .where(eq(ProductUomEquivalence.productId, input.id));
+      const productSuppliers = await ctx.db
+        .select()
+        .from(ProductSupplier)
+        .where(eq(ProductSupplier.productId, input.id));
 
       // Redact confidential product cost average and supplier costs
       // from RSC streaming payloads and API responses unless caller has pricing:read
@@ -470,6 +464,17 @@ export const catalogRouter = createTRPCRouter({
         },
       });
 
+      if (product?.id) {
+        const pid = product.id;
+        ctx.afterCommit.push(async (poolDb) => {
+          await syncWorkspaceProductEmbeddings(
+            poolDb,
+            ctx.workspace.workspaceId,
+            { productIds: [pid], maxBatchLimit: 10 },
+          );
+        });
+      }
+
       return product;
     }),
 
@@ -512,6 +517,16 @@ export const catalogRouter = createTRPCRouter({
         entityId: id,
         newValue: updates,
       });
+
+      if (updated?.id) {
+        ctx.afterCommit.push(async (poolDb) => {
+          await syncWorkspaceProductEmbeddings(
+            poolDb,
+            ctx.workspace.workspaceId,
+            { productIds: [id], maxBatchLimit: 10 },
+          );
+        });
+      }
 
       return updated;
     }),

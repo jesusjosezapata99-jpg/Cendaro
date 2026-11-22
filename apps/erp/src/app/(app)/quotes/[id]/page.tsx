@@ -19,20 +19,24 @@ export const instant = false;
  * The client component reads the id via useParams(); the server prefetches
  * with the same input so the cache is warm on hydration.
  */
-export default async function QuoteDetailPage({
+export default function QuoteDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  return (
+    <Suspense fallback={<DetailSkeleton />}>
+      <QuoteDetailPrefetch params={params} />
+    </Suspense>
+  );
+}
+
+async function QuoteDetailPrefetch({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  return (
-    <Suspense fallback={<DetailSkeleton />}>
-      <QuoteDetailPrefetch id={id} />
-    </Suspense>
-  );
-}
-
-async function QuoteDetailPrefetch({ id }: { id: string }) {
   const queryClient = getQueryClient();
 
   try {

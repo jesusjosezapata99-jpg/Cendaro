@@ -256,26 +256,24 @@ export const inventoryRouter = createTRPCRouter({
   stockByProduct: wsReadPermissionProcedure("inventory", "read")
     .input(z.object({ productId: z.string().uuid() }))
     .query(async ({ ctx, input }) => {
-      const [ledger, channels] = await Promise.all([
-        ctx.db
-          .select()
-          .from(StockLedger)
-          .where(
-            and(
-              eq(StockLedger.productId, input.productId),
-              eq(StockLedger.workspaceId, ctx.workspace.workspaceId),
-            ),
+      const ledger = await ctx.db
+        .select()
+        .from(StockLedger)
+        .where(
+          and(
+            eq(StockLedger.productId, input.productId),
+            eq(StockLedger.workspaceId, ctx.workspace.workspaceId),
           ),
-        ctx.db
-          .select()
-          .from(ChannelAllocation)
-          .where(
-            and(
-              eq(ChannelAllocation.productId, input.productId),
-              eq(ChannelAllocation.workspaceId, ctx.workspace.workspaceId),
-            ),
+        );
+      const channels = await ctx.db
+        .select()
+        .from(ChannelAllocation)
+        .where(
+          and(
+            eq(ChannelAllocation.productId, input.productId),
+            eq(ChannelAllocation.workspaceId, ctx.workspace.workspaceId),
           ),
-      ]);
+        );
       return { ledger, channels };
     }),
 

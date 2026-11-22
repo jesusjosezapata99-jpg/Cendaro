@@ -23,6 +23,14 @@ interface Props {
   params: Promise<{ slug: string }>;
 }
 
+/**
+ * All valid feature slugs are statically prerendered via `generateStaticParams`,
+ * and `notFound()` runs before any `<Suspense>` boundary so unknown slugs return
+ * a real HTTP 404 status to search crawlers. Marketing links to `/funciones/[slug]`
+ * set `prefetch={true}` to preload the static CDN payload ahead of navigation.
+ */
+export const instant = false;
+
 /** The feature pages are prerendered at build (plan §4.1). */
 export function generateStaticParams(): { slug: string }[] {
   return FEATURE_SLUGS.map((slug) => ({ slug }));

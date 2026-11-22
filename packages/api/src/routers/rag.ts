@@ -28,6 +28,7 @@ import {
   MANAGEMENT_ROLES,
   persistPreparedIngest,
   prepareIngestPayload,
+  prepareSafeRagQueryEmbedding,
   RagGuardrailViolationError,
   redactConfidentialContent,
   rehydrateChunksBatch,
@@ -42,6 +43,7 @@ import {
   assertMfaCompliance,
   createTRPCRouter,
   runInWorkspaceRls,
+  runInWorkspaceRlsReadonly,
   wsPermissionProcedure,
   wsReadPermissionProcedure,
 } from "../trpc";
@@ -50,13 +52,35 @@ export const ragRouter = createTRPCRouter({
   /**
    * Semantic vector similarity search across commercial document chunks.
    * Gated by orders:read permission; applies RLS and role-based field redactions.
+   * Uses `deferRlsTransaction: true` so PII-vaulted embedding generation runs with
+   * 0 held Supavisor (:6543) connections before opening the short READ ONLY RLS tx.
    */
-  search: wsReadPermissionProcedure("orders", "read")
+  search: wsReadPermissionProcedure("orders", "read", {
+    deferRlsTransaction: true,
+  })
     .input(ragSearchInputSchema)
     .query(async ({ ctx, input }) => {
       const startedAt = Date.now();
       try {
-        const res = await searchRagChunks(ctx, input);
+        const { queryEmbedding } = await prepareSafeRagQueryEmbedding(
+          input.query,
+          ctx.workspace.workspaceId,
+        );
+        const canOpenReadonlyTx =
+          typeof (ctx.db as unknown as { transaction?: unknown })
+            .transaction === "function";
+        const res = canOpenReadonlyTx
+          ? await runInWorkspaceRlsReadonly(
+              ctx.db,
+              ctx.workspace.workspaceId,
+              (tx) =>
+                searchRagChunks({ ...ctx, db: tx }, input, {
+                  precomputedEmbedding: queryEmbedding,
+                }),
+            )
+          : await searchRagChunks(ctx, input, {
+              precomputedEmbedding: queryEmbedding,
+            });
         const latencyMs = Date.now() - startedAt;
         const retrievedChunkIds = res.results.map((r) => r.chunkId);
         const outputHash = sha256Hex(retrievedChunkIds.join(","));
@@ -382,7 +406,7 @@ export const ragRouter = createTRPCRouter({
         ...doc,
         documentNumber:
           doc.documentNumber !== null && rehydratedDocNum !== null
-            ? scanOutputDLP(rehydratedDocNum).sanitized || doc.documentNumber
+            ? scanOutputDLP(rehydratedDocNum).sanitized.trim() || null
             : doc.documentNumber,
         title:
           scanOutputDLP(titleForCaller).sanitized || "Documento sin título",
@@ -558,7 +582,7 @@ export const ragRouter = createTRPCRouter({
           ).sanitized || "Documento sin título";
         const safeDocNumber =
           doc.documentNumber !== null
-            ? scanOutputDLP(rehydratedNum).sanitized || doc.documentNumber
+            ? scanOutputDLP(rehydratedNum).sanitized.trim() || null
             : null;
         return !isManagement
           ? {

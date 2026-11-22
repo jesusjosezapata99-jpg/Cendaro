@@ -342,13 +342,17 @@ export function tokenizeAndVaultContent(
   content: string,
   workspaceId: string,
   documentId: string,
+  options?: { skipTypes?: ReadonlySet<string> },
 ): PiiTokenizationResult {
   const preCleaned = content.replace(
     FORGED_INPUT_SURROGATE_REGEX,
     "[TOKEN_EXTERNO_BLOQUEADO]",
   );
 
-  const entities = detectPiiEntities(preCleaned);
+  const detected = detectPiiEntities(preCleaned);
+  const entities = options?.skipTypes
+    ? detected.filter((e) => !options.skipTypes?.has(e.type))
+    : detected;
   if (entities.length === 0) {
     return { sanitizedContent: preCleaned, vaultEntries: [] };
   }

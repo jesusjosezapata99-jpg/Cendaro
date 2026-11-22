@@ -58,7 +58,11 @@ export function ModulesGrid() {
                     return (
                       <li key={m} className="border-border border-r border-b">
                         {slug ? (
-                          <Link href={featureHref(slug)} className={CELL_LINK}>
+                          <Link
+                            href={featureHref(slug)}
+                            prefetch={true}
+                            className={CELL_LINK}
+                          >
                             {cell}
                           </Link>
                         ) : (

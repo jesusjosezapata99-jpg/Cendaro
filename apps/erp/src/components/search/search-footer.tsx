@@ -5,16 +5,14 @@
  */
 function Kbd({ children }: { children: React.ReactNode }) {
   return (
-    <kbd className="bg-secondary rounded border px-1 py-0.5 font-mono">
-      {children}
-    </kbd>
+    <kbd className="bg-secondary border px-1 py-0.5 font-mono">{children}</kbd>
   );
 }
 
 export function SearchFooter() {
   return (
     <div className="border-border flex items-center justify-between border-t px-4 py-2">
-      <div className="text-muted-foreground/50 flex items-center gap-3 text-[10px]">
+      <div className="text-muted-foreground/50 flex flex-wrap items-center gap-3 text-[10px]">
         <span className="flex items-center gap-1">
           <Kbd>↑</Kbd>
           <Kbd>↓</Kbd>
